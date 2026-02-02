@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: cmport_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: cmport_gerenciamento
+      MYSQL_ROOT_PASSWORD: cmport2026
+      MYSQL_USER: cmport
+      MYSQL_PASSWORD: cmport123
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend:
+    build: ./backend
+    container_name: cmport_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+volumes:
+  db_data:
