@@ -1,99 +1,82 @@
 from fastapi import FastAPI
-import requests
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+from app.core.database import engine, Base
 
-# Suas chaves fixas (mantenha-as seguras)
-AUVO_API_TOKEN = "AUVO_TOKEN_REDACTED"
-AUVO_API_KEY = "AUVO_KEY_REDACTED"
+# Importar todos os routers
+from app.domains.condominios.router import router as condominios_router
+from app.domains.enderecos.router import router as enderecos_router
+from app.domains.contatos.router import router as contatos_router
+from app.domains.manutencoes_assistencias.router import router as servicos_router
+from app.domains.notas_fiscais.router import router as notas_router
 
-def get_auvo_access_token():
-    """Primeira etapa: Faz login para pegar o accessToken temporário"""
-    url_login = f"https://api.auvo.com.br/v2/login/?apiKey={AUVO_API_KEY}&apiToken={AUVO_API_TOKEN}"
-    
-    response = requests.get(url_login)
-    
-    if response.status_code == 200:
-        dados = response.json()
-        return dados.get("result", {}).get("accessToken")
-    else:
-        print(f"Erro no login: {response.text}")
-        return None
+# Criar tabelas no banco
+Base.metadata.create_all(bind=engine)
 
-@app.get("/sync-auvo")
-def sync_auvo_data():
-    # 1. Pega o token temporário (JWT)
-    access_token = get_auvo_access_token()
-    
-    if not access_token:
-        return {"status": "erro", "detalhes": "Não foi possível autenticar no Auvo"}
+app = FastAPI(
+    title="CMPort - Sistema de Gestão",
+    description="API para gerenciamento de condominios, manutenções e assistências",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
-    # 2. Usa o accessToken no Header para buscar equipamentos
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Em produção, especifique os domínios permitidos
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Registrar rotas
+app.include_router(
+    condominios_router,
+    prefix="/api/v1/condominios",
+    tags=["Condominios"]
+)
+
+app.include_router(
+    enderecos_router,
+    prefix="/api/v1/enderecos",
+    tags=["Endereços"]
+)
+
+app.include_router(
+    contatos_router,
+    prefix="/api/v1/contatos",
+    tags=["Contatos"]
+)
+
+app.include_router(
+    servicos_router,
+    prefix="/api/v1/servicos",
+    tags=["Manutenções e Assistências"]
+)
+
+app.include_router(
+    notas_router, 
+    prefix="/api/v1/notas-fiscais", 
+    tags=["Notas Fiscais"]
+)
+
+
+@app.get("/", tags=["Root"])
+def root():
+    """Endpoint raiz"""
+    return {
+        "app": "CMPort - Sistema de Gestão",
+        "version": "1.0.0",
+        "status": "online",
+        "docs": "/docs"
     }
-    
-    url_equipments = "https://api.auvo.com.br/v2/equipments/?page=1&pageSize=10&order=asc"
-    
-    try:
-        response = requests.get(url_equipments, headers=headers)
-        
-        if response.status_code == 200:
-            dados = response.json()
-            # Pega a lista de equipamentos dentro da estrutura da resposta
-            lista = dados.get("result", {}).get("entityList", [])
-            
-            return {
-                "status": "sucesso",
-                "total_itens": len(lista),
-                "equipamentos": lista
-            }
-        
-        return {"status": "erro", "codigo": response.status_code, "detalhes": response.text}
-
-    except Exception as e:
-        return {"status": "erro de conexao", "detalhes": str(e)}
 
 
-def get_condominios(access_token: str, client_group_id: int):
-    url = "https://api.auvo.com.br/v2/customers/"
-    
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
+@app.get("/health", tags=["Health"])
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "database": "connected"
     }
-
-    params = {
-        "clientGroupId": client_group_id,
-        "page": 1,
-        "pageSize": 50,
-        "order": "asc"
-    }
-
-    response = requests.get(url, headers=headers, params=params)
-    response.raise_for_status()
-
-    return response.json()["result"]["entityList"]
-
-@app.get("/condominios/{client_group_id}")
-def listar_condominios(client_group_id: int):
-    access_token = get_auvo_access_token()
-
-    if not access_token:
-        return {"status": "erro", "detalhes": "Falha ao autenticar no AUVO"}
-
-    try:
-        condominios = get_condominios(
-            access_token=access_token,
-            client_group_id=client_group_id
-        )
-
-        return {
-            "status": "sucesso",
-            "total": len(condominios),
-            "condominios": condominios
-        }
-
-    except Exception as e:
-        return {"status": "erro", "detalhes": str(e)}

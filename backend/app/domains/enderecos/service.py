@@ -1,0 +1,25 @@
+from sqlalchemy.orm import Session
+from typing import Optional
+from .repository import EnderecoRepository
+from .schema import EnderecoCreate, EnderecoUpdate
+
+class EnderecoService:
+    @staticmethod
+    def create_endereco(db: Session, endereco: EnderecoCreate):
+        # Verifica se já existe endereço para este condomínio (devido ao 1:1)
+        existente = EnderecoRepository.get_by_condominio(db, endereco.condominio_id)
+        if existente:
+            return EnderecoRepository.update(db, existente, endereco.model_dump(exclude_unset=True))
+        
+        return EnderecoRepository.create(db, endereco.model_dump())
+
+    @staticmethod
+    def get_endereco_by_condominio(db: Session, condominio_id: int):
+        return EnderecoRepository.get_by_condominio(db, condominio_id)
+
+    @staticmethod
+    def update_endereco(db: Session, endereco_id: int, endereco_update: EnderecoUpdate):
+        db_endereco = EnderecoRepository.get_by_id(db, endereco_id)
+        if not db_endereco:
+            return None
+        return EnderecoRepository.update(db, db_endereco, endereco_update.model_dump(exclude_unset=True))
