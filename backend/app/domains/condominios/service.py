@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.domains.condominios.repository import CondominioRepository
-from app.domains.condominios.schema import CondominioCreate, CondominioUpdate, CondominioResponse
+from app.domains.condominios.schema import CondominioCreate, CondominioUpdate, CondominioResponse, CondominioFullResponse
 from app.domains.condominios.model import Condominio
 
 
@@ -59,3 +59,13 @@ class CondominioService:
         """Busca condomínios por nome"""
         condominios = CondominioRepository.search_by_name(db, nome)
         return [CondominioResponse.model_validate(c) for c in condominios]
+    
+    @staticmethod
+    def get_condominio_full(db: Session, condominio_id: int) -> Optional[CondominioFullResponse]:
+        """Busca os detalhes completos de um condomínio"""
+        db_condominio = CondominioRepository.get_by_id_full(db, condominio_id)
+        
+        if not db_condominio:
+            return None
+        
+        return CondominioFullResponse.model_validate(db_condominio)

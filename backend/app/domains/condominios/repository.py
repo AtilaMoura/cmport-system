@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 
 from app.domains.condominios.model import Condominio
@@ -89,3 +89,14 @@ class CondominioRepository:
         db.commit()
         db.refresh(db_condominio)
         return db_condominio
+    
+    @staticmethod
+    def get_by_id_full(db: Session, condominio_id: int) -> Optional[Condominio]:
+        """Busca condomínio por ID trazendo Endereço e Contatos num único JOIN"""
+        return db.query(Condominio)\
+            .options(
+                joinedload(Condominio.endereco),
+                joinedload(Condominio.contatos)
+            )\
+            .filter(Condominio.id == condominio_id)\
+            .first()

@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
+from app.domains.enderecos.schema import EnderecoResponse 
+from app.domains.contatos.schema import ContatoResponse
 
 
 # Schema para criação
@@ -33,5 +35,12 @@ class CondominioResponse(BaseModel):
     ativo: bool
     criado_em: datetime
     atualizado_em: datetime
+
+    model_config = {"from_attributes": True}
+
+class CondominioFullResponse(CondominioResponse):
+    """Schema que inclui os relacionamentos carregados"""
+    endereco: Optional[EnderecoResponse] = None
+    contatos: List[ContatoResponse] = []
 
     model_config = {"from_attributes": True}

@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from app.core.database import SessionLocal
 from app.domains.condominios.service import CondominioService
-from app.domains.condominios.schema import CondominioCreate, CondominioUpdate, CondominioResponse
+from app.domains.condominios.schema import CondominioCreate, CondominioUpdate, CondominioResponse, CondominioFullResponse
 
 
 router = APIRouter()
@@ -53,13 +53,13 @@ def search_condominios(
     return CondominioService.search_condominios(db, nome)
 
 
-@router.get("/{condominio_id}", response_model=CondominioResponse)
+@router.get("/{condominio_id}", response_model=CondominioFullResponse) # Alterado o response_model
 def get_condominio(
     condominio_id: int,
     db: Session = Depends(get_db)
 ):
-    """Busca um condomínio por ID"""
-    condominio = CondominioService.get_condominio(db, condominio_id)
+    """Busca um condomínio por ID com todos os seus detalhes (Endereço e Contatos)"""
+    condominio = CondominioService.get_condominio_full(db, condominio_id)
     
     if not condominio:
         raise HTTPException(status_code=404, detail="Condomínio não encontrado")
