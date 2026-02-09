@@ -1,64 +1,280 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { api } from '@/lib/api';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-// 1. Função isolada para buscar os dados (fora do componente)
 async function getCondominio(id: string) {
   try {
     const response = await api.get(`/condominios/${id}`);
     return response.data;
   } catch (error) {
-    console.error("Erro ao buscar condomínio:", error);
     return null;
   }
 }
 
-// 2. O Componente principal fica limpo e sem o try/catch direto no JSX
-export default async function DetalhesCondominio({ 
-  params 
-}: { 
-  params: Promise<{ id: string }> 
-}) {
+export default async function DetalhesCondominio({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const condo = await getCondominio(id);
 
-  // Se não encontrar o condomínio, redireciona para página 404
-  if (!condo) {
-    notFound();
-  }
+  if (!condo) notFound();
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <Link href="/condominios" className="text-brand hover:underline mb-4 inline-block">
-        ← Voltar para lista
-      </Link>
-      
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-sm">
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <h1 className="text-4xl font-black text-slate-900 dark:text-white">{condo.nome}</h1>
-            <p className="text-slate-500">{condo.razao_social || 'Razão social não informada'}</p>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      {/* Header */}
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-8 py-6">
+          <div className="flex items-center justify-between">
+            <Link
+              href="/condominios"
+              className="inline-flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-semibold transition-colors group"
+            >
+              <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Voltar para lista
+            </Link>
+
+            <div className="flex gap-3">
+              <Link
+                href={`/condominios/${id}/editar`}
+                className="px-5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all active:scale-95"
+              >
+                Editar Cadastro
+              </Link>
+              <button className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition-colors">
+                Desativar
+              </button>
+            </div>
           </div>
-          <span className={`px-4 py-1 rounded-full text-sm font-bold ${condo.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {condo.ativo ? 'ATIVO' : 'INATIVO'}
-          </span>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-8 py-8">
+        {/* Hero Card */}
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl p-8 mb-8 shadow-2xl shadow-blue-500/20 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24" />
+
+          <div className="relative">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
+                  <span className="text-3xl">🏢</span>
+                </div>
+                <div>
+                  <h1 className="text-4xl font-black mb-2 tracking-tight">
+                    {condo.nome}
+                  </h1>
+                  <p className="text-blue-100 text-lg font-medium">
+                    {condo.razao_social || 'Sem razão social cadastrada'}
+                  </p>
+                </div>
+              </div>
+
+              <span className={`
+                px-4 py-2 rounded-full text-sm font-bold shadow-lg
+                ${condo.ativo
+                  ? 'bg-green-500 text-white'
+                  : 'bg-red-500 text-white'
+                }
+              `}>
+                {condo.ativo ? '✓ ATIVO' : '⊘ INATIVO'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-6">
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+                <p className="text-blue-100 text-sm font-semibold mb-1">CNPJ</p>
+                <p className="font-mono text-lg font-bold">
+                  {condo.cnpj || 'Não informado'}
+                </p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+                <p className="text-blue-100 text-sm font-semibold mb-1">ID do Sistema</p>
+                <p className="font-mono text-lg font-bold">
+                  #{condo.id.toString().padStart(6, '0')}
+                </p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+                <p className="text-blue-100 text-sm font-semibold mb-1">Cadastrado em</p>
+                <p className="text-lg font-bold">
+                  {new Date().toLocaleDateString('pt-BR')}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-100 dark:border-slate-800 pt-8">
-          <div>
-            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-widest mb-4">Documentação</h3>
-            <p className="text-sm font-medium">CNPJ</p>
-            <p className="font-mono text-slate-600 dark:text-slate-300">{condo.cnpj || '---'}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Endereço */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="text-xl">📍</span>
+                  Endereço Completo
+                </h2>
+              </div>
+              <div className="p-6">
+                <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-4">
+                  {condo.endereco?.rua || 'Endereço não informado'}
+                </p>
+
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-2">
+                    <span className="font-semibold">Coordenadas GPS:</span>
+                    <span className="font-mono">{condo.endereco?.latitude}, {condo.endereco?.longitude}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 italic">
+                    🗺️ Integração com Google Maps em breve
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Observações */}
+            {condo.observacao && (
+              <div className="bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-900/50 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 bg-amber-100 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-900/50">
+                  <h2 className="font-bold text-lg text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                    <span className="text-xl">📝</span>
+                    Observações Importantes
+                  </h2>
+                </div>
+                <div className="p-6">
+                  <p className="text-amber-900 dark:text-amber-100 leading-relaxed">
+                    {condo.observacao}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Tabs Section */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                <button className="px-6 py-4 text-sm font-bold border-b-2 border-blue-600 text-blue-600 bg-white dark:bg-slate-900 flex items-center gap-2">
+                  <span className="text-lg">📋</span>
+                  Contatos
+                </button>
+                <button className="px-6 py-4 text-sm font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors flex items-center gap-2">
+                  <span className="text-lg">🛠️</span>
+                  Manutenções
+                </button>
+                <button className="px-6 py-4 text-sm font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors flex items-center gap-2">
+                  <span className="text-lg">📄</span>
+                  Notas Fiscais
+                </button>
+              </div>
+
+              <div className="p-6">
+                {condo.contatos && condo.contatos.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {condo.contatos.map((contato: any) => (
+                      <div
+                        key={contato.id}
+                        className="p-4 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all bg-slate-50 dark:bg-slate-800/50"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-lg flex items-center justify-center">
+                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                {contato.nome.substring(0, 2).toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="font-bold text-slate-900 dark:text-white">
+                              {contato.nome}
+                            </p>
+                          </div>
+                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold rounded-md">
+                            {contato.funcao}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <span>📞</span>
+                            <span className="font-medium">{contato.telefone || 'Sem telefone'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <span>📧</span>
+                            <span className="font-medium truncate">{contato.email || 'Sem email'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full">
+                      <span className="text-3xl">👥</span>
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                      Nenhum contato cadastrado
+                    </h3>
+                    <p className="text-slate-500 dark:text-slate-400 mb-4">
+                      Adicione contatos para facilitar a comunicação
+                    </p>
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors">
+                      Adicionar Contato
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          
-          <div>
-            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-widest mb-4">Observações</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-300 italic">
-              {condo.observacao || 'Nenhuma observação cadastrada.'}
-            </p>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Ações Rápidas */}
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 shadow-xl shadow-blue-500/20 text-white">
+              <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                <span className="text-xl">⚡</span>
+                Ações Rápidas
+              </h3>
+              <div className="space-y-3">
+                <button className="w-full py-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl text-sm font-bold transition-all hover:scale-105 shadow-lg flex items-center justify-center gap-2">
+                  <span>📄</span>
+                  Gerar Nota Fiscal
+                </button>
+                <button className="w-full py-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl text-sm font-bold transition-all hover:scale-105 shadow-lg flex items-center justify-center gap-2">
+                  <span>🛠️</span>
+                  Nova Manutenção
+                </button>
+                <button className="w-full py-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl text-sm font-bold transition-all hover:scale-105 shadow-lg flex items-center justify-center gap-2">
+                  <span>👥</span>
+                  Adicionar Contato
+                </button>
+              </div>
+            </div>
+
+            {/* Estatísticas */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="text-xl">📊</span>
+                  Estatísticas
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-600 dark:text-slate-400">Contatos</span>
+                  <span className="font-bold text-lg text-slate-900 dark:text-white">
+                    {condo.contatos?.length || 0}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-600 dark:text-slate-400">Manutenções</span>
+                  <span className="font-bold text-lg text-slate-900 dark:text-white">0</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-600 dark:text-slate-400">Notas Fiscais</span>
+                  <span className="font-bold text-lg text-slate-900 dark:text-white">0</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

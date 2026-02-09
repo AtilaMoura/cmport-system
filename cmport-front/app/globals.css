@@ -1,29 +1,29 @@
 @import "tailwindcss";
 
 @theme {
-  /* Renomeado para 'brand' para funcionar com sua Sidebar.tsx */
-  --color-brand: #3b82f6; 
-  --color-brand-light: #60a5fa;
-  --color-brand-dark: #1d4ed8;
+  /* Cores extraídas do logo CMPort */
+  --color-brand: #1e3a5f;        /* Azul Marinho do Leão/Coroa */
+  --color-brand-light: #2c5282;  /* Azul intermediário para hover */
+  --color-slate-950: #0a0f1a;    /* Fundo Dark mais profundo */
 }
 
-/* Força o Tailwind v4 a reconhecer a classe .dark injetada pelo Provider */
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-}
-
-.dark {
-  --background: #020617;
-  --foreground: #f8fafc;
-}
-
 @layer base {
+  :root {
+    --background: #f8fafc;       /* Cinza claríssimo (fundo do logo) */
+    --foreground: #1e293b;
+  }
+
+  .dark {
+    --background: #020617;
+    --foreground: #f1f5f9;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
-    transition: background-color 0.3s, color 0.3s;
+    /* Suavizando a renderização das fontes */
+    -webkit-font-smoothing: antialiased;
   }
 }
