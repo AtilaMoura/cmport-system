@@ -14,7 +14,13 @@ interface Contato {
 }
 
 interface Endereco {
+  cep: string;
   rua: string;
+  numero: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  complemento: string;
   latitude: number | null;
   longitude: number | null;
 }
@@ -32,6 +38,7 @@ interface FormData {
 function FormNovoCondominio() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [searchingCep, setSearchingCep] = useState(false);
   const [error, setError] = useState('');
   
   const [formData, setFormData] = useState<FormData>({
@@ -41,7 +48,13 @@ function FormNovoCondominio() {
     ativo: true,
     observacao: '',
     endereco: {
+      cep: '',
       rua: '',
+      numero: '',
+      bairro: '',
+      cidade: '',
+      estado: '',
+      complemento: '',
       latitude: null,
       longitude: null
     },
@@ -49,6 +62,64 @@ function FormNovoCondominio() {
       { nome: '', telefone: '', email: '', funcao: 'Síndico', principal: true }
     ]
   });
+
+  const fetchCoordinates = async (logradouro: string, cidade: string) => {
+    try {
+      const query = encodeURIComponent(`${logradouro}, ${cidade}, Brasil`);
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+      const data = await response.json();
+      console.log(data)
+      if (data && data.length > 0) {
+        setFormData(prev => ({
+          ...prev,
+          endereco: {
+            ...prev.endereco,
+            latitude: data[0].lat,
+            longitude: data[0].lon
+          }
+        }));
+      }
+    } catch (err) {
+      console.error("Erro ao obter coordenadas:", err);
+    }
+  };
+
+  // Função para buscar endereço via CEP
+  const handleCepBlur = async () => {
+    const cleanCep = formData.endereco.cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return;
+
+    setSearchingCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      
+      if (!data.erro) {
+        setFormData(prev => ({
+          ...prev,
+          endereco: {
+            ...prev.endereco,
+            rua: data.logradouro,
+            bairro: data.bairro,
+            cidade: data.localidade,
+            estado: data.uf,
+            complemento: data.complemento || ''
+          }
+        }));
+        setError('');
+
+        fetchCoordinates(data.logradouro, data.localidade);
+      } else {
+        setError('CEP não encontrado.');
+      }
+
+    } catch (err) {
+      console.error('Erro ao buscar CEP:', err);
+      setError('Erro ao buscar o CEP.');
+    } finally {
+      setSearchingCep(false);
+    }
+  };
 
   const addContato = () => {
     setFormData({
@@ -85,13 +156,18 @@ function FormNovoCondominio() {
       });
 
       const condominioId = condominioResponse.data.id;
-      console.log(condominioResponse)
 
-      // 2. Criar endereço se preenchido
-      if (formData.endereco.rua) {
+      // 2. Criar endereço se CEP ou rua estiverem preenchidos
+      if (formData.endereco.cep || formData.endereco.rua) {
         await api.post('/enderecos/', {
           condominio_id: condominioId,
-          rua: formData.endereco.rua,
+          cep: formData.endereco.cep || null,
+          rua: formData.endereco.rua || null,
+          numero: formData.endereco.numero || null,
+          bairro: formData.endereco.bairro || null,
+          cidade: formData.endereco.cidade || null,
+          estado: formData.endereco.estado || null,
+          complemento: formData.endereco.complemento || null,
           latitude: formData.endereco.latitude,
           longitude: formData.endereco.longitude
         });
@@ -103,7 +179,7 @@ function FormNovoCondominio() {
           await api.post('/contatos/', {
             condominio_id: condominioId,
             nome: contato.nome,
-            telefone: contato.telefone,
+            telefone: contato.telefone || null,
             email: contato.email || null,
             funcao: contato.funcao,
             principal: contato.principal
@@ -199,17 +275,93 @@ function FormNovoCondominio() {
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600/10 text-blue-600 text-xs font-black">02</span>
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight">Localização</h3>
         </div>
-        <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Endereço Completo</label>
-          <input 
-            placeholder="Rua, Número, Bairro, Cidade - UF"
-            className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 ring-blue-600/20 outline-none transition-all"
-            value={formData.endereco.rua}
-            onChange={(e) => setFormData({
-              ...formData, 
-              endereco: { ...formData.endereco, rua: e.target.value }
-            })}
-          />
+
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          {/* CEP */}
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">CEP</label>
+            <div className="relative">
+              <input 
+                placeholder="00000-000"
+                className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono focus:ring-2 ring-blue-600/20 outline-none transition-all"
+                value={formData.endereco.cep}
+                onChange={e => setFormData({...formData, endereco: {...formData.endereco, cep: e.target.value}})}
+                onBlur={handleCepBlur}
+              />
+              {searchingCep && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Logradouro */}
+          <div className="md:col-span-3 space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Logradouro (Rua)</label>
+            <input 
+              placeholder="Nome da rua"
+              className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 ring-blue-600/20 outline-none transition-all"
+              value={formData.endereco.rua}
+              onChange={e => setFormData({...formData, endereco: {...formData.endereco, rua: e.target.value}})}
+            />
+          </div>
+
+          {/* Número */}
+          <div className="md:col-span-1 space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Nº</label>
+            <input 
+              placeholder="123"
+              className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center focus:ring-2 ring-blue-600/20 outline-none transition-all"
+              value={formData.endereco.numero}
+              onChange={e => setFormData({...formData, endereco: {...formData.endereco, numero: e.target.value}})}
+            />
+          </div>
+
+          {/* Bairro */}
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Bairro</label>
+            <input 
+              placeholder="Nome do bairro"
+              className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 ring-blue-600/20 outline-none transition-all"
+              value={formData.endereco.bairro}
+              onChange={e => setFormData({...formData, endereco: {...formData.endereco, bairro: e.target.value}})}
+            />
+          </div>
+
+          {/* Cidade */}
+          <div className="md:col-span-3 space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Cidade</label>
+            <input 
+              placeholder="Nome da cidade"
+              className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 ring-blue-600/20 outline-none transition-all"
+              value={formData.endereco.cidade}
+              onChange={e => setFormData({...formData, endereco: {...formData.endereco, cidade: e.target.value}})}
+            />
+          </div>
+
+          {/* UF */}
+          <div className="md:col-span-1 space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">UF</label>
+            <input 
+              placeholder="SP"
+              maxLength={2}
+              className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 uppercase text-center focus:ring-2 ring-blue-600/20 outline-none transition-all"
+              value={formData.endereco.estado}
+              onChange={e => setFormData({...formData, endereco: {...formData.endereco, estado: e.target.value.toUpperCase()}})}
+            />
+          </div>
+
+          {/* Complemento */}
+          <div className="md:col-span-6 space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Complemento</label>
+            <input 
+              placeholder="Apto, Bloco, etc."
+              className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 ring-blue-600/20 outline-none transition-all"
+              value={formData.endereco.complemento}
+              onChange={e => setFormData({...formData, endereco: {...formData.endereco, complemento: e.target.value}})}
+            />
+          </div>
         </div>
       </section>
 
