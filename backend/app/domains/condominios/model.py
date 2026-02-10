@@ -31,3 +31,4 @@ class Condominio(Base):
     endereco = relationship("Endereco", back_populates="condominio", uselist=False, cascade="all, delete-orphan")
     contatos = relationship("Contato", back_populates="condominio", cascade="all, delete-orphan")
     servicos = relationship("ManutencaoAssistencia", back_populates="condominio", cascade="all, delete-orphan")
+    

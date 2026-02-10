@@ -25,3 +25,12 @@ def get_endereco(condominio_id: int, db: Session = Depends(get_db)):
     if not endereco:
         raise HTTPException(status_code=404, detail="Endereço não encontrado")
     return endereco
+'''
+@router.put("/condominio/{condominio_id}", endereco_update=EnderecoUpdate)
+def update_endereco(condominio_id: int, db: Session = Depends(get_db)):
+    """Busca endereço pelo ID do condomínio"""
+    endereco = EnderecoService.get_endereco_by_condominio(db, condominio_id)
+    endereco = EnderecoService.update_by_endereco(db, endereco.id)
+    if not endereco:
+        raise HTTPException(status_code=404, detail="Endereço não encontrado")
+    return endereco'''

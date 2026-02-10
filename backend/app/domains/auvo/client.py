@@ -75,7 +75,7 @@ class AuvoClient:
         self,
         client_group_id: Optional[int] = None,
         page: int = 1,
-        page_size: int = 50
+        page_size: int = 100
     ) -> List[Dict]:
         """
         Busca clientes/condominios do Auvo

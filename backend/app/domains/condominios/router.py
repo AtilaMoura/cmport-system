@@ -36,7 +36,7 @@ def create_condominio(
 @router.get("/", response_model=List[CondominioResponse])
 def list_condominios(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(700, ge=1, le=700),
     ativo: Optional[bool] = None,
     db: Session = Depends(get_db)
 ):

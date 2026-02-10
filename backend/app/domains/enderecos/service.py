@@ -18,7 +18,7 @@ class EnderecoService:
         return EnderecoRepository.get_by_condominio(db, condominio_id)
 
     @staticmethod
-    def update_endereco(db: Session, endereco_id: int, endereco_update: EnderecoUpdate):
+    def update_by_endereco(db: Session, endereco_id: int, endereco_update: EnderecoUpdate):
         db_endereco = EnderecoRepository.get_by_id(db, endereco_id)
         if not db_endereco:
             return None

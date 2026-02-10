@@ -25,3 +25,5 @@ class ServicoService:
             return False
         ServicoRepository.delete(db, db_servico)
         return True
+    
+    
