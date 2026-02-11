@@ -42,7 +42,7 @@ export default function ServicosPage() {
 
       // Carrega serviços de todos os condomínios
       const servicosPromises = condosRes.data.map((condo: Condominio) =>
-        api.get(`/manutencoes-assistencias/condominio/${condo.id}`)
+        api.get(`/servicos/condominio/${condo.id}`)
           .then(res => res.data)
           .catch(() => [])
       );
