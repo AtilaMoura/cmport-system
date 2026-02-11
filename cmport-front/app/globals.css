@@ -1,29 +1,171 @@
 @import "tailwindcss";
 
 @theme {
-  /* Cores extraídas do logo CMPort */
-  --color-brand: #1e3a5f;        /* Azul Marinho do Leão/Coroa */
-  --color-brand-light: #2c5282;  /* Azul intermediário para hover */
-  --color-slate-950: #0a0f1a;    /* Fundo Dark mais profundo */
+  /* === CORES PRIMÁRIAS (Baseadas no Logo CMPort) === */
+  --color-brand: #1e3a5f;           /* Azul Marinho Principal */
+  --color-brand-light: #2c5282;     /* Azul Hover */
+  --color-brand-dark: #162e4d;      /* Azul Escuro */
+  
+  /* === CORES NEUTRAS PROFISSIONAIS === */
+  --color-slate-950: #0f172a;       /* Fundo Dark Profundo */
+  --color-slate-900: #1e293b;       /* Cards Dark */
+  --color-slate-50: #f8fafc;        /* Fundo Light Suave */
+  
+  /* === CORES DE ACENTO === */
+  --color-success: #10b981;         /* Verde Sucesso */
+  --color-warning: #f59e0b;         /* Laranja Aviso */
+  --color-error: #ef4444;           /* Vermelho Erro */
+  --color-info: #3b82f6;            /* Azul Info */
+  
+  /* === SHADOWS PROFISSIONAIS === */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+  
+  /* === BORDAS === */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
+@custom-variant compact (&:where(.compact, .compact *));
 
 @layer base {
   :root {
-    --background: #f8fafc;       /* Cinza claríssimo (fundo do logo) */
-    --foreground: #1e293b;
+    --background: #ffffff;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --border: #e2e8f0;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
   }
 
   .dark {
-    --background: #020617;
-    --foreground: #f1f5f9;
+    --background: #0f172a;
+    --foreground: #f8fafc;
+    --card: #1e293b;
+    --card-foreground: #f8fafc;
+    --border: #334155;
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
   }
 
   body {
     background-color: var(--background);
     color: var(--foreground);
-    /* Suavizando a renderização das fontes */
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01";
   }
+  
+  /* Scrollbar personalizada */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: var(--muted);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: var(--muted-foreground);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--brand);
+  }
+  
+  /* Modo compacto */
+  .compact {
+    font-size: 14px;
+  }
+  
+  .compact h1 {
+    font-size: 1.75rem;
+  }
+  
+  .compact h2 {
+    font-size: 1.5rem;
+  }
+  
+  .compact .card {
+    padding: 1rem;
+  }
+}
+
+/* Animações customizadas */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Utilitários de gradiente */
+.gradient-brand {
+  background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand) 100%);
+}
+
+.gradient-success {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+}
+
+.gradient-warning {
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+}
+
+.gradient-error {
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+}
+
+/* Glassmorphism */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass {
+  background: rgba(30, 41, 59, 0.3);
+  border: 1px solid rgba(148, 163, 184, 0.1);
 }

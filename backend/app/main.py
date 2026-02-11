@@ -9,6 +9,7 @@ from app.domains.enderecos.router import router as enderecos_router
 from app.domains.contatos.router import router as contatos_router
 from app.domains.manutencoes_assistencias.router import router as servicos_router
 from app.domains.notas_fiscais.router import router as notas_router
+from app.domains.dashboard.router import router as dashboard_router
 
 # Criar tabelas no banco
 Base.metadata.create_all(bind=engine)
@@ -59,6 +60,12 @@ app.include_router(
     notas_router, 
     prefix="/api/v1/notas-fiscais", 
     tags=["Notas Fiscais"]
+)
+
+app.include_router(
+    dashboard_router, 
+    prefix="/api/v1/dashboard", 
+    tags=["dashboard"]
 )
 
 
