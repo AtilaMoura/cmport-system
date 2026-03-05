@@ -1,0 +1,59 @@
+from sqlalchemy.orm import Session
+from typing import Optional, List
+
+from app.repositories.servico_repository import ServicoRepository
+from app.schemas.servico_schema import ServicoCreate, ServicoUpdate, ServicoResponse
+
+
+class ServicoService:
+
+    @staticmethod
+    def create_servico(db: Session, servico: ServicoCreate):
+        return ServicoRepository.create(db, servico.model_dump())
+
+    @staticmethod
+    def list_servicos_condominio(db: Session, condominio_id: int):
+        return ServicoRepository.list_by_condominio(db, condominio_id)
+
+    @staticmethod
+    def list_all_servicos(db: Session, condominio_id: Optional[int] = None) -> List[ServicoResponse]:
+        servicos = ServicoRepository.list_all(db, condominio_id)
+        return [ServicoResponse.from_orm(s) for s in servicos]
+
+    @staticmethod
+    def get_servico_by_id(db: Session, servico_id: int):
+        return ServicoRepository.get_by_id(db, servico_id)
+
+    @staticmethod
+    def update_servico(db: Session, servico_id: int, servico_update: ServicoUpdate):
+        db_servico = ServicoRepository.get_by_id(db, servico_id)
+        if not db_servico:
+            return None
+        return ServicoRepository.update(db, db_servico, servico_update.model_dump(exclude_unset=True))
+
+    @staticmethod
+    def delete_servico(db: Session, servico_id: int) -> bool:
+        from app.routers.auditoria_router import registrar_exclusao
+
+        db_servico = ServicoRepository.get_by_id(db, servico_id)
+        if not db_servico:
+            return False
+
+        dados_servico = {
+            "id": db_servico.id,
+            "condominio_id": db_servico.condominio_id,
+            "nota_fiscal_id": db_servico.nota_fiscal_id,
+            "tipo": db_servico.tipo.value if db_servico.tipo else None,
+            "data_servico": db_servico.data_servico.isoformat() if db_servico.data_servico else None,
+            "descricao": db_servico.descricao,
+            "criado_em": db_servico.criado_em.isoformat() if db_servico.criado_em else None,
+            "atualizado_em": db_servico.atualizado_em.isoformat() if db_servico.atualizado_em else None,
+        }
+
+        try:
+            registrar_exclusao(db=db, tipo="servico", registro_id=servico_id, dados=dados_servico, motivo="Exclusão manual via interface")
+        except Exception as e:
+            print(f"Erro ao registrar exclusão de serviço {servico_id}: {e}")
+
+        ServicoRepository.delete(db, db_servico)
+        return True

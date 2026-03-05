@@ -60,3 +60,9 @@ htmlcov/
 # Node (caso frontend depois)
 # =========================
 node_modules/
+
+# =========================
+# Certificados Inter (sensível)
+# =========================
+backend/app/auth/*.crt
+backend/app/auth/*.key

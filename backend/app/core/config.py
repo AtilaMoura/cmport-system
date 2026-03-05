@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +13,12 @@ class Settings(BaseSettings):
     # Auvo API
     AUVO_API_KEY: str
     AUVO_API_TOKEN: str
+
+    # Banco Inter API
+    INTER_CLIENT_ID: Optional[str] = None
+    INTER_CLIENT_SECRET: Optional[str] = None
+    INTER_CONTA_CORRENTE: Optional[str] = None
+    INTER_CERT_PATH: str = "app/auth/"
 
     # Application
     ENV: str = "development"
