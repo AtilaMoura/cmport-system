@@ -12,6 +12,7 @@ export default function Sidebar() {
     { name: 'Condomínios', icon: '🏢', href: '/condominios' },
     { name: 'Serviços', icon: '🛠️', href: '/servicos' },
     { name: 'Notas Fiscais', icon: '📄', href: '/notas' },
+    { name: 'Boletos', icon: '🏦', href: '/boletos' },
   ];
 
   return (

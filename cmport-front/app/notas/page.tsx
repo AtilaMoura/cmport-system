@@ -43,15 +43,34 @@ interface Condominio {
   nome: string;
 }
 
+interface Boleto {
+  id: number;
+  nota_fiscal_id: number;
+  codigo_solicitacao: string | null;
+  nosso_numero: string | null;
+  valor_nominal: number;
+  data_vencimento: string;
+  situacao: 'EMABERTO' | 'PAGO' | 'CANCELADO' | 'EXPIRADO' | 'VENCIDO' | 'BAIXADO';
+}
+
 type TabType = 'geral' | 'lista' | 'receber';
+
+const SITUACAO_CONFIG: Record<string, { label: string; cls: string }> = {
+  EMABERTO: { label: 'Em Aberto', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' },
+  PAGO:     { label: 'Pago',      cls: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' },
+  CANCELADO:{ label: 'Cancelado', cls: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' },
+  EXPIRADO: { label: 'Expirado',  cls: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400' },
+  VENCIDO:  { label: 'Vencido',   cls: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400' },
+  BAIXADO:  { label: 'Baixado',   cls: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400' },
+};
 
 export default function NotasPage() {
   const [notas, setNotas] = useState<NotaFiscal[]>([]);
   const [condominios, setCondominios] = useState<Condominio[]>([]);
+  const [boletos, setBoletos] = useState<Record<number, Boleto>>({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('geral');
-  
-  // Filtros
+
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
   const [search, setSearch] = useState('');
   const [dataInicio, setDataInicio] = useState('');
@@ -60,18 +79,25 @@ export default function NotasPage() {
   const [valorMax, setValorMax] = useState('');
   const [condominioSelecionado, setCondominioSelecionado] = useState<number | null>(null);
 
+  const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
+  const [gerandoBoletos, setGerandoBoletos] = useState(false);
+
   useEffect(() => {
     carregarDados();
   }, []);
 
   const carregarDados = async () => {
     try {
-      const [notasRes, condosRes] = await Promise.all([
+      const [notasRes, condosRes, boletosRes] = await Promise.all([
         api.get('/notas-fiscais/'),
-        api.get('/condominios/')
+        api.get('/condominios/'),
+        api.get('/boletos/'),
       ]);
       setNotas(notasRes.data);
       setCondominios(condosRes.data);
+      const map: Record<number, Boleto> = {};
+      for (const b of boletosRes.data) map[b.nota_fiscal_id] = b;
+      setBoletos(map);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
@@ -104,20 +130,59 @@ export default function NotasPage() {
     }
   };
 
+  const toggleSelecionada = (id: number) => {
+    setSelecionadas(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelecionarTodas = (listaVisivel: NotaFiscal[]) => {
+    const semBoleto = listaVisivel.filter(n => !boletos[n.id]);
+    const allSelected = semBoleto.every(n => selecionadas.has(n.id));
+    setSelecionadas(prev => {
+      const next = new Set(prev);
+      if (allSelected) semBoleto.forEach(n => next.delete(n.id));
+      else semBoleto.forEach(n => next.add(n.id));
+      return next;
+    });
+  };
+
+  const gerarBoletos = async () => {
+    if (selecionadas.size === 0) return;
+    setGerandoBoletos(true);
+    try {
+      const res = await api.post('/boletos/gerar', { nota_ids: Array.from(selecionadas) });
+      const { sucesso, erros } = res.data;
+      setSelecionadas(new Set());
+      const map = { ...boletos };
+      for (const b of sucesso) map[b.nota_fiscal_id] = b;
+      setBoletos(map);
+      if (erros.length > 0) {
+        alert(`Boletos gerados: ${sucesso.length}\nErros: ${erros.map((e: {nota_id: number; erro: string}) => `Nota ${e.nota_id}: ${e.erro}`).join('\n')}`);
+      } else {
+        alert(`${sucesso.length} boleto(s) gerado(s) com sucesso!`);
+      }
+    } catch (error) {
+      console.error('Erro ao gerar boletos:', error);
+      alert('Erro ao gerar boletos. Verifique as configurações da API Inter.');
+    } finally {
+      setGerandoBoletos(false);
+    }
+  };
+
   const notasFiltradas = notas.filter(nota => {
     const matchTipo = filtroTipo === 'todos' || nota.tipo === filtroTipo;
-    const matchSearch = 
+    const matchSearch =
       nota.numero_nota.toLowerCase().includes(search.toLowerCase()) ||
       (nota.cliente_nome?.toLowerCase().includes(search.toLowerCase()));
-    
     const matchDataInicio = !dataInicio || new Date(nota.data_vencimento) >= new Date(dataInicio);
     const matchDataFim = !dataFim || new Date(nota.data_vencimento) <= new Date(dataFim);
-    
     const matchValorMin = !valorMin || nota.valor >= parseFloat(valorMin);
     const matchValorMax = !valorMax || nota.valor <= parseFloat(valorMax);
-    
     const matchCondominio = !condominioSelecionado || nota.condominio_id === condominioSelecionado;
-    
     return matchTipo && matchSearch && matchDataInicio && matchDataFim && matchValorMin && matchValorMax && matchCondominio;
   });
 
@@ -149,7 +214,7 @@ export default function NotasPage() {
     labels: condominios.slice(0, 5).map(c => c.nome),
     datasets: [{
       label: 'Valor Total',
-      data: condominios.slice(0, 5).map(c => 
+      data: condominios.slice(0, 5).map(c =>
         notas.filter(n => n.condominio_id === c.id).reduce((sum, n) => sum + n.valor, 0)
       ),
       backgroundColor: '#1e3a5f',
@@ -159,20 +224,17 @@ export default function NotasPage() {
 
   const getTipoColor = (tipo: string) => {
     switch (tipo) {
-      case 'ASSISTENCIA':
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
-      case 'MANUTENCAO':
-        return 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400';
-      default:
-        return 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-400';
+      case 'ASSISTENCIA': return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
+      case 'MANUTENCAO':  return 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400';
+      default:            return 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-400';
     }
   };
 
   const getTipoIcon = (tipo: string) => {
     switch (tipo) {
       case 'ASSISTENCIA': return '🔧';
-      case 'MANUTENCAO': return '🛠️';
-      default: return '📄';
+      case 'MANUTENCAO':  return '🛠️';
+      default:            return '📄';
     }
   };
 
@@ -186,6 +248,10 @@ export default function NotasPage() {
       </div>
     );
   }
+
+  const listaAtiva = activeTab === 'receber' ? notasAReceber : notasFiltradas;
+  const semBoletoVisiveis = listaAtiva.filter(n => !boletos[n.id]);
+  const selecionadasCount = Array.from(selecionadas).filter(id => listaAtiva.some(n => n.id === id)).length;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -205,6 +271,12 @@ export default function NotasPage() {
               </p>
             </div>
             <div className="flex gap-3">
+              <Link
+                href="/boletos"
+                className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center gap-2"
+              >
+                <span className="text-xl">🏦</span> Boletos
+              </Link>
               <button
                 onClick={exportarExcel}
                 className="bg-green-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-green-600/20 hover:brightness-110 transition-all flex items-center gap-2"
@@ -264,7 +336,6 @@ export default function NotasPage() {
         {/* TAB: Visão Geral */}
         {activeTab === 'geral' && (
           <div className="space-y-8">
-            {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
@@ -317,7 +388,6 @@ export default function NotasPage() {
               </div>
             </div>
 
-            {/* Gráficos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
@@ -342,16 +412,14 @@ export default function NotasPage() {
           </div>
         )}
 
-        {/* TAB: Lista Completa */}
+        {/* TAB: Lista / A Receber */}
         {(activeTab === 'lista' || activeTab === 'receber') && (
           <div className="space-y-6">
-            {/* Filtros Avançados */}
+            {/* Filtros */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">
-                    Buscar
-                  </label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Buscar</label>
                   <input
                     type="text"
                     placeholder="Número ou cliente..."
@@ -360,11 +428,8 @@ export default function NotasPage() {
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">
-                    Data Início
-                  </label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Data Início</label>
                   <input
                     type="date"
                     value={dataInicio}
@@ -372,11 +437,8 @@ export default function NotasPage() {
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">
-                    Data Fim
-                  </label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Data Fim</label>
                   <input
                     type="date"
                     value={dataFim}
@@ -384,11 +446,8 @@ export default function NotasPage() {
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">
-                    Valor Mínimo
-                  </label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Valor Mínimo</label>
                   <input
                     type="number"
                     placeholder="R$ 0,00"
@@ -397,11 +456,8 @@ export default function NotasPage() {
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">
-                    Valor Máximo
-                  </label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Valor Máximo</label>
                   <input
                     type="number"
                     placeholder="R$ 9999,99"
@@ -410,11 +466,8 @@ export default function NotasPage() {
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">
-                    Condomínio
-                  </label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Condomínio</label>
                   <select
                     value={condominioSelecionado || ''}
                     onChange={(e) => setCondominioSelecionado(e.target.value ? parseInt(e.target.value) : null)}
@@ -427,40 +480,44 @@ export default function NotasPage() {
                   </select>
                 </div>
               </div>
-
               <div className="flex gap-2">
-                <button
-                  onClick={() => setFiltroTipo('todos')}
-                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-                    filtroTipo === 'todos'
-                      ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  Todos
-                </button>
-                <button
-                  onClick={() => setFiltroTipo('ASSISTENCIA')}
-                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-                    filtroTipo === 'ASSISTENCIA'
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  🔧 Assistência
-                </button>
-                <button
-                  onClick={() => setFiltroTipo('MANUTENCAO')}
-                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-                    filtroTipo === 'MANUTENCAO'
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  🛠️ Manutenção
-                </button>
+                {['todos', 'ASSISTENCIA', 'MANUTENCAO'].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setFiltroTipo(t)}
+                    className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                      filtroTipo === t
+                        ? t === 'todos' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20'
+                          : t === 'ASSISTENCIA' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                          : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {t === 'todos' ? 'Todos' : t === 'ASSISTENCIA' ? '🔧 Assistência' : '🛠️ Manutenção'}
+                  </button>
+                ))}
               </div>
             </div>
+
+            {/* Barra de ação para boletos */}
+            {selecionadasCount > 0 && (
+              <div className="bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-800 rounded-2xl px-6 py-4 flex items-center justify-between">
+                <p className="text-indigo-700 dark:text-indigo-400 font-bold">
+                  {selecionadasCount} nota(s) selecionada(s) sem boleto
+                </p>
+                <button
+                  onClick={gerarBoletos}
+                  disabled={gerandoBoletos}
+                  className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-black hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {gerandoBoletos ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando...</>
+                  ) : (
+                    <><span>🏦</span> Gerar Boleto(s)</>
+                  )}
+                </button>
+              </div>
+            )}
 
             {/* Tabela */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-lg">
@@ -468,92 +525,112 @@ export default function NotasPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Nota Fiscal
+                      <th className="px-4 py-4 w-10">
+                        {semBoletoVisiveis.length > 0 && (
+                          <input
+                            type="checkbox"
+                            checked={semBoletoVisiveis.length > 0 && semBoletoVisiveis.every(n => selecionadas.has(n.id))}
+                            onChange={() => toggleSelecionarTodas(listaAtiva)}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                        )}
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Tipo
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Cliente
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Valor
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Vencimento
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Ações
-                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Nota Fiscal</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tipo</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cliente</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Valor</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Vencimento</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Boleto</th>
+                      <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {(activeTab === 'receber' ? notasAReceber : notasFiltradas).map((nota) => (
-                      <tr key={nota.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white shadow-sm">
-                              <span className="text-lg">{getTipoIcon(nota.tipo)}</span>
+                    {listaAtiva.map((nota) => {
+                      const boleto = boletos[nota.id];
+                      const temBoleto = !!boleto;
+                      const isSelecionada = selecionadas.has(nota.id);
+                      return (
+                        <tr
+                          key={nota.id}
+                          className={`group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isSelecionada ? 'bg-indigo-50/50 dark:bg-indigo-500/5' : ''}`}
+                        >
+                          <td className="px-4 py-5">
+                            {!temBoleto && (
+                              <input
+                                type="checkbox"
+                                checked={isSelecionada}
+                                onChange={() => toggleSelecionada(nota.id)}
+                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                            )}
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white shadow-sm">
+                                <span className="text-lg">{getTipoIcon(nota.tipo)}</span>
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-900 dark:text-white">{nota.numero_nota}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {nota.parcelas > 1 ? `${nota.parcelas}x parcelas` : 'À vista'}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-bold text-slate-900 dark:text-white">
-                                {nota.numero_nota}
-                              </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {nota.parcelas > 1 ? `${nota.parcelas}x parcelas` : 'À vista'}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${getTipoColor(nota.tipo)}`}>
-                            {nota.tipo}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <p className="text-sm font-medium text-slate-900 dark:text-white">
-                            {nota.cliente_nome || 'Não informado'}
-                          </p>
-                        </td>
-                        <td className="px-6 py-5">
-                          <p className="text-sm font-bold text-green-600 dark:text-green-400">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(nota.valor)}
-                          </p>
-                        </td>
-                        <td className="px-6 py-5">
-                          <p className="text-sm text-slate-600 dark:text-slate-300">
-                            {new Date(nota.data_vencimento).toLocaleDateString('pt-BR')}
-                          </p>
-                        </td>
-                        <td className="px-6 py-5 text-right">
-                          <Link
-                            href={`/notas/${nota.id}`}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg transition-all group-hover:translate-x-1"
-                          >
-                            Ver detalhes
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-6 py-5">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${getTipoColor(nota.tipo)}`}>
+                              {nota.tipo}
+                            </span>
+                          </td>
+                          <td className="px-6 py-5">
+                            <p className="text-sm font-medium text-slate-900 dark:text-white">
+                              {nota.cliente_nome || 'Não informado'}
+                            </p>
+                          </td>
+                          <td className="px-6 py-5">
+                            <p className="text-sm font-bold text-green-600 dark:text-green-400">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(nota.valor)}
+                            </p>
+                          </td>
+                          <td className="px-6 py-5">
+                            <p className="text-sm text-slate-600 dark:text-slate-300">
+                              {new Date(nota.data_vencimento).toLocaleDateString('pt-BR')}
+                            </p>
+                          </td>
+                          <td className="px-6 py-5">
+                            {boleto ? (
+                              <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${SITUACAO_CONFIG[boleto.situacao]?.cls}`}>
+                                {SITUACAO_CONFIG[boleto.situacao]?.label}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-400 dark:text-slate-600">— sem boleto</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-5 text-right">
+                            <Link
+                              href={`/notas/${nota.id}`}
+                              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg transition-all group-hover:translate-x-1"
+                            >
+                              Ver detalhes
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
 
-              {notasFiltradas.length === 0 && (
+              {listaAtiva.length === 0 && (
                 <div className="py-16 text-center">
                   <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full">
                     <span className="text-3xl">📄</span>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                    Nenhuma nota encontrada
-                  </h3>
-                  <p className="text-slate-500 dark:text-slate-400 mb-4">
-                    Ajuste os filtros ou importe novas XMLs
-                  </p>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Nenhuma nota encontrada</h3>
+                  <p className="text-slate-500 dark:text-slate-400 mb-4">Ajuste os filtros ou importe novas XMLs</p>
                   <Link
                     href="/notas/importar"
                     className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-xl font-bold hover:brightness-110 transition-all"
