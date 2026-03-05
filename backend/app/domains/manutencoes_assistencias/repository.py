@@ -1,3 +1,4 @@
+# repository.py
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from .model import ManutencaoAssistencia
@@ -16,6 +17,15 @@ class ServicoRepository:
         return db.query(ManutencaoAssistencia).filter(
             ManutencaoAssistencia.condominio_id == condominio_id
         ).order_by(ManutencaoAssistencia.data_servico.desc()).all()
+
+    @staticmethod
+    def list_all(db: Session, condominio_id: Optional[int] = None) -> List[ManutencaoAssistencia]:
+        query = db.query(ManutencaoAssistencia)
+        if condominio_id is not None:
+            query = query.filter(ManutencaoAssistencia.condominio_id == condominio_id)
+        # Ordenação padrão (opcional, mas recomendado)
+        query = query.order_by(ManutencaoAssistencia.data_servico.desc())
+        return query.all()
 
     @staticmethod
     def get_by_id(db: Session, servico_id: int) -> Optional[ManutencaoAssistencia]:

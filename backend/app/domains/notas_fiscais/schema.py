@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from datetime import date, datetime
 from typing import Optional
-from .model import TipoNota
+from .model import TipoNota, StatusNota
 
 
 # ---------------- BASE ----------------
@@ -13,42 +13,34 @@ class NotaFiscalBase(BaseModel):
     data_vencimento: date
     cliente_nome: Optional[str] = None
     observacao: Optional[str] = None
+    descricao_servico: Optional[str] = None
     condominio_id: Optional[int] = None
 
 
 # --------- CREATE MANUAL (FRONT) ---------
 class NotaFiscalCreate(NotaFiscalBase):
-    """
-    Schema para criação manual via frontend
-    Não requer o XML original
-    """
     pass
 
 
 # --------- USADO PELO SERVICE (IMPORTAÇÃO XML) ---------
 class NotaFiscalImportada(NotaFiscalBase):
-    """
-    Schema para importação via XML
-    Requer o XML completo armazenado
-    """
     xml_original: str
+    status: StatusNota = StatusNota.AUTORIZADA  # ✅ Fix: campo status obrigatório
 
 
 # --------- RESPONSE ---------
 class NotaFiscalResponse(BaseModel):
-    """
-    Schema de resposta da API
-    Retorna todos os dados da nota
-    """
     id: int
     numero_nota: str
     tipo: TipoNota
+    status: StatusNota  # ✅ retorna status ao frontend
     parcelas: int
     valor: float
     data_vencimento: date
     data_pagamento: Optional[date] = None
     cliente_nome: Optional[str] = None
     observacao: Optional[str] = None
+    descricao_servico: Optional[str] = None
     condominio_id: Optional[int] = None
     criado_em: datetime
 
@@ -57,8 +49,15 @@ class NotaFiscalResponse(BaseModel):
 
 # --------- RESPOSTA DE IMPORTAÇÃO EM MASSA ---------
 class ImportacaoResponse(BaseModel):
-    """
-    Retorno do endpoint de importação
-    """
     processados: int
+    canceladas: int = 0  # ✅ Fix: quantas canceladas foram bloqueadas
     erros: list[dict]
+
+
+class NotaFiscalUpdate(BaseModel):
+    data_vencimento: Optional[date] = None
+    data_pagamento: Optional[date] = None
+    observacao: Optional[str] = None
+    cliente_nome: Optional[str] = None
+
+    model_config = {"from_attributes": True}

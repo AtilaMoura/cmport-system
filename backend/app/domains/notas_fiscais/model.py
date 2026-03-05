@@ -9,6 +9,11 @@ class TipoNota(enum.Enum):
     MANUTENCAO = "MANUTENCAO"
     OUTROS = "OUTROS"
 
+class StatusNota(enum.Enum):
+    AUTORIZADA = "AUTORIZADA"
+    CANCELADA = "CANCELADA"
+    DESCONHECIDO = "DESCONHECIDO"
+
 class NotaFiscal(Base):
     __tablename__ = "notas_fiscais"
 
@@ -25,6 +30,10 @@ class NotaFiscal(Base):
     numero_nota = Column(String(50), unique=True, index=True, nullable=False)
     tipo = Column(Enum(TipoNota), default=TipoNota.OUTROS)
 
+    # ✅ Status da nota (AUTORIZADA, CANCELADA, DESCONHECIDO)
+    status = Column(Enum(StatusNota), default=StatusNota.AUTORIZADA, nullable=False, index=True)
+
+
     parcelas = Column(Integer, default=1)
     valor = Column(Float, nullable=False)
 
@@ -33,6 +42,7 @@ class NotaFiscal(Base):
 
     cliente_nome = Column(String(255), nullable=True)
     observacao = Column(String(500), nullable=True)
+    descricao_servico = Column(Text, nullable=True)
 
     xml_original = Column(Text, nullable=False)
 

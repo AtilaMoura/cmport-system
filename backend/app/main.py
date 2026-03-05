@@ -10,6 +10,7 @@ from app.domains.contatos.router import router as contatos_router
 from app.domains.manutencoes_assistencias.router import router as servicos_router
 from app.domains.notas_fiscais.router import router as notas_router
 from app.domains.dashboard.router import router as dashboard_router
+from app.domains.auditoria.router import router as auditoria_router
 
 # Criar tabelas no banco
 Base.metadata.create_all(bind=engine)
@@ -66,6 +67,12 @@ app.include_router(
     dashboard_router, 
     prefix="/api/v1/dashboard", 
     tags=["dashboard"]
+)
+
+app.include_router(
+    auditoria_router,
+    prefix="/api/v1/auditoria",
+    tags=["Auditoria e Edição"]
 )
 
 

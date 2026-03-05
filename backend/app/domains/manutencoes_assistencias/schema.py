@@ -30,3 +30,11 @@ class ServicoResponse(ServicoBase):
 
     class Config:
         from_attributes = True
+
+class ServicoUpdate(BaseModel):
+    """Schema para atualização de Serviço"""
+    tipo: Optional[TipoServico] = None
+    data_servico: Optional[date] = None
+    descricao: Optional[str] = None
+    
+    model_config = {"from_attributes": True}
