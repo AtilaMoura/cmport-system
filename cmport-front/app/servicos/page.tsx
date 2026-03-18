@@ -26,6 +26,7 @@ interface NotaFiscal {
   id: number;
   numero_nota: string;
   valor: number;
+  parcelas: number | null;
   data_vencimento: string;
   status: string;
   condominio_id: number | null;
@@ -35,6 +36,7 @@ interface Boleto {
   nota_fiscal_id: number;
   situacao: string;
   valor_nominal: number;
+  valor_total_recebido: number;
 }
 
 const BOLETO_STATUS: Record<string, { label: string; cls: string }> = {
@@ -58,11 +60,15 @@ function pd(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
+const brl = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
 export default function ServicosPage() {
   const [servicos, setServicos]           = useState<Servico[]>([]);
   const [condominios, setCondominios]     = useState<Record<number, Condominio>>({});
   const [notas, setNotas]                 = useState<Record<number, NotaFiscal>>({});
-  const [boletosPorNota, setBoletosPorNota] = useState<Record<number, Boleto>>({});
+  // boletosPorNota: nota_fiscal_id -> array of boletos
+  const [boletosPorNota, setBoletosPorNota] = useState<Record<number, Boleto[]>>({});
   const [loading, setLoading]             = useState(true);
   const [activeTab, setActiveTab]         = useState<TabType>('geral');
 
@@ -107,8 +113,11 @@ export default function ServicosPage() {
 
       try {
         const boletosRes = await api.get('/boletos/');
-        const map: Record<number, Boleto> = {};
-        boletosRes.data.forEach((b: Boleto) => { map[b.nota_fiscal_id] = b; });
+        const map: Record<number, Boleto[]> = {};
+        boletosRes.data.forEach((b: Boleto) => {
+          if (!map[b.nota_fiscal_id]) map[b.nota_fiscal_id] = [];
+          map[b.nota_fiscal_id].push(b);
+        });
         setBoletosPorNota(map);
       } catch { /* boletos opcionais */ }
     } catch (error) {
@@ -126,7 +135,13 @@ export default function ServicosPage() {
       const { sucesso, erros } = res.data;
       if (sucesso.length > 0) {
         const map = { ...boletosPorNota };
-        for (const b of sucesso) map[b.nota_fiscal_id] = b;
+        for (const b of sucesso) {
+          if (!map[b.nota_fiscal_id]) map[b.nota_fiscal_id] = [];
+          // replace or add
+          const idx = map[b.nota_fiscal_id].findIndex((x: Boleto) => x.nota_fiscal_id === b.nota_fiscal_id && x.situacao === b.situacao);
+          if (idx >= 0) map[b.nota_fiscal_id][idx] = b;
+          else map[b.nota_fiscal_id].push(b);
+        }
         setBoletosPorNota(map);
       }
       if (erros.length > 0) alert(`Erro: ${erros[0].erro}`);
@@ -205,16 +220,32 @@ export default function ServicosPage() {
 
   const stats = useMemo(() => {
     const hoje = new Date();
+    const valorTotal = servicosFiltrados.reduce((acc, s) => {
+      if (s.nota_fiscal_id) {
+        acc += notas[s.nota_fiscal_id]?.valor ?? 0;
+      }
+      return acc;
+    }, 0);
+    const valorRecebido = servicosFiltrados.reduce((acc, s) => {
+      if (s.nota_fiscal_id) {
+        const boletos = boletosPorNota[s.nota_fiscal_id] ?? [];
+        acc += boletos.reduce((sum, b) => sum + (b.valor_total_recebido ?? 0), 0);
+      }
+      return acc;
+    }, 0);
+    const comNotaCount = servicosFiltrados.filter(s => s.nota_fiscal_id).length;
     return {
-      total:       servicosFiltrados.length,
-      manutencoes: servicosFiltrados.filter(s => s.tipo === 'manutencao').length,
+      total:        servicosFiltrados.length,
+      manutencoes:  servicosFiltrados.filter(s => s.tipo === 'manutencao').length,
       assistencias: servicosFiltrados.filter(s => s.tipo === 'assistencia').length,
-      esteMes:     servicosFiltrados.filter(s => { const d = pd(s.data_servico); return d.getMonth() === hoje.getMonth() && d.getFullYear() === hoje.getFullYear(); }).length,
-      comNota:     servicosFiltrados.filter(s => s.nota_fiscal_id).length,
-      semNota:     servicosFiltrados.filter(s => !s.nota_fiscal_id).length,
-      mediaPorMes: servicosFiltrados.length > 0 ? (servicosFiltrados.length / 12).toFixed(1) : '0',
+      esteMes:      servicosFiltrados.filter(s => { const d = pd(s.data_servico); return d.getMonth() === hoje.getMonth() && d.getFullYear() === hoje.getFullYear(); }).length,
+      comNota:      comNotaCount,
+      semNota:      servicosFiltrados.filter(s => !s.nota_fiscal_id).length,
+      mediaPorMes:  servicosFiltrados.length > 0 ? (servicosFiltrados.length / 12).toFixed(1) : '0',
+      valorTotal,
+      valorRecebido,
     };
-  }, [servicosFiltrados]);
+  }, [servicosFiltrados, notas, boletosPorNota]);
 
   const notasSemServico = useMemo(() =>
     Object.values(notas).filter(n => n.status === 'AUTORIZADA').sort((a, b) => a.numero_nota.localeCompare(b.numero_nota)),
@@ -230,19 +261,41 @@ export default function ServicosPage() {
 
   const servicosPorMesData = useMemo(() => ({
     labels: ultimos6Meses.map(m => m.nome),
-    datasets: [{
-      label: 'Servicos',
-      data: ultimos6Meses.map(m => servicosFiltrados.filter(s => {
-        const d = pd(s.data_servico);
-        return d.getMonth() === m.mes && d.getFullYear() === m.ano;
-      }).length),
-      backgroundColor: 'rgba(124,58,237,0.2)',
-      borderColor: '#7c3aed',
-      borderWidth: 2,
-      tension: 0.4,
-      fill: true,
-    }],
-  }), [servicosFiltrados, ultimos6Meses]);
+    datasets: [
+      {
+        label: 'Quantidade',
+        data: ultimos6Meses.map(m => servicosFiltrados.filter(s => {
+          const d = pd(s.data_servico);
+          return d.getMonth() === m.mes && d.getFullYear() === m.ano;
+        }).length),
+        backgroundColor: 'rgba(124,58,237,0.2)',
+        borderColor: '#7c3aed',
+        borderWidth: 2,
+        tension: 0.4,
+        fill: true,
+        yAxisID: 'y',
+      },
+      {
+        label: 'Valor (R$)',
+        data: ultimos6Meses.map(m => {
+          const servicosDoMes = servicosFiltrados.filter(s => {
+            const d = pd(s.data_servico);
+            return d.getMonth() === m.mes && d.getFullYear() === m.ano;
+          });
+          return servicosDoMes.reduce((acc, s) => {
+            if (s.nota_fiscal_id) acc += notas[s.nota_fiscal_id]?.valor ?? 0;
+            return acc;
+          }, 0);
+        }),
+        backgroundColor: 'rgba(16,185,129,0.1)',
+        borderColor: '#10b981',
+        borderWidth: 2,
+        tension: 0.4,
+        fill: false,
+        yAxisID: 'y1',
+      },
+    ],
+  }), [servicosFiltrados, notas, ultimos6Meses]);
 
   const distribuicaoTipoData = useMemo(() => ({
     labels: ['Manutencao', 'Assistencia'],
@@ -255,18 +308,29 @@ export default function ServicosPage() {
 
   const topCondominiosData = useMemo(() => {
     const totals = Object.values(condominios)
-      .map(c => ({
-        nome: c.nome.length > 20 ? c.nome.slice(0, 20) + '…' : c.nome,
-        qtd: servicosFiltrados.filter(s => s.condominio_id === c.id).length,
-      }))
+      .map(c => {
+        const servicosCondo = servicosFiltrados.filter(s => s.condominio_id === c.id);
+        const valorCondo = servicosCondo.reduce((acc, s) => {
+          if (s.nota_fiscal_id) acc += notas[s.nota_fiscal_id]?.valor ?? 0;
+          return acc;
+        }, 0);
+        return {
+          nome: c.nome.length > 20 ? c.nome.slice(0, 20) + '…' : c.nome,
+          qtd: servicosCondo.length,
+          valor: valorCondo,
+        };
+      })
       .filter(c => c.qtd > 0)
       .sort((a, b) => b.qtd - a.qtd)
       .slice(0, 5);
     return {
       labels: totals.map(c => c.nome),
-      datasets: [{ label: 'Quantidade', data: totals.map(c => c.qtd), backgroundColor: '#1e3a5f', borderRadius: 8 }],
+      datasets: [
+        { label: 'Quantidade', data: totals.map(c => c.qtd), backgroundColor: '#1e3a5f', borderRadius: 8 },
+        { label: 'Valor (R$)', data: totals.map(c => c.valor), backgroundColor: '#10b981', borderRadius: 8 },
+      ],
     };
-  }, [condominios, servicosFiltrados]);
+  }, [condominios, servicosFiltrados, notas]);
 
   const getTipoColor = (tipo: string) => tipo === 'manutencao'
     ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400'
@@ -290,6 +354,18 @@ export default function ServicosPage() {
     if (activeTab === 'assistencias') return s.tipo === 'assistencia';
     return true;
   });
+
+  // Helper: first boleto for a nota (for display in list)
+  const primeiroBoleto = (notaId: number): Boleto | undefined => (boletosPorNota[notaId] ?? [])[0];
+
+  // Boleto cobrado (valor nominal sum across all boletos for filtered services)
+  const valorCobrado = servicosFiltrados.reduce((acc, s) => {
+    if (s.nota_fiscal_id) {
+      const boletos = boletosPorNota[s.nota_fiscal_id] ?? [];
+      acc += boletos.reduce((sum, b) => sum + (b.valor_nominal ?? 0), 0);
+    }
+    return acc;
+  }, 0);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -422,6 +498,7 @@ export default function ServicosPage() {
         {/* TAB: Visao Geral */}
         {activeTab === 'geral' && (
           <div className="space-y-8">
+            {/* Row 1: existing 4 cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
@@ -460,13 +537,58 @@ export default function ServicosPage() {
               </div>
             </div>
 
+            {/* Row 2: financial value cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-950/30 dark:to-teal-950/30 p-6 rounded-2xl border border-green-200 dark:border-green-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-xl"><span className="text-2xl">💰</span></div>
+                  <span className="text-xs font-bold text-green-700 dark:text-green-400">VALOR TOTAL</span>
+                </div>
+                <p className="text-3xl font-black text-green-900 dark:text-green-400 mb-1">{brl(stats.valorTotal)}</p>
+                <p className="text-sm text-green-700 dark:text-green-500 font-semibold">Soma das notas fiscais dos servicos filtrados</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-6 rounded-2xl border border-blue-200 dark:border-blue-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 dark:bg-blue-500/20 rounded-xl"><span className="text-2xl">🏦</span></div>
+                  <span className="text-xs font-bold text-blue-700 dark:text-blue-400">VALOR COBRADO</span>
+                </div>
+                <p className="text-3xl font-black text-blue-900 dark:text-blue-400 mb-1">{brl(valorCobrado)}</p>
+                <p className="text-sm text-blue-700 dark:text-blue-500 font-semibold">Soma dos boletos emitidos (valor nominal)</p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                   <span className="text-xl">📈</span> Evolucao (Ultimos 6 Meses)
                 </h3>
                 <div className="h-64">
-                  <Line data={servicosPorMesData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b' }, grid: { display: false } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(100,116,139,0.1)' } } } }} />
+                  <Line
+                    data={servicosPorMesData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: { legend: { display: true, position: 'top', labels: { color: '#64748b', boxWidth: 12 } } },
+                      scales: {
+                        x: { ticks: { color: '#64748b' }, grid: { display: false } },
+                        y: {
+                          type: 'linear',
+                          position: 'left',
+                          ticks: { color: '#64748b' },
+                          grid: { color: 'rgba(100,116,139,0.1)' },
+                          title: { display: true, text: 'Quantidade', color: '#7c3aed', font: { size: 11 } },
+                        },
+                        y1: {
+                          type: 'linear',
+                          position: 'right',
+                          ticks: { color: '#10b981', callback: (v: number | string) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
+                          grid: { drawOnChartArea: false },
+                          title: { display: true, text: 'Valor (R$)', color: '#10b981', font: { size: 11 } },
+                        },
+                      },
+                    }}
+                  />
                 </div>
               </div>
 
@@ -481,11 +603,23 @@ export default function ServicosPage() {
 
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm lg:col-span-2">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                  <span className="text-xl">🏆</span> Top 5 Condominios (Quantidade)
+                  <span className="text-xl">🏆</span> Top 5 Condominios
                 </h3>
                 {topCondominiosData.labels.length > 0 ? (
                   <div className="h-64">
-                    <Bar data={topCondominiosData} options={{ responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b' }, grid: { display: false } }, y: { ticks: { color: '#64748b' } } } }} />
+                    <Bar
+                      data={topCondominiosData}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        plugins: { legend: { display: true, position: 'top', labels: { color: '#64748b', boxWidth: 12 } } },
+                        scales: {
+                          x: { ticks: { color: '#64748b' }, grid: { display: false } },
+                          y: { ticks: { color: '#64748b' } },
+                        },
+                      }}
+                    />
                   </div>
                 ) : (
                   <div className="h-64 flex items-center justify-center text-slate-400">Sem dados com filtros ativos</div>
@@ -525,6 +659,34 @@ export default function ServicosPage() {
               </div>
             </div>
 
+            {/* Financial KPIs */}
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-50 dark:bg-teal-500/10 rounded-full mb-4"><span className="text-3xl">🎯</span></div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Ticket Medio</p>
+                <p className="text-3xl font-black text-teal-600 dark:text-teal-400 mb-2">
+                  {stats.comNota > 0 ? brl(stats.valorTotal / stats.comNota) : brl(0)}
+                </p>
+                <p className="text-xs text-slate-500">Valor medio por servico com nota</p>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-50 dark:bg-indigo-500/10 rounded-full mb-4"><span className="text-3xl">📬</span></div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Taxa de Cobranca</p>
+                <p className="text-5xl font-black text-indigo-600 dark:text-indigo-400 mb-2">
+                  {stats.comNota > 0
+                    ? (() => {
+                        const comBoleto = servicosFiltrados.filter(s => s.nota_fiscal_id && (boletosPorNota[s.nota_fiscal_id]?.length ?? 0) > 0).length;
+                        return `${((comBoleto / stats.comNota) * 100).toFixed(1)}%`;
+                      })()
+                    : '0%'}
+                </p>
+                <p className="text-xs text-slate-500">Servicos com boleto / servicos com nota</p>
+              </div>
+            </div>
+
             {stats.total > 0 && (
               <div className="bg-gradient-to-br from-purple-600 to-purple-700 p-8 rounded-2xl shadow-lg text-white md:col-span-3">
                 <div className="text-center">
@@ -544,89 +706,102 @@ export default function ServicosPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                    {['Condominio', 'Tipo', 'Data', 'Nota Fiscal', 'Cobrança', 'Acoes'].map(h => (
+                    {['Condominio', 'Tipo', 'Data', 'Nota Fiscal', 'Parcelas', 'Cobrança', 'Acoes'].map(h => (
                       <th key={h} className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {listaFiltrada.map(servico => (
-                    <tr key={servico.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white shadow-sm">
-                            <span className="text-sm font-bold">{condominios[servico.condominio_id]?.nome.substring(0, 2).toUpperCase() || '??'}</span>
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-900 dark:text-white">{condominios[servico.condominio_id]?.nome || 'Desconhecido'}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">ID: {servico.condominio_id}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${getTipoColor(servico.tipo)}`}>
-                          <span>{getTipoIcon(servico.tipo)}</span>
-                          {servico.tipo === 'manutencao' ? 'Manutencao' : 'Assistencia'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-5">
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">{pd(servico.data_servico).toLocaleDateString('pt-BR')}</p>
-                      </td>
-                      <td className="px-6 py-5">
-                        {servico.nota_fiscal_id ? (() => {
-                          const nota = notas[servico.nota_fiscal_id];
-                          return nota ? (
-                            <div>
-                              <p className="text-xs font-mono text-slate-500 dark:text-slate-400">#{nota.numero_nota}</p>
-                              <p className="text-sm font-black text-green-600 dark:text-green-400">
-                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(nota.valor)}
-                              </p>
-                              <p className="text-xs text-slate-400 dark:text-slate-500">
-                                Venc: {pd(nota.data_vencimento).toLocaleDateString('pt-BR')}
-                              </p>
+                  {listaFiltrada.map(servico => {
+                    const nota = servico.nota_fiscal_id ? notas[servico.nota_fiscal_id] : undefined;
+                    const boleto = servico.nota_fiscal_id ? primeiroBoleto(servico.nota_fiscal_id) : undefined;
+                    return (
+                      <tr key={servico.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white shadow-sm">
+                              <span className="text-sm font-bold">{condominios[servico.condominio_id]?.nome.substring(0, 2).toUpperCase() || '??'}</span>
                             </div>
-                          ) : <span className="text-xs text-slate-400">Nota #{servico.nota_fiscal_id}</span>;
-                        })() : (
-                          <button
-                            onClick={() => { setVincularServicoId(servico.id); setVincularNotaId(''); setVincularErro(null); }}
-                            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-                          >
-                            + Vincular nota
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-6 py-5">
-                        {servico.nota_fiscal_id ? (
-                          boletosPorNota[servico.nota_fiscal_id] ? (
-                            <Link href="/boletos">
-                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${BOLETO_STATUS[boletosPorNota[servico.nota_fiscal_id].situacao]?.cls ?? ''}`}>
-                                {BOLETO_STATUS[boletosPorNota[servico.nota_fiscal_id].situacao]?.label ?? boletosPorNota[servico.nota_fiscal_id].situacao}
-                              </span>
-                            </Link>
+                            <div>
+                              <p className="font-bold text-slate-900 dark:text-white">{condominios[servico.condominio_id]?.nome || 'Desconhecido'}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">ID: {servico.condominio_id}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${getTipoColor(servico.tipo)}`}>
+                            <span>{getTipoIcon(servico.tipo)}</span>
+                            {servico.tipo === 'manutencao' ? 'Manutencao' : 'Assistencia'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-5">
+                          <p className="text-sm font-medium text-slate-900 dark:text-white">{pd(servico.data_servico).toLocaleDateString('pt-BR')}</p>
+                        </td>
+                        <td className="px-6 py-5">
+                          {servico.nota_fiscal_id ? (
+                            nota ? (
+                              <div>
+                                <p className="text-xs font-mono text-slate-500 dark:text-slate-400">#{nota.numero_nota}</p>
+                                <p className="text-sm font-black text-green-600 dark:text-green-400">
+                                  {brl(nota.valor)}
+                                </p>
+                                <p className="text-xs text-slate-400 dark:text-slate-500">
+                                  Venc: {pd(nota.data_vencimento).toLocaleDateString('pt-BR')}
+                                </p>
+                              </div>
+                            ) : <span className="text-xs text-slate-400">Nota #{servico.nota_fiscal_id}</span>
                           ) : (
                             <button
-                              onClick={() => handleGerarBoleto(servico)}
-                              disabled={gerandoBoletoId === servico.id}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                              onClick={() => { setVincularServicoId(servico.id); setVincularNotaId(''); setVincularErro(null); }}
+                              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
                             >
-                              {gerandoBoletoId === servico.id
-                                ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                : '🏦'}
-                              {gerandoBoletoId === servico.id ? 'Gerando...' : 'Gerar Boleto'}
+                              + Vincular nota
                             </button>
-                          )
-                        ) : (
-                          <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-5 text-right">
-                        <Link href={`/servicos/${servico.id}`} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-all group-hover:translate-x-1">
-                          Ver detalhes
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                          )}
+                        </td>
+                        {/* Parcelas column */}
+                        <td className="px-6 py-5">
+                          {nota?.parcelas ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                              {nota.parcelas}x
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-5">
+                          {servico.nota_fiscal_id ? (
+                            boleto ? (
+                              <Link href="/boletos">
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${BOLETO_STATUS[boleto.situacao]?.cls ?? ''}`}>
+                                  {BOLETO_STATUS[boleto.situacao]?.label ?? boleto.situacao}
+                                </span>
+                              </Link>
+                            ) : (
+                              <button
+                                onClick={() => handleGerarBoleto(servico)}
+                                disabled={gerandoBoletoId === servico.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                              >
+                                {gerandoBoletoId === servico.id
+                                  ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  : '🏦'}
+                                {gerandoBoletoId === servico.id ? 'Gerando...' : 'Gerar Boleto'}
+                              </button>
+                            )
+                          ) : (
+                            <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-5 text-right">
+                          <Link href={`/servicos/${servico.id}`} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-all group-hover:translate-x-1">
+                            Ver detalhes
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -662,7 +837,7 @@ export default function ServicosPage() {
                 <option value="">Selecione...</option>
                 {notasSemServico.map(n => (
                   <option key={n.id} value={n.id}>
-                    #{n.numero_nota} — {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n.valor)} · venc. {pd(n.data_vencimento).toLocaleDateString('pt-BR')}
+                    #{n.numero_nota} — {brl(n.valor)} · venc. {pd(n.data_vencimento).toLocaleDateString('pt-BR')}
                   </option>
                 ))}
               </select>
