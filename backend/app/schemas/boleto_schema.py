@@ -32,7 +32,14 @@ class BoletoResponse(BaseModel):
 
 class GerarBoletosRequest(BaseModel):
     nota_ids: List[int]
-    data_vencimento_override: Optional[date] = None  # Para notas vencidas, define nova data
+    data_vencimento_override: Optional[date] = None
+    valor_total_override: Optional[float] = None   # Sobrescreve o valor calculado (já líquido)
+    mensagem: Optional[str] = None                 # Aparece no boleto — ex: "OS 123"
+
+
+class GerarParcelasFaltantesRequest(BaseModel):
+    valor_total_override: Optional[float] = None
+    mensagem: Optional[str] = None
 
 
 class GerarBoletosResponse(BaseModel):

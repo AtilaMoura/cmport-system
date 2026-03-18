@@ -419,6 +419,58 @@ def processar_cancelamento_nfe(xml_str: str, db: Session) -> dict:
 
 
 
+def corrigir_datas_servico(db: Session) -> dict:
+    """
+    Re-parseia o XML de todas as notas vinculadas a ManutencaoAssistencia e
+    atualiza data_servico usando a função extrair_data_servico().
+    Deve ser executado uma vez para corrigir registros importados antes do fix.
+    """
+    from app.models.servico_model import ManutencaoAssistencia
+    from app.models.nota_fiscal_model import NotaFiscal
+
+    servicos = db.query(ManutencaoAssistencia).filter(
+        ManutencaoAssistencia.nota_fiscal_id.isnot(None)
+    ).all()
+
+    atualizados = 0
+    sem_data = 0
+
+    for servico in servicos:
+        nota = db.get(NotaFiscal, servico.nota_fiscal_id)
+        if not nota or not nota.xml_original:
+            sem_data += 1
+            continue
+
+        try:
+            tipo_xml = detectar_tipo_xml(nota.xml_original)
+            if tipo_xml == 'NFSe':
+                root = ET.fromstring(nota.xml_original)
+                el = root.find('.//Discriminacao')
+                texto = el.text.strip() if el is not None and el.text else ''
+            elif tipo_xml == 'NFe':
+                root = ET.fromstring(nota.xml_original)
+                ns = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+                el = root.find('.//nfe:infAdic/nfe:infCpl', ns)
+                texto = el.text.strip() if el is not None and el.text else ''
+            else:
+                sem_data += 1
+                continue
+
+            data_corrigida = extrair_data_servico(texto)
+            if data_corrigida and data_corrigida != servico.data_servico:
+                servico.data_servico = data_corrigida
+                atualizados += 1
+                print(f"[CorrigirData] ServID={servico.id} NotaID={nota.id}: {servico.data_servico} -> {data_corrigida}")
+            elif not data_corrigida:
+                sem_data += 1
+        except Exception as e:
+            print(f"[CorrigirData] Erro ServID={servico.id}: {e}")
+            sem_data += 1
+
+    db.commit()
+    return {"total": len(servicos), "atualizados": atualizados, "sem_data_no_xml": sem_data}
+
+
 class NotaFiscalService:
 
     @staticmethod

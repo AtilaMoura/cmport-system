@@ -7,7 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.core.database import SessionLocal
-from app.services.nota_fiscal_service import NotaFiscalService
+from app.services.nota_fiscal_service import NotaFiscalService, corrigir_datas_servico
 from app.schemas.nota_fiscal_schema import NotaFiscalCreate, NotaFiscalResponse, ImportacaoResponse, NotaFiscalUpdate
 
 
@@ -180,6 +180,12 @@ def revalidar_nota_completo(id: int, db: Session = Depends(get_db)):
 def revalidar_todas_notas(db: Session = Depends(get_db)):
     """Re-parseia o XML de todas as notas e corrige status incorretos."""
     return NotaFiscalService.revalidar_todas(db)
+
+
+@router.post("/corrigir-datas-servico")
+def corrigir_datas(db: Session = Depends(get_db)):
+    """Re-parseia o XML de todas as notas e corrige data_servico nos registros de ManutencaoAssistencia."""
+    return corrigir_datas_servico(db)
 
 
 @router.post("/revalidar-todas-completo")

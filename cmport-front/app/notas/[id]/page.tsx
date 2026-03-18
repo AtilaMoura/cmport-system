@@ -26,6 +26,13 @@ interface NotaFiscal {
   parcelas_json: ParcelaDisplay[] | null;
   valor_boleto_parcela: number | null;
   status: string;
+  iss: number | null;
+  pis: number | null;
+  cofins: number | null;
+  inss: number | null;
+  csll: number | null;
+  icms: number | null;
+  prev: number | null;
 }
 
 interface Condominio {
@@ -136,6 +143,9 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
   const [cancelandoBoletoId, setCancelandoBoletoId] = useState<number | null>(null);
   const [deletandoBoletoId, setDeletandoBoletoId] = useState<number | null>(null);
+  const [modalInter, setModalInter] = useState(false);
+  const [interValor, setInterValor] = useState('');
+  const [interMensagem, setInterMensagem] = useState('');
 
   const [dataVencimento, setDataVencimento] = useState('');
   const [dataPagamento, setDataPagamento] = useState('');
@@ -222,37 +232,35 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     return [{ parcela: 1, valor: nota.valor, data: nota.data_vencimento }];
   };
 
-  const handleGerarParcelasFaltantes = async () => {
-    if (!id) return;
-    if (!confirm('Gerar as parcelas faltantes no Banco Inter?')) return;
-    setGerandoParcelas(true);
-    try {
-      const res = await api.post(`/boletos/gerar-parcelas-faltantes/${id}`);
-      const { sucesso, erros } = res.data;
-      await carregarDados();
-      if (erros.length > 0) {
-        alert(`${sucesso.length} parcela(s) gerada(s).\nErros: ${erros.map((e: { erro: string }) => e.erro).join(', ')}`);
-      } else {
-        alert(`${sucesso.length} parcela(s) gerada(s) com sucesso!`);
-      }
-    } catch {
-      alert('Erro ao gerar parcelas faltantes.');
-    } finally {
-      setGerandoParcelas(false);
-    }
+  const calcularValorLiquido = (n: NotaFiscal): number => {
+    if (n.tipo === 'OUTROS') return n.valor;
+    const impostos = (n.iss ?? 0) + (n.pis ?? 0) + (n.cofins ?? 0) + (n.inss ?? 0) + (n.csll ?? 0);
+    return Math.max(Math.round((n.valor - impostos) * 100) / 100, 0.01);
   };
 
-  const handleGerarInterParcela = async () => {
+  const abrirModalInter = () => {
+    if (!nota) return;
+    setInterValor(calcularValorLiquido(nota).toFixed(2));
+    setInterMensagem('');
+    setModalInter(true);
+  };
+
+  const handleGerarParcelasFaltantes = () => abrirModalInter();
+  const handleGerarInterParcela = () => abrirModalInter();
+
+  const handleConfirmarGerarInter = async () => {
     if (!id) return;
     setGerandoParcelas(true);
     try {
-      const res = await api.post(`/boletos/gerar-parcelas-faltantes/${id}`);
+      const body: Record<string, unknown> = {};
+      if (interValor) body.valor_total_override = parseFloat(interValor);
+      if (interMensagem.trim()) body.mensagem = interMensagem.trim();
+      const res = await api.post(`/boletos/gerar-parcelas-faltantes/${id}`, body);
       const { sucesso, erros } = res.data;
+      setModalInter(false);
       await carregarDados();
       if (erros.length > 0) {
         alert(`${sucesso.length} parcela(s) gerada(s).\nErros: ${erros.map((e: { erro: string }) => e.erro).join(', ')}`);
-      } else {
-        alert(`${sucesso.length} parcela(s) gerada(s) com sucesso!`);
       }
     } catch {
       alert('Erro ao gerar parcelas via Inter.');
@@ -1071,6 +1079,64 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 )}
                 Registrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Gerar Boleto Inter */}
+      {modalInter && nota && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">Emitir Boleto Inter</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">Revise o valor e a mensagem antes de emitir.</p>
+
+            {nota.tipo !== 'OUTROS' && (
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-5 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Valor Bruto (NF)</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{fmt(nota.valor)}</span>
+                </div>
+                {nota.iss ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>ISS</span><span>- {fmt(nota.iss)}</span></div> : null}
+                {nota.pis ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>PIS</span><span>- {fmt(nota.pis)}</span></div> : null}
+                {nota.cofins ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>COFINS</span><span>- {fmt(nota.cofins)}</span></div> : null}
+                {nota.inss ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>INSS</span><span>- {fmt(nota.inss)}</span></div> : null}
+                {nota.csll ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>CSLL</span><span>- {fmt(nota.csll)}</span></div> : null}
+                <div className="flex justify-between font-bold text-green-700 dark:text-green-400 border-t border-slate-200 dark:border-slate-700 pt-1 mt-1">
+                  <span>Valor Líquido</span>
+                  <span>{fmt(calcularValorLiquido(nota))}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Valor Total a Cobrar (R$)</label>
+                <input type="number" step="0.01" min="0.01" value={interValor} onChange={e => setInterValor(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-slate-900 dark:text-white" />
+                {nota.parcelas > 1 && (
+                  <p className="text-xs text-slate-400 mt-1">Será dividido entre as {nota.parcelas} parcelas.</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Mensagem no Boleto</label>
+                <input type="text" maxLength={300} value={interMensagem} onChange={e => setInterMensagem(e.target.value)}
+                  placeholder={`NF: ${nota.numero_nota}`}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-slate-900 dark:text-white" />
+                <p className="text-xs text-slate-400 mt-1">A OS vinculada será adicionada automaticamente se não preenchido.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setModalInter(false)} disabled={gerandoParcelas}
+                className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleConfirmarGerarInter} disabled={gerandoParcelas || !interValor}
+                className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {gerandoParcelas && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                Emitir Boleto
               </button>
             </div>
           </div>

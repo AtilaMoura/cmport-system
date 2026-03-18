@@ -17,6 +17,32 @@ def _limpar_cnpj(cnpj: str) -> str:
     return "".join(filter(str.isdigit, cnpj or ""))
 
 
+def _calcular_valor_base(nota) -> float:
+    """
+    Notas de serviço (MANUTENCAO/ASSISTENCIA — NFSe): desconta impostos retidos.
+    Notas de produto (OUTROS — NFe): valor integral da NF.
+    """
+    from app.models.nota_fiscal_model import TipoNota
+    if nota.tipo in (TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA):
+        impostos = sum(x for x in [nota.iss, nota.pis, nota.cofins, nota.inss, nota.csll] if x)
+        return max(round(nota.valor - impostos, 2), 0.01)
+    return nota.valor
+
+
+def _montar_mensagem_payload(mensagem: str | None, numero_nota: str, servico_id: int | None) -> dict | None:
+    """Monta o objeto 'mensagem' para o payload Inter (até 60 chars por linha)."""
+    linhas = []
+    if mensagem:
+        for i in range(0, min(len(mensagem), 300), 60):
+            linhas.append(mensagem[i:i + 60])
+    elif servico_id:
+        linhas.append(f"OS: {servico_id} | NF: {numero_nota}")
+    if not linhas:
+        return None
+    keys = ["linha1", "linha2", "linha3", "linha4", "linha5"]
+    return {keys[i]: linha for i, linha in enumerate(linhas[:5])}
+
+
 def _mapear_situacao(situacao_inter: str) -> SituacaoBoleto:
     mapa = {
         "EMABERTO": SituacaoBoleto.EMABERTO,
@@ -206,7 +232,13 @@ def _atualizar_data_pagamento_nota(db: Session, nota_id: int) -> None:
 class BoletoService:
 
     @staticmethod
-    def gerar_boletos(db: Session, nota_ids: List[int], data_vencimento_override: date = None) -> GerarBoletosResponse:
+    def gerar_boletos(
+        db: Session,
+        nota_ids: List[int],
+        data_vencimento_override: date = None,
+        valor_total_override: float = None,
+        mensagem: str = None,
+    ) -> GerarBoletosResponse:
         sucesso = []
         erros = []
 
@@ -234,10 +266,15 @@ class BoletoService:
                 endereco = EnderecoRepository.get_by_condominio(db, condominio.id)
                 contato = ContatoRepository.get_principal(db, condominio.id)
 
+                # Busca OS vinculada para compor a mensagem no boleto
+                from app.models.servico_model import ManutencaoAssistencia as _MA
+                servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota_id).first()
+                servico_os_id = servico_os.id if servico_os else None
+
                 total_parcelas = nota.parcelas if nota.parcelas and nota.parcelas > 0 else 1
-                valor_parcela = round(nota.valor / total_parcelas, 2)
-                # Ajusta última parcela para cobrir diferença de arredondamento
-                valor_ultima = round(nota.valor - valor_parcela * (total_parcelas - 1), 2)
+                valor_base = valor_total_override if valor_total_override else _calcular_valor_base(nota)
+                valor_parcela = round(valor_base / total_parcelas, 2)
+                valor_ultima = round(valor_base - valor_parcela * (total_parcelas - 1), 2)
 
                 pagador = {
                     "cpfCnpj": _limpar_cnpj(condominio.cnpj),
@@ -254,6 +291,7 @@ class BoletoService:
                 }
 
                 base_numero = nota.numero_nota or str(nota_id)
+                msg_payload = _montar_mensagem_payload(mensagem, base_numero, servico_os_id)
 
                 for i in range(total_parcelas):
                     numero_parcela = i + 1
@@ -278,6 +316,8 @@ class BoletoService:
                         "dataVencimento": data_venc.strftime("%Y-%m-%d"),
                         "pagador": pagador,
                     }
+                    if msg_payload:
+                        payload["mensagem"] = msg_payload
 
                     resposta = inter_client.emitir_boleto(payload)
 
@@ -371,7 +411,12 @@ class BoletoService:
         return BoletoResponse.model_validate(db_boleto)
 
     @staticmethod
-    def gerar_parcelas_faltantes(db: Session, nota_id: int) -> GerarParcelasFaltantesResponse:
+    def gerar_parcelas_faltantes(
+        db: Session,
+        nota_id: int,
+        valor_total_override: float = None,
+        mensagem: str = None,
+    ) -> GerarParcelasFaltantesResponse:
         """Gera apenas as parcelas que ainda não existem para uma nota parcelada."""
         nota = NotaFiscalRepository.get_by_id(db, nota_id)
         if not nota:
@@ -395,8 +440,17 @@ class BoletoService:
         endereco = EnderecoRepository.get_by_condominio(db, condominio.id)
         contato = ContatoRepository.get_principal(db, condominio.id)
 
-        valor_parcela = round(nota.valor / total_parcelas, 2)
-        valor_ultima = round(nota.valor - valor_parcela * (total_parcelas - 1), 2)
+        # OS vinculada para mensagem
+        from app.models.servico_model import ManutencaoAssistencia as _MA
+        servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota_id).first()
+        servico_os_id = servico_os.id if servico_os else None
+
+        valor_base = valor_total_override if valor_total_override else _calcular_valor_base(nota)
+        valor_parcela = round(valor_base / total_parcelas, 2)
+        valor_ultima = round(valor_base - valor_parcela * (total_parcelas - 1), 2)
+
+        base_numero = nota.numero_nota or str(nota_id)
+        msg_payload = _montar_mensagem_payload(mensagem, base_numero, servico_os_id)
 
         pagador = {
             "cpfCnpj": _limpar_cnpj(condominio.cnpj),
@@ -412,7 +466,6 @@ class BoletoService:
             "cep": _limpar_cnpj(endereco.cep) if endereco and endereco.cep else "00000000",
         }
 
-        base_numero = nota.numero_nota or str(nota_id)
         sucesso = []
         erros = []
 
@@ -432,6 +485,8 @@ class BoletoService:
                     "dataVencimento": data_inter.strftime("%Y-%m-%d"),
                     "pagador": pagador,
                 }
+                if msg_payload:
+                    payload["mensagem"] = msg_payload
 
                 resposta = inter_client.emitir_boleto(payload)
 

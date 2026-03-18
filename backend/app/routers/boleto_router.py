@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import List
@@ -9,7 +9,7 @@ from app.schemas.boleto_schema import (
     BoletoResponse, GerarBoletosRequest, GerarBoletosResponse,
     SincronizarResponse, SincronizarInterResponse, BoletoStats,
     RegistrarPagamentoRequest, CriarBoletoManualRequest, GerarParcelasFaltantesResponse,
-    VincularNotaRequest, NotaSemBoletoResponse
+    GerarParcelasFaltantesRequest, VincularNotaRequest, NotaSemBoletoResponse
 )
 
 router = APIRouter()
@@ -26,7 +26,10 @@ def get_db():
 @router.post("/gerar", response_model=GerarBoletosResponse)
 def gerar_boletos(request: GerarBoletosRequest, db: Session = Depends(get_db)):
     """Gera boleto(s) para uma ou mais notas fiscais."""
-    return BoletoService.gerar_boletos(db, request.nota_ids, request.data_vencimento_override)
+    return BoletoService.gerar_boletos(
+        db, request.nota_ids, request.data_vencimento_override,
+        request.valor_total_override, request.mensagem,
+    )
 
 
 @router.get("/", response_model=List[BoletoResponse])
@@ -82,9 +85,15 @@ def registrar_pagamento(boleto_id: int, request: RegistrarPagamentoRequest, db: 
 
 
 @router.post("/gerar-parcelas-faltantes/{nota_id}", response_model=GerarParcelasFaltantesResponse)
-def gerar_parcelas_faltantes(nota_id: int, db: Session = Depends(get_db)):
+def gerar_parcelas_faltantes(
+    nota_id: int,
+    request: GerarParcelasFaltantesRequest = Body(default_factory=GerarParcelasFaltantesRequest),
+    db: Session = Depends(get_db),
+):
     """Gera parcelas que ainda não foram emitidas para uma nota parcelada."""
-    return BoletoService.gerar_parcelas_faltantes(db, nota_id)
+    return BoletoService.gerar_parcelas_faltantes(
+        db, nota_id, request.valor_total_override, request.mensagem,
+    )
 
 
 @router.get("/inconsistencias")

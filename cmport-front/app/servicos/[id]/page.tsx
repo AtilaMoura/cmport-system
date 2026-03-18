@@ -36,6 +36,13 @@ interface NotaFiscal {
   status: string;
   parcelas_json: Array<{ parcela: number; valor: number; data: string | null }> | null;
   valor_boleto_parcela: number | null;
+  iss: number | null;
+  pis: number | null;
+  cofins: number | null;
+  inss: number | null;
+  csll: number | null;
+  icms: number | null;
+  prev: number | null;
 }
 
 interface Boleto {
@@ -124,6 +131,11 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [regDataPago, setRegDataPago] = useState('');
   const [regValorPago, setRegValorPago] = useState('');
   const [regSaving, setRegSaving] = useState(false);
+
+  // Modal "Gerar Inter"
+  const [modalInter, setModalInter] = useState(false);
+  const [interValor, setInterValor] = useState('');
+  const [interMensagem, setInterMensagem] = useState('');
 
   // Modal "Marcar Pago"
   const [modalPago, setModalPago] = useState<Boleto | null>(null);
@@ -264,11 +276,29 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   }
   const parcelasDisplay = notaFiscal ? getParcelasDisplay() : [];
 
-  const handleGerarParcelasFaltantes = async () => {
+  const calcularValorLiquido = (nota: NotaFiscal): number => {
+    if (nota.tipo === 'OUTROS') return nota.valor;
+    const impostos = (nota.iss ?? 0) + (nota.pis ?? 0) + (nota.cofins ?? 0) + (nota.inss ?? 0) + (nota.csll ?? 0);
+    return Math.max(Math.round((nota.valor - impostos) * 100) / 100, 0.01);
+  };
+
+  const handleGerarParcelasFaltantes = () => {
+    if (!notaFiscal) return;
+    const liquido = calcularValorLiquido(notaFiscal);
+    setInterValor(liquido.toFixed(2));
+    setInterMensagem('');
+    setModalInter(true);
+  };
+
+  const handleConfirmarGerarInter = async () => {
     if (!notaFiscal) return;
     setGerandoParcelas(true);
     try {
-      await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`);
+      const body: Record<string, unknown> = {};
+      if (interValor) body.valor_total_override = parseFloat(interValor);
+      if (interMensagem.trim()) body.mensagem = interMensagem.trim();
+      await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
+      setModalInter(false);
       await carregarDados();
     } catch {
       alert('Erro ao gerar boletos Inter.');
@@ -917,6 +947,64 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               <button onClick={handleRegistrarCobranca} disabled={regSaving || !regValor || !regData}
                 className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                 {regSaving ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</> : 'Registrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Gerar Inter */}
+      {modalInter && notaFiscal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">Emitir Boleto Inter</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">Revise o valor e a mensagem antes de emitir.</p>
+
+            {notaFiscal.tipo !== 'OUTROS' && (
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-5 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Valor Bruto (NF)</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{fmt(notaFiscal.valor)}</span>
+                </div>
+                {notaFiscal.iss ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>ISS</span><span>- {fmt(notaFiscal.iss)}</span></div> : null}
+                {notaFiscal.pis ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>PIS</span><span>- {fmt(notaFiscal.pis)}</span></div> : null}
+                {notaFiscal.cofins ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>COFINS</span><span>- {fmt(notaFiscal.cofins)}</span></div> : null}
+                {notaFiscal.inss ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>INSS</span><span>- {fmt(notaFiscal.inss)}</span></div> : null}
+                {notaFiscal.csll ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>CSLL</span><span>- {fmt(notaFiscal.csll)}</span></div> : null}
+                <div className="flex justify-between font-bold text-green-700 dark:text-green-400 border-t border-slate-200 dark:border-slate-700 pt-1 mt-1">
+                  <span>Valor Líquido</span>
+                  <span>{fmt(calcularValorLiquido(notaFiscal))}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Valor Total a Cobrar (R$)</label>
+                <input type="number" step="0.01" min="0.01" value={interValor} onChange={e => setInterValor(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white" />
+                {notaFiscal.parcelas > 1 && (
+                  <p className="text-xs text-slate-400 mt-1">Será dividido entre as {notaFiscal.parcelas} parcelas.</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Mensagem no Boleto</label>
+                <input type="text" maxLength={300} value={interMensagem} onChange={e => setInterMensagem(e.target.value)}
+                  placeholder={`OS ${servico.id} — ${notaFiscal.numero_nota}`}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white" />
+                <p className="text-xs text-slate-400 mt-1">Deixe vazio para usar OS {servico.id} automaticamente.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setModalInter(false)} disabled={gerandoParcelas}
+                className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleConfirmarGerarInter} disabled={gerandoParcelas || !interValor}
+                className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {gerandoParcelas && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                Emitir Boleto
               </button>
             </div>
           </div>
