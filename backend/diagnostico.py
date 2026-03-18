@@ -1058,6 +1058,336 @@ def sec_inter(env, boletos_db, linhas, data_inicio, data_fim):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# SEÇÃO 9B — ANÁLISE CRUZADA INTER API vs BANCO LOCAL (2026-01-01 a hoje)
+# ─────────────────────────────────────────────────────────────────────────────
+INTER_SIT_MAP = {
+    # Inter -> nossa situacao (mesmo mapeamento de _mapear_situacao no boleto_service.py)
+    "EMABERTO":              "EMABERTO",
+    "PAGO":                  "PAGO",
+    "RECEBIDO":              "PAGO",       # Inter usa RECEBIDO para cobranças pagas
+    "CANCELADO":             "CANCELADO",
+    "EXPIRADO":              "EXPIRADO",
+    "VENCIDO":               "VENCIDO",
+    "BAIXADO":               "BAIXADO",
+    "A_RECEBER":             "EMABERTO",
+    "REGISTRADO":            "EMABERTO",
+    "BAIXADO_BOLETO_NAO_PAGO": "BAIXADO",
+    "ATRASADO":              "VENCIDO",
+}
+
+
+def sec_analise_inter_boletos(env, engine, linhas, data_inicio="2026-01-01", data_fim=None):
+    """Analisa cruzamento detalhado entre cobranças do Inter API e boletos no banco local."""
+    from datetime import date as _date
+    W = w_append
+
+    if data_fim is None:
+        data_fim = _date.today().isoformat()
+
+    W(linhas, secao(f"9B. ANALISE CRUZADA  INTER API  vs  BANCO LOCAL  —  {data_inicio} a {data_fim}"))
+
+    if not env.get("INTER_CLIENT_ID"):
+        W(linhas, "  Aviso: INTER_CLIENT_ID nao configurado no .env — secao ignorada.")
+        return
+
+    # ── 1) Buscar dados na API Inter ────────────────────────────────────────
+    try:
+        print("  [AnaliseInter] Autenticando...")
+        token, base_url, cert, conta = _inter_token(env)
+        print(f"  [AnaliseInter] Listando cobranças {data_inicio} a {data_fim}...")
+        cobrancas_inter = _inter_listar(token, base_url, cert, conta, data_inicio, data_fim)
+        print(f"  [AnaliseInter] {len(cobrancas_inter)} cobrancas recebidas da API.")
+    except Exception as e:
+        W(linhas, f"  Erro ao consultar Inter API: {e}")
+        return
+
+    # ── 2) Buscar boletos locais do período ─────────────────────────────────
+    with engine.connect() as conn:
+        boletos_db = ler(conn, """
+            SELECT b.id, b.codigo_solicitacao, b.nosso_numero, b.seu_numero,
+                   b.valor_nominal, b.valor_total_recebido,
+                   b.data_emissao, b.data_vencimento, b.data_pagamento,
+                   b.situacao, b.numero_parcela, b.total_parcelas,
+                   b.forma_pagamento, b.banco_pagamento, b.nota_fiscal_id,
+                   n.numero_nota, n.valor AS valor_nota,
+                   c.nome AS cond_nome, c.cnpj AS cond_cnpj
+            FROM boletos b
+            LEFT JOIN notas_fiscais n ON n.id = b.nota_fiscal_id
+            LEFT JOIN condominios c   ON c.id = n.condominio_id
+            WHERE b.data_vencimento >= :di AND b.data_vencimento <= :df
+            ORDER BY b.data_vencimento, b.id
+        """, {"di": data_inicio, "df": data_fim})
+
+        # Também busca todos BOLETO_INTER sem restrição de data (para checar os sem codigo)
+        todos_inter_db = ler(conn, """
+            SELECT b.id, b.codigo_solicitacao, b.seu_numero, b.nosso_numero,
+                   b.valor_nominal, b.situacao, b.data_vencimento, b.nota_fiscal_id,
+                   b.forma_pagamento,
+                   n.numero_nota, c.nome AS cond_nome
+            FROM boletos b
+            LEFT JOIN notas_fiscais n ON n.id = b.nota_fiscal_id
+            LEFT JOIN condominios c   ON c.id = n.condominio_id
+            WHERE b.forma_pagamento = 'BOLETO_INTER'
+               OR b.banco_pagamento LIKE '%Inter%'
+            ORDER BY b.data_vencimento, b.id
+        """, {})
+
+    # ── 3) Construir índices ────────────────────────────────────────────────
+    # Inter: codigoSolicitacao -> cobrança
+    inter_by_cod = {
+        c["codigoSolicitacao"]: c
+        for c in cobrancas_inter
+        if c.get("codigoSolicitacao")
+    }
+    # Inter: seuNumero -> cobrança (fallback)
+    inter_by_snum = {
+        c["seuNumero"]: c
+        for c in cobrancas_inter
+        if c.get("seuNumero")
+    }
+
+    # DB (periodo): codigo_solicitacao -> boleto
+    db_by_cod = {
+        b["codigo_solicitacao"]: b
+        for b in boletos_db
+        if b.get("codigo_solicitacao")
+    }
+    # DB (periodo): seu_numero -> boleto (fallback)
+    db_by_snum = {
+        b["seu_numero"]: b
+        for b in boletos_db
+        if b.get("seu_numero")
+    }
+
+    codigos_inter = set(inter_by_cod.keys())
+    codigos_db    = set(db_by_cod.keys())
+
+    # ── 4) Classificar ─────────────────────────────────────────────────────
+    # Boletos no Inter que também estão no DB (matched)
+    matched_cods   = codigos_inter & codigos_db
+
+    # No Inter mas não no DB (por período)
+    so_inter       = [c for c in cobrancas_inter
+                      if c.get("codigoSolicitacao") not in codigos_db]
+
+    # No DB (período) mas não no Inter
+    so_db          = [b for b in boletos_db
+                      if b.get("codigo_solicitacao") and
+                      b["codigo_solicitacao"] not in codigos_inter]
+
+    # No DB (período) sem codigo_solicitacao mas forma BOLETO_INTER (nunca enviados)
+    db_sem_codigo  = [b for b in boletos_db
+                      if not b.get("codigo_solicitacao")
+                      and (b.get("forma_pagamento") == "BOLETO_INTER"
+                           or "Inter" in (b.get("banco_pagamento") or ""))]
+
+    # No DB (período) sem codigo_solicitacao e forma diferente de Inter (forma manual)
+    db_manuais     = [b for b in boletos_db
+                      if not b.get("codigo_solicitacao")
+                      and b.get("forma_pagamento") != "BOLETO_INTER"
+                      and "Inter" not in (b.get("banco_pagamento") or "")]
+
+    # ── 5) Análise dos matched: status e valor ──────────────────────────────
+    divergencias_status = []
+    divergencias_valor  = []
+    divergencias_pagto  = []
+    ok_total            = 0
+
+    for cod in matched_cods:
+        inter_c = inter_by_cod[cod]
+        db_b    = db_by_cod[cod]
+
+        sit_inter = str(inter_c.get("situacao") or "?").upper()
+        sit_db    = str(db_b.get("situacao") or "?").upper()
+        val_inter = float(inter_c.get("valorNominal") or 0)
+        val_db    = float(db_b.get("valor_nominal") or 0)
+        pago_inter = str(inter_c.get("dataPagamento") or "")[:10]
+        pago_db    = str(db_b.get("data_pagamento") or "")[:10]
+
+        sit_ok  = INTER_SIT_MAP.get(sit_inter, sit_inter) == sit_db
+        val_ok  = abs(val_inter - val_db) <= 0.05
+        pago_ok = True
+        if sit_inter in ("PAGO", "BAIXADO"):
+            pago_ok = (pago_inter == pago_db) or (not pago_db and pago_inter)
+
+        if not sit_ok:
+            divergencias_status.append({
+                "cod": cod, "db": db_b, "inter": inter_c,
+                "sit_inter": sit_inter, "sit_db": sit_db,
+            })
+        if not val_ok:
+            divergencias_valor.append({
+                "cod": cod, "db": db_b, "inter": inter_c,
+                "val_inter": val_inter, "val_db": val_db,
+            })
+        if not pago_ok:
+            divergencias_pagto.append({
+                "cod": cod, "db": db_b, "inter": inter_c,
+                "pago_inter": pago_inter, "pago_db": pago_db,
+            })
+        if sit_ok and val_ok and pago_ok:
+            ok_total += 1
+
+    # ── 6) Sumário ──────────────────────────────────────────────────────────
+    W(linhas, col("Periodo analisado",            f"{data_inicio}  a  {data_fim}"))
+    W(linhas, "")
+    W(linhas, col("Cobranças no Inter (periodo)", len(cobrancas_inter)))
+    W(linhas, col("Boletos no DB (periodo)",      len(boletos_db)))
+    W(linhas, "")
+
+    # Situações do Inter
+    from collections import Counter
+    sit_inter_count = Counter(str(c.get("situacao") or "?") for c in cobrancas_inter)
+    W(linhas, "  Situações no Inter:")
+    for sit, cnt in sorted(sit_inter_count.items()):
+        val = sum(float(c.get("valorNominal", 0)) for c in cobrancas_inter if str(c.get("situacao")) == sit)
+        W(linhas, col(f"    {sit}", f"{cnt:4d}  |  {fmt_brl(val)}"))
+    W(linhas, "")
+
+    # Situações no DB (período)
+    sit_db_count = Counter(str(b.get("situacao") or "?") for b in boletos_db)
+    W(linhas, "  Situações no banco local (periodo):")
+    for sit, cnt in sorted(sit_db_count.items()):
+        val = sum(float(b.get("valor_nominal", 0)) for b in boletos_db if str(b.get("situacao")) == sit)
+        W(linhas, col(f"    {sit}", f"{cnt:4d}  |  {fmt_brl(val)}"))
+    W(linhas, "")
+
+    # Cruzamento
+    W(linhas, col("Matched (Inter + DB coincidentes)",     len(matched_cods)))
+    W(linhas, col("  Totalmente OK (status+valor+pagto)",  ok_total))
+    W(linhas, col("  Divergencia de status",               len(divergencias_status)))
+    W(linhas, col("  Divergencia de valor",                len(divergencias_valor)))
+    W(linhas, col("  Divergencia de data pagamento",       len(divergencias_pagto)))
+    W(linhas, "")
+    W(linhas, col("No Inter mas FORA do DB (periodo)",     len(so_inter)))
+    W(linhas, col("No DB mas FORA do Inter (periodo)",     len(so_db)))
+    W(linhas, col("No DB sem codigo Inter (forma Inter)",  len(db_sem_codigo)))
+    W(linhas, col("No DB manuais (outros meios pgto)",     len(db_manuais)))
+
+    # ── 7) Detalhe: divergências de status ─────────────────────────────────
+    if divergencias_status:
+        W(linhas, sub(f"DIVERGENCIAS DE STATUS — {len(divergencias_status)} boletos"))
+        W(linhas, "  Ação: o banco local deve ser sincronizado com o status do Inter.")
+        W(linhas, "")
+        W(linhas, f"  {'ID_DB':>6}  {'Nota':<22}  {'Condominio':<30}  {'Inter':>12}  {'DB':>12}  {'Valor':>14}  Vencimento")
+        W(linhas, "  " + "-" * 120)
+        for d in divergencias_status:
+            db_b = d["db"]
+            c    = d["inter"]
+            W(linhas, f"  #{db_b['id']:5d}  {str(db_b.get('numero_nota') or '—'):<22}  "
+                      f"{str(db_b.get('cond_nome') or '—'):<30}  "
+                      f"{d['sit_inter']:>12}  {d['sit_db']:>12}  "
+                      f"{fmt_brl(db_b.get('valor_nominal', 0)):>14}  "
+                      f"{fmt_d(db_b.get('data_vencimento'))}")
+
+    # ── 8) Detalhe: divergências de valor ──────────────────────────────────
+    if divergencias_valor:
+        W(linhas, sub(f"DIVERGENCIAS DE VALOR — {len(divergencias_valor)} boletos"))
+        W(linhas, "")
+        W(linhas, f"  {'ID_DB':>6}  {'Nota':<22}  {'Val Inter':>14}  {'Val DB':>14}  {'Diff':>12}  Vencimento")
+        W(linhas, "  " + "-" * 90)
+        for d in divergencias_valor:
+            db_b = d["db"]
+            diff = d["val_inter"] - d["val_db"]
+            W(linhas, f"  #{db_b['id']:5d}  {str(db_b.get('numero_nota') or '—'):<22}  "
+                      f"{fmt_brl(d['val_inter']):>14}  {fmt_brl(d['val_db']):>14}  "
+                      f"{fmt_brl(diff):>12}  {fmt_d(db_b.get('data_vencimento'))}")
+
+    # ── 9) Detalhe: divergência data de pagamento ───────────────────────────
+    if divergencias_pagto:
+        W(linhas, sub(f"DIVERGENCIAS DE DATA DE PAGAMENTO — {len(divergencias_pagto)} boletos"))
+        W(linhas, "")
+        for d in divergencias_pagto:
+            db_b = d["db"]
+            W(linhas, f"  #{db_b['id']:5d}  {str(db_b.get('numero_nota') or '—'):<22}  "
+                      f"Inter: {d['pago_inter'] or '—'}  DB: {d['pago_db'] or '—'}  "
+                      f"Sit_Inter: {d['sit_inter']}  Sit_DB: {d['sit_db']}")
+
+    # ── 10) Cobranças só no Inter (não estão no DB) ─────────────────────────
+    if so_inter:
+        W(linhas, sub(f"COBRANÇAS NO INTER SEM REGISTRO LOCAL — {len(so_inter)}"))
+        W(linhas, "  Esses boletos foram emitidos no Inter mas nao foram importados para o banco local.")
+        W(linhas, "  Possíveis causas: gerados fora do sistema, período anterior, ou importacao pendente.")
+        W(linhas, "")
+        W(linhas, f"  {'#':<4}  {'CodigoSolicitacao':<38}  {'SeuNumero':<16}  {'Valor':>14}  {'Venc':>10}  {'Sit':<12}  Pagador")
+        W(linhas, "  " + "-" * 130)
+        for i, c in enumerate(so_inter, 1):
+            pag = c.get("pagador") or {}
+            W(linhas, f"  {i:<4}  {str(c.get('codigoSolicitacao') or '—'):<38}  "
+                      f"{str(c.get('seuNumero') or '—'):<16}  "
+                      f"{fmt_brl(c.get('valorNominal', 0)):>14}  "
+                      f"{str(c.get('dataVencimento') or '—')[:10]:>10}  "
+                      f"{str(c.get('situacao') or '—'):<12}  "
+                      f"{pag.get('nome') or '—'}")
+
+    # ── 11) DB sem correspondente no Inter ──────────────────────────────────
+    if so_db:
+        W(linhas, sub(f"BOLETOS DB SEM CORRESPONDENTE NO INTER — {len(so_db)}"))
+        W(linhas, "  Esses boletos estao no banco local com codigo_solicitacao, mas o Inter nao os retornou.")
+        W(linhas, "  Possíveis causas: cancelados em outro periodo, erro na emissao, ou codigo desatualizado.")
+        W(linhas, "")
+        for b in so_db:
+            W(linhas, f"  #{b['id']:5d}  {str(b.get('numero_nota') or '—'):<22}  "
+                      f"Cod: {b.get('codigo_solicitacao')}  "
+                      f"Sit: {b.get('situacao')}  "
+                      f"Valor: {fmt_brl(b.get('valor_nominal', 0))}  "
+                      f"Venc: {fmt_d(b.get('data_vencimento'))}  "
+                      f"Cond: {b.get('cond_nome') or '—'}")
+
+    # ── 12) BOLETO_INTER sem codigo (nunca enviados ao Inter) ───────────────
+    if db_sem_codigo:
+        W(linhas, sub(f"BOLETOS FORMA 'INTER' SEM CODIGO DE SOLICITACAO — {len(db_sem_codigo)}"))
+        W(linhas, "  Esses boletos foram registrados localmente como BOLETO_INTER")
+        W(linhas, "  mas nao tem codigo_solicitacao — nunca chegaram a ser emitidos no Inter.")
+        W(linhas, "")
+        for b in todos_inter_db:
+            if not b.get("codigo_solicitacao") and (
+                b.get("forma_pagamento") == "BOLETO_INTER"
+                or "Inter" in (b.get("banco_pagamento") or "")
+            ):
+                W(linhas, f"  #{b['id']:5d}  Nota: {str(b.get('numero_nota') or '—'):<22}  "
+                          f"Sit: {b.get('situacao')}  "
+                          f"Valor: {fmt_brl(b.get('valor_nominal', 0))}  "
+                          f"Venc: {fmt_d(b.get('data_vencimento'))}  "
+                          f"Cond: {b.get('cond_nome') or '—'}")
+
+    # ── 13) Manuais (ok, sem comparação Inter) ──────────────────────────────
+    if db_manuais:
+        W(linhas, sub(f"COBRANÇAS MANUAIS (outros meios) no periodo — {len(db_manuais)}"))
+        W(linhas, "  Registrados localmente fora do Inter (PIX, dinheiro, transferencia, etc.)")
+        W(linhas, "")
+        from collections import Counter as Cnt
+        por_forma = Cnt(b.get("forma_pagamento") or "?" for b in db_manuais)
+        for forma, cnt in sorted(por_forma.items()):
+            val = sum(float(b.get("valor_nominal", 0)) for b in db_manuais if b.get("forma_pagamento") == forma)
+            W(linhas, col(f"  {forma}", f"{cnt:4d}  |  {fmt_brl(val)}"))
+
+    # ── 14) Conclusão ───────────────────────────────────────────────────────
+    W(linhas, sub("CONCLUSAO"))
+    problemas = (len(divergencias_status) + len(divergencias_valor) +
+                 len(so_inter) + len(so_db) + len(db_sem_codigo))
+
+    if problemas == 0:
+        W(linhas, "  OK  Tudo sincronizado: DB bate com Inter, sem divergencias.")
+    else:
+        if ok_total > 0:
+            W(linhas, f"  OK  {ok_total} boleto(s) completamente sincronizados (status + valor + pagamento).")
+        if divergencias_status:
+            W(linhas, f"  ACAO NECESSARIA: {len(divergencias_status)} boleto(s) com status divergente (Inter vs DB).")
+            W(linhas, "        -> Use a rota POST /boletos/sincronizar-inter ou atualize manualmente.")
+        if divergencias_valor:
+            W(linhas, f"  VERIFICAR: {len(divergencias_valor)} boleto(s) com valor diferente do Inter.")
+        if so_inter:
+            W(linhas, f"  VERIFICAR: {len(so_inter)} cobranca(s) no Inter sem registro local.")
+            W(linhas, "        -> Podem ter sido emitidas fora do sistema ou sao de outro período.")
+        if so_db:
+            W(linhas, f"  VERIFICAR: {len(so_db)} boleto(s) locais sem correspondente no Inter.")
+        if db_sem_codigo:
+            W(linhas, f"  ACAO NECESSARIA: {len(db_sem_codigo)} boleto(s) BOLETO_INTER sem codigo_solicitacao.")
+            W(linhas, "        -> Esses nunca foram efetivamente emitidos no Inter.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # SEÇÃO 9 — ANÁLISE ZIP vs BD: por que o serviço não é gerado
 # ─────────────────────────────────────────────────────────────────────────────
 def _strip_accents_diag(s: str) -> str:
@@ -2160,6 +2490,7 @@ def main():
     parser.add_argument("--data-fim",     default=None, help="Data fim para busca Inter (YYYY-MM-DD), padrão: hoje")
     parser.add_argument("--analise-xml",    action="store_true", help="Analisa e compara campos financeiros XML vs BD, impostos, parcelas")
     parser.add_argument("--extracao-xml",  metavar="CAMINHO",   help="Extração completa: todos campos XML + parcelas + vencimentos + impostos vs BD")
+    parser.add_argument("--analise-inter", action="store_true", help="Analise cruzada Inter API vs banco local (2026-01-01 ate hoje)")
     args = parser.parse_args()
 
     script_dir = Path(__file__).parent
@@ -2241,6 +2572,17 @@ def main():
         except Exception as e:
             import traceback
             W(linhas, f"\n[ERRO INTER] {e}\n{traceback.format_exc()}")
+
+    if args.analise_inter:
+        from datetime import date as _date
+        hoje_s   = _date.today().isoformat()
+        d_inicio = args.data_inicio or "2026-01-01"
+        d_fim    = args.data_fim    or hoje_s
+        try:
+            sec_analise_inter_boletos(env, engine, linhas, d_inicio, d_fim)
+        except Exception as e:
+            import traceback
+            W(linhas, f"\n[ERRO ANALISE-INTER] {e}\n{traceback.format_exc()}")
 
     W(f"\n{SEP}")
     W(f"  Fim do diagnóstico  —  {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
