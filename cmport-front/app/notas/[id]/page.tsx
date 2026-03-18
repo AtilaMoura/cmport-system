@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
-// Interface para NotaFiscal, definindo a estrutura dos dados da nota fiscal
+interface ParcelaDisplay {
+  parcela: number;
+  valor: number;
+  data: string | null;
+}
+
 interface NotaFiscal {
   id: number;
   numero_nota: string;
@@ -18,6 +23,9 @@ interface NotaFiscal {
   condominio_id: number | null;
   observacao: string | null;
   criado_em: string;
+  parcelas_json: ParcelaDisplay[] | null;
+  valor_boleto_parcela: number | null;
+  status: string;
 }
 
 interface Condominio {
@@ -54,11 +62,70 @@ const SITUACAO_CONFIG: Record<string, { label: string; cls: string; dot: string 
   BAIXADO:   { label: 'Baixado',   cls: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400',    dot: 'bg-teal-500' },
 };
 
-// Componente principal da página de detalhes da nota fiscal
+const FORMAS_PAGAMENTO = ['PIX', 'DINHEIRO', 'TRANSFERENCIA', 'CHEQUE', 'BOLETO_ITAU', 'BOLETO_INTER'] as const;
+type FormaPagamento = typeof FORMAS_PAGAMENTO[number];
+
+const FORMA_PAGAMENTO_LABELS: Record<FormaPagamento, string> = {
+  PIX: 'PIX',
+  DINHEIRO: 'Dinheiro',
+  TRANSFERENCIA: 'Transferencia',
+  CHEQUE: 'Cheque',
+  BOLETO_ITAU: 'Boleto Itau',
+  BOLETO_INTER: 'Boleto Inter',
+};
+
+const FORMA_PAGAMENTO_ICONS: Record<FormaPagamento, string> = {
+  PIX: 'PIX',
+  DINHEIRO: 'Din',
+  TRANSFERENCIA: 'TED',
+  CHEQUE: 'CHQ',
+  BOLETO_ITAU: 'Ita',
+  BOLETO_INTER: 'Int',
+};
+
+const fmt = (v: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+const parseDateLocal = (dateStr: string) => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('pt-BR');
+};
+
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+interface ModalCobrancaState {
+  open: boolean;
+  parcela: ParcelaDisplay | null;
+}
+
+interface ModalPagamentoState {
+  open: boolean;
+  boleto: Boleto | null;
+}
+
+interface CobrancaForm {
+  forma_pagamento: FormaPagamento;
+  data_vencimento: string;
+  valor: string;
+  ja_pago: boolean;
+  data_pagamento: string;
+  valor_recebido: string;
+  observacao: string;
+}
+
+interface PagamentoForm {
+  data_pagamento: string;
+  valor_recebido: string;
+  forma_pagamento: FormaPagamento;
+  observacao: string;
+}
+
 export default function NotaDetalhesPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  
-  // Estados para gerenciar os dados da nota, condomínio, loading e edição
+
   const [nota, setNota] = useState<NotaFiscal | null>(null);
   const [condominio, setCondominio] = useState<Condominio | null>(null);
   const [boletos, setBoletos] = useState<Boleto[]>([]);
@@ -67,46 +134,62 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   const [modalExcluir, setModalExcluir] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
-  
-  // Estados para o formulário de edição
+
   const [dataVencimento, setDataVencimento] = useState('');
   const [dataPagamento, setDataPagamento] = useState('');
   const [observacao, setObservacao] = useState('');
   const [clienteNome, setClienteNome] = useState('');
 
-  // Estado para armazenar o ID da nota, resolvido a partir dos params
   const [id, setId] = useState<string | null>(null);
 
-  // Efeito para resolver o ID dos params assíncronos
+  // Modal: Registrar Cobranca (create manual payment)
+  const [modalCobranca, setModalCobranca] = useState<ModalCobrancaState>({ open: false, parcela: null });
+  const [cobrancaForm, setCobrancaForm] = useState<CobrancaForm>({
+    forma_pagamento: 'PIX',
+    data_vencimento: '',
+    valor: '',
+    ja_pago: false,
+    data_pagamento: '',
+    valor_recebido: '',
+    observacao: '',
+  });
+  const [submittingCobranca, setSubmittingCobranca] = useState(false);
+
+  // Modal: Registrar Pagamento (mark existing boleto as paid)
+  const [modalPagamento, setModalPagamento] = useState<ModalPagamentoState>({ open: false, boleto: null });
+  const [pagamentoForm, setPagamentoForm] = useState<PagamentoForm>({
+    data_pagamento: todayIso(),
+    valor_recebido: '',
+    forma_pagamento: 'PIX',
+    observacao: '',
+  });
+  const [submittingPagamento, setSubmittingPagamento] = useState(false);
+
   useEffect(() => {
     params.then((resolvedParams) => {
       setId(resolvedParams.id);
     });
   }, [params]);
 
-  // Efeito para carregar os dados quando o ID estiver disponível
   useEffect(() => {
     if (id) {
       carregarDados();
     }
   }, [id]);
 
-  // Função assíncrona para carregar os dados da nota e condomínio via API
   const carregarDados = async () => {
     if (!id) return;
-    
+
     try {
       const response = await api.get(`/notas-fiscais/${id}`);
       const notaData = response.data;
       setNota(notaData);
-      
-      // Preencher os campos do formulário de edição com os dados da nota
+
       setDataVencimento(notaData.data_vencimento);
       setDataPagamento(notaData.data_pagamento || '');
       setObservacao(notaData.observacao || '');
       setClienteNome(notaData.cliente_nome || '');
-      
-      // Carregar condomínio e boletos em paralelo
+
       const [condoRes, boletosRes] = await Promise.all([
         notaData.condominio_id ? api.get(`/condominios/${notaData.condominio_id}`) : Promise.resolve(null),
         api.get(`/boletos/nota/${id}`),
@@ -115,11 +198,26 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       setBoletos(boletosRes.data || []);
     } catch (error) {
       console.error('Erro ao carregar nota:', error);
-      alert('Nota fiscal não encontrada');
+      alert('Nota fiscal nao encontrada');
       router.push('/notas');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Compute parcelas to display based on nota data
+  const getParcelasDisplay = (nota: NotaFiscal): ParcelaDisplay[] => {
+    if (nota.parcelas_json && nota.parcelas_json.length > 0) {
+      return nota.parcelas_json;
+    }
+    if (nota.parcelas > 1) {
+      return Array.from({ length: nota.parcelas }, (_, i) => ({
+        parcela: i + 1,
+        valor: nota.valor_boleto_parcela ?? nota.valor / nota.parcelas,
+        data: null,
+      }));
+    }
+    return [{ parcela: 1, valor: nota.valor, data: nota.data_vencimento }];
   };
 
   const handleGerarParcelasFaltantes = async () => {
@@ -142,10 +240,131 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     }
   };
 
-  // Função para salvar as alterações na nota via API PUT
+  const handleGerarInterParcela = async () => {
+    if (!id) return;
+    setGerandoParcelas(true);
+    try {
+      const res = await api.post(`/boletos/gerar-parcelas-faltantes/${id}`);
+      const { sucesso, erros } = res.data;
+      await carregarDados();
+      if (erros.length > 0) {
+        alert(`${sucesso.length} parcela(s) gerada(s).\nErros: ${erros.map((e: { erro: string }) => e.erro).join(', ')}`);
+      } else {
+        alert(`${sucesso.length} parcela(s) gerada(s) com sucesso!`);
+      }
+    } catch {
+      alert('Erro ao gerar parcelas via Inter.');
+    } finally {
+      setGerandoParcelas(false);
+    }
+  };
+
+  const openModalCobranca = (parcela: ParcelaDisplay) => {
+    setCobrancaForm({
+      forma_pagamento: 'PIX',
+      data_vencimento: parcela.data || '',
+      valor: String(parcela.valor),
+      ja_pago: false,
+      data_pagamento: '',
+      valor_recebido: String(parcela.valor),
+      observacao: '',
+    });
+    setModalCobranca({ open: true, parcela });
+  };
+
+  const closeModalCobranca = () => {
+    setModalCobranca({ open: false, parcela: null });
+  };
+
+  const handleSubmitCobranca = async () => {
+    if (!nota || !modalCobranca.parcela) return;
+    if (!cobrancaForm.data_vencimento) {
+      alert('Informe a data de vencimento.');
+      return;
+    }
+    if (!cobrancaForm.valor || isNaN(Number(cobrancaForm.valor))) {
+      alert('Informe um valor valido.');
+      return;
+    }
+    if (cobrancaForm.ja_pago && !cobrancaForm.data_pagamento) {
+      alert('Informe a data de pagamento.');
+      return;
+    }
+
+    setSubmittingCobranca(true);
+    try {
+      await api.post('/boletos/manual', {
+        nota_fiscal_id: nota.id,
+        numero_parcela: modalCobranca.parcela.parcela,
+        total_parcelas: nota.parcelas,
+        valor_nominal: Number(cobrancaForm.valor),
+        data_vencimento: cobrancaForm.data_vencimento,
+        forma_pagamento: cobrancaForm.forma_pagamento,
+        banco_pagamento: null,
+        observacao: cobrancaForm.observacao || null,
+        ja_pago: cobrancaForm.ja_pago,
+        data_pagamento: cobrancaForm.ja_pago ? cobrancaForm.data_pagamento : null,
+        valor_recebido: cobrancaForm.ja_pago && cobrancaForm.valor_recebido
+          ? Number(cobrancaForm.valor_recebido)
+          : null,
+      });
+      closeModalCobranca();
+      await carregarDados();
+    } catch (error) {
+      console.error('Erro ao registrar cobranca:', error);
+      alert('Erro ao registrar cobranca. Verifique os dados e tente novamente.');
+    } finally {
+      setSubmittingCobranca(false);
+    }
+  };
+
+  const openModalPagamento = (boleto: Boleto) => {
+    setPagamentoForm({
+      data_pagamento: todayIso(),
+      valor_recebido: String(boleto.valor_nominal),
+      forma_pagamento: (boleto.forma_pagamento as FormaPagamento) || 'PIX',
+      observacao: '',
+    });
+    setModalPagamento({ open: true, boleto });
+  };
+
+  const closeModalPagamento = () => {
+    setModalPagamento({ open: false, boleto: null });
+  };
+
+  const handleSubmitPagamento = async () => {
+    if (!modalPagamento.boleto) return;
+    if (!pagamentoForm.data_pagamento) {
+      alert('Informe a data de pagamento.');
+      return;
+    }
+    if (!pagamentoForm.valor_recebido || isNaN(Number(pagamentoForm.valor_recebido))) {
+      alert('Informe um valor recebido valido.');
+      return;
+    }
+
+    setSubmittingPagamento(true);
+    try {
+      await api.post(`/boletos/${modalPagamento.boleto.id}/registrar-pagamento`, {
+        data_pagamento: pagamentoForm.data_pagamento,
+        valor_recebido: Number(pagamentoForm.valor_recebido),
+        forma_pagamento: pagamentoForm.forma_pagamento,
+        banco_pagamento: null,
+        observacao: pagamentoForm.observacao || null,
+      });
+      closeModalPagamento();
+      await carregarDados();
+    } catch (error) {
+      console.error('Erro ao registrar pagamento:', error);
+      alert('Erro ao registrar pagamento.');
+    } finally {
+      setSubmittingPagamento(false);
+    }
+  };
+
   const handleSalvar = async () => {
     if (!id) return;
-    
+
     try {
       await api.put(`/notas-fiscais/${id}`, {
         data_vencimento: dataVencimento,
@@ -153,39 +372,35 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
         observacao: observacao || null,
         cliente_nome: clienteNome || null
       });
-      
-      alert('✅ Nota fiscal atualizada com sucesso!');
+
+      alert('Nota fiscal atualizada com sucesso!');
       setEditando(false);
-      carregarDados(); // Recarregar dados após atualização
+      carregarDados();
     } catch (error) {
       console.error('Erro ao atualizar:', error);
-      alert('❌ Erro ao atualizar nota fiscal');
+      alert('Erro ao atualizar nota fiscal');
     }
   };
 
-  // Função para lidar com a exclusão da nota, incluindo confirmação de serviços vinculados
   const handleExcluir = async () => {
     if (!motivo.trim()) {
-      alert("Informe o motivo da exclusão");
+      alert("Informe o motivo da exclusao");
       return;
     }
 
-    // Confirmação para deletar serviços associados
     const deletarServicos = confirm(
-      "Esta nota está vinculada a serviços. Deseja deletar também todos os serviços associados?"
+      "Esta nota esta vinculada a servicos. Deseja deletar tambem todos os servicos associados?"
     );
 
     try {
       await api.delete(`/notas-fiscais/${nota?.id}?motivo=${encodeURIComponent(motivo)}&deletar_servicos=${deletarServicos}`);
-      alert("Nota excluída com sucesso!");
-      router.push("/notas"); // Redireciona para a lista após exclusão
+      alert("Nota excluida com sucesso!");
+      router.push("/notas");
     } catch (error) {
       console.error("Erro ao excluir nota:", error);
-      
     }
   };
 
-  // Renderiza tela de loading se dados estiverem carregando ou nota não existir
   if (loading || !nota) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
@@ -197,7 +412,6 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  // Função para obter a cor de fundo baseada no tipo da nota
   const getTipoColor = (tipo: string) => {
     switch (tipo) {
       case 'ASSISTENCIA': return 'from-blue-500 to-blue-600';
@@ -206,7 +420,6 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     }
   };
 
-  // Função para obter o ícone baseado no tipo da nota
   const getTipoIcon = (tipo: string) => {
     switch (tipo) {
       case 'ASSISTENCIA': return '🔧';
@@ -215,14 +428,17 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     }
   };
 
-  // Renderização principal da página
+  const parcelasDisplay = getParcelasDisplay(nota);
+  const totalParcelas = nota.parcelas || 1;
+  const boletosCount = boletos.length;
+  const hasMissingBoletos = boletosCount > 0 && boletosCount < totalParcelas;
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Header fixo no topo */}
+      {/* Fixed top header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-8 py-6">
           <div className="flex items-center justify-between">
-            {/* Link para voltar à lista de notas */}
             <Link
               href="/notas"
               className="inline-flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 font-semibold transition-colors group"
@@ -233,7 +449,6 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
               Voltar para lista
             </Link>
 
-            {/* Botões de ação: Editar ou Excluir */}
             <div className="flex gap-3">
               {!editando ? (
                 <>
@@ -261,7 +476,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   <button
                     onClick={() => {
                       setEditando(false);
-                      carregarDados(); // Resetar formulário ao cancelar
+                      carregarDados();
                     }}
                     className="px-5 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-300 dark:hover:bg-slate-600 transition-all flex items-center gap-2"
                   >
@@ -277,7 +492,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    Salvar Alterações
+                    Salvar Alteracoes
                   </button>
                 </>
               )}
@@ -286,11 +501,11 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      {/* Conteúdo principal da página */}
+      {/* Main content */}
       <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Seção principal com detalhes da nota */}
+        {/* Left: nota details */}
         <div className="lg:col-span-3 space-y-6">
-          {/* Card principal da nota */}
+          {/* Hero card */}
           <div className={`bg-gradient-to-r ${getTipoColor(nota.tipo)} rounded-3xl p-8 text-white shadow-xl`}>
             <div className="flex items-start justify-between">
               <div className="space-y-2">
@@ -307,16 +522,15 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
             </div>
           </div>
 
-          {/* Formulário de edição ou visualização */}
+          {/* Editable fields card */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
             <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
               <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
                 <span className="text-xl">📝</span>
-                Detalhes Editáveis
+                Detalhes Editaveis
               </h3>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Campo Data de Vencimento */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                   Data de Vencimento
@@ -335,7 +549,6 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                 )}
               </div>
 
-              {/* Campo Data de Pagamento */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                   Data de Pagamento
@@ -349,12 +562,11 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   />
                 ) : (
                   <p className="px-4 py-3 bg-slate-50 dark:bg-slate-950 rounded-xl text-slate-900 dark:text-white font-medium">
-                    {nota.data_pagamento ? new Date(nota.data_pagamento).toLocaleDateString('pt-BR') : 'Não pago'}
+                    {nota.data_pagamento ? new Date(nota.data_pagamento).toLocaleDateString('pt-BR') : 'Nao pago'}
                   </p>
                 )}
               </div>
 
-              {/* Campo Nome do Cliente */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                   Nome do Cliente
@@ -368,15 +580,14 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   />
                 ) : (
                   <p className="px-4 py-3 bg-slate-50 dark:bg-slate-950 rounded-xl text-slate-900 dark:text-white font-medium">
-                    {nota.cliente_nome || 'Não informado'}
+                    {nota.cliente_nome || 'Nao informado'}
                   </p>
                 )}
               </div>
 
-              {/* Campo Observação */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                  Observação
+                  Observacao
                 </label>
                 {editando ? (
                   <textarea
@@ -387,20 +598,20 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   />
                 ) : (
                   <p className="px-4 py-3 bg-slate-50 dark:bg-slate-950 rounded-xl text-slate-900 dark:text-white font-medium whitespace-pre-wrap">
-                    {nota.observacao || 'Sem observações'}
+                    {nota.observacao || 'Sem observacoes'}
                   </p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Seção de Condomínio Associado */}
+          {/* Associated condominio */}
           {condominio && (
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
               <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
                   <span className="text-xl">🏢</span>
-                  Condomínio Associado
+                  Condominio Associado
                 </h3>
               </div>
               <div className="p-6">
@@ -416,7 +627,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                       {condominio.nome}
                     </p>
                     <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">
-                      CNPJ: {condominio.cnpj || 'Não informado'}
+                      CNPJ: {condominio.cnpj || 'Nao informado'}
                     </p>
                   </div>
                   <svg className="w-6 h-6 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -428,26 +639,27 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
           )}
         </div>
 
-        {/* Sidebar com status e metadados */}
+        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Card de Boletos / Parcelas */}
+          {/* Cobracas section */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
             <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                <span className="text-xl">🏦</span>
-                Boletos
+                <span className="text-xl">💳</span>
+                Cobranças
               </h3>
               {boletos.length > 0 && (
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                  {boletos.filter(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO').length}/{boletos.length} pagos
+                  {boletos.filter(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO').length}/{totalParcelas} pagos
                 </span>
               )}
             </div>
-            {/* Aviso de parcelas faltantes */}
-            {nota.parcelas > 1 && boletos.length > 0 && boletos.length < nota.parcelas && (
+
+            {/* Bulk action: generate missing boletos via Inter */}
+            {hasMissingBoletos && (
               <div className="mx-4 mt-4 p-3 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-800/30 rounded-xl">
                 <p className="text-xs font-bold text-orange-700 dark:text-orange-400 mb-2">
-                  Parcelas faltantes: {boletos.length}/{nota.parcelas} geradas
+                  Parcelas faltantes: {boletosCount}/{totalParcelas} geradas
                 </p>
                 <button
                   onClick={handleGerarParcelasFaltantes}
@@ -460,49 +672,105 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                 </button>
               </div>
             )}
+
+            {/* Parcelas list */}
             <div className="p-4 space-y-3">
-              {boletos.length === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-600 text-center py-2">Nenhum boleto gerado</p>
-              ) : (
-                boletos.map(b => {
-                  const cfg = SITUACAO_CONFIG[b.situacao];
-                  const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-                  const [y, m, d] = b.data_vencimento.split('-').map(Number);
-                  const venc = new Date(y, m - 1, d).toLocaleDateString('pt-BR');
-                  return (
-                    <div key={b.id} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                      <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${cfg?.dot}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-0.5">
-                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                            {b.total_parcelas > 1 ? `Parcela ${b.numero_parcela}/${b.total_parcelas}` : 'À vista'}
-                          </span>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg?.cls}`}>{cfg?.label}</span>
-                        </div>
-                        <p className="font-bold text-slate-900 dark:text-white text-sm">{fmt(b.valor_nominal)}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Venc. {venc}</p>
-                        {b.data_pagamento && (
+              {parcelasDisplay.map((parcela) => {
+                const boleto = boletos.find(b => b.numero_parcela === parcela.parcela) ?? null;
+                const cfg = boleto ? SITUACAO_CONFIG[boleto.situacao] : null;
+                const canMarkPaid = boleto && (boleto.situacao === 'EMABERTO' || boleto.situacao === 'VENCIDO');
+                const parcelaLabel = totalParcelas > 1
+                  ? `Parcela ${parcela.parcela}/${totalParcelas}`
+                  : 'A vista';
+
+                return (
+                  <div key={parcela.parcela} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-2">
+                    {/* Row header: label + situacao badge */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        {parcelaLabel}
+                      </span>
+                      {cfg && (
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${cfg.cls}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                          {cfg.label}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Value and date */}
+                    <div className="flex items-baseline justify-between">
+                      <span className="font-bold text-slate-900 dark:text-white text-sm">
+                        {fmt(parcela.valor)}
+                      </span>
+                      {parcela.data && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Venc. {parseDateLocal(parcela.data)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Boleto extra info */}
+                    {boleto && (
+                      <div className="space-y-0.5">
+                        {boleto.data_pagamento && (
                           <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
-                            Pago em {new Date(b.data_pagamento).toLocaleDateString('pt-BR')}
-                            {b.valor_total_recebido && b.valor_total_recebido !== b.valor_nominal
-                              ? ` · ${fmt(b.valor_total_recebido)}`
+                            Pago em {parseDateLocal(boleto.data_pagamento)}
+                            {boleto.valor_total_recebido && boleto.valor_total_recebido !== boleto.valor_nominal
+                              ? ` · ${fmt(boleto.valor_total_recebido)}`
                               : ''}
                           </p>
                         )}
-                        {(b.valor_juros > 0 || b.valor_multa > 0) && (
+                        {(boleto.valor_juros > 0 || boleto.valor_multa > 0) && (
                           <p className="text-xs text-orange-600 dark:text-orange-400">
-                            +{fmt(b.valor_juros + b.valor_multa)} juros/multa
+                            +{fmt(boleto.valor_juros + boleto.valor_multa)} juros/multa
                           </p>
                         )}
+                        {/* Forma de pagamento badge */}
+                        <span className="inline-block text-xs font-mono font-bold px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
+                          {FORMA_PAGAMENTO_ICONS[boleto.forma_pagamento as FormaPagamento] ?? boleto.forma_pagamento}
+                        </span>
                       </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2 pt-1">
+                      {boleto ? (
+                        canMarkPaid && (
+                          <button
+                            onClick={() => openModalPagamento(boleto)}
+                            className="flex-1 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all"
+                          >
+                            Marcar Pago
+                          </button>
+                        )
+                      ) : (
+                        <>
+                          <button
+                            onClick={handleGerarInterParcela}
+                            disabled={gerandoParcelas}
+                            className="flex-1 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                            title="Gerar via Banco Inter"
+                          >
+                            {gerandoParcelas ? '...' : 'Gerar Inter'}
+                          </button>
+                          <button
+                            onClick={() => openModalCobranca(parcela)}
+                            className="flex-1 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
+                            title="Registrar manualmente"
+                          >
+                            + Registrar
+                          </button>
+                        </>
+                      )}
                     </div>
-                  );
-                })
-              )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Card de Status */}
+          {/* Status card */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
             <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
               <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
@@ -530,7 +798,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
             </div>
           </div>
 
-          {/* Card de Metadados */}
+          {/* Metadata card */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
             <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
               <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
@@ -554,25 +822,25 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      {/* Modal de confirmação de exclusão */}
+      {/* Modal: Confirmar exclusao */}
       {modalExcluir && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8 animate-fadeIn">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8">
             <div className="text-center mb-6">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-500/20 rounded-full mb-4">
                 <span className="text-3xl">⚠️</span>
               </div>
               <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
-                Confirmar Exclusão
+                Confirmar Exclusao
               </h2>
               <p className="text-slate-600 dark:text-slate-400">
-                Esta ação não pode ser desfeita. A nota será arquivada no histórico de exclusões.
+                Esta acao nao pode ser desfeita. A nota sera arquivada no historico de exclusoes.
               </p>
             </div>
 
             <div className="mb-6">
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                Motivo da exclusão (obrigatório)
+                Motivo da exclusao (obrigatorio)
               </label>
               <textarea
                 value={motivo}
@@ -595,6 +863,248 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                 className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:brightness-110 transition-all"
               >
                 Excluir Nota
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registrar Cobranca (create manual boleto) */}
+      {modalCobranca.open && modalCobranca.parcela && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">
+                Registrar Cobrança
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {totalParcelas > 1
+                  ? `Parcela ${modalCobranca.parcela.parcela}/${totalParcelas}`
+                  : 'A vista'}{' '}
+                — {fmt(modalCobranca.parcela.valor)}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Forma de pagamento */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Forma de Pagamento
+                </label>
+                <select
+                  value={cobrancaForm.forma_pagamento}
+                  onChange={(e) => setCobrancaForm(f => ({ ...f, forma_pagamento: e.target.value as FormaPagamento }))}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white"
+                >
+                  {FORMAS_PAGAMENTO.map(fp => (
+                    <option key={fp} value={fp}>{FORMA_PAGAMENTO_LABELS[fp]}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Data de vencimento */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Data de Vencimento
+                </label>
+                <input
+                  type="date"
+                  value={cobrancaForm.data_vencimento}
+                  onChange={(e) => setCobrancaForm(f => ({ ...f, data_vencimento: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white"
+                />
+              </div>
+
+              {/* Valor */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Valor (R$)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={cobrancaForm.valor}
+                  onChange={(e) => setCobrancaForm(f => ({ ...f, valor: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white"
+                />
+              </div>
+
+              {/* Ja pago toggle */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="ja_pago"
+                  checked={cobrancaForm.ja_pago}
+                  onChange={(e) => setCobrancaForm(f => ({ ...f, ja_pago: e.target.checked }))}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="ja_pago" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                  Ja pago
+                </label>
+              </div>
+
+              {/* Conditional payment fields */}
+              {cobrancaForm.ja_pago && (
+                <>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Data de Pagamento
+                    </label>
+                    <input
+                      type="date"
+                      value={cobrancaForm.data_pagamento}
+                      onChange={(e) => setCobrancaForm(f => ({ ...f, data_pagamento: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Valor Recebido (R$)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={cobrancaForm.valor_recebido}
+                      onChange={(e) => setCobrancaForm(f => ({ ...f, valor_recebido: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Observacao */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Observacao (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={cobrancaForm.observacao}
+                  onChange={(e) => setCobrancaForm(f => ({ ...f, observacao: e.target.value }))}
+                  placeholder="Observacao opcional..."
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={closeModalCobranca}
+                disabled={submittingCobranca}
+                className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmitCobranca}
+                disabled={submittingCobranca}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {submittingCobranca && (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                )}
+                Registrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registrar Pagamento (mark boleto as paid) */}
+      {modalPagamento.open && modalPagamento.boleto && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">
+                Registrar Pagamento
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {modalPagamento.boleto.total_parcelas > 1
+                  ? `Parcela ${modalPagamento.boleto.numero_parcela}/${modalPagamento.boleto.total_parcelas}`
+                  : 'A vista'}{' '}
+                — {fmt(modalPagamento.boleto.valor_nominal)}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Data de pagamento */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Data do Pagamento
+                </label>
+                <input
+                  type="date"
+                  value={pagamentoForm.data_pagamento}
+                  onChange={(e) => setPagamentoForm(f => ({ ...f, data_pagamento: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white"
+                />
+              </div>
+
+              {/* Valor recebido */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Valor Recebido (R$)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={pagamentoForm.valor_recebido}
+                  onChange={(e) => setPagamentoForm(f => ({ ...f, valor_recebido: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white"
+                />
+              </div>
+
+              {/* Forma de pagamento */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Forma de Pagamento
+                </label>
+                <select
+                  value={pagamentoForm.forma_pagamento}
+                  onChange={(e) => setPagamentoForm(f => ({ ...f, forma_pagamento: e.target.value as FormaPagamento }))}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white"
+                >
+                  {FORMAS_PAGAMENTO.map(fp => (
+                    <option key={fp} value={fp}>{FORMA_PAGAMENTO_LABELS[fp]}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Observacao */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Observacao (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={pagamentoForm.observacao}
+                  onChange={(e) => setPagamentoForm(f => ({ ...f, observacao: e.target.value }))}
+                  placeholder="Observacao opcional..."
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={closeModalPagamento}
+                disabled={submittingPagamento}
+                className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmitPagamento}
+                disabled={submittingPagamento}
+                className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {submittingPagamento && (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                )}
+                Confirmar
               </button>
             </div>
           </div>

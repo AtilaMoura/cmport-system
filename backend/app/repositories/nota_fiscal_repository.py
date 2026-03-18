@@ -75,7 +75,7 @@ class NotaFiscalRepository:
 
         # Carrega todos para comparação em memória (db.query para garantir compatibilidade)
         todos = db.query(Condominio).all()
-        print(f"[NOME] Busca em memória para '{nome}' — {len(todos)} condominios no BD")
+        print(f"[NOME] Busca em memoria para '{nome}' - {len(todos)} condominios no BD")
 
         # 2) Normaliza acentos e compara exato
         nome_norm = _strip_accents(nome_upper)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, Enum, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, Date, Enum, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -39,6 +39,22 @@ class NotaFiscal(Base):
     cliente_nome = Column(String(255), nullable=True)
     observacao = Column(String(500), nullable=True)
     descricao_servico = Column(Text, nullable=True)
+
+    # Valor por parcela para geração de boleto
+    valor_boleto_parcela = Column(Float, nullable=True)
+    # JSON: [{"parcela": 1, "valor": 640.0, "data": "2026-01-09"}, ...]
+    parcelas_json = Column(JSON, nullable=True)
+
+    # Impostos NFSe
+    iss    = Column(Float, nullable=True)
+    pis    = Column(Float, nullable=True)
+    cofins = Column(Float, nullable=True)
+    inss   = Column(Float, nullable=True)
+    csll   = Column(Float, nullable=True)
+
+    # Impostos NFe (ICMSTot) + retenções da descrição
+    icms   = Column(Float, nullable=True)
+    prev   = Column(Float, nullable=True)   # PREV/INSS retenção NFe
 
     xml_original = Column(Text, nullable=False)
 

@@ -3,7 +3,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import axios from 'axios';
+
+// Upload de arquivos vai direto ao backend (Next.js proxy tem limite de body)
+const backendApi = axios.create({ baseURL: 'http://127.0.0.1:8000/api/v1' });
 
 export default function ImportarNotasPage() {
   const router = useRouter();
@@ -36,11 +39,7 @@ export default function ImportarNotasPage() {
         formData.append('tipo', tipo);
       }
 
-      const response = await api.post('/notas-fiscais/importar-xml', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const response = await backendApi.post('/notas-fiscais/importar-xml', formData);
 
       setResultado(response.data);
       
@@ -211,13 +210,17 @@ export default function ImportarNotasPage() {
         </div>
 
         {/* Resultado da Importação */}
-        {resultado && (
+        {resultado && (() => {
+          const errosCanceladas = resultado.erros.filter((e: any) => e.tipo_erro === 'cancelada');
+          const errosReais = resultado.erros.filter((e: any) => e.tipo_erro !== 'cancelada');
+          const temErro = errosReais.length > 0;
+          return (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-lg">
             <div className="flex items-center gap-3 mb-6">
               <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                resultado.erros.length === 0 ? 'bg-green-100 dark:bg-green-500/20' : 'bg-orange-100 dark:bg-orange-500/20'
+                !temErro ? 'bg-green-100 dark:bg-green-500/20' : 'bg-orange-100 dark:bg-orange-500/20'
               }`}>
-                <span className="text-2xl">{resultado.erros.length === 0 ? '✅' : '⚠️'}</span>
+                <span className="text-2xl">{!temErro ? '✅' : '⚠️'}</span>
               </div>
               <div>
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white">
@@ -238,7 +241,7 @@ export default function ImportarNotasPage() {
                 )}
                 {resultado.ja_existentes > 0 && (
                   <div className="font-bold text-blue-700 dark:text-blue-400 mb-1">
-                    🔁 {resultado.ja_existentes} nota(s) já existiam no sistema (serviços verificados)
+                    🔁 {resultado.ja_existentes} nota(s) já existiam no sistema
                   </div>
                 )}
                 <div className="text-xs text-green-600 dark:text-green-500 mt-1">
@@ -247,25 +250,35 @@ export default function ImportarNotasPage() {
               </div>
             )}
 
-            {resultado.erros.length > 0 && (
-              <div className="space-y-2">
-                <div className="font-bold text-sm text-red-700 dark:text-red-400 mb-2">
-                  ❌ {resultado.erros.length} erro(s) encontrado(s):
+            {errosCanceladas.length > 0 && (
+              <div className="mb-3">
+                <div className="font-bold text-sm text-amber-700 dark:text-amber-400 mb-2">
+                  🚫 {errosCanceladas.length} nota(s) cancelada(s) — não importadas:
                 </div>
-                {resultado.erros.map((erro: any, i: number) => (
-                  <div key={i} className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                    <div className="text-xs font-bold text-red-700 dark:text-red-400 mb-1">
-                      {erro.arquivo}
-                    </div>
-                    <div className="text-xs text-red-600 dark:text-red-500">
-                      {erro.erro}
-                    </div>
+                {errosCanceladas.map((erro: any, i: number) => (
+                  <div key={i} className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-1">
+                    <div className="text-xs font-bold text-amber-700 dark:text-amber-400">{erro.numero || erro.arquivo}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {errosReais.length > 0 && (
+              <div>
+                <div className="font-bold text-sm text-red-700 dark:text-red-400 mb-2">
+                  ❌ {errosReais.length} erro(s) encontrado(s):
+                </div>
+                {errosReais.map((erro: any, i: number) => (
+                  <div key={i} className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-1">
+                    <div className="text-xs font-bold text-red-700 dark:text-red-400 mb-1">{erro.arquivo}</div>
+                    <div className="text-xs text-red-600 dark:text-red-500">{erro.erro}</div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

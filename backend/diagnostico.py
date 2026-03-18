@@ -1639,6 +1639,514 @@ def sec_analise_financeira_xml_bd(engine, linhas):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# SECTION 11 — Extração Completa XML: todos os campos, parcelas, impostos
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _parse_valor_brl(s):
+    """Converte 'R$:1.600,00' ou '1.600,00' ou '1600.00' → float"""
+    if not s:
+        return None
+    s = re.sub(r'[R\$\s:]', '', s).strip()
+    # formato brasileiro: 1.600,00
+    if re.match(r'[\d\.]+,\d{2}$', s):
+        s = s.replace('.', '').replace(',', '.')
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def _extrair_nfse_completo(root):
+    """Extrai todos os campos relevantes de uma NFSe."""
+    def g(tag):
+        el = root.find(f'.//{tag}')
+        return el.text.strip() if el is not None and el.text else None
+
+    disc = g('Discriminacao') or ''
+
+    # --- Parcelas: conta ocorrências de 'N parcela R$:X vencimentos DD.MM.YYYY'
+    parc_lista = re.findall(
+        r'(\d+)\s+parcela\s+R\$[:\s]*([\d\.,]+)\s+vencimentos?\s+(\d{2})[.\-/](\d{2})[.\-/](\d{4})',
+        disc, re.IGNORECASE
+    )
+    parcelas_reais = len(parc_lista) if parc_lista else None
+
+    # Parcelas do campo explícito
+    m_parc_campo = re.search(r'[Qq]uantidade\s+parcela[s]?[:\s]+(\d+)', disc)
+    parcelas_campo = int(m_parc_campo.group(1)) if m_parc_campo else 1
+
+    # Se não tem lista explícita, usa campo
+    if parcelas_reais is None:
+        parcelas_reais = parcelas_campo
+
+    # --- Vencimentos
+    vencimentos = []
+    if parc_lista:
+        for n, val, dd, mm, yyyy in parc_lista:
+            vencimentos.append({
+                'parcela': int(n),
+                'valor': _parse_valor_brl(val),
+                'data': f'{yyyy}-{mm}-{dd}'
+            })
+    else:
+        # vencimento único
+        m_v = re.search(r'[Vv]encimentos?[:\s\.]+(\d{2})[.\-](\d{2})[.\-](\d{4})', disc)
+        if m_v:
+            vencimentos.append({'parcela': 1, 'valor': None, 'data': f'{m_v.group(3)}-{m_v.group(2)}-{m_v.group(1)}'})
+
+    data_venc_1 = vencimentos[0]['data'] if vencimentos else None
+
+    # --- Valor na descrição (o que vai no boleto)
+    m_val = re.search(r'[Vv]alor[:\.\s]+R\$[:\s]*([\d\.,]+)', disc)
+    valor_desc = _parse_valor_brl(m_val.group(1)) if m_val else None
+
+    # --- Retenções da discriminação (NFSe pode ter em texto)
+    ret = {}
+    m_inss = re.search(r'INSS[:\s\d%\.]+R\$[:\s]*([\d\.,]+)', disc, re.I)
+    m_cofins = re.search(r'COFINS[:\s\d%\.]+R\$[:\s]*([\d\.,]+)', disc, re.I)
+    m_pis = re.search(r'PIS[:\s\d%\.]+R\$[:\s]*([\d\.,]+)', disc, re.I)
+    m_csll = re.search(r'CSLL[:\s\d%\.]+R\$[:\s]*([\d\.,]+)', disc, re.I)
+    if m_inss:  ret['INSS_desc']  = _parse_valor_brl(m_inss.group(1))
+    if m_cofins: ret['COFINS_desc'] = _parse_valor_brl(m_cofins.group(1))
+    if m_pis:   ret['PIS_desc']   = _parse_valor_brl(m_pis.group(1))
+    if m_csll:  ret['CSLL_desc']  = _parse_valor_brl(m_csll.group(1))
+
+    # --- Impostos do cabeçalho XML
+    def fv(tag): return float(g(tag) or 0)
+    impostos = {
+        'ValorServicos': fv('ValorServicos'),
+        'ValorISS':      fv('ValorISS'),
+        'ValorPIS':      fv('ValorPIS'),
+        'ValorCOFINS':   fv('ValorCOFINS'),
+        'ValorINSS':     fv('ValorINSS'),
+        'ValorCSLL':     fv('ValorCSLL'),
+        'ValorCredito':  fv('ValorCredito'),
+        'AliquotaISS':   fv('AliquotaServicos'),
+        'ISSRetido':     g('ISSRetido'),
+    }
+
+    # --- Tipo nota (prefixo da discriminação)
+    du = disc.upper().strip()
+    if du.startswith('MANUTENCAO'):
+        tipo_nota = 'MANUTENCAO'
+    elif du.startswith('SERVICOS PRESTADOS'):
+        tipo_nota = 'ASSISTENCIA'
+    else:
+        tipo_nota = 'OUTROS'
+
+    status_xml = g('StatusNFe')
+    status = 'CANCELADA' if status_xml == 'C' else 'AUTORIZADA' if status_xml == 'N' else 'DESCONHECIDO'
+
+    return {
+        'tipo_xml':         'NFSe',
+        'numero':           g('NumeroNFe'),
+        'data_emissao':     (g('DataEmissaoNFe') or '')[:10],
+        'status':           status,
+        'status_raw':       status_xml,
+        'valor_xml':        impostos['ValorServicos'],
+        'valor_desc':       valor_desc,
+        'tipo_nota':        tipo_nota,
+        'parcelas_campo':   parcelas_campo,
+        'parcelas_reais':   parcelas_reais,
+        'data_venc_1':      data_venc_1,
+        'vencimentos':      vencimentos,
+        'discriminacao':    disc,
+        'impostos':         impostos,
+        'retencoes_desc':   ret,
+        'cnpj_dest':        g('CNPJ'),   # pode pegar emitente; veja abaixo
+        'razao_dest':       g('RazaoSocialTomador'),
+    }
+
+
+def _extrair_nfe_completo(root):
+    """Extrai todos os campos relevantes de uma NFe."""
+    ns = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+    def g(xpath):
+        el = root.find(xpath, ns)
+        return el.text.strip() if el is not None and el.text else None
+    def fv(xpath): return float(g(xpath) or 0)
+
+    infcpl = g('.//nfe:infAdic/nfe:infCpl') or ''
+    nNF   = g('.//nfe:ide/nfe:nNF')
+    serie = g('.//nfe:ide/nfe:serie')
+    numero = f'{nNF}-{serie}' if serie and nNF else nNF
+
+    # --- Parcelas: primeiro conta lista explícita de vencimentos na descrição
+    parc_lista = re.findall(
+        r'(\d+)\s+parcela\s+R\$[:\s]*([\d\.,]+)\s+vencimentos?\s+(\d{2})[.\-/](\d{2})[.\-/](\d{4})',
+        infcpl, re.IGNORECASE
+    )
+    parcelas_reais = len(parc_lista) if parc_lista else None
+
+    m_parc_campo = re.search(r'[Qq]uantidade\s+parcela[s]?[:\s]+(\d+)', infcpl)
+    parcelas_campo = int(m_parc_campo.group(1)) if m_parc_campo else 1
+
+    if parcelas_reais is None:
+        parcelas_reais = parcelas_campo
+
+    # --- Vencimentos
+    vencimentos = []
+    if parc_lista:
+        for n, val, dd, mm, yyyy in parc_lista:
+            vencimentos.append({
+                'parcela': int(n),
+                'valor': _parse_valor_brl(val),
+                'data': f'{yyyy}-{mm}-{dd}'
+            })
+    else:
+        m_v = re.search(r'[Vv]encimentos?[:\s\.]+(\d{2})[.\-](\d{2})[.\-](\d{4})', infcpl)
+        if m_v:
+            vencimentos.append({'parcela': 1, 'valor': None, 'data': f'{m_v.group(3)}-{m_v.group(2)}-{m_v.group(1)}'})
+
+    data_venc_1 = vencimentos[0]['data'] if vencimentos else None
+
+    # --- Valor na descrição
+    m_val = re.search(r'[Vv]alor[:\.\s]+R\$[:\s]*([\d\.,]+)', infcpl)
+    valor_desc = _parse_valor_brl(m_val.group(1)) if m_val else None
+
+    # --- Retenções do infCpl: "Retencoes de Tributos: - PIS: 7,80 - COFINS: 36,00 - CSLL: 12,00 - PREV: 132,00"
+    ret = {}
+    m_ret = re.search(r'Retencoes de Tributos[:\s]+(.*?)(?:\||$)', infcpl, re.I)
+    if m_ret:
+        bloco = m_ret.group(1)
+        for campo in ['PIS', 'COFINS', 'CSLL', 'PREV']:
+            m = re.search(rf'{campo}[:\s]+([\d\.,]+)', bloco, re.I)
+            if m:
+                ret[campo] = _parse_valor_brl(m.group(1))
+
+    # --- Impostos do XML (ICMSTot)
+    pref = './/nfe:total/nfe:ICMSTot/'
+    impostos = {
+        'vNF':     fv(pref + 'nfe:vNF'),
+        'vProd':   fv(pref + 'nfe:vProd'),
+        'vDesc':   fv(pref + 'nfe:vDesc'),
+        'vICMS':   fv(pref + 'nfe:vICMS'),
+        'vPIS':    fv(pref + 'nfe:vPIS'),
+        'vCOFINS': fv(pref + 'nfe:vCOFINS'),
+        'vIPI':    fv(pref + 'nfe:vIPI'),
+        'vFrete':  fv(pref + 'nfe:vFrete'),
+        'vST':     fv(pref + 'nfe:vST'),
+    }
+
+    # --- Status
+    c_stat = g('.//nfe:protNFe/nfe:infProt/nfe:cStat')
+    x_motivo = g('.//nfe:protNFe/nfe:infProt/nfe:xMotivo')
+    status = 'CANCELADA' if c_stat == '101' else 'AUTORIZADA' if c_stat == '100' else 'DESCONHECIDO'
+
+    # --- Tipo nota: NFe série 2 = ASSISTENCIA (mesma lógica do service)
+    serie = g('.//nfe:ide/nfe:serie')
+    if serie == '2':
+        tipo_nota = 'ASSISTENCIA'
+    else:
+        du = infcpl.upper().strip()
+        if du.startswith('MANUTENCAO'):
+            tipo_nota = 'MANUTENCAO'
+        else:
+            tipo_nota = 'OUTROS'
+
+    return {
+        'tipo_xml':         'NFe',
+        'numero':           numero,
+        'data_emissao':     (g('.//nfe:ide/nfe:dhEmi') or '')[:10],
+        'status':           status,
+        'status_raw':       c_stat,
+        'x_motivo':         x_motivo,
+        'valor_xml':        impostos['vNF'],
+        'valor_desc':       valor_desc,
+        'tipo_nota':        tipo_nota,
+        'parcelas_campo':   parcelas_campo,
+        'parcelas_reais':   parcelas_reais,
+        'data_venc_1':      data_venc_1,
+        'vencimentos':      vencimentos,
+        'discriminacao':    infcpl,
+        'impostos':         impostos,
+        'retencoes_desc':   ret,
+        'cnpj_dest':        g('.//nfe:dest/nfe:CNPJ'),
+        'razao_dest':       g('.//nfe:dest/nfe:xNome'),
+    }
+
+
+def _ler_xmls_pasta(pasta):
+    """Lê todos ZIPs/XMLs de uma pasta. Retorna lista de (nome_arquivo, xml_bytes)."""
+    p = Path(pasta)
+    resultados = []
+    if p.is_file() and p.suffix.lower() == '.zip':
+        arquivos_zip = [p]
+    elif p.is_file() and p.suffix.lower() == '.xml':
+        resultados.append((p.name, p.read_bytes()))
+        return resultados
+    else:
+        arquivos_zip = list(p.glob('*.zip'))
+
+    for zp in sorted(arquivos_zip):
+        with zipfile.ZipFile(zp) as z:
+            for name in sorted(z.namelist()):
+                if name.lower().endswith('.xml'):
+                    resultados.append((f'{zp.name}/{name}', z.read(name)))
+    return resultados
+
+
+def sec_extracao_completa_xml(pasta_xml, engine, linhas):
+    """
+    Seção 11 — Extração completa de todos os campos XML e comparação com BD.
+    Não modifica nada no banco — apenas diagnóstico.
+    """
+    W = lambda s='': linhas.append(s)
+
+    W(secao('11. EXTRAÇÃO COMPLETA XML — campos, parcelas, vencimentos, impostos'))
+
+    # Carregar notas do BD
+    with engine.connect() as conn:
+        rows = ler(conn, """
+            SELECT n.id, n.numero_nota, n.tipo, n.status, n.valor,
+                   n.parcelas, n.data_vencimento, n.data_pagamento,
+                   n.cliente_nome, c.nome as cond_nome, c.cnpj
+            FROM notas_fiscais n
+            LEFT JOIN condominios c ON n.condominio_id = c.id
+            WHERE n.status != 'CANCELADA'
+            ORDER BY n.numero_nota
+        """)
+    bd_map = {str(r['numero_nota']): r for r in rows}
+
+    # Ler XMLs
+    arquivos = _ler_xmls_pasta(pasta_xml)
+    W(f'  Total de arquivos XML lidos: {len(arquivos)}')
+    W()
+
+    # Processar cada XML
+    extraidos = []
+    erros = []
+    for nome_arq, xml_bytes in arquivos:
+        try:
+            xml_str = xml_bytes.decode('utf-8', errors='replace')
+            tipo = detectar_tipo_xml(xml_str)
+            if tipo in ('EventoCancelamento', None, '?'):
+                continue
+            root = ET.fromstring(xml_str)
+            if tipo == 'NFSe':
+                dados = _extrair_nfse_completo(root)
+            elif tipo == 'NFe':
+                dados = _extrair_nfe_completo(root)
+            else:
+                continue
+            dados['arquivo'] = nome_arq
+            extraidos.append(dados)
+        except Exception as e:
+            erros.append((nome_arq, str(e)))
+
+    if erros:
+        W(sub(f'  ⚠ {len(erros)} erros de parse'))
+        for arq, err in erros[:20]:
+            W(f'  {arq}')
+            W(f'    → {err}')
+        W()
+
+    # Separar por tipo
+    nfse_list = [d for d in extraidos if d['tipo_xml'] == 'NFSe']
+    nfe_list  = [d for d in extraidos if d['tipo_xml'] == 'NFe']
+
+    W(f'  NFSe processadas: {len(nfse_list)}')
+    W(f'  NFe  processadas: {len(nfe_list)}')
+    W()
+
+    # ─── TABELA NFSe ───────────────────────────────────────────────────────────
+    W(sub('NFSe — Campos extraídos vs BD'))
+    hdr = f"  {'Num':>6}  {'Status':12}  {'ValorXML':>12}  {'ValorDesc':>12}  {'VencXML':10}  {'VencBD':10}  {'ParcCampo':>9}  {'ParcReais':>9}  {'ParcBD':>6}  {'ISS':>8}  {'PIS':>8}  {'COFINS':>8}  {'INSS':>8}  {'CSLL':>8}  {'Aliq%':>6}  {'ISSRet':6}  BD_Valor"
+    W(hdr)
+    W('  ' + '-' * (len(hdr) - 2))
+
+    divergencias_nfse = []
+    for d in sorted(nfse_list, key=lambda x: str(x['numero'])):
+        num    = d['numero']
+        bd     = bd_map.get(str(num))
+        imp    = d['impostos']
+        aliq   = f"{imp['AliquotaISS']*100:.1f}" if imp['AliquotaISS'] else '?'
+        issret = imp['ISSRetido'] or '?'
+
+        venc_xml = d['data_venc_1'] or '—'
+        venc_bd  = str(bd['data_vencimento'])[:10] if bd and bd['data_vencimento'] else '—'
+        parc_bd  = bd['parcelas'] if bd else '?'
+        val_bd   = float(bd['valor']) if bd else None
+
+        flags = []
+        if bd:
+            if abs((imp['ValorServicos'] or 0) - (val_bd or 0)) > 0.01:
+                flags.append(f'VAL_XML={imp["ValorServicos"]:.2f}≠BD={val_bd:.2f}')
+            if d['valor_desc'] and abs(d['valor_desc'] - (val_bd or 0)) > 0.01:
+                flags.append(f'VAL_DESC={d["valor_desc"]:.2f}≠BD={val_bd:.2f}')
+            if venc_xml != '—' and venc_xml != venc_bd:
+                flags.append(f'VENC_XML={venc_xml}≠BD={venc_bd}')
+            if d['parcelas_reais'] != int(parc_bd or 1):
+                flags.append(f'PARC_REAIS={d["parcelas_reais"]}≠BD={parc_bd}')
+            if d['parcelas_campo'] != int(parc_bd or 1):
+                flags.append(f'PARC_CAMPO={d["parcelas_campo"]}≠BD={parc_bd}')
+            if d['tipo_nota'] != (bd['tipo'] or ''):
+                flags.append(f'TIPO={d["tipo_nota"]}≠BD={bd["tipo"]}')
+            if d['status'] != (bd['status'] or ''):
+                flags.append(f'STATUS={d["status"]}≠BD={bd["status"]}')
+        else:
+            flags.append('SEM_BD')
+
+        val_desc_s = f"{d['valor_desc']:.2f}" if d['valor_desc'] else '—'
+        val_bd_s   = f"{val_bd:.2f}" if val_bd else '—'
+
+        linha = (f"  {num:>6}  {d['status']:12}  {imp['ValorServicos']:>12.2f}  {val_desc_s:>12}  "
+                 f"{venc_xml:10}  {venc_bd:10}  {d['parcelas_campo']:>9}  {d['parcelas_reais']:>9}  "
+                 f"{str(parc_bd):>6}  {imp['ValorISS']:>8.2f}  {imp['ValorPIS']:>8.2f}  "
+                 f"{imp['ValorCOFINS']:>8.2f}  {imp['ValorINSS']:>8.2f}  {imp['ValorCSLL']:>8.2f}  "
+                 f"{aliq:>6}  {issret:<6}  {val_bd_s}")
+        W(linha)
+        if flags:
+            W(f"  {'':>6}  *** {' | '.join(flags)}")
+            divergencias_nfse.append((num, flags))
+
+    W()
+    W(f'  NFSe com divergências: {len(divergencias_nfse)}')
+    W()
+
+    # ─── TABELA NFe ────────────────────────────────────────────────────────────
+    W(sub('NFe — Campos extraídos vs BD'))
+    hdr2 = f"  {'Num':>6}  {'Status':12}  {'vNF':>10}  {'ValorDesc':>10}  {'Parc_campo':>10}  {'Parc_real':>9}  {'ParcBD':>6}  {'VencXML':10}  {'VencBD':10}  {'vICMS':>8}  {'vPIS':>8}  {'vCOFINS':>8}  Retencoes(desc)"
+    W(hdr2)
+    W('  ' + '-' * (len(hdr2) - 2))
+
+    divergencias_nfe = []
+    for d in sorted(nfe_list, key=lambda x: str(x['numero'])):
+        num    = d['numero']
+        bd     = bd_map.get(str(num))
+        imp    = d['impostos']
+        ret    = d['retencoes_desc']
+
+        venc_xml = d['data_venc_1'] or '—'
+        venc_bd  = str(bd['data_vencimento'])[:10] if bd and bd['data_vencimento'] else '—'
+        parc_bd  = bd['parcelas'] if bd else '?'
+        val_bd   = float(bd['valor']) if bd else None
+
+        flags = []
+        if bd:
+            if abs(imp['vNF'] - (val_bd or 0)) > 0.01:
+                flags.append(f'vNF={imp["vNF"]:.2f}≠BD={val_bd:.2f}')
+            if d['valor_desc'] and abs(d['valor_desc'] - (val_bd or 0)) > 0.01:
+                flags.append(f'VAL_DESC={d["valor_desc"]:.2f}≠BD={val_bd:.2f}')
+            if venc_xml != '—' and venc_xml != venc_bd:
+                flags.append(f'VENC={venc_xml}≠BD={venc_bd}')
+            if d['parcelas_reais'] != int(parc_bd or 1):
+                flags.append(f'PARC_REAL={d["parcelas_reais"]}≠BD={parc_bd}')
+            if d['parcelas_campo'] != int(parc_bd or 1):
+                flags.append(f'PARC_CAMPO={d["parcelas_campo"]}≠BD={parc_bd}')
+            if d['tipo_nota'] != (bd['tipo'] or ''):
+                flags.append(f'TIPO={d["tipo_nota"]}≠BD={bd["tipo"]}')
+            if d['status'] != (bd['status'] or ''):
+                flags.append(f'STATUS={d["status"]}≠BD={bd["status"]}')
+        else:
+            flags.append('SEM_BD')
+
+        val_desc_s = f"{d['valor_desc']:.2f}" if d['valor_desc'] else '—'
+        val_bd_s   = f"BD={val_bd:.2f}" if val_bd else ''
+        ret_s = ' '.join(f'{k}={v}' for k, v in ret.items()) if ret else '—'
+
+        linha = (f"  {num:>6}  {d['status']:12}  {imp['vNF']:>10.2f}  {val_desc_s:>10}  "
+                 f"{d['parcelas_campo']:>10}  {d['parcelas_reais']:>9}  {str(parc_bd):>6}  "
+                 f"{venc_xml:10}  {venc_bd:10}  {imp['vICMS']:>8.2f}  {imp['vPIS']:>8.2f}  "
+                 f"{imp['vCOFINS']:>8.2f}  {ret_s}  {val_bd_s}")
+        W(linha)
+        if flags:
+            W(f"  {'':>6}  *** {' | '.join(flags)}")
+            divergencias_nfe.append((num, flags))
+
+    W()
+    W(f'  NFe com divergências: {len(divergencias_nfe)}')
+    W()
+
+    # ─── PARCELAS DETALHADAS (notas com >1 parcela) ────────────────────────────
+    multi = [d for d in extraidos if d['parcelas_reais'] > 1]
+    if multi:
+        W(sub(f'Detalhamento de parcelas — {len(multi)} notas com >1 parcela'))
+        W(f"  {'Num':>8}  {'Tipo':6}  {'ValorTotal':>12}  {'Parcelas':>8}  {'Parcela':>7}  {'ValorParcela':>14}  {'Vencimento':12}  BD_Parc  BD_Venc")
+        W('  ' + '-' * 100)
+        for d in sorted(multi, key=lambda x: str(x['numero'])):
+            bd = bd_map.get(str(d['numero']))
+            parc_bd = bd['parcelas'] if bd else '?'
+            venc_bd = str(bd['data_vencimento'])[:10] if bd and bd['data_vencimento'] else '—'
+            total_s = f"{d['valor_xml']:.2f}" if d['valor_xml'] else '—'
+            W(f"  {d['numero']:>8}  {d['tipo_xml']:6}  {total_s:>12}  {d['parcelas_reais']:>8}")
+            for v in d['vencimentos']:
+                val_s = f"{v['valor']:.2f}" if v['valor'] else '—'
+                W(f"  {'':>8}  {'':6}  {'':>12}  {'':>8}  {v['parcela']:>7}  {val_s:>14}  {v['data']:12}  {parc_bd}  {venc_bd}")
+            # Verificar se BD está com a parcela e vencimento da 1ª parcela
+            if bd:
+                venc_1 = d['vencimentos'][0]['data'] if d['vencimentos'] else '?'
+                if venc_1 != venc_bd:
+                    W(f"  {'':>8}  *** VENC_1a_PARCELA={venc_1} difere do BD={venc_bd}")
+                if d['parcelas_reais'] != int(parc_bd or 0):
+                    W(f"  {'':>8}  *** PARCELAS_REAIS={d['parcelas_reais']} difere do BD={parc_bd}")
+        W()
+
+    # ─── RESUMO ────────────────────────────────────────────────────────────────
+    W(sub('RESUMO — Divergências encontradas'))
+    total_div = len(divergencias_nfse) + len(divergencias_nfe)
+    W(f'  Total notas com alguma divergência: {total_div}')
+    W(f'  NFSe com divergência: {len(divergencias_nfse)}')
+    W(f'  NFe  com divergência: {len(divergencias_nfe)}')
+    W()
+
+    # Contar tipos de divergência
+    contagem = defaultdict(int)
+    for _, flags in divergencias_nfse + divergencias_nfe:
+        for f in flags:
+            chave = f.split('=')[0]
+            contagem[chave] += 1
+
+    if contagem:
+        W('  Tipos de divergência:')
+        for tipo_div, cnt in sorted(contagem.items(), key=lambda x: -x[1]):
+            W(f'    {tipo_div:<30} {cnt} nota(s)')
+    else:
+        W('  ✔  Nenhuma divergência encontrada!')
+
+    W()
+
+    # ─── RECOMENDAÇÕES ────────────────────────────────────────────────────────
+    W(sub('RECOMENDAÇÕES'))
+
+    # Parcelas campo vs reais
+    parc_erradas = [(d['numero'], d['parcelas_campo'], d['parcelas_reais'])
+                    for d in extraidos if d['parcelas_campo'] != d['parcelas_reais']]
+    if parc_erradas:
+        W(f'  ⚠ {len(parc_erradas)} nota(s) têm "Quantidade parcelas" errado na descrição:')
+        W('    O campo diz um número mas há mais vencimentos listados.')
+        W('    Usar parcelas_reais (contagem dos vencimentos listados) como valor correto.')
+        for num, campo, real in parc_erradas[:15]:
+            W(f'    Nota {num}: campo={campo} → real={real}')
+        W()
+
+    # Valor desc vs XML
+    val_div = [(d['numero'], d['valor_desc'], d['valor_xml'])
+               for d in extraidos
+               if d['valor_desc'] and d['valor_xml']
+               and abs(d['valor_desc'] - d['valor_xml']) > 0.05]
+    if val_div:
+        W(f'  ⚠ {len(val_div)} nota(s) têm valor na descrição diferente do valor XML:')
+        for num, vd, vx in val_div[:10]:
+            W(f'    Nota {num}: desc={vd:.2f} | xml={vx:.2f}')
+        W()
+
+    # Vencimento diferente do BD
+    venc_div = [(d['numero'], d['data_venc_1'], bd_map.get(str(d['numero']), {}).get('data_vencimento'))
+                for d in extraidos
+                if d['data_venc_1'] and bd_map.get(str(d['numero']))
+                and d['data_venc_1'] != str(bd_map.get(str(d['numero']), {}).get('data_vencimento', ''))[:10]]
+    if venc_div:
+        W(f'  ⚠ {len(venc_div)} nota(s) têm vencimento da 1ª parcela diferente do BD:')
+        for num, vx, vbd in venc_div[:15]:
+            W(f'    Nota {num}: venc_xml={vx} | venc_bd={str(vbd)[:10]}')
+        W()
+
+    if not parc_erradas and not val_div and not venc_div:
+        W('  ✔  Todos os campos extraídos do XML batem com o banco de dados.')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
@@ -1650,7 +2158,8 @@ def main():
     parser.add_argument("--inter",        action="store_true", help="Busca todos boletos da API Inter")
     parser.add_argument("--data-inicio",  default=None, help="Data início para busca Inter (YYYY-MM-DD), padrão: 1 ano atrás")
     parser.add_argument("--data-fim",     default=None, help="Data fim para busca Inter (YYYY-MM-DD), padrão: hoje")
-    parser.add_argument("--analise-xml",  action="store_true", help="Analisa e compara campos financeiros XML vs BD, impostos, parcelas")
+    parser.add_argument("--analise-xml",    action="store_true", help="Analisa e compara campos financeiros XML vs BD, impostos, parcelas")
+    parser.add_argument("--extracao-xml",  metavar="CAMINHO",   help="Extração completa: todos campos XML + parcelas + vencimentos + impostos vs BD")
     args = parser.parse_args()
 
     script_dir = Path(__file__).parent
@@ -1713,6 +2222,13 @@ def main():
         except Exception as e:
             import traceback
             W(linhas, f"\n[ERRO ANALISE-XML] {e}\n{traceback.format_exc()}")
+
+    if args.extracao_xml:
+        try:
+            sec_extracao_completa_xml(args.extracao_xml, engine, linhas)
+        except Exception as e:
+            import traceback
+            W(linhas, f"\n[ERRO EXTRACAO-XML] {e}\n{traceback.format_exc()}")
 
     if args.inter:
         from datetime import date as _date

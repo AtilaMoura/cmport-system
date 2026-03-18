@@ -24,6 +24,16 @@ class NotaFiscalCreate(NotaFiscalBase):
 class NotaFiscalImportada(NotaFiscalBase):
     xml_original: str
     status: StatusNota = StatusNota.AUTORIZADA
+    # campos de impostos e parcelas (opcionais na importação)
+    valor_boleto_parcela: Optional[float] = None
+    parcelas_json: Optional[list] = None
+    iss:    Optional[float] = None
+    pis:    Optional[float] = None
+    cofins: Optional[float] = None
+    inss:   Optional[float] = None
+    csll:   Optional[float] = None
+    icms:   Optional[float] = None
+    prev:   Optional[float] = None
 
 
 class NotaFiscalResponse(BaseModel):
@@ -33,12 +43,22 @@ class NotaFiscalResponse(BaseModel):
     status: StatusNota
     parcelas: int
     valor: float
+    valor_boleto_parcela: Optional[float] = None
+    parcelas_json: Optional[list] = None
     data_vencimento: date
     data_pagamento: Optional[date] = None
     cliente_nome: Optional[str] = None
     observacao: Optional[str] = None
     descricao_servico: Optional[str] = None
     condominio_id: Optional[int] = None
+    # impostos
+    iss:    Optional[float] = None
+    pis:    Optional[float] = None
+    cofins: Optional[float] = None
+    inss:   Optional[float] = None
+    csll:   Optional[float] = None
+    icms:   Optional[float] = None
+    prev:   Optional[float] = None
     criado_em: datetime
 
     model_config = {"from_attributes": True}

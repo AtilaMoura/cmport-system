@@ -137,6 +137,8 @@ async def importar_xmls(
             erros=resultado["erros"]
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erro ao importar XMLs: {str(e)}")
 
 
@@ -168,10 +170,41 @@ def revalidar_nota(id: int, db: Session = Depends(get_db)):
     return NotaFiscalService.revalidar_nota_do_xml(db, id)
 
 
+@router.post("/{id}/revalidar-completo")
+def revalidar_nota_completo(id: int, db: Session = Depends(get_db)):
+    """Re-parseia o xml_original e atualiza TODOS os campos: tipo, vencimento, parcelas, impostos."""
+    return NotaFiscalService.revalidar_campos_do_xml(db, id)
+
+
 @router.post("/revalidar-todas")
 def revalidar_todas_notas(db: Session = Depends(get_db)):
     """Re-parseia o XML de todas as notas e corrige status incorretos."""
     return NotaFiscalService.revalidar_todas(db)
+
+
+@router.post("/revalidar-todas-completo")
+def revalidar_todas_completo(db: Session = Depends(get_db)):
+    """Re-parseia o XML de todas as notas e atualiza TODOS os campos (tipo, vencimento, parcelas, impostos)."""
+    from app.models.nota_fiscal_model import NotaFiscal
+    notas = db.query(NotaFiscal).filter(NotaFiscal.xml_original.isnot(None)).all()
+    total = len(notas)
+    alteradas = 0
+    erros = 0
+    detalhes = []
+    for nota in notas:
+        r = NotaFiscalService.revalidar_campos_do_xml(db, nota.id)
+        if r.get("alteracoes"):
+            alteradas += 1
+            detalhes.append({"nota_id": r["nota_id"], "numero": r.get("numero_nota"), "alteracoes": r["alteracoes"]})
+        if r.get("resultado") in ("erro", "tipo_nao_suportado"):
+            erros += 1
+    return {
+        "total": total,
+        "alteradas": alteradas,
+        "erros": erros,
+        "detalhes": detalhes,
+        "mensagem": f"Revalidação completa: {total} notas, {alteradas} atualizadas, {erros} erros.",
+    }
 
 
 @router.delete("/{id}", status_code=204)

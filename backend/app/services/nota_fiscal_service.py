@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 import io
 import re
+import json
 
 from app.repositories.nota_fiscal_repository import NotaFiscalRepository
 from app.schemas.nota_fiscal_schema import NotaFiscalCreate, NotaFiscalResponse, NotaFiscalImportada, NotaFiscalUpdate
@@ -32,26 +33,18 @@ def find_text(root, xpath_expr, namespaces=None):
 
 
 def detectar_tipo_automatico(tipo_fornecido: Optional[str], descricao: str) -> TipoNota:
-    desc_upper = (descricao or "").strip().upper()
-
-    if desc_upper.startswith("MANUTENCAO"):
-        return TipoNota.MANUTENCAO
-    if desc_upper.startswith("SERVICOS PRESTADOS"):
-        return TipoNota.ASSISTENCIA
-
+    """Detecta tipo para NFSe — baseado no prefixo da discriminação."""
     if tipo_fornecido:
         tipo_upper = tipo_fornecido.upper()
         if tipo_upper == "ASSISTENCIA":
             return TipoNota.ASSISTENCIA
         elif tipo_upper == "MANUTENCAO":
             return TipoNota.MANUTENCAO
-        else:
-            return TipoNota.OUTROS
 
-    desc_lower = desc_upper.lower()
-    if 'manutenção' in desc_lower or 'manut' in desc_lower or 'preventiva' in desc_lower:
+    desc_upper = (descricao or "").strip().upper()
+    if desc_upper.startswith("MANUTENCAO"):
         return TipoNota.MANUTENCAO
-    elif 'assistencia' in desc_lower or 'assist' in desc_lower or 'corretiva' in desc_lower:
+    if desc_upper.startswith("SERVICOS PRESTADOS"):
         return TipoNota.ASSISTENCIA
 
     return TipoNota.OUTROS
@@ -66,10 +59,17 @@ def limpar_descricao(descricao: str) -> str:
 
 
 def extrair_data_vencimento(discriminacao: str, fallback: date) -> date:
+    """
+    Extrai o primeiro vencimento da discriminação.
+    Suporta NFSe: 'Vencimento:.....28.01.2026'
+    Suporta NFe single: 'Vencimentos:....09.02.2026'
+    Suporta NFe multi: '1 parcela R$:1.600,00 vencimentos 09.01.2026'
+    """
     if not discriminacao:
         return fallback
 
-    match = re.search(r'[Vv]encimento[:\s\.]+(\d{2})\.(\d{2})\.(\d{4})', discriminacao)
+    # Padrão 1 — "Vencimento(s):" seguido de pontos/espaços e depois DD.MM.YYYY
+    match = re.search(r'[Vv]encimentos?[:\s\.]+(\d{2})[.\-](\d{2})[.\-](\d{4})', discriminacao)
     if match:
         dia, mes, ano = match.group(1), match.group(2), match.group(3)
         try:
@@ -77,7 +77,8 @@ def extrair_data_vencimento(discriminacao: str, fallback: date) -> date:
         except ValueError:
             pass
 
-    match = re.search(r'vencimento[s]?\s+(\d{2})\.(\d{2})\.(\d{4})', discriminacao, re.IGNORECASE)
+    # Padrão 2 — "N parcela R$:X vencimentos DD.MM.YYYY" (pega o primeiro)
+    match = re.search(r'\d+\s+parcela\s+R\$[\s:\d\.,]+vencimentos?\s+(\d{2})[.\-](\d{2})[.\-](\d{4})', discriminacao, re.IGNORECASE)
     if match:
         dia, mes, ano = match.group(1), match.group(2), match.group(3)
         try:
@@ -86,6 +87,36 @@ def extrair_data_vencimento(discriminacao: str, fallback: date) -> date:
             pass
 
     return fallback
+
+
+def _parse_valor_brl(s: str) -> Optional[float]:
+    """Converte 'R$:1.600,00' ou '1.600,00' -> float."""
+    if not s:
+        return None
+    s = re.sub(r'[R\$\s:]', '', s).strip()
+    if re.match(r'^[\d\.]+,\d{2}$', s):
+        s = s.replace('.', '').replace(',', '.')
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def _extrair_lista_vencimentos(texto: str) -> list:
+    """
+    Extrai lista de parcelas com valores e datas.
+    Padrão: '1 parcela R$:1.600,00 vencimentos 09.01.2026'
+    """
+    pattern = r'(\d+)\s+parcela\s+R\$[:\s]*([\d\.,]+)\s+vencimentos?\s+(\d{2})[.\-](\d{2})[.\-](\d{4})'
+    matches = re.findall(pattern, texto, re.IGNORECASE)
+    resultado = []
+    for n, val_str, dd, mm, yyyy in matches:
+        resultado.append({
+            'parcela': int(n),
+            'valor': _parse_valor_brl(val_str),
+            'data': f'{yyyy}-{mm}-{dd}'
+        })
+    return resultado
 
 
 def detectar_status_nfse(status_xml: Optional[str]) -> StatusNota:
@@ -111,24 +142,42 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
         el = root.find(f".//{tag}")
         return el.text.strip() if el is not None and el.text else None
 
+    def fv(tag):
+        return float(get(tag) or 0)
+
     numero = get('NumeroNFe')
     data_emissao_str = get('DataEmissaoNFe')
-    cnpj_emit = get('CPFCNPJPrestador/CNPJ')
+    cnpj_emit = get('CPFCNPJPrestador/CNPJ') or get('InscricaoPrestador')
     razao_emit = get('RazaoSocialPrestador')
     cnpj_dest = get('CPFCNPJTomador/CNPJ')
     razao_dest = get('RazaoSocialTomador')
-    valor_servicos = get('ValorServicos')
-    valor_total = float(valor_servicos) if valor_servicos else 0.0
+    valor_total = fv('ValorServicos')
     discriminacao = get('Discriminacao') or ''
     data_emissao = parse_date(data_emissao_str)
     tipo = detectar_tipo_automatico(tipo_fornecido, discriminacao)
     status_xml = get('StatusNFe')
     status = detectar_status_nfse(status_xml)
 
-    parcelas = 1
-    parcelas_match = re.search(r'parcela[s]?:\s*(\d+)', discriminacao.lower())
-    if parcelas_match:
-        parcelas = int(parcelas_match.group(1))
+    # Parcelas: conta lista de vencimentos explícitos; fallback para campo "Quantidade parcelas"
+    lista_vencimentos = _extrair_lista_vencimentos(discriminacao)
+    if lista_vencimentos:
+        parcelas = len(lista_vencimentos)
+    else:
+        m = re.search(r'[Qq]uantidade\s+parcela[s]?[:\s]+(\d+)', discriminacao)
+        parcelas = int(m.group(1)) if m else 1
+
+    # Vencimento da 1ª parcela
+    data_vencimento = extrair_data_vencimento(discriminacao, data_emissao)
+
+    # Valor por parcela
+    valor_boleto_parcela = round(valor_total / parcelas, 2) if parcelas > 1 else valor_total
+
+    # Impostos do XML
+    iss    = fv('ValorISS')
+    pis    = fv('ValorPIS')
+    cofins = fv('ValorCOFINS')
+    inss   = fv('ValorINSS')
+    csll   = fv('ValorCSLL')
 
     condominio_id = None
     if cnpj_dest:
@@ -136,24 +185,22 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
         condominio = NotaFiscalRepository.get_condominio_by_cnpj(db, cnpj_limpo)
         if condominio:
             condominio_id = condominio.id
-            print(f"[NFSe] Condomínio encontrado pelo CNPJ {cnpj_limpo} → ID {condominio_id}")
+            print(f"[NFSe] Condominio encontrado pelo CNPJ {cnpj_limpo} -> ID {condominio_id}")
         else:
-            print(f"[NFSe] CNPJ {cnpj_limpo} não encontrou condomínio no banco")
+            print(f"[NFSe] CNPJ {cnpj_limpo} nao encontrou condominio no banco")
     if not condominio_id and razao_dest:
         condominio = NotaFiscalRepository.get_condominio_by_nome(db, razao_dest)
         if condominio:
             condominio_id = condominio.id
-            print(f"[NFSe] Condomínio encontrado pelo nome '{razao_dest}' → ID {condominio_id}")
-            # Auto-salva o CNPJ no condomínio para que próximas importações usem vinculo direto por CNPJ
+            print(f"[NFSe] Condominio encontrado pelo nome '{razao_dest}' -> ID {condominio_id}")
             if cnpj_dest and not condominio.cnpj:
                 condominio.cnpj = cnpj_dest
                 db.commit()
-                print(f"[NFSe] CNPJ {cnpj_dest} salvo no condomínio ID {condominio_id}")
+                print(f"[NFSe] CNPJ {cnpj_dest} salvo no condominio ID {condominio_id}")
         else:
-            print(f"[NFSe] Nome '{razao_dest}' também não encontrou condomínio")
+            print(f"[NFSe] Nome '{razao_dest}' nao encontrou condominio")
 
     descricao_limpa = limpar_descricao(discriminacao)
-    data_vencimento = extrair_data_vencimento(discriminacao, data_emissao)
 
     return {
         'numero_nota': numero or f"NFSE-{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -161,13 +208,21 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
         'status': status,
         'parcelas': parcelas,
         'valor': valor_total,
+        'valor_boleto_parcela': valor_boleto_parcela,
+        'parcelas_json': lista_vencimentos if lista_vencimentos else None,
         'data_vencimento': data_vencimento,
         'data_emissao': data_emissao,
         'cliente_nome': razao_dest,
         'observacao': f"Emitente: {razao_emit} | CNPJ: {cnpj_emit}",
         'descricao_servico': descricao_limpa,
         'condominio_id': condominio_id,
-        'xml_original': xml_str
+        'xml_original': xml_str,
+        # impostos
+        'iss': iss or None,
+        'pis': pis or None,
+        'cofins': cofins or None,
+        'inss': inss or None,
+        'csll': csll or None,
     }
 
 
@@ -178,25 +233,68 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
     def get(xpath):
         return find_text(root, xpath, ns)
 
+    def fv(xpath):
+        return float(get(xpath) or 0)
+
     numero = get('.//nfe:ide/nfe:nNF')
-    serie = get('.//nfe:ide/nfe:serie')
+    serie  = get('.//nfe:ide/nfe:serie')
     data_emissao_str = get('.//nfe:ide/nfe:dhEmi')
     cnpj_emit = get('.//nfe:emit/nfe:CNPJ')
     razao_emit = get('.//nfe:emit/nfe:xNome')
     cnpj_dest = get('.//nfe:dest/nfe:CNPJ')
     razao_dest = get('.//nfe:dest/nfe:xNome')
-    valor_total_str = get('.//nfe:total/nfe:ICMSTot/nfe:vNF')
-    valor_total = float(valor_total_str) if valor_total_str else 0.0
+    valor_total = fv('.//nfe:total/nfe:ICMSTot/nfe:vNF')
     inf_compl = get('.//nfe:infAdic/nfe:infCpl') or ''
     data_emissao = parse_date(data_emissao_str)
-    tipo = detectar_tipo_automatico(tipo_fornecido, inf_compl)
     c_stat = get('.//nfe:protNFe/nfe:infProt/nfe:cStat')
     status = detectar_status_nfe(c_stat)
 
-    parcelas = 1
-    parcelas_match = re.search(r'parcela[s]?:\s*(\d+)', inf_compl.lower())
-    if parcelas_match:
-        parcelas = int(parcelas_match.group(1))
+    # Tipo: NFe série 2 = ASSISTENCIA; tipo_fornecido pode sobrescrever
+    if tipo_fornecido:
+        tipo_upper = tipo_fornecido.upper()
+        if tipo_upper == "MANUTENCAO":
+            tipo = TipoNota.MANUTENCAO
+        elif tipo_upper == "ASSISTENCIA":
+            tipo = TipoNota.ASSISTENCIA
+        else:
+            tipo = TipoNota.OUTROS
+    elif serie == '2':
+        tipo = TipoNota.ASSISTENCIA
+    else:
+        tipo = TipoNota.OUTROS
+
+    # Parcelas: conta vencimentos listados; fallback campo "Quantidade parcelas"
+    lista_vencimentos = _extrair_lista_vencimentos(inf_compl)
+    if lista_vencimentos:
+        parcelas = len(lista_vencimentos)
+    else:
+        m = re.search(r'[Qq]uantidade\s+parcela[s]?[:\s]+(\d+)', inf_compl)
+        parcelas = int(m.group(1)) if m else 1
+
+    # Vencimento da 1ª parcela
+    data_vencimento = extrair_data_vencimento(inf_compl, data_emissao)
+
+    # Valor por parcela
+    valor_boleto_parcela = round(valor_total / parcelas, 2) if parcelas > 1 else valor_total
+
+    # Impostos do ICMSTot
+    pref = './/nfe:total/nfe:ICMSTot/'
+    icms   = fv(pref + 'nfe:vICMS') or None
+    pis    = fv(pref + 'nfe:vPIS') or None
+    cofins = fv(pref + 'nfe:vCOFINS') or None
+
+    # Retenções da infCpl: "Retencoes de Tributos: - PIS: 7,80 - COFINS: 36,00 - CSLL: 12,00 - PREV: 132,00"
+    prev = csll = inss = None
+    m_ret = re.search(r'Retencoes de Tributos[:\s]+(.*?)(?:\||$)', inf_compl, re.IGNORECASE)
+    if m_ret:
+        bloco = m_ret.group(1)
+        def _ret(campo):
+            m = re.search(rf'{campo}[:\s]+([\d\.,]+)', bloco, re.IGNORECASE)
+            return _parse_valor_brl(m.group(1)) if m else None
+        pis    = _ret('PIS')   or pis
+        cofins = _ret('COFINS') or cofins
+        csll   = _ret('CSLL')
+        prev   = _ret('PREV')
 
     condominio_id = None
     if cnpj_dest:
@@ -204,24 +302,22 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
         condominio = NotaFiscalRepository.get_condominio_by_cnpj(db, cnpj_limpo)
         if condominio:
             condominio_id = condominio.id
-            print(f"[NFe] Condomínio encontrado pelo CNPJ {cnpj_limpo} → ID {condominio_id}")
+            print(f"[NFe] Condominio encontrado pelo CNPJ {cnpj_limpo} -> ID {condominio_id}")
         else:
-            print(f"[NFe] CNPJ {cnpj_limpo} não encontrou condomínio no banco")
+            print(f"[NFe] CNPJ {cnpj_limpo} nao encontrou condominio no banco")
     if not condominio_id and razao_dest:
         condominio = NotaFiscalRepository.get_condominio_by_nome(db, razao_dest)
         if condominio:
             condominio_id = condominio.id
-            print(f"[NFe] Condomínio encontrado pelo nome '{razao_dest}' → ID {condominio_id}")
-            # Auto-salva o CNPJ no condomínio para que próximas importações usem vinculo direto por CNPJ
+            print(f"[NFe] Condominio encontrado pelo nome '{razao_dest}' -> ID {condominio_id}")
             if cnpj_dest and not condominio.cnpj:
                 condominio.cnpj = cnpj_dest
                 db.commit()
-                print(f"[NFe] CNPJ {cnpj_dest} salvo no condomínio ID {condominio_id}")
+                print(f"[NFe] CNPJ {cnpj_dest} salvo no condominio ID {condominio_id}")
         else:
-            print(f"[NFe] Nome '{razao_dest}' também não encontrou condomínio")
+            print(f"[NFe] Nome '{razao_dest}' nao encontrou condominio")
 
     descricao_limpa = limpar_descricao(inf_compl)
-    data_vencimento = extrair_data_vencimento(inf_compl, data_emissao)
 
     return {
         'numero_nota': f"{numero}-{serie}" if serie and numero else (numero or f"NFE-{datetime.now().strftime('%Y%m%d%H%M%S')}"),
@@ -229,13 +325,21 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
         'status': status,
         'parcelas': parcelas,
         'valor': valor_total,
+        'valor_boleto_parcela': valor_boleto_parcela,
+        'parcelas_json': lista_vencimentos if lista_vencimentos else None,
         'data_vencimento': data_vencimento,
         'data_emissao': data_emissao,
         'cliente_nome': razao_dest,
         'observacao': f"Emitente: {razao_emit} | CNPJ: {cnpj_emit}",
         'descricao_servico': descricao_limpa,
         'condominio_id': condominio_id,
-        'xml_original': xml_str
+        'xml_original': xml_str,
+        # impostos
+        'icms':   icms,
+        'pis':    pis,
+        'cofins': cofins,
+        'csll':   csll,
+        'prev':   prev,
     }
 
 
@@ -362,9 +466,9 @@ class NotaFiscalService:
                     )
                     ServicoService.create_servico(db, servico)
                 except Exception as e:
-                    print(f"[VincularCondominio] Erro ao criar serviço: {e}")
+                    print(f"[VincularCondominio] Erro ao criar servico: {e}")
 
-        aviso = None if condominio.cnpj else "Condomínio sem CNPJ — não será possível gerar boleto Inter."
+        aviso = None if condominio.cnpj else "Condominio sem CNPJ - nao sera possivel gerar boleto Inter."
         return NotaFiscalResponse.model_validate(db_nota), aviso
 
     @staticmethod
@@ -450,6 +554,47 @@ class NotaFiscalService:
             return {"nota_id": nota_id, "resultado": "erro", "mensagem": str(e)}
 
     @staticmethod
+    def revalidar_campos_do_xml(db: Session, nota_id: int) -> dict:
+        """Re-parseia xml_original e atualiza TODOS os campos: tipo, status, vencimento, parcelas, impostos."""
+        from app.models.nota_fiscal_model import NotaFiscal
+        db_nota = db.query(NotaFiscal).filter(NotaFiscal.id == nota_id).first()
+        if not db_nota:
+            return {"nota_id": nota_id, "resultado": "nao_encontrada"}
+        if not db_nota.xml_original:
+            return {"nota_id": nota_id, "resultado": "sem_xml"}
+        try:
+            tipo_xml = detectar_tipo_xml(db_nota.xml_original)
+            if tipo_xml == 'NFSe':
+                # Não precisamos do db para busca de condomínio aqui — só re-parse dos campos
+                dados = extrair_dados_nfse(db_nota.xml_original, db, None)
+            elif tipo_xml == 'NFe':
+                dados = extrair_dados_nfe(db_nota.xml_original, db, None)
+            else:
+                return {"nota_id": nota_id, "resultado": "tipo_nao_suportado"}
+
+            campos = ['tipo', 'status', 'parcelas', 'valor', 'data_vencimento',
+                      'valor_boleto_parcela', 'parcelas_json',
+                      'iss', 'pis', 'cofins', 'inss', 'csll', 'icms', 'prev']
+            alteracoes = {}
+            for campo in campos:
+                if campo in dados:
+                    val_antigo = getattr(db_nota, campo, None)
+                    val_novo = dados[campo]
+                    if str(val_antigo) != str(val_novo):
+                        alteracoes[campo] = {"de": str(val_antigo), "para": str(val_novo)}
+                    setattr(db_nota, campo, val_novo)
+
+            db.commit()
+            return {
+                "nota_id": nota_id,
+                "numero_nota": db_nota.numero_nota,
+                "alteracoes": alteracoes,
+                "resultado": "ok",
+            }
+        except Exception as e:
+            return {"nota_id": nota_id, "resultado": "erro", "mensagem": str(e)}
+
+    @staticmethod
     def revalidar_todas(db: Session) -> dict:
         """Re-parseia o XML de todas as notas e atualiza status."""
         from app.models.nota_fiscal_model import NotaFiscal
@@ -476,7 +621,7 @@ class NotaFiscalService:
 
     @staticmethod
     async def importar_xmls(db: Session, files: List[UploadFile], tipo_fornecido: Optional[str] = None):
-        print(f"\n[IMPORT] >>> Requisição recebida: {len(files)} arquivo(s)")
+        print(f"\n[IMPORT] >>> Requisicao recebida: {len(files)} arquivo(s)")
         processados = 0
         ja_existentes = 0
         canceladas = 0
@@ -534,11 +679,17 @@ class NotaFiscalService:
 
                 if dados_nota.get('status') == StatusNota.CANCELADA:
                     canceladas += 1
-                    erros.append({"arquivo": filename, "numero": dados_nota['numero_nota'], "erro": "Nota cancelada — não importada.", "tipo_erro": "cancelada"})
+                    # Tenta atualizar nota existente no BD para CANCELADA
+                    db_existente = NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota'])
+                    if db_existente and db_existente.status != StatusNota.CANCELADA:
+                        db_existente.status = StatusNota.CANCELADA
+                        db.commit()
+                        print(f"[IMPORT] Nota {dados_nota['numero_nota']} marcada como CANCELADA no BD")
+                    erros.append({"arquivo": filename, "numero": dados_nota['numero_nota'], "erro": "Nota cancelada - nao importada.", "tipo_erro": "cancelada"})
                     continue
 
                 if NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota']):
-                    print(f"[IMPORT] Nota {dados_nota['numero_nota']} já existe — pulando")
+                    print(f"[IMPORT] Nota {dados_nota['numero_nota']} ja existe - pulando")
                     ja_existentes += 1
                     continue
 
@@ -562,7 +713,7 @@ class NotaFiscalService:
                         print(f"[IMPORT] ERRO ao criar servico: {e}")
                         erros.append({"arquivo": filename, "erro": f"Nota importada, mas erro ao criar servico: {e}"})
                 else:
-                    print(f"[IMPORT] Sem servico — condominio_id={dados_nota['condominio_id']} tipo={dados_nota['tipo']}")
+                    print(f"[IMPORT] Sem servico - condominio_id={dados_nota['condominio_id']} tipo={dados_nota['tipo']}")
 
                 processados += 1
 
