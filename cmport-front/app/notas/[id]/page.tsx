@@ -134,6 +134,8 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   const [modalExcluir, setModalExcluir] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
+  const [cancelandoBoletoId, setCancelandoBoletoId] = useState<number | null>(null);
+  const [deletandoBoletoId, setDeletandoBoletoId] = useState<number | null>(null);
 
   const [dataVencimento, setDataVencimento] = useState('');
   const [dataPagamento, setDataPagamento] = useState('');
@@ -256,6 +258,36 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       alert('Erro ao gerar parcelas via Inter.');
     } finally {
       setGerandoParcelas(false);
+    }
+  };
+
+  const handleCancelarBoleto = async (boleto: Boleto) => {
+    if (!boleto.codigo_solicitacao) {
+      alert('Este boleto não tem código Inter para cancelar.');
+      return;
+    }
+    if (!confirm(`Cancelar boleto ${boleto.numero_parcela}/${boleto.total_parcelas} no Banco Inter? Esta ação não pode ser desfeita.`)) return;
+    setCancelandoBoletoId(boleto.id);
+    try {
+      await api.post(`/boletos/${boleto.codigo_solicitacao}/cancelar`);
+      await carregarDados();
+    } catch {
+      alert('Erro ao cancelar boleto no Inter.');
+    } finally {
+      setCancelandoBoletoId(null);
+    }
+  };
+
+  const handleDeletarBoleto = async (boleto: Boleto) => {
+    if (!confirm(`Remover o registro do boleto ${boleto.numero_parcela}/${boleto.total_parcelas} do sistema? Isso permite criar um novo.`)) return;
+    setDeletandoBoletoId(boleto.id);
+    try {
+      await api.delete(`/boletos/${boleto.id}`);
+      await carregarDados();
+    } catch {
+      alert('Erro ao remover boleto.');
+    } finally {
+      setDeletandoBoletoId(null);
     }
   };
 
@@ -679,6 +711,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                 const boleto = boletos.find(b => b.numero_parcela === parcela.parcela) ?? null;
                 const cfg = boleto ? SITUACAO_CONFIG[boleto.situacao] : null;
                 const canMarkPaid = boleto && (boleto.situacao === 'EMABERTO' || boleto.situacao === 'VENCIDO');
+                const isInactive = boleto && (boleto.situacao === 'CANCELADO' || boleto.situacao === 'EXPIRADO');
                 const parcelaLabel = totalParcelas > 1
                   ? `Parcela ${parcela.parcela}/${totalParcelas}`
                   : 'A vista';
@@ -734,15 +767,47 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                     )}
 
                     {/* Action buttons */}
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex flex-wrap gap-2 pt-1">
                       {boleto ? (
-                        canMarkPaid && (
-                          <button
-                            onClick={() => openModalPagamento(boleto)}
-                            className="flex-1 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all"
-                          >
-                            Marcar Pago
-                          </button>
+                        isInactive ? (
+                          // CANCELADO or EXPIRADO: allow cleanup and re-register
+                          <>
+                            <button
+                              onClick={() => openModalCobranca(parcela)}
+                              className="flex-1 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
+                              title="Registrar nova cobrança manualmente"
+                            >
+                              + Registrar Novo
+                            </button>
+                            <button
+                              onClick={() => handleDeletarBoleto(boleto)}
+                              disabled={deletandoBoletoId === boleto.id}
+                              className="px-3 py-1.5 text-xs font-bold bg-red-700 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                              title="Remover registro do sistema para poder criar novo"
+                            >
+                              {deletandoBoletoId === boleto.id ? '...' : '🗑️'}
+                            </button>
+                          </>
+                        ) : (
+                          canMarkPaid && (
+                            <>
+                              <button
+                                onClick={() => openModalPagamento(boleto)}
+                                className="flex-1 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all"
+                              >
+                                ✅ Marcar Pago
+                              </button>
+                              {boleto.codigo_solicitacao && (
+                                <button
+                                  onClick={() => handleCancelarBoleto(boleto)}
+                                  disabled={cancelandoBoletoId === boleto.id}
+                                  className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                                >
+                                  {cancelandoBoletoId === boleto.id ? '...' : '🚫 Cancelar Inter'}
+                                </button>
+                              )}
+                            </>
+                          )
                         )
                       ) : (
                         <>

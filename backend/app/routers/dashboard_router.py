@@ -24,6 +24,71 @@ def get_db():
         db.close()
 
 
+@router.get("/servicos/exportar")
+def exportar_servicos_excel(
+    data_inicio: Optional[str] = Query(None),
+    data_fim: Optional[str] = Query(None),
+    condominio_id: Optional[int] = Query(None),
+    tipo: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    from datetime import date as date_type
+
+    query = db.query(ManutencaoAssistencia).join(
+        Condominio, ManutencaoAssistencia.condominio_id == Condominio.id, isouter=True
+    )
+    if data_inicio:
+        query = query.filter(ManutencaoAssistencia.data_servico >= date_type.fromisoformat(data_inicio))
+    if data_fim:
+        query = query.filter(ManutencaoAssistencia.data_servico <= date_type.fromisoformat(data_fim))
+    if condominio_id:
+        query = query.filter(ManutencaoAssistencia.condominio_id == condominio_id)
+    if tipo:
+        query = query.filter(ManutencaoAssistencia.tipo == tipo)
+
+    servicos = query.order_by(ManutencaoAssistencia.data_servico.desc()).all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Servicos"
+    header_fill = PatternFill(start_color="1e3a5f", end_color="1e3a5f", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    headers = ['ID', 'Tipo', 'Data Servico', 'Condominio', 'Nota Fiscal ID', 'Descricao', 'Criado Em']
+    ws.append(headers)
+    for col_num, _ in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+
+    for s in servicos:
+        cond_nome = s.condominio.nome if s.condominio else "Sem condominio"
+        ws.append([
+            s.id,
+            s.tipo.value if hasattr(s.tipo, 'value') else str(s.tipo),
+            s.data_servico.strftime('%d/%m/%Y') if s.data_servico else '',
+            cond_nome,
+            s.nota_fiscal_id or '',
+            (s.descricao or '')[:200],
+            s.criado_em.strftime('%d/%m/%Y %H:%M') if s.criado_em else '',
+        ])
+
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = min(
+            max(len(str(c.value or '')) for c in col) + 2, 60
+        )
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    filename = f"servicos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
 @router.get("/estatisticas")
 def get_dashboard_stats(db: Session = Depends(get_db)):
     hoje = date.today()

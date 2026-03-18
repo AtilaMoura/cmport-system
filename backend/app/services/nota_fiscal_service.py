@@ -58,6 +58,24 @@ def limpar_descricao(descricao: str) -> str:
     return descricao.strip()
 
 
+def extrair_data_servico(discriminacao: str) -> Optional[date]:
+    """
+    Extrai a data real de execução do serviço a partir da discriminação/infCpl.
+    Suporta: 'Data servico executado: 13.01.2026' e 'Data servico executado:23.01.2026'
+    Retorna None se não encontrar (o código usa data_emissao como fallback).
+    """
+    if not discriminacao:
+        return None
+    match = re.search(r'[Dd]ata\s+servi[cç]o\s+executado[:\s]+(\d{2})[.\-/](\d{2})[.\-/](\d{4})', discriminacao)
+    if match:
+        dia, mes, ano = match.group(1), match.group(2), match.group(3)
+        try:
+            return datetime.strptime(f"{dia}/{mes}/{ano}", '%d/%m/%Y').date()
+        except ValueError:
+            pass
+    return None
+
+
 def extrair_data_vencimento(discriminacao: str, fallback: date) -> date:
     """
     Extrai o primeiro vencimento da discriminação.
@@ -201,6 +219,7 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
             print(f"[NFSe] Nome '{razao_dest}' nao encontrou condominio")
 
     descricao_limpa = limpar_descricao(discriminacao)
+    data_servico_real = extrair_data_servico(discriminacao) or data_emissao
 
     return {
         'numero_nota': numero or f"NFSE-{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -212,6 +231,7 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
         'parcelas_json': lista_vencimentos if lista_vencimentos else None,
         'data_vencimento': data_vencimento,
         'data_emissao': data_emissao,
+        'data_servico': data_servico_real,
         'cliente_nome': razao_dest,
         'observacao': f"Emitente: {razao_emit} | CNPJ: {cnpj_emit}",
         'descricao_servico': descricao_limpa,
@@ -318,6 +338,7 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
             print(f"[NFe] Nome '{razao_dest}' nao encontrou condominio")
 
     descricao_limpa = limpar_descricao(inf_compl)
+    data_servico_real = extrair_data_servico(inf_compl) or data_emissao
 
     return {
         'numero_nota': f"{numero}-{serie}" if serie and numero else (numero or f"NFE-{datetime.now().strftime('%Y%m%d%H%M%S')}"),
@@ -329,6 +350,7 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
         'parcelas_json': lista_vencimentos if lista_vencimentos else None,
         'data_vencimento': data_vencimento,
         'data_emissao': data_emissao,
+        'data_servico': data_servico_real,
         'cliente_nome': razao_dest,
         'observacao': f"Emitente: {razao_emit} | CNPJ: {cnpj_emit}",
         'descricao_servico': descricao_limpa,
@@ -703,7 +725,7 @@ class NotaFiscalService:
                         servico = ServicoCreate(
                             condominio_id=dados_nota['condominio_id'],
                             tipo=tipo_servico_str,
-                            data_servico=dados_nota['data_emissao'],
+                            data_servico=dados_nota.get('data_servico') or dados_nota['data_emissao'],
                             descricao=dados_nota['descricao_servico'],
                             nota_fiscal_id=db_nota.id,
                         )

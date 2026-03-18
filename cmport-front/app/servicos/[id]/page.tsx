@@ -103,6 +103,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   // Ações
   const [desvinculandoNota, setDesvinculandoNota] = useState(false);
   const [deletandoBoletoId, setDeletandoBoletoId] = useState<number | null>(null);
+  const [cancelandoBoletoId, setCancelandoBoletoId] = useState<number | null>(null);
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
 
   // Form
@@ -299,6 +300,23 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       alert('Erro ao registrar cobrança.');
     } finally {
       setRegSaving(false);
+    }
+  };
+
+  const handleCancelarBoleto = async (boleto: Boleto) => {
+    if (!boleto.codigo_solicitacao) {
+      alert('Este boleto não tem código Inter para cancelar.');
+      return;
+    }
+    if (!confirm(`Cancelar boleto ${boleto.numero_parcela}/${boleto.total_parcelas} no Banco Inter? Esta ação não pode ser desfeita.`)) return;
+    setCancelandoBoletoId(boleto.id);
+    try {
+      await api.post(`/boletos/${boleto.codigo_solicitacao}/cancelar`);
+      await carregarDados();
+    } catch {
+      alert('Erro ao cancelar boleto no Inter.');
+    } finally {
+      setCancelandoBoletoId(null);
     }
   };
 
@@ -634,6 +652,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                 >
                                   ✅ Marcar Pago
                                 </button>
+                                {boleto.codigo_solicitacao && (
+                                  <button
+                                    onClick={() => handleCancelarBoleto(boleto)}
+                                    disabled={cancelandoBoletoId === boleto.id}
+                                    className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                                  >
+                                    {cancelandoBoletoId === boleto.id ? '...' : '🚫 Cancelar Inter'}
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleDeletarBoleto(boleto.id)}
                                   disabled={deletandoBoletoId === boleto.id}
@@ -645,6 +672,32 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                     : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
                                 </button>
                               </>
+                            )}
+                            {boleto && (boleto.situacao === 'CANCELADO' || boleto.situacao === 'EXPIRADO') && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setModalRegistrar(parcela.parcela);
+                                    setRegValor(parcela.valor.toFixed(2));
+                                    setRegData(parcela.data || '');
+                                    setRegForma('PIX'); setRegBanco(''); setRegObs('');
+                                    setRegJaPago(false); setRegDataPago(''); setRegValorPago('');
+                                  }}
+                                  className="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:brightness-110 transition-all"
+                                >
+                                  + Registrar Novo
+                                </button>
+                                <button
+                                  onClick={() => handleDeletarBoleto(boleto.id)}
+                                  disabled={deletandoBoletoId === boleto.id}
+                                  title="Remover boleto cancelado/expirado"
+                                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all disabled:opacity-50"
+                                >
+                                  {deletandoBoletoId === boleto.id
+                                    ? <div className="w-3.5 h-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                    : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
