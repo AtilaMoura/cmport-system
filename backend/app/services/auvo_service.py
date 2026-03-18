@@ -11,12 +11,16 @@ from app.repositories.contato_repository import ContatoRepository
 class AuvoSyncService:
 
     @staticmethod
-    def sync_all_customers(db: Session):
-        auvo_customers = auvo_client.get_customers(page_size=100)
+    def sync_all_customers(db: Session, progress_callback=None):
+        auvo_customers = auvo_client.get_all_customers(page_size=100)
+        total = len(auvo_customers)
+        print(f"[Auvo] Total de clientes recebidos: {total}")
+        if progress_callback:
+            progress_callback(processados=0, total=total)
 
         relatorio = {"novos": 0, "atualizados": 0, "erros": 0, "detalhes_erros": []}
 
-        for customer in auvo_customers:
+        for i, customer in enumerate(auvo_customers, 1):
             cliente_nome = customer.get("description") or customer.get("legalName") or f"ID {customer.get('id')}"
             try:
                 auvo_id = customer.get("id")
@@ -60,5 +64,14 @@ class AuvoSyncService:
                 db.rollback()
                 relatorio["erros"] += 1
                 relatorio["detalhes_erros"].append({"cliente": cliente_nome, "erro": str(e)})
+
+            if progress_callback:
+                progress_callback(
+                    processados=i,
+                    total=total,
+                    novos=relatorio["novos"],
+                    atualizados=relatorio["atualizados"],
+                    erros=relatorio["erros"],
+                )
 
         return relatorio

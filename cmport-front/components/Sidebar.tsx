@@ -13,6 +13,7 @@ export default function Sidebar() {
     { name: 'Serviços', icon: '🛠️', href: '/servicos' },
     { name: 'Notas Fiscais', icon: '📄', href: '/notas' },
     { name: 'Boletos', icon: '🏦', href: '/boletos' },
+    { name: 'Dev / Teste', icon: '⚙️', href: '/dev' },
   ];
 
   return (

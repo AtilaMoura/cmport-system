@@ -24,6 +24,7 @@ class ServicoUpdate(BaseModel):
     tipo: Optional[TipoServico] = None
     data_servico: Optional[date] = None
     descricao: Optional[str] = None
+    nota_fiscal_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 

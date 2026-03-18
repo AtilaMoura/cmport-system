@@ -21,6 +21,7 @@ from app.routers.nota_fiscal_router import router as notas_router
 from app.routers.dashboard_router import router as dashboard_router
 from app.routers.auditoria_router import router as auditoria_router
 from app.routers.boleto_router import router as boletos_router
+from app.routers.dev_router import router as dev_router
 
 # Criar tabelas no banco (inclui a nova tabela boletos)
 Base.metadata.create_all(bind=engine)
@@ -36,7 +37,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -49,6 +50,7 @@ app.include_router(notas_router, prefix="/api/v1/notas-fiscais", tags=["Notas Fi
 app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["Dashboard"])
 app.include_router(auditoria_router, prefix="/api/v1/auditoria", tags=["Auditoria"])
 app.include_router(boletos_router, prefix="/api/v1/boletos", tags=["Boletos"])
+app.include_router(dev_router, prefix="/api/v1/dev", tags=["Dev/Test"])
 
 
 @app.get("/", tags=["Root"])

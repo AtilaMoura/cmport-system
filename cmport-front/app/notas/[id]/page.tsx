@@ -20,12 +20,39 @@ interface NotaFiscal {
   criado_em: string;
 }
 
-// Interface para Condominio, definindo a estrutura dos dados do condomínio
 interface Condominio {
   id: number;
   nome: string;
   cnpj: string;
 }
+
+interface Boleto {
+  id: number;
+  codigo_solicitacao: string | null;
+  nosso_numero: string | null;
+  valor_nominal: number;
+  valor_juros: number;
+  valor_multa: number;
+  valor_total_recebido: number | null;
+  data_emissao: string;
+  data_vencimento: string;
+  data_pagamento: string | null;
+  situacao: 'EMABERTO' | 'PAGO' | 'CANCELADO' | 'EXPIRADO' | 'VENCIDO' | 'BAIXADO';
+  numero_parcela: number;
+  total_parcelas: number;
+  forma_pagamento: string;
+  banco_pagamento?: string | null;
+  observacao?: string | null;
+}
+
+const SITUACAO_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
+  EMABERTO:  { label: 'Em Aberto', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',     dot: 'bg-blue-500' },
+  PAGO:      { label: 'Pago',      cls: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400', dot: 'bg-green-500' },
+  CANCELADO: { label: 'Cancelado', cls: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',         dot: 'bg-red-500' },
+  EXPIRADO:  { label: 'Expirado',  cls: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',    dot: 'bg-slate-400' },
+  VENCIDO:   { label: 'Vencido',   cls: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400', dot: 'bg-orange-500' },
+  BAIXADO:   { label: 'Baixado',   cls: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400',    dot: 'bg-teal-500' },
+};
 
 // Componente principal da página de detalhes da nota fiscal
 export default function NotaDetalhesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,10 +61,12 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   // Estados para gerenciar os dados da nota, condomínio, loading e edição
   const [nota, setNota] = useState<NotaFiscal | null>(null);
   const [condominio, setCondominio] = useState<Condominio | null>(null);
+  const [boletos, setBoletos] = useState<Boleto[]>([]);
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState(false);
   const [modalExcluir, setModalExcluir] = useState(false);
   const [motivo, setMotivo] = useState('');
+  const [gerandoParcelas, setGerandoParcelas] = useState(false);
   
   // Estados para o formulário de edição
   const [dataVencimento, setDataVencimento] = useState('');
@@ -77,17 +106,39 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       setObservacao(notaData.observacao || '');
       setClienteNome(notaData.cliente_nome || '');
       
-      // Carregar dados do condomínio se houver ID associado
-      if (notaData.condominio_id) {
-        const condoRes = await api.get(`/condominios/${notaData.condominio_id}`);
-        setCondominio(condoRes.data);
-      }
+      // Carregar condomínio e boletos em paralelo
+      const [condoRes, boletosRes] = await Promise.all([
+        notaData.condominio_id ? api.get(`/condominios/${notaData.condominio_id}`) : Promise.resolve(null),
+        api.get(`/boletos/nota/${id}`),
+      ]);
+      if (condoRes) setCondominio(condoRes.data);
+      setBoletos(boletosRes.data || []);
     } catch (error) {
       console.error('Erro ao carregar nota:', error);
       alert('Nota fiscal não encontrada');
       router.push('/notas');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGerarParcelasFaltantes = async () => {
+    if (!id) return;
+    if (!confirm('Gerar as parcelas faltantes no Banco Inter?')) return;
+    setGerandoParcelas(true);
+    try {
+      const res = await api.post(`/boletos/gerar-parcelas-faltantes/${id}`);
+      const { sucesso, erros } = res.data;
+      await carregarDados();
+      if (erros.length > 0) {
+        alert(`${sucesso.length} parcela(s) gerada(s).\nErros: ${erros.map((e: { erro: string }) => e.erro).join(', ')}`);
+      } else {
+        alert(`${sucesso.length} parcela(s) gerada(s) com sucesso!`);
+      }
+    } catch {
+      alert('Erro ao gerar parcelas faltantes.');
+    } finally {
+      setGerandoParcelas(false);
     }
   };
 
@@ -379,6 +430,78 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
 
         {/* Sidebar com status e metadados */}
         <div className="space-y-6">
+          {/* Card de Boletos / Parcelas */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="text-xl">🏦</span>
+                Boletos
+              </h3>
+              {boletos.length > 0 && (
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                  {boletos.filter(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO').length}/{boletos.length} pagos
+                </span>
+              )}
+            </div>
+            {/* Aviso de parcelas faltantes */}
+            {nota.parcelas > 1 && boletos.length > 0 && boletos.length < nota.parcelas && (
+              <div className="mx-4 mt-4 p-3 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-800/30 rounded-xl">
+                <p className="text-xs font-bold text-orange-700 dark:text-orange-400 mb-2">
+                  Parcelas faltantes: {boletos.length}/{nota.parcelas} geradas
+                </p>
+                <button
+                  onClick={handleGerarParcelasFaltantes}
+                  disabled={gerandoParcelas}
+                  className="w-full py-2 bg-orange-600 text-white rounded-lg font-bold text-xs hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {gerandoParcelas
+                    ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando...</>
+                    : 'Gerar Parcelas Faltantes no Inter'}
+                </button>
+              </div>
+            )}
+            <div className="p-4 space-y-3">
+              {boletos.length === 0 ? (
+                <p className="text-sm text-slate-400 dark:text-slate-600 text-center py-2">Nenhum boleto gerado</p>
+              ) : (
+                boletos.map(b => {
+                  const cfg = SITUACAO_CONFIG[b.situacao];
+                  const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+                  const [y, m, d] = b.data_vencimento.split('-').map(Number);
+                  const venc = new Date(y, m - 1, d).toLocaleDateString('pt-BR');
+                  return (
+                    <div key={b.id} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                      <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${cfg?.dot}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                            {b.total_parcelas > 1 ? `Parcela ${b.numero_parcela}/${b.total_parcelas}` : 'À vista'}
+                          </span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg?.cls}`}>{cfg?.label}</span>
+                        </div>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">{fmt(b.valor_nominal)}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Venc. {venc}</p>
+                        {b.data_pagamento && (
+                          <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                            Pago em {new Date(b.data_pagamento).toLocaleDateString('pt-BR')}
+                            {b.valor_total_recebido && b.valor_total_recebido !== b.valor_nominal
+                              ? ` · ${fmt(b.valor_total_recebido)}`
+                              : ''}
+                          </p>
+                        )}
+                        {(b.valor_juros > 0 || b.valor_multa > 0) && (
+                          <p className="text-xs text-orange-600 dark:text-orange-400">
+                            +{fmt(b.valor_juros + b.valor_multa)} juros/multa
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
           {/* Card de Status */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
             <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">

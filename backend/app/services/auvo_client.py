@@ -56,5 +56,20 @@ class AuvoClient:
             return data["result"].get("entityList", [])
         return []
 
+    def get_all_customers(self, page_size: int = 100) -> List[Dict]:
+        """Busca todos os clientes paginando até não ter mais resultados."""
+        todos = []
+        page = 1
+        while True:
+            resultado = self.get_customers(page=page, page_size=page_size)
+            if not resultado:
+                break
+            todos.extend(resultado)
+            print(f"[Auvo] Página {page}: {len(resultado)} clientes (total acum: {len(todos)})")
+            if len(resultado) < page_size:
+                break
+            page += 1
+        return todos
+
 
 auvo_client = AuvoClient()

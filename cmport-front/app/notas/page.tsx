@@ -1,34 +1,21 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
+  Chart as ChartJS, CategoryScale, LinearScale, BarElement,
+  Title, Tooltip, Legend, ArcElement,
 } from 'chart.js';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
-);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
 interface NotaFiscal {
   id: number;
   numero_nota: string;
   tipo: 'ASSISTENCIA' | 'MANUTENCAO' | 'OUTROS';
+  status: 'AUTORIZADA' | 'CANCELADA' | 'DESCONHECIDO';
   parcelas: number;
   valor: number;
   data_vencimento: string;
@@ -51,6 +38,8 @@ interface Boleto {
   valor_nominal: number;
   data_vencimento: string;
   situacao: 'EMABERTO' | 'PAGO' | 'CANCELADO' | 'EXPIRADO' | 'VENCIDO' | 'BAIXADO';
+  numero_parcela: number;
+  total_parcelas: number;
 }
 
 type TabType = 'geral' | 'lista' | 'receber';
@@ -64,27 +53,36 @@ const SITUACAO_CONFIG: Record<string, { label: string; cls: string }> = {
   BAIXADO:  { label: 'Baixado',   cls: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400' },
 };
 
+function pd(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export default function NotasPage() {
-  const [notas, setNotas] = useState<NotaFiscal[]>([]);
+  const [notas, setNotas]           = useState<NotaFiscal[]>([]);
   const [condominios, setCondominios] = useState<Condominio[]>([]);
-  const [boletos, setBoletos] = useState<Record<number, Boleto>>({});
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabType>('geral');
+  const [boletos, setBoletos]       = useState<Record<number, Boleto[]>>({});
+  const [loading, setLoading]       = useState(true);
+  const [activeTab, setActiveTab]   = useState<TabType>('geral');
 
-  const [filtroTipo, setFiltroTipo] = useState<string>('todos');
-  const [search, setSearch] = useState('');
-  const [dataInicio, setDataInicio] = useState('');
-  const [dataFim, setDataFim] = useState('');
-  const [valorMin, setValorMin] = useState('');
-  const [valorMax, setValorMax] = useState('');
+  // Filtros (sempre ativos, afetam todas as tabs)
+  const [filtroTipo, setFiltroTipo]           = useState<string>('todos');
+  const [search, setSearch]                   = useState('');
+  const [filtroMes, setFiltroMes]             = useState('');   // "YYYY-MM"
+  const [dataInicio, setDataInicio]           = useState('');
+  const [dataFim, setDataFim]                 = useState('');
+  const [valorMin, setValorMin]               = useState('');
+  const [valorMax, setValorMax]               = useState('');
   const [condominioSelecionado, setCondominioSelecionado] = useState<number | null>(null);
+  const [showFiltrosAvancados, setShowFiltrosAvancados]   = useState(false);
 
-  const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
+  const [selecionadas, setSelecionadas]   = useState<Set<number>>(new Set());
   const [gerandoBoletos, setGerandoBoletos] = useState(false);
+  const [revalidando, setRevalidando] = useState(false);
+  const [revalidarMsg, setRevalidarMsg] = useState<string | null>(null);
+  const [filtroStatus, setFiltroStatus] = useState<string>('AUTORIZADA');
 
-  useEffect(() => {
-    carregarDados();
-  }, []);
+  useEffect(() => { carregarDados(); }, []);
 
   const carregarDados = async () => {
     try {
@@ -95,8 +93,13 @@ export default function NotasPage() {
       ]);
       setNotas(notasRes.data);
       setCondominios(condosRes.data);
-      const map: Record<number, Boleto> = {};
-      for (const b of boletosRes.data) map[b.nota_fiscal_id] = b;
+      const map: Record<number, Boleto[]> = {};
+      for (const b of boletosRes.data) {
+        if (!map[b.nota_fiscal_id]) map[b.nota_fiscal_id] = [];
+        map[b.nota_fiscal_id].push(b);
+      }
+      // Ordena parcelas por numero_parcela
+      for (const key of Object.keys(map)) map[Number(key)].sort((a, b) => a.numero_parcela - b.numero_parcela);
       setBoletos(map);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -112,11 +115,7 @@ export default function NotasPage() {
       if (dataFim) params.append('data_fim', dataFim);
       if (condominioSelecionado) params.append('condominio_id', String(condominioSelecionado));
       if (filtroTipo !== 'todos') params.append('tipo', filtroTipo);
-
-      const response = await api.get(`notas-fiscais/exportar?${params}`, {
-        responseType: 'blob'
-      });
-
+      const response = await api.get(`notas-fiscais/exportar?${params}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -124,27 +123,21 @@ export default function NotasPage() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-    } catch (error) {
-      console.error('Erro ao exportar:', error);
-      alert('Erro ao exportar relatório');
+    } catch {
+      alert('Erro ao exportar relatorio');
     }
   };
 
   const toggleSelecionada = (id: number) => {
-    setSelecionadas(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelecionadas(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   };
 
-  const toggleSelecionarTodas = (listaVisivel: NotaFiscal[]) => {
-    const semBoleto = listaVisivel.filter(n => !boletos[n.id]);
-    const allSelected = semBoleto.every(n => selecionadas.has(n.id));
+  const toggleSelecionarTodas = (lista: NotaFiscal[]) => {
+    const semBoleto = lista.filter(n => !boletos[n.id]?.length);
+    const allSel = semBoleto.every(n => selecionadas.has(n.id));
     setSelecionadas(prev => {
       const next = new Set(prev);
-      if (allSelected) semBoleto.forEach(n => next.delete(n.id));
+      if (allSel) semBoleto.forEach(n => next.delete(n.id));
       else semBoleto.forEach(n => next.add(n.id));
       return next;
     });
@@ -152,75 +145,142 @@ export default function NotasPage() {
 
   const gerarBoletos = async () => {
     if (selecionadas.size === 0) return;
+
+    // Verificar se alguma nota selecionada está vencida
+    const hoje = new Date().toISOString().split('T')[0];
+    const notasSelecionadas = notas.filter(n => selecionadas.has(n.id));
+    const temVencidas = notasSelecionadas.some(n => n.data_vencimento < hoje);
+
+    let dataVencimentoOverride: string | null = null;
+    if (temVencidas) {
+      const novaData = prompt(
+        'Uma ou mais notas selecionadas estão com vencimento no passado.\n\nInforme uma nova data de vencimento para o boleto (formato AAAA-MM-DD), ou cancele para usar a data padrão (hoje + 5 dias):',
+        hoje
+      );
+      if (novaData && novaData.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        dataVencimentoOverride = novaData;
+      }
+    }
+
     setGerandoBoletos(true);
     try {
-      const res = await api.post('/boletos/gerar', { nota_ids: Array.from(selecionadas) });
+      const payload: { nota_ids: number[]; data_vencimento_override?: string } = {
+        nota_ids: Array.from(selecionadas),
+      };
+      if (dataVencimentoOverride) {
+        payload.data_vencimento_override = dataVencimentoOverride;
+      }
+      const res = await api.post('/boletos/gerar', payload);
       const { sucesso, erros } = res.data;
       setSelecionadas(new Set());
       const map = { ...boletos };
-      for (const b of sucesso) map[b.nota_fiscal_id] = b;
+      for (const b of sucesso) {
+        if (!map[b.nota_fiscal_id]) map[b.nota_fiscal_id] = [];
+        // Evita duplicar se já existe
+        if (!map[b.nota_fiscal_id].find((x: Boleto) => x.id === b.id)) {
+          map[b.nota_fiscal_id] = [...map[b.nota_fiscal_id], b].sort((a: Boleto, b: Boleto) => a.numero_parcela - b.numero_parcela);
+        }
+      }
       setBoletos(map);
       if (erros.length > 0) {
-        alert(`Boletos gerados: ${sucesso.length}\nErros: ${erros.map((e: {nota_id: number; erro: string}) => `Nota ${e.nota_id}: ${e.erro}`).join('\n')}`);
+        alert(`Boletos gerados: ${sucesso.length}\nErros: ${erros.map((e: { nota_id: number; erro: string }) => `Nota ${e.nota_id}: ${e.erro}`).join('\n')}`);
       } else {
         alert(`${sucesso.length} boleto(s) gerado(s) com sucesso!`);
       }
-    } catch (error) {
-      console.error('Erro ao gerar boletos:', error);
-      alert('Erro ao gerar boletos. Verifique as configurações da API Inter.');
+    } catch {
+      alert('Erro ao gerar boletos. Verifique as configuracoes da API Inter.');
     } finally {
       setGerandoBoletos(false);
     }
   };
 
-  const notasFiltradas = notas.filter(nota => {
-    const matchTipo = filtroTipo === 'todos' || nota.tipo === filtroTipo;
-    const matchSearch =
-      nota.numero_nota.toLowerCase().includes(search.toLowerCase()) ||
-      (nota.cliente_nome?.toLowerCase().includes(search.toLowerCase()));
-    const matchDataInicio = !dataInicio || new Date(nota.data_vencimento) >= new Date(dataInicio);
-    const matchDataFim = !dataFim || new Date(nota.data_vencimento) <= new Date(dataFim);
-    const matchValorMin = !valorMin || nota.valor >= parseFloat(valorMin);
-    const matchValorMax = !valorMax || nota.valor <= parseFloat(valorMax);
-    const matchCondominio = !condominioSelecionado || nota.condominio_id === condominioSelecionado;
-    return matchTipo && matchSearch && matchDataInicio && matchDataFim && matchValorMin && matchValorMax && matchCondominio;
-  });
-
-  const notasAReceber = notasFiltradas.filter(n => !n.data_pagamento);
-
-  const stats = {
-    total: notas.length,
-    assistencias: notas.filter(n => n.tipo === 'ASSISTENCIA').length,
-    manutencoes: notas.filter(n => n.tipo === 'MANUTENCAO').length,
-    valorTotal: notas.reduce((sum, n) => sum + n.valor, 0),
-    valorReceber: notasAReceber.reduce((sum, n) => sum + n.valor, 0),
-    mediaValor: notas.length > 0 ? notas.reduce((sum, n) => sum + n.valor, 0) / notas.length : 0
+  const revalidarXmls = async () => {
+    setRevalidando(true);
+    setRevalidarMsg(null);
+    try {
+      const res = await api.post('/notas-fiscais/revalidar-todas');
+      setRevalidarMsg(res.data.mensagem);
+      await carregarDados();
+    } catch {
+      setRevalidarMsg('Erro ao revalidar XMLs.');
+    } finally {
+      setRevalidando(false);
+    }
   };
 
-  const distribuicaoTipoData = {
-    labels: ['Assistência', 'Manutenção', 'Outros'],
+  const limparFiltros = () => {
+    setFiltroTipo('todos'); setSearch(''); setFiltroMes('');
+    setDataInicio(''); setDataFim(''); setValorMin(''); setValorMax('');
+    setCondominioSelecionado(null); setFiltroStatus('AUTORIZADA');
+  };
+
+  const temFiltroAtivo = filtroTipo !== 'todos' || search || filtroMes || dataInicio || dataFim || valorMin || valorMax || condominioSelecionado || filtroStatus !== 'AUTORIZADA';
+
+  // notasFiltradas reflete todos os filtros ativos
+  const notasFiltradas = useMemo(() => notas.filter(nota => {
+    if (filtroStatus !== 'todos' && nota.status !== filtroStatus) return false;
+    if (filtroTipo !== 'todos' && nota.tipo !== filtroTipo) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!nota.numero_nota.toLowerCase().includes(q) && !nota.cliente_nome?.toLowerCase().includes(q)) return false;
+    }
+    const venc = pd(nota.data_vencimento);
+    if (filtroMes) {
+      const [y, m] = filtroMes.split('-').map(Number);
+      if (venc.getFullYear() !== y || venc.getMonth() + 1 !== m) return false;
+    }
+    if (dataInicio && venc < pd(dataInicio)) return false;
+    if (dataFim && venc > pd(dataFim)) return false;
+    if (valorMin && nota.valor < parseFloat(valorMin)) return false;
+    if (valorMax && nota.valor > parseFloat(valorMax)) return false;
+    if (condominioSelecionado && nota.condominio_id !== condominioSelecionado) return false;
+    return true;
+  }), [notas, filtroTipo, search, filtroMes, dataInicio, dataFim, valorMin, valorMax, condominioSelecionado]);
+
+  const notasAReceber = useMemo(() => notasFiltradas.filter(n => !n.data_pagamento), [notasFiltradas]);
+
+  const stats = useMemo(() => ({
+    total:       notasFiltradas.length,
+    assistencias: notasFiltradas.filter(n => n.tipo === 'ASSISTENCIA').length,
+    manutencoes:  notasFiltradas.filter(n => n.tipo === 'MANUTENCAO').length,
+    valorTotal:  notasFiltradas.reduce((sum, n) => sum + n.valor, 0),
+    valorReceber: notasAReceber.reduce((sum, n) => sum + n.valor, 0),
+    mediaValor:  notasFiltradas.length > 0 ? notasFiltradas.reduce((sum, n) => sum + n.valor, 0) / notasFiltradas.length : 0,
+  }), [notasFiltradas, notasAReceber]);
+
+  // Top 5 condominios por valor (filtrado)
+  const top5Condominios = useMemo(() => {
+    return [...condominios]
+      .map(c => ({ nome: c.nome, valor: notasFiltradas.filter(n => n.condominio_id === c.id).reduce((s, n) => s + n.valor, 0) }))
+      .filter(c => c.valor > 0)
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 5);
+  }, [condominios, notasFiltradas]);
+
+  const distribuicaoTipoData = useMemo(() => ({
+    labels: ['Assistencia', 'Manutencao', 'Outros'],
     datasets: [{
       data: [
-        notas.filter(n => n.tipo === 'ASSISTENCIA').length,
-        notas.filter(n => n.tipo === 'MANUTENCAO').length,
-        notas.filter(n => n.tipo === 'OUTROS').length
+        notasFiltradas.filter(n => n.tipo === 'ASSISTENCIA').length,
+        notasFiltradas.filter(n => n.tipo === 'MANUTENCAO').length,
+        notasFiltradas.filter(n => n.tipo === 'OUTROS').length,
       ],
       backgroundColor: ['#3b82f6', '#7c3aed', '#64748b'],
-      borderWidth: 0
-    }]
-  };
+      borderWidth: 0,
+    }],
+  }), [notasFiltradas]);
 
-  const valorPorCondominioData = {
-    labels: condominios.slice(0, 5).map(c => c.nome),
+  const valorPorCondominioData = useMemo(() => ({
+    labels: top5Condominios.map(c => c.nome.length > 20 ? c.nome.slice(0, 20) + '…' : c.nome),
     datasets: [{
       label: 'Valor Total',
-      data: condominios.slice(0, 5).map(c =>
-        notas.filter(n => n.condominio_id === c.id).reduce((sum, n) => sum + n.valor, 0)
-      ),
+      data: top5Condominios.map(c => c.valor),
       backgroundColor: '#1e3a5f',
-      borderRadius: 8
-    }]
-  };
+      borderRadius: 8,
+    }],
+  }), [top5Condominios]);
+
+  const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
   const getTipoColor = (tipo: string) => {
     switch (tipo) {
@@ -250,7 +310,7 @@ export default function NotasPage() {
   }
 
   const listaAtiva = activeTab === 'receber' ? notasAReceber : notasFiltradas;
-  const semBoletoVisiveis = listaAtiva.filter(n => !boletos[n.id]);
+  const semBoletoVisiveis = listaAtiva.filter(n => !boletos[n.id]?.length);
   const selecionadasCount = Array.from(selecionadas).filter(id => listaAtiva.some(n => n.id === id)).length;
 
   return (
@@ -262,31 +322,24 @@ export default function NotasPage() {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-2 h-8 bg-orange-600 rounded-full" />
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Notas Fiscais
-                </h1>
+                <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">Notas Fiscais</h1>
               </div>
-              <p className="text-slate-600 dark:text-slate-400 text-lg ml-5">
-                Gestão completa de faturamento
-              </p>
+              <p className="text-slate-600 dark:text-slate-400 text-lg ml-5">Gestao completa de faturamento</p>
             </div>
-            <div className="flex gap-3">
-              <Link
-                href="/boletos"
-                className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center gap-2"
-              >
+            <div className="flex gap-3 flex-wrap">
+              <Link href="/boletos" className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center gap-2">
                 <span className="text-xl">🏦</span> Boletos
               </Link>
-              <button
-                onClick={exportarExcel}
-                className="bg-green-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-green-600/20 hover:brightness-110 transition-all flex items-center gap-2"
-              >
-                <span className="text-xl">📊</span> Exportar Excel
+              <button onClick={revalidarXmls} disabled={revalidando}
+                className="bg-amber-600 text-white px-5 py-3 rounded-2xl font-black shadow-lg shadow-amber-600/20 hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2">
+                {revalidando
+                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Revalidando...</>
+                  : <><span>🔍</span> Revalidar XMLs</>}
               </button>
-              <Link
-                href="/notas/importar"
-                className="bg-orange-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-orange-600/20 hover:brightness-110 transition-all flex items-center gap-2"
-              >
+              <button onClick={exportarExcel} className="bg-green-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-green-600/20 hover:brightness-110 transition-all flex items-center gap-2">
+                <span className="text-xl">📊</span> Exportar
+              </button>
+              <Link href="/notas/importar" className="bg-orange-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-orange-600/20 hover:brightness-110 transition-all flex items-center gap-2">
                 <span className="text-xl">📤</span> Importar XMLs
               </Link>
             </div>
@@ -294,54 +347,145 @@ export default function NotasPage() {
         </div>
       </div>
 
+      {/* Revalidar feedback */}
+      {revalidarMsg && (
+        <div className="bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-800/30">
+          <div className="max-w-7xl mx-auto px-8 py-2 flex items-center justify-between">
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{revalidarMsg}</p>
+            <button onClick={() => setRevalidarMsg(null)} className="text-amber-500 hover:text-amber-700 text-lg">×</button>
+          </div>
+        </div>
+      )}
+
+      {/* Filtros sempre visiveis */}
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto px-8 py-4 space-y-3">
+          {/* Filtro status */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Status:</span>
+            {[
+              { v: 'AUTORIZADA', label: '✓ Autorizadas', cls: 'bg-green-600' },
+              { v: 'CANCELADA', label: '✕ Canceladas', cls: 'bg-red-600' },
+              { v: 'DESCONHECIDO', label: '? Desconhecido', cls: 'bg-slate-500' },
+              { v: 'todos', label: 'Todas', cls: 'bg-slate-700' },
+            ].map(opt => (
+              <button key={opt.v} onClick={() => setFiltroStatus(opt.v)}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${filtroStatus === opt.v ? `${opt.cls} text-white` : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {/* Linha rapida */}
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="text"
+              placeholder="Buscar numero ou cliente..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="flex-1 min-w-48 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+            />
+            <input
+              type="month"
+              value={filtroMes}
+              onChange={e => { setFiltroMes(e.target.value); setDataInicio(''); setDataFim(''); }}
+              className="px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+            />
+            {['todos', 'ASSISTENCIA', 'MANUTENCAO'].map(t => (
+              <button key={t} onClick={() => setFiltroTipo(t)}
+                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${filtroTipo === t
+                  ? t === 'todos' ? 'bg-orange-600 text-white' : t === 'ASSISTENCIA' ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              >
+                {t === 'todos' ? 'Todos' : t === 'ASSISTENCIA' ? '🔧 Assistencia' : '🛠️ Manutencao'}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowFiltrosAvancados(p => !p)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 transition-all"
+            >
+              <svg className={`w-3 h-3 transition-transform ${showFiltrosAvancados ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+              Avancados
+            </button>
+            {temFiltroAtivo && (
+              <button onClick={limparFiltros} className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 transition-all">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                Limpar
+              </button>
+            )}
+          </div>
+
+          {/* Filtros avancados */}
+          {showFiltrosAvancados && (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Venc. De</label>
+                <input type="date" value={dataInicio} onChange={e => { setDataInicio(e.target.value); setFiltroMes(''); }}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Venc. Ate</label>
+                <input type="date" value={dataFim} onChange={e => { setDataFim(e.target.value); setFiltroMes(''); }}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Valor Min</label>
+                <input type="number" min="0" step="0.01" placeholder="0,00" value={valorMin} onChange={e => setValorMin(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Valor Max</label>
+                <input type="number" min="0" step="0.01" placeholder="9999,99" value={valorMax} onChange={e => setValorMax(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Condominio</label>
+                <select value={condominioSelecionado || ''} onChange={e => setCondominioSelecionado(e.target.value ? parseInt(e.target.value) : null)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm">
+                  <option value="">Todos</option>
+                  {condominios.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Exibindo <span className="font-bold text-slate-700 dark:text-slate-300">{notasFiltradas.length}</span> de <span className="font-bold">{notas.length}</span> notas
+            {temFiltroAtivo && <span className="ml-1 text-orange-600 dark:text-orange-400">(com filtros ativos)</span>}
+          </p>
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-8">
           <div className="flex gap-1">
-            <button
-              onClick={() => setActiveTab('geral')}
-              className={`px-6 py-4 text-sm font-bold transition-all ${
-                activeTab === 'geral'
+            {[
+              { key: 'geral',   label: '📊 Visao Geral' },
+              { key: 'lista',   label: '📋 Todas as Notas' },
+              { key: 'receber', label: `💰 A Receber (${notasAReceber.length})` },
+            ].map(tab => (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key as TabType)}
+                className={`px-6 py-4 text-sm font-bold transition-all ${activeTab === tab.key
                   ? 'text-orange-600 border-b-2 border-orange-600'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              📊 Visão Geral
-            </button>
-            <button
-              onClick={() => setActiveTab('lista')}
-              className={`px-6 py-4 text-sm font-bold transition-all ${
-                activeTab === 'lista'
-                  ? 'text-orange-600 border-b-2 border-orange-600'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              📋 Todas as Notas
-            </button>
-            <button
-              onClick={() => setActiveTab('receber')}
-              className={`px-6 py-4 text-sm font-bold transition-all ${
-                activeTab === 'receber'
-                  ? 'text-orange-600 border-b-2 border-orange-600'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              💰 A Receber ({notasAReceber.length})
-            </button>
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-8 py-8">
-        {/* TAB: Visão Geral */}
+        {/* TAB: Visao Geral */}
         {activeTab === 'geral' && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-orange-50 dark:bg-orange-500/10 rounded-xl">
-                    <span className="text-2xl">📄</span>
-                  </div>
+                  <div className="p-3 bg-orange-50 dark:bg-orange-500/10 rounded-xl"><span className="text-2xl">📄</span></div>
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400">TOTAL</span>
                 </div>
                 <p className="text-4xl font-black text-slate-900 dark:text-white mb-1">{stats.total}</p>
@@ -350,63 +494,53 @@ export default function NotasPage() {
 
               <div className="gradient-brand p-6 rounded-2xl shadow-lg text-white">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
-                    <span className="text-2xl">💰</span>
-                  </div>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">FATURAMENTO</span>
+                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl"><span className="text-2xl">💰</span></div>
+                  <span className="text-xs font-bold text-white/70">FATURAMENTO</span>
                 </div>
-                <p className="text-4xl font-black text-slate-900 dark:text-white mb-1">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.valorTotal)}
-                </p>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold">Valor Total</p>
+                <p className="text-3xl font-black text-white mb-1">{fmt(stats.valorTotal)}</p>
+                <p className="text-sm text-white/80 font-semibold">Valor Total</p>
               </div>
 
               <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 p-6 rounded-2xl border border-green-200 dark:border-green-800/50 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-xl">
-                    <span className="text-2xl">📈</span>
-                  </div>
+                  <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-xl"><span className="text-2xl">📈</span></div>
                   <span className="text-xs font-bold text-green-700 dark:text-green-400 uppercase">A RECEBER</span>
                 </div>
-                <p className="text-4xl font-black text-green-900 dark:text-green-400 mb-1">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.valorReceber)}
-                </p>
+                <p className="text-3xl font-black text-green-900 dark:text-green-400 mb-1">{fmt(stats.valorReceber)}</p>
                 <p className="text-sm text-green-700 dark:text-green-500 font-semibold">{notasAReceber.length} notas pendentes</p>
               </div>
 
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-xl">
-                    <span className="text-2xl">📊</span>
-                  </div>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">MÉDIA</span>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-xl"><span className="text-2xl">📊</span></div>
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">MEDIA</span>
                 </div>
-                <p className="text-4xl font-black text-slate-900 dark:text-white mb-1">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.mediaValor)}
-                </p>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold">Valor Médio</p>
+                <p className="text-3xl font-black text-slate-900 dark:text-white mb-1">{fmt(stats.mediaValor)}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold">Valor Medio</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                  <span className="text-xl">🥧</span>
-                  Distribuição por Tipo
+                  <span className="text-xl">🥧</span> Distribuicao por Tipo
                 </h3>
                 <div className="h-64">
-                  <Doughnut data={distribuicaoTipoData} />
+                  <Doughnut data={distribuicaoTipoData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#64748b' } } } }} />
                 </div>
               </div>
 
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                  <span className="text-xl">📊</span>
-                  Top 5 Condomínios (Valor)
+                  <span className="text-xl">📊</span> Top 5 Condominios (Valor)
                 </h3>
-                <div className="h-64">
-                  <Bar data={valorPorCondominioData} options={{ indexAxis: 'y' }} />
-                </div>
+                {top5Condominios.length > 0 ? (
+                  <div className="h-64">
+                    <Bar data={valorPorCondominioData} options={{ responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b' } }, y: { ticks: { color: '#64748b' } } } }} />
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center text-slate-400">Sem dados com filtros ativos</div>
+                )}
               </div>
             </div>
           </div>
@@ -415,111 +549,16 @@ export default function NotasPage() {
         {/* TAB: Lista / A Receber */}
         {(activeTab === 'lista' || activeTab === 'receber') && (
           <div className="space-y-6">
-            {/* Filtros */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Buscar</label>
-                  <input
-                    type="text"
-                    placeholder="Número ou cliente..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Data Início</label>
-                  <input
-                    type="date"
-                    value={dataInicio}
-                    onChange={(e) => setDataInicio(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Data Fim</label>
-                  <input
-                    type="date"
-                    value={dataFim}
-                    onChange={(e) => setDataFim(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Valor Mínimo</label>
-                  <input
-                    type="number"
-                    placeholder="R$ 0,00"
-                    value={valorMin}
-                    onChange={(e) => setValorMin(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Valor Máximo</label>
-                  <input
-                    type="number"
-                    placeholder="R$ 9999,99"
-                    value={valorMax}
-                    onChange={(e) => setValorMax(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Condomínio</label>
-                  <select
-                    value={condominioSelecionado || ''}
-                    onChange={(e) => setCondominioSelecionado(e.target.value ? parseInt(e.target.value) : null)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                  >
-                    <option value="">Todos</option>
-                    {condominios.map(c => (
-                      <option key={c.id} value={c.id}>{c.nome}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {['todos', 'ASSISTENCIA', 'MANUTENCAO'].map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setFiltroTipo(t)}
-                    className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-                      filtroTipo === t
-                        ? t === 'todos' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20'
-                          : t === 'ASSISTENCIA' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                          : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    {t === 'todos' ? 'Todos' : t === 'ASSISTENCIA' ? '🔧 Assistência' : '🛠️ Manutenção'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Barra de ação para boletos */}
             {selecionadasCount > 0 && (
               <div className="bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-800 rounded-2xl px-6 py-4 flex items-center justify-between">
-                <p className="text-indigo-700 dark:text-indigo-400 font-bold">
-                  {selecionadasCount} nota(s) selecionada(s) sem boleto
-                </p>
-                <button
-                  onClick={gerarBoletos}
-                  disabled={gerandoBoletos}
-                  className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-black hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2"
-                >
-                  {gerandoBoletos ? (
-                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando...</>
-                  ) : (
-                    <><span>🏦</span> Gerar Boleto(s)</>
-                  )}
+                <p className="text-indigo-700 dark:text-indigo-400 font-bold">{selecionadasCount} nota(s) selecionada(s) sem boleto</p>
+                <button onClick={gerarBoletos} disabled={gerandoBoletos}
+                  className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-black hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2">
+                  {gerandoBoletos ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando...</> : <><span>🏦</span> Gerar Boleto(s)</>}
                 </button>
               </div>
             )}
 
-            {/* Tabela */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-lg">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -527,42 +566,28 @@ export default function NotasPage() {
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                       <th className="px-4 py-4 w-10">
                         {semBoletoVisiveis.length > 0 && (
-                          <input
-                            type="checkbox"
-                            checked={semBoletoVisiveis.length > 0 && semBoletoVisiveis.every(n => selecionadas.has(n.id))}
+                          <input type="checkbox"
+                            checked={semBoletoVisiveis.every(n => selecionadas.has(n.id))}
                             onChange={() => toggleSelecionarTodas(listaAtiva)}
-                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                          />
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                         )}
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Nota Fiscal</th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tipo</th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cliente</th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Valor</th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Vencimento</th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Boleto</th>
-                      <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ações</th>
+                      {['Nota Fiscal', 'Tipo', 'Status', 'Cliente', 'Valor', 'Vencimento', 'Boleto', 'Acoes'].map(h => (
+                        <th key={h} className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {listaAtiva.map((nota) => {
-                      const boleto = boletos[nota.id];
-                      const temBoleto = !!boleto;
-                      const isSelecionada = selecionadas.has(nota.id);
+                    {listaAtiva.map(nota => {
+                      const notaBoletos = boletos[nota.id] || [];
+                      const isSel = selecionadas.has(nota.id);
+                      const totalParcelas = notaBoletos.length;
+                      const pagas = notaBoletos.filter(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO').length;
+                      const vencidas = notaBoletos.filter(b => b.situacao === 'VENCIDO').length;
                       return (
-                        <tr
-                          key={nota.id}
-                          className={`group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isSelecionada ? 'bg-indigo-50/50 dark:bg-indigo-500/5' : ''}`}
-                        >
+                        <tr key={nota.id} className={`group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isSel ? 'bg-indigo-50/50 dark:bg-indigo-500/5' : ''}`}>
                           <td className="px-4 py-5">
-                            {!temBoleto && (
-                              <input
-                                type="checkbox"
-                                checked={isSelecionada}
-                                onChange={() => toggleSelecionada(nota.id)}
-                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                              />
-                            )}
+                            {!totalParcelas && <input type="checkbox" checked={isSel} onChange={() => toggleSelecionada(nota.id)} className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />}
                           </td>
                           <td className="px-6 py-5">
                             <div className="flex items-center gap-3">
@@ -571,50 +596,68 @@ export default function NotasPage() {
                               </div>
                               <div>
                                 <p className="font-bold text-slate-900 dark:text-white">{nota.numero_nota}</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                  {nota.parcelas > 1 ? `${nota.parcelas}x parcelas` : 'À vista'}
-                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{nota.parcelas > 1 ? `${nota.parcelas}x` : 'A vista'}</p>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-5">
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${getTipoColor(nota.tipo)}`}>
-                              {nota.tipo}
-                            </span>
+                            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${getTipoColor(nota.tipo)}`}>{nota.tipo}</span>
                           </td>
                           <td className="px-6 py-5">
-                            <p className="text-sm font-medium text-slate-900 dark:text-white">
-                              {nota.cliente_nome || 'Não informado'}
-                            </p>
+                            {nota.status === 'AUTORIZADA' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400">✓ Autorizada</span>
+                            )}
+                            {nota.status === 'CANCELADA' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400">✕ Cancelada</span>
+                            )}
+                            {nota.status === 'DESCONHECIDO' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">? Desconhecido</span>
+                            )}
                           </td>
                           <td className="px-6 py-5">
-                            <p className="text-sm font-bold text-green-600 dark:text-green-400">
-                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(nota.valor)}
-                            </p>
+                            <p className="text-sm font-medium text-slate-900 dark:text-white">{nota.cliente_nome || 'Nao informado'}</p>
                           </td>
                           <td className="px-6 py-5">
-                            <p className="text-sm text-slate-600 dark:text-slate-300">
-                              {new Date(nota.data_vencimento).toLocaleDateString('pt-BR')}
-                            </p>
+                            <p className="text-sm font-bold text-green-600 dark:text-green-400">{fmt(nota.valor)}</p>
                           </td>
                           <td className="px-6 py-5">
-                            {boleto ? (
-                              <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${SITUACAO_CONFIG[boleto.situacao]?.cls}`}>
-                                {SITUACAO_CONFIG[boleto.situacao]?.label}
+                            <p className="text-sm text-slate-600 dark:text-slate-300">{pd(nota.data_vencimento).toLocaleDateString('pt-BR')}</p>
+                          </td>
+                          <td className="px-6 py-5 min-w-[160px]">
+                            {totalParcelas === 0 ? (
+                              <span className="text-xs text-slate-400 dark:text-slate-600">sem boleto</span>
+                            ) : totalParcelas === 1 ? (
+                              <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${SITUACAO_CONFIG[notaBoletos[0].situacao]?.cls}`}>
+                                {SITUACAO_CONFIG[notaBoletos[0].situacao]?.label}
                               </span>
                             ) : (
-                              <span className="text-xs text-slate-400 dark:text-slate-600">— sem boleto</span>
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="font-bold text-slate-700 dark:text-slate-300">{pagas}/{totalParcelas} pagas</span>
+                                  {vencidas > 0 && <span className="text-orange-600 dark:text-orange-400 font-bold">{vencidas} vencida(s)</span>}
+                                </div>
+                                <div className="flex gap-1">
+                                  {notaBoletos.map(b => (
+                                    <div
+                                      key={b.id}
+                                      title={`Parcela ${b.numero_parcela}: ${SITUACAO_CONFIG[b.situacao]?.label}`}
+                                      className={`h-2 flex-1 rounded-full ${
+                                        b.situacao === 'PAGO' || b.situacao === 'BAIXADO' ? 'bg-green-500' :
+                                        b.situacao === 'VENCIDO' ? 'bg-orange-500' :
+                                        b.situacao === 'CANCELADO' ? 'bg-red-400' :
+                                        b.situacao === 'EXPIRADO' ? 'bg-slate-400' :
+                                        'bg-blue-400'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
                             )}
                           </td>
                           <td className="px-6 py-5 text-right">
-                            <Link
-                              href={`/notas/${nota.id}`}
-                              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg transition-all group-hover:translate-x-1"
-                            >
+                            <Link href={`/notas/${nota.id}`} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg transition-all group-hover:translate-x-1">
                               Ver detalhes
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                             </Link>
                           </td>
                         </tr>
@@ -626,15 +669,10 @@ export default function NotasPage() {
 
               {listaAtiva.length === 0 && (
                 <div className="py-16 text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full">
-                    <span className="text-3xl">📄</span>
-                  </div>
+                  <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full"><span className="text-3xl">📄</span></div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Nenhuma nota encontrada</h3>
                   <p className="text-slate-500 dark:text-slate-400 mb-4">Ajuste os filtros ou importe novas XMLs</p>
-                  <Link
-                    href="/notas/importar"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-xl font-bold hover:brightness-110 transition-all"
-                  >
+                  <Link href="/notas/importar" className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-xl font-bold hover:brightness-110 transition-all">
                     <span>📤</span> Importar XMLs
                   </Link>
                 </div>

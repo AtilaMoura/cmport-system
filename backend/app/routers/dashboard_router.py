@@ -11,6 +11,7 @@ from app.core.database import SessionLocal
 from app.models.nota_fiscal_model import NotaFiscal, StatusNota
 from app.models.servico_model import ManutencaoAssistencia
 from app.models.condominio_model import Condominio
+from app.repositories.boleto_repository import BoletoRepository
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     ano_mes_passado = ultimo_dia_mes_passado.year
     ano_passado = ano_atual - 1
 
-    nf_ativas = NotaFiscal.status != StatusNota.CANCELADA
+    nf_ativas = NotaFiscal.status == StatusNota.AUTORIZADA
 
     stats_notas_mes_atual = db.query(
         func.count(NotaFiscal.id), func.sum(NotaFiscal.valor)
@@ -119,6 +120,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
             return 100.0 if atual > 0 else 0.0
         return round(((atual - passado) / passado) * 100, 2)
 
+    boleto_stats = BoletoRepository.get_stats(db)
+
     return {
         "resumo_geral": {
             "total_condominios": db.query(func.count(Condominio.id)).scalar() or 0,
@@ -155,4 +158,5 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
             ],
             "dias_semana": [{"dia": dia, "quantidade": qtd} for dia, qtd in ranking_dias_dict.items()],
         },
+        "boletos": boleto_stats,
     }

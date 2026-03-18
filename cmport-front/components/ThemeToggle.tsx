@@ -10,13 +10,12 @@ export function ThemeToggle() {
   const [isCompact, setIsCompact] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
-    // Carregar preferência de modo compacto
     const compactMode = localStorage.getItem('compact-mode') === 'true'
-    setIsCompact(compactMode)
     if (compactMode) {
       document.documentElement.classList.add('compact')
     }
+    setIsCompact(compactMode)
+    setMounted(true)
   }, [])
 
   if (!mounted) {

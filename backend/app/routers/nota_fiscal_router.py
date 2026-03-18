@@ -4,10 +4,15 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from io import BytesIO
 from datetime import datetime
+from pydantic import BaseModel
 
 from app.core.database import SessionLocal
 from app.services.nota_fiscal_service import NotaFiscalService
 from app.schemas.nota_fiscal_schema import NotaFiscalCreate, NotaFiscalResponse, ImportacaoResponse, NotaFiscalUpdate
+
+
+class VincularCondominioRequest(BaseModel):
+    condominio_id: int
 
 router = APIRouter()
 
@@ -49,7 +54,7 @@ def exportar_notas_excel(
 
     query = db.query(NotaFiscal).join(
         Condominio, NotaFiscal.condominio_id == Condominio.id, isouter=True
-    ).filter(NotaFiscal.status != StatusNota.CANCELADA)
+    ).filter(NotaFiscal.status == StatusNota.AUTORIZADA)
 
     if data_inicio:
         query = query.filter(NotaFiscal.data_vencimento >= date_type.fromisoformat(data_inicio))
@@ -127,6 +132,7 @@ async def importar_xmls(
         resultado = await NotaFiscalService.importar_xmls(db, arquivos, tipo)
         return ImportacaoResponse(
             processados=resultado["processados"],
+            ja_existentes=resultado.get("ja_existentes", 0),
             canceladas=resultado.get("canceladas", 0),
             erros=resultado["erros"]
         )
@@ -140,6 +146,32 @@ def update_nota(id: int, nota_update: NotaFiscalUpdate, db: Session = Depends(ge
     if not updated:
         raise HTTPException(status_code=404, detail="Nota não encontrada")
     return updated
+
+
+@router.patch("/{id}/vincular-condominio", response_model=NotaFiscalResponse)
+def vincular_condominio(id: int, body: VincularCondominioRequest, db: Session = Depends(get_db)):
+    """Vincula (ou re-vincula) uma nota fiscal a um condomínio."""
+    try:
+        nota, aviso = NotaFiscalService.vincular_condominio(db, id, body.condominio_id)
+        if aviso:
+            print(f"[VincularCondominio] nota {id}: {aviso}")
+        return nota
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{id}/revalidar")
+def revalidar_nota(id: int, db: Session = Depends(get_db)):
+    """Re-parseia o xml_original e corrige o status da nota."""
+    return NotaFiscalService.revalidar_nota_do_xml(db, id)
+
+
+@router.post("/revalidar-todas")
+def revalidar_todas_notas(db: Session = Depends(get_db)):
+    """Re-parseia o XML de todas as notas e corrige status incorretos."""
+    return NotaFiscalService.revalidar_todas(db)
 
 
 @router.delete("/{id}", status_code=204)

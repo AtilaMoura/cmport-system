@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     INTER_CLIENT_SECRET: Optional[str] = None
     INTER_CONTA_CORRENTE: Optional[str] = None
     INTER_CERT_PATH: str = "app/auth/"
+    INTER_ENV: str = "sandbox"  # "sandbox" ou "production"
 
     # Application
     ENV: str = "development"

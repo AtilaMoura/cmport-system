@@ -46,6 +46,7 @@ class NotaFiscalResponse(BaseModel):
 
 class ImportacaoResponse(BaseModel):
     processados: int
+    ja_existentes: int = 0
     canceladas: int = 0
     erros: list[dict]
 
@@ -55,5 +56,9 @@ class NotaFiscalUpdate(BaseModel):
     data_pagamento: Optional[date] = None
     observacao: Optional[str] = None
     cliente_nome: Optional[str] = None
+    valor: Optional[float] = None
+    status: Optional[StatusNota] = None
+    tipo: Optional[TipoNota] = None
+    condominio_id: Optional[int] = None
 
     model_config = {"from_attributes": True}

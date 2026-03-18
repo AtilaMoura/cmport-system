@@ -136,6 +136,21 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
         condominio = NotaFiscalRepository.get_condominio_by_cnpj(db, cnpj_limpo)
         if condominio:
             condominio_id = condominio.id
+            print(f"[NFSe] Condomínio encontrado pelo CNPJ {cnpj_limpo} → ID {condominio_id}")
+        else:
+            print(f"[NFSe] CNPJ {cnpj_limpo} não encontrou condomínio no banco")
+    if not condominio_id and razao_dest:
+        condominio = NotaFiscalRepository.get_condominio_by_nome(db, razao_dest)
+        if condominio:
+            condominio_id = condominio.id
+            print(f"[NFSe] Condomínio encontrado pelo nome '{razao_dest}' → ID {condominio_id}")
+            # Auto-salva o CNPJ no condomínio para que próximas importações usem vinculo direto por CNPJ
+            if cnpj_dest and not condominio.cnpj:
+                condominio.cnpj = cnpj_dest
+                db.commit()
+                print(f"[NFSe] CNPJ {cnpj_dest} salvo no condomínio ID {condominio_id}")
+        else:
+            print(f"[NFSe] Nome '{razao_dest}' também não encontrou condomínio")
 
     descricao_limpa = limpar_descricao(discriminacao)
     data_vencimento = extrair_data_vencimento(discriminacao, data_emissao)
@@ -189,6 +204,21 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
         condominio = NotaFiscalRepository.get_condominio_by_cnpj(db, cnpj_limpo)
         if condominio:
             condominio_id = condominio.id
+            print(f"[NFe] Condomínio encontrado pelo CNPJ {cnpj_limpo} → ID {condominio_id}")
+        else:
+            print(f"[NFe] CNPJ {cnpj_limpo} não encontrou condomínio no banco")
+    if not condominio_id and razao_dest:
+        condominio = NotaFiscalRepository.get_condominio_by_nome(db, razao_dest)
+        if condominio:
+            condominio_id = condominio.id
+            print(f"[NFe] Condomínio encontrado pelo nome '{razao_dest}' → ID {condominio_id}")
+            # Auto-salva o CNPJ no condomínio para que próximas importações usem vinculo direto por CNPJ
+            if cnpj_dest and not condominio.cnpj:
+                condominio.cnpj = cnpj_dest
+                db.commit()
+                print(f"[NFe] CNPJ {cnpj_dest} salvo no condomínio ID {condominio_id}")
+        else:
+            print(f"[NFe] Nome '{razao_dest}' também não encontrou condomínio")
 
     descricao_limpa = limpar_descricao(inf_compl)
     data_vencimento = extrair_data_vencimento(inf_compl, data_emissao)
@@ -261,6 +291,8 @@ def processar_cancelamento_nfe(xml_str: str, db: Session) -> dict:
         return {'status': 'erro', 'mensagem': str(e)}
 
 
+
+
 class NotaFiscalService:
 
     @staticmethod
@@ -295,6 +327,45 @@ class NotaFiscalService:
     def get_nota_by_numero(db: Session, numero: str):
         nota = NotaFiscalRepository.get_by_numero(db, numero)
         return NotaFiscalResponse.model_validate(nota) if nota else None
+
+    @staticmethod
+    def vincular_condominio(db: Session, nota_id: int, condominio_id: int):
+        from app.models.nota_fiscal_model import NotaFiscal
+        from app.models.condominio_model import Condominio
+
+        db_nota = db.query(NotaFiscal).filter(NotaFiscal.id == nota_id).first()
+        if not db_nota:
+            raise HTTPException(status_code=404, detail="Nota não encontrada.")
+
+        condominio = db.query(Condominio).filter(Condominio.id == condominio_id).first()
+        if not condominio:
+            raise HTTPException(status_code=404, detail="Condomínio não encontrado.")
+
+        db_nota.condominio_id = condominio_id
+        db.commit()
+        db.refresh(db_nota)
+
+        # Gerar serviço se MANUT/ASSIST e ainda não há serviço vinculado
+        if db_nota.tipo in [TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]:
+            servico_existente = db.query(ManutencaoAssistencia).filter(
+                ManutencaoAssistencia.nota_fiscal_id == nota_id
+            ).first()
+            if not servico_existente:
+                try:
+                    tipo_str = "assistencia" if db_nota.tipo == TipoNota.ASSISTENCIA else "manutencao"
+                    servico = ServicoCreate(
+                        condominio_id=condominio_id,
+                        tipo=tipo_str,
+                        data_servico=db_nota.data_vencimento,
+                        descricao=db_nota.descricao_servico or db_nota.observacao or "",
+                        nota_fiscal_id=nota_id,
+                    )
+                    ServicoService.create_servico(db, servico)
+                except Exception as e:
+                    print(f"[VincularCondominio] Erro ao criar serviço: {e}")
+
+        aviso = None if condominio.cnpj else "Condomínio sem CNPJ — não será possível gerar boleto Inter."
+        return NotaFiscalResponse.model_validate(db_nota), aviso
 
     @staticmethod
     def delete_nota(db: Session, nota_id: int, motivo: Optional[str] = None, deletar_servicos: bool = False) -> bool:
@@ -340,8 +411,74 @@ class NotaFiscalService:
         return True
 
     @staticmethod
+    def revalidar_nota_do_xml(db: Session, nota_id: int) -> dict:
+        """Re-parseia o xml_original e atualiza o status da nota."""
+        from app.models.nota_fiscal_model import NotaFiscal
+        db_nota = db.query(NotaFiscal).filter(NotaFiscal.id == nota_id).first()
+        if not db_nota:
+            return {"nota_id": nota_id, "resultado": "nao_encontrada"}
+        if not db_nota.xml_original:
+            return {"nota_id": nota_id, "resultado": "sem_xml"}
+        try:
+            tipo_xml = detectar_tipo_xml(db_nota.xml_original)
+            if tipo_xml == 'NFSe':
+                root = ET.fromstring(db_nota.xml_original)
+                el = root.find('.//StatusNFe')
+                status_xml = el.text.strip() if el is not None and el.text else None
+                novo_status = detectar_status_nfse(status_xml)
+            elif tipo_xml == 'NFe':
+                root = ET.fromstring(db_nota.xml_original)
+                ns = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+                c_stat = find_text(root, './/nfe:protNFe/nfe:infProt/nfe:cStat', ns)
+                novo_status = detectar_status_nfe(c_stat)
+            else:
+                return {"nota_id": nota_id, "resultado": "tipo_nao_suportado"}
+
+            status_anterior = db_nota.status.value
+            alterado = status_anterior != novo_status.value
+            db_nota.status = novo_status
+            db.commit()
+            return {
+                "nota_id": nota_id,
+                "numero_nota": db_nota.numero_nota,
+                "status_anterior": status_anterior,
+                "status_novo": novo_status.value,
+                "alterado": alterado,
+                "resultado": "ok",
+            }
+        except Exception as e:
+            return {"nota_id": nota_id, "resultado": "erro", "mensagem": str(e)}
+
+    @staticmethod
+    def revalidar_todas(db: Session) -> dict:
+        """Re-parseia o XML de todas as notas e atualiza status."""
+        from app.models.nota_fiscal_model import NotaFiscal
+        notas = db.query(NotaFiscal).filter(NotaFiscal.xml_original.isnot(None)).all()
+        total = len(notas)
+        alteradas = 0
+        erros = 0
+        detalhes = []
+        for nota in notas:
+            r = NotaFiscalService.revalidar_nota_do_xml(db, nota.id)
+            if r.get("alterado"):
+                alteradas += 1
+            if r.get("resultado") in ("erro", "tipo_nao_suportado"):
+                erros += 1
+            if r.get("alterado") or r.get("resultado") != "ok":
+                detalhes.append(r)
+        return {
+            "total": total,
+            "alteradas": alteradas,
+            "erros": erros,
+            "detalhes": detalhes,
+            "mensagem": f"Revalidação concluída: {total} notas verificadas, {alteradas} status alterados, {erros} erros.",
+        }
+
+    @staticmethod
     async def importar_xmls(db: Session, files: List[UploadFile], tipo_fornecido: Optional[str] = None):
+        print(f"\n[IMPORT] >>> Requisição recebida: {len(files)} arquivo(s)")
         processados = 0
+        ja_existentes = 0
         canceladas = 0
         erros = []
         xmls_para_processar = []
@@ -360,13 +497,14 @@ class NotaFiscalService:
                                     xmls_para_processar.append({'filename': f"{filename}/{zip_info.filename}", 'content': xml_content})
                     except zipfile.BadZipFile:
                         erros.append({"arquivo": filename, "erro": "Arquivo ZIP corrompido ou inválido."})
-
                 elif filename.lower().endswith('.xml'):
                     xmls_para_processar.append({'filename': filename, 'content': conteudo})
                 else:
                     erros.append({"arquivo": filename, "erro": "Formato não suportado. Use .xml ou .zip."})
             except Exception as e:
                 erros.append({"arquivo": file.filename, "erro": f"Erro ao ler arquivo: {e}"})
+
+        print(f"[IMPORT] Total de XMLs para processar: {len(xmls_para_processar)}")
 
         for xml_data in xmls_para_processar:
             filename = xml_data['filename']
@@ -392,16 +530,21 @@ class NotaFiscalService:
                 else:
                     dados_nota = extrair_dados_nfe(xml_str, db, tipo_fornecido)
 
+                print(f"[IMPORT] Nota {dados_nota['numero_nota']} | tipo={dados_nota['tipo']} | status={dados_nota['status']} | condominio_id={dados_nota['condominio_id']}")
+
                 if dados_nota.get('status') == StatusNota.CANCELADA:
                     canceladas += 1
                     erros.append({"arquivo": filename, "numero": dados_nota['numero_nota'], "erro": "Nota cancelada — não importada.", "tipo_erro": "cancelada"})
                     continue
 
                 if NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota']):
+                    print(f"[IMPORT] Nota {dados_nota['numero_nota']} já existe — pulando")
+                    ja_existentes += 1
                     continue
 
                 nota_importada = NotaFiscalImportada(**dados_nota)
                 db_nota = NotaFiscalRepository.create_importada(db, nota_importada)
+                print(f"[IMPORT] Nota {db_nota.numero_nota} salva com ID={db_nota.id}")
 
                 if dados_nota['condominio_id'] and dados_nota['tipo'] in [TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]:
                     try:
@@ -411,17 +554,24 @@ class NotaFiscalService:
                             tipo=tipo_servico_str,
                             data_servico=dados_nota['data_emissao'],
                             descricao=dados_nota['descricao_servico'],
-                            nota_fiscal_id=db_nota.id
+                            nota_fiscal_id=db_nota.id,
                         )
                         ServicoService.create_servico(db, servico)
+                        print(f"[IMPORT] Servico '{tipo_servico_str}' criado para nota {db_nota.numero_nota}")
                     except Exception as e:
-                        erros.append({"arquivo": filename, "erro": f"Nota importada, mas falhou ao criar serviço: {e}"})
+                        print(f"[IMPORT] ERRO ao criar servico: {e}")
+                        erros.append({"arquivo": filename, "erro": f"Nota importada, mas erro ao criar servico: {e}"})
+                else:
+                    print(f"[IMPORT] Sem servico — condominio_id={dados_nota['condominio_id']} tipo={dados_nota['tipo']}")
 
                 processados += 1
 
             except (ET.ParseError, ValueError) as e:
+                print(f"[IMPORT] ERRO de parsing em {filename}: {e}")
                 erros.append({"arquivo": filename, "erro": f"Erro de parsing: {e}"})
             except Exception as e:
+                print(f"[IMPORT] ERRO critico em {filename}: {e}")
                 erros.append({"arquivo": filename, "erro": str(e)})
 
-        return {"processados": processados, "canceladas": canceladas, "erros": erros}
+        print(f"[IMPORT] <<< Resultado: {processados} importadas | {ja_existentes} ja existentes | {canceladas} canceladas | {len(erros)} erros\n")
+        return {"processados": processados, "ja_existentes": ja_existentes, "canceladas": canceladas, "erros": erros}

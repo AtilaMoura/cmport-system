@@ -44,7 +44,7 @@ export default function ImportarNotasPage() {
 
       setResultado(response.data);
       
-      if (response.data.processados > 0) {
+      if (response.data.processados > 0 || response.data.ja_existentes > 0) {
         setTimeout(() => {
           router.push('/notas');
         }, 3000);
@@ -224,17 +224,24 @@ export default function ImportarNotasPage() {
                   Importação Concluída
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {resultado.processados} nota(s) processada(s)
+                  {resultado.processados} nova(s) · {resultado.ja_existentes ?? 0} já existia(m)
                 </p>
               </div>
             </div>
 
-            {resultado.processados > 0 && (
+            {(resultado.processados > 0 || resultado.ja_existentes > 0) && (
               <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4">
-                <div className="font-bold text-green-700 dark:text-green-400 mb-1">
-                  ✨ {resultado.processados} nota(s) importada(s) com sucesso
-                </div>
-                <div className="text-xs text-green-600 dark:text-green-500">
+                {resultado.processados > 0 && (
+                  <div className="font-bold text-green-700 dark:text-green-400 mb-1">
+                    ✨ {resultado.processados} nota(s) importada(s) com sucesso
+                  </div>
+                )}
+                {resultado.ja_existentes > 0 && (
+                  <div className="font-bold text-blue-700 dark:text-blue-400 mb-1">
+                    🔁 {resultado.ja_existentes} nota(s) já existiam no sistema (serviços verificados)
+                  </div>
+                )}
+                <div className="text-xs text-green-600 dark:text-green-500 mt-1">
                   Redirecionando para a lista de notas...
                 </div>
               </div>
