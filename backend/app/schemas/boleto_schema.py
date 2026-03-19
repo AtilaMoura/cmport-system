@@ -36,7 +36,6 @@ class GerarBoletosRequest(BaseModel):
     valor_total_override: Optional[float] = None   # Sobrescreve o valor calculado (já líquido)
     mensagem: Optional[str] = None                 # Aparece no boleto — ex: "OS 123"
     # Overrides de percentual de imposto (usa config da tabela se None)
-    pct_iss:    Optional[float] = None
     pct_pis:    Optional[float] = None
     pct_cofins: Optional[float] = None
     pct_inss:   Optional[float] = None
@@ -49,7 +48,6 @@ class GerarBoletosRequest(BaseModel):
 class GerarParcelasFaltantesRequest(BaseModel):
     valor_total_override: Optional[float] = None
     mensagem: Optional[str] = None
-    pct_iss:    Optional[float] = None
     pct_pis:    Optional[float] = None
     pct_cofins: Optional[float] = None
     pct_inss:   Optional[float] = None
@@ -59,7 +57,6 @@ class GerarParcelasFaltantesRequest(BaseModel):
 
 
 class ConfigImpostosResponse(BaseModel):
-    pct_iss:    float
     pct_pis:    float
     pct_cofins: float
     pct_inss:   float

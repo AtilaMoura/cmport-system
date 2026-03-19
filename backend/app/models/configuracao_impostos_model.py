@@ -16,7 +16,6 @@ class ConfiguracaoImpostosServico(Base):
 
     id           = Column(Integer, primary_key=True, autoincrement=True)
     tipo_servico = Column(Enum(TipoServicoConfig), unique=True, nullable=False)
-    pct_iss      = Column(Numeric(5, 2), nullable=False, default=0)
     pct_pis      = Column(Numeric(5, 2), nullable=False, default=0)
     pct_cofins   = Column(Numeric(5, 2), nullable=False, default=0)
     pct_inss     = Column(Numeric(5, 2), nullable=False, default=0)

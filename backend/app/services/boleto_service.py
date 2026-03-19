@@ -22,7 +22,7 @@ def _calcular_valor_liquido(db: Session, nota, pcts_override: dict = None) -> fl
     Calcula o valor líquido da nota descontando impostos com base na tabela de configuração.
     Para MANUTENCAO/ASSISTENCIA: aplica os percentuais da config (ou override).
     Para OUTROS: retorna valor integral.
-    pcts_override: dict com chaves opcionais pct_iss, pct_pis, pct_cofins, pct_inss, pct_csll (floats)
+    pcts_override: dict com chaves opcionais pct_pis, pct_cofins, pct_inss, pct_csll (floats)
     """
     from app.models.nota_fiscal_model import TipoNota
     from app.models.configuracao_impostos_model import ConfiguracaoImpostosServico, TipoServicoConfig
@@ -37,17 +37,16 @@ def _calcular_valor_liquido(db: Session, nota, pcts_override: dict = None) -> fl
         config = None
 
     if config:
-        pct_iss    = (pcts_override or {}).get('pct_iss',    float(config.pct_iss))
         pct_pis    = (pcts_override or {}).get('pct_pis',    float(config.pct_pis))
         pct_cofins = (pcts_override or {}).get('pct_cofins', float(config.pct_cofins))
         pct_inss   = (pcts_override or {}).get('pct_inss',   float(config.pct_inss))
         pct_csll   = (pcts_override or {}).get('pct_csll',   float(config.pct_csll))
     else:
         # Fallback: usa valores absolutos do XML se não houver config
-        impostos = sum(x for x in [nota.iss, nota.pis, nota.cofins, nota.inss, nota.csll] if x)
+        impostos = sum(x for x in [nota.pis, nota.cofins, nota.inss, nota.csll] if x)
         return max(round(float(nota.valor) - impostos, 2), 0.01)
 
-    total_pct = (pct_iss + pct_pis + pct_cofins + pct_inss + pct_csll) / 100
+    total_pct = (pct_pis + pct_cofins + pct_inss + pct_csll) / 100
     return max(round(float(nota.valor) * (1 - total_pct), 2), 0.01)
 
 
@@ -282,7 +281,6 @@ class BoletoService:
         data_vencimento_override: date = None,
         valor_total_override: float = None,
         mensagem: str = None,
-        pct_iss: float = None,
         pct_pis: float = None,
         pct_cofins: float = None,
         pct_inss: float = None,
@@ -294,7 +292,6 @@ class BoletoService:
         erros = []
 
         pcts_override = {}
-        if pct_iss    is not None: pcts_override['pct_iss']    = pct_iss
         if pct_pis    is not None: pcts_override['pct_pis']    = pct_pis
         if pct_cofins is not None: pcts_override['pct_cofins'] = pct_cofins
         if pct_inss   is not None: pcts_override['pct_inss']   = pct_inss
@@ -381,7 +378,12 @@ class BoletoService:
                         payload["mensagem"] = msg_payload
                     payload.update(mora_payload)
 
-                    resposta = inter_client.emitir_boleto(payload)
+                    # ── MODO TESTE: descomente a linha abaixo para chamar o Inter de verdade ──
+                    # resposta = inter_client.emitir_boleto(payload)
+                    import uuid as _uuid
+                    resposta = {"codigoSolicitacao": f"TESTE-{_uuid.uuid4().hex[:12].upper()}", "nossoNumero": None}
+                    print(f"[TESTE] Payload que seria enviado ao Inter:\n{payload}")
+                    # ────────────────────────────────────────────────────────────────────────
 
                     db_boleto = BoletoRepository.create(db, {
                         "nota_fiscal_id": nota_id,
@@ -400,7 +402,7 @@ class BoletoService:
                     })
 
                     sucesso.append(BoletoResponse.model_validate(db_boleto))
-                    print(f"Boleto gerado para nota {nota_id} parcela {numero_parcela}/{total_parcelas}: {resposta.get('codigoSolicitacao')}")
+                    print(f"[TESTE] Boleto simulado nota {nota_id} parcela {numero_parcela}/{total_parcelas}: {resposta.get('codigoSolicitacao')}")
 
             except Exception as e:
                 erros.append({"nota_id": nota_id, "erro": str(e)})
@@ -478,7 +480,6 @@ class BoletoService:
         nota_id: int,
         valor_total_override: float = None,
         mensagem: str = None,
-        pct_iss: float = None,
         pct_pis: float = None,
         pct_cofins: float = None,
         pct_inss: float = None,
@@ -515,7 +516,6 @@ class BoletoService:
         numero_os = (servico_os.numero_os if servico_os else None)
 
         pcts_override = {}
-        if pct_iss    is not None: pcts_override['pct_iss']    = pct_iss
         if pct_pis    is not None: pcts_override['pct_pis']    = pct_pis
         if pct_cofins is not None: pcts_override['pct_cofins'] = pct_cofins
         if pct_inss   is not None: pcts_override['pct_inss']   = pct_inss
@@ -568,7 +568,12 @@ class BoletoService:
                     payload["mensagem"] = msg_payload
                 payload.update(mora_payload)
 
-                resposta = inter_client.emitir_boleto(payload)
+                # ── MODO TESTE: descomente a linha abaixo para chamar o Inter de verdade ──
+                # resposta = inter_client.emitir_boleto(payload)
+                import uuid as _uuid
+                resposta = {"codigoSolicitacao": f"TESTE-{_uuid.uuid4().hex[:12].upper()}", "nossoNumero": None}
+                print(f"[TESTE] Payload que seria enviado ao Inter:\n{payload}")
+                # ────────────────────────────────────────────────────────────────────────
 
                 db_boleto = BoletoRepository.create(db, {
                     "nota_fiscal_id": nota_id,
@@ -608,7 +613,6 @@ class BoletoService:
         except Exception:
             config = None
 
-        pct_iss    = float(config.pct_iss)    if config else 0.0
         pct_pis    = float(config.pct_pis)    if config else 0.0
         pct_cofins = float(config.pct_cofins) if config else 0.0
         pct_inss   = float(config.pct_inss)   if config else 0.0
@@ -620,7 +624,6 @@ class BoletoService:
         numero_os = servico_os.numero_os if servico_os else None
 
         return {
-            "pct_iss":    pct_iss,
             "pct_pis":    pct_pis,
             "pct_cofins": pct_cofins,
             "pct_inss":   pct_inss,

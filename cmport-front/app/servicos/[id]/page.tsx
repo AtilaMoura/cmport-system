@@ -18,7 +18,6 @@ interface Servico {
 }
 
 interface ConfigImpostos {
-  pct_iss: number;
   pct_pis: number;
   pct_cofins: number;
   pct_inss: number;
@@ -153,11 +152,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [modalInter, setModalInter] = useState(false);
   const [configImpostos, setConfigImpostos] = useState<ConfigImpostos | null>(null);
   const [interValor, setInterValor] = useState('');
+  const [interValorEditado, setInterValorEditado] = useState(false);
   const [interMensagem, setInterMensagem] = useState('');
-  const [interPctIss, setInterPctIss] = useState('0');
+  const [interAplicarPis, setInterAplicarPis] = useState(true);
   const [interPctPis, setInterPctPis] = useState('0');
+  const [interAplicarCofins, setInterAplicarCofins] = useState(true);
   const [interPctCofins, setInterPctCofins] = useState('0');
+  const [interAplicarInss, setInterAplicarInss] = useState(true);
   const [interPctInss, setInterPctInss] = useState('0');
+  const [interAplicarCsll, setInterAplicarCsll] = useState(true);
   const [interPctCsll, setInterPctCsll] = useState('0');
   const [interAplicarJuros, setInterAplicarJuros] = useState(true);
   const [interTaxaJuros, setInterTaxaJuros] = useState('1.00');
@@ -306,7 +309,11 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const calcularValorLiquidoModal = (): number => {
     if (!configImpostos) return parseFloat(interValor) || 0;
     const bruto = configImpostos.valor_bruto;
-    const totalPct = (parseFloat(interPctIss) + parseFloat(interPctPis) + parseFloat(interPctCofins) + parseFloat(interPctInss) + parseFloat(interPctCsll)) / 100;
+    const pis    = interAplicarPis    ? parseFloat(interPctPis    || '0') : 0;
+    const cofins = interAplicarCofins ? parseFloat(interPctCofins || '0') : 0;
+    const inss   = interAplicarInss   ? parseFloat(interPctInss   || '0') : 0;
+    const csll   = interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0;
+    const totalPct = (pis + cofins + inss + csll) / 100;
     return Math.max(Math.round(bruto * (1 - totalPct) * 100) / 100, 0.01);
   };
 
@@ -315,20 +322,48 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setCarregandoConfig(true);
     try {
       const { data: cfg } = await api.get<ConfigImpostos>(`/boletos/config-impostos/${notaFiscal.id}`);
+      console.log('[Config Impostos]', cfg);
       setConfigImpostos(cfg);
-      setInterPctIss(cfg.pct_iss.toFixed(2));
-      setInterPctPis(cfg.pct_pis.toFixed(2));
-      setInterPctCofins(cfg.pct_cofins.toFixed(2));
-      setInterPctInss(cfg.pct_inss.toFixed(2));
-      setInterPctCsll(cfg.pct_csll.toFixed(2));
-      setInterValor(cfg.valor_liquido.toFixed(2));
-      setInterAplicarJuros(cfg.aplicar_juros_default);
+      setInterAplicarPis(cfg.pct_pis > 0);
+      setInterPctPis(String(cfg.pct_pis ?? 0));
+      setInterAplicarCofins(cfg.pct_cofins > 0);
+      setInterPctCofins(String(cfg.pct_cofins ?? 0));
+      setInterAplicarInss(cfg.pct_inss > 0);
+      setInterPctInss(String(cfg.pct_inss ?? 0));
+      setInterAplicarCsll(cfg.pct_csll > 0);
+      setInterPctCsll(String(cfg.pct_csll ?? 0));
+      setInterValor(String(cfg.valor_liquido ?? notaFiscal.valor));
+      setInterValorEditado(false);
+      setInterAplicarJuros(cfg.aplicar_juros_default ?? true);
       setInterTaxaJuros('1.00');
       setInterDataVencimento('');
       setInterMensagem('');
       setModalInter(true);
-    } catch {
-      alert('Erro ao carregar configuração de impostos.');
+    } catch (err: unknown) {
+      console.error('[handleGerarParcelasFaltantes] Erro:', err);
+      // Fallback: abre modal com defaults baseados na nota local
+      const fallback: ConfigImpostos = {
+        pct_pis: 0.65, pct_cofins: 3, pct_inss: 11, pct_csll: 1,
+        valor_bruto: notaFiscal.valor,
+        valor_liquido: Math.max(notaFiscal.valor * (1 - 0.1565), 0.01),
+        numero_os: null,
+        aplicar_juros_default: notaFiscal.tipo !== 'OUTROS',
+        alerta_impostos: false,
+        divergencia_impostos: null,
+      };
+      setConfigImpostos(fallback);
+      setInterAplicarPis(true); setInterPctPis('0.65');
+      setInterAplicarCofins(true); setInterPctCofins('3');
+      setInterAplicarInss(true); setInterPctInss('11');
+      setInterAplicarCsll(true); setInterPctCsll('1');
+      setInterValor(String(fallback.valor_liquido.toFixed(2)));
+      setInterValorEditado(false);
+      setInterAplicarJuros(fallback.aplicar_juros_default);
+      setInterTaxaJuros('1.00');
+      setInterDataVencimento('');
+      setInterMensagem('');
+      setModalInter(true);
+      alert('Aviso: usando configuração padrão de impostos (endpoint de config não respondeu).');
     } finally {
       setCarregandoConfig(false);
     }
@@ -338,15 +373,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     if (!notaFiscal) return;
     setGerandoParcelas(true);
     try {
+      const valorLiquido = interValorEditado ? parseFloat(interValor) : calcularValorLiquidoModal();
       const body: Record<string, unknown> = {
-        pct_iss:    parseFloat(interPctIss),
-        pct_pis:    parseFloat(interPctPis),
-        pct_cofins: parseFloat(interPctCofins),
-        pct_inss:   parseFloat(interPctInss),
-        pct_csll:   parseFloat(interPctCsll),
+        pct_pis:    interAplicarPis    ? parseFloat(interPctPis    || '0') : 0,
+        pct_cofins: interAplicarCofins ? parseFloat(interPctCofins || '0') : 0,
+        pct_inss:   interAplicarInss   ? parseFloat(interPctInss   || '0') : 0,
+        pct_csll:   interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0,
         aplicar_juros: interAplicarJuros,
         taxa_juros: parseFloat(interTaxaJuros) || 1.0,
       };
+      if (interValorEditado && valorLiquido > 0) body.valor_total_override = valorLiquido;
       if (interDataVencimento) body.data_vencimento_override = interDataVencimento;
       if (interMensagem.trim()) body.mensagem = interMensagem.trim();
       await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
@@ -1077,44 +1113,71 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
             </p>
 
             {/* Breakdown de impostos */}
-            {notaFiscal.tipo !== 'OUTROS' && (
-              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-5">
-                <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase mb-3">Impostos Retidos (editável)</p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600 dark:text-slate-400 w-20">Valor Bruto</span>
-                    <span className="font-bold text-slate-900 dark:text-white">{fmt(configImpostos.valor_bruto)}</span>
-                  </div>
-                  {([
-                    ['ISS',    interPctIss,    setInterPctIss],
-                    ['PIS',    interPctPis,    setInterPctPis],
-                    ['COFINS', interPctCofins, setInterPctCofins],
-                    ['INSS',   interPctInss,   setInterPctInss],
-                    ['CSLL',   interPctCsll,   setInterPctCsll],
-                  ] as [string, string, (v: string) => void][]).map(([label, pct, setPct]) => (
-                    <div key={label} className="flex justify-between items-center gap-2">
-                      <span className="text-red-600 dark:text-red-400 w-20 font-bold text-xs">{label}</span>
-                      <div className="flex items-center gap-1 flex-1">
-                        <input
-                          type="number" step="0.01" min="0" max="100"
-                          value={pct}
-                          onChange={e => setPct(e.target.value)}
-                          className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-green-500 outline-none text-right"
-                        />
-                        <span className="text-xs text-slate-400">%</span>
-                      </div>
-                      <span className="text-red-600 dark:text-red-400 text-xs w-24 text-right">
-                        - {fmt(configImpostos.valor_bruto * parseFloat(pct || '0') / 100)}
-                      </span>
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-5">
+              <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase mb-3">Impostos Retidos</p>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 dark:text-slate-400 w-20">Valor Bruto</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{fmt(configImpostos.valor_bruto)}</span>
+                </div>
+                {([
+                  ['PIS',    interAplicarPis,    setInterAplicarPis,    interPctPis,    setInterPctPis],
+                  ['COFINS', interAplicarCofins, setInterAplicarCofins, interPctCofins, setInterPctCofins],
+                  ['INSS',   interAplicarInss,   setInterAplicarInss,   interPctInss,   setInterPctInss],
+                  ['CSLL',   interAplicarCsll,   setInterAplicarCsll,   interPctCsll,   setInterPctCsll],
+                ] as [string, boolean, (v: boolean) => void, string, (v: string) => void][]).map(([label, aplicar, setAplicar, pct, setPct]) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <input
+                      type="checkbox" checked={aplicar}
+                      onChange={e => { setAplicar(e.target.checked); setInterValorEditado(false); }}
+                      className="w-4 h-4 rounded accent-red-500"
+                    />
+                    <span className={`w-16 font-bold text-xs ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400 line-through'}`}>{label}</span>
+                    <div className="flex items-center gap-1 flex-1">
+                      <input
+                        type="number" step="0.01" min="0" max="100"
+                        value={pct}
+                        disabled={!aplicar}
+                        onChange={e => { setPct(e.target.value); setInterValorEditado(false); }}
+                        className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-green-500 outline-none text-right disabled:opacity-40"
+                      />
+                      <span className="text-xs text-slate-400">%</span>
                     </div>
-                  ))}
-                  <div className="flex justify-between font-black text-green-700 dark:text-green-400 border-t border-slate-200 dark:border-slate-700 pt-2 mt-1 text-base">
-                    <span>Valor Líquido</span>
-                    <span>{fmt(calcularValorLiquidoModal())}</span>
+                    <span className={`text-xs w-24 text-right ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
+                      {aplicar ? `- ${fmt(configImpostos.valor_bruto * parseFloat(pct || '0') / 100)}` : '—'}
+                    </span>
                   </div>
+                ))}
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1">
+                  <div className="flex justify-between items-center">
+                    <span className="font-black text-green-700 dark:text-green-400 text-base">Valor Líquido</span>
+                    <div className="flex items-center gap-2">
+                      {!interValorEditado && (
+                        <span className="font-black text-green-700 dark:text-green-400 text-base">{fmt(calcularValorLiquidoModal())}</span>
+                      )}
+                      <input
+                        type="number" step="0.01" min="0.01"
+                        value={interValorEditado ? interValor : calcularValorLiquidoModal().toFixed(2)}
+                        onChange={e => { setInterValor(e.target.value); setInterValorEditado(true); }}
+                        onFocus={() => { if (!interValorEditado) { setInterValor(calcularValorLiquidoModal().toFixed(2)); setInterValorEditado(true); } }}
+                        className={`w-32 px-2 py-1 text-sm font-bold rounded-lg border focus:ring-2 focus:ring-green-500 outline-none text-right ${
+                          interValorEditado
+                            ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400 text-yellow-700 dark:text-yellow-300'
+                            : 'bg-green-50 dark:bg-green-900/20 border-green-300 text-green-700 dark:text-green-400'
+                        }`}
+                        title="Clique para editar o valor diretamente"
+                      />
+                    </div>
+                  </div>
+                  {interValorEditado && (
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-yellow-600 dark:text-yellow-400">Valor editado manualmente</span>
+                      <button onClick={() => { setInterValorEditado(false); }} className="text-xs text-slate-500 underline hover:no-underline">resetar</button>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
 
             <div className="space-y-4">
               {/* Juros */}
@@ -1151,6 +1214,31 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               </div>
             </div>
 
+            {/* Debug: preview do payload que será enviado */}
+            <details className="mt-4">
+              <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600 select-none">Ver payload Inter (debug)</summary>
+              <pre className="mt-2 text-xs bg-slate-100 dark:bg-slate-800 rounded-xl p-3 overflow-auto max-h-48 text-slate-700 dark:text-slate-300">
+{JSON.stringify({
+  nota_id: notaFiscal.id,
+  nota: notaFiscal.numero_nota,
+  parcelas: notaFiscal.parcelas,
+  valor_bruto: configImpostos.valor_bruto,
+  impostos: {
+    pis: interAplicarPis ? interPctPis : '0 (desativado)',
+    cofins: interAplicarCofins ? interPctCofins : '0 (desativado)',
+    inss: interAplicarInss ? interPctInss : '0 (desativado)',
+    csll: interAplicarCsll ? interPctCsll : '0 (desativado)',
+  },
+  valor_liquido: interValorEditado ? parseFloat(interValor) : calcularValorLiquidoModal(),
+  valor_editado_manualmente: interValorEditado,
+  aplicar_juros: interAplicarJuros,
+  taxa_juros: interTaxaJuros,
+  data_vencimento_override: interDataVencimento || '(da nota)',
+  mensagem: interMensagem || `OS: ${configImpostos.numero_os || servico.id} | NF: ${notaFiscal.numero_nota}`,
+}, null, 2)}
+              </pre>
+            </details>
+
             <div className="flex gap-3 mt-6">
               <button onClick={() => setModalInter(false)} disabled={gerandoParcelas}
                 className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all disabled:opacity-50">
@@ -1159,7 +1247,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               <button onClick={handleConfirmarGerarInter} disabled={gerandoParcelas}
                 className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                 {gerandoParcelas && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                Emitir Boleto
+                Emitir Boleto (TESTE)
               </button>
             </div>
           </div>

@@ -44,9 +44,9 @@ def _seed_configuracao_impostos():
     try:
         if db.query(ConfiguracaoImpostosServico).count() == 0:
             defaults = [
-                ConfiguracaoImpostosServico(tipo_servico=TipoServicoConfig.MANUTENCAO, pct_iss=5.00, pct_pis=0.65, pct_cofins=3.00, pct_inss=11.00, pct_csll=1.00),
-                ConfiguracaoImpostosServico(tipo_servico=TipoServicoConfig.ASSISTENCIA, pct_iss=5.00, pct_pis=0.65, pct_cofins=3.00, pct_inss=11.00, pct_csll=1.00),
-                ConfiguracaoImpostosServico(tipo_servico=TipoServicoConfig.OUTROS,      pct_iss=0.00, pct_pis=0.00, pct_cofins=0.00, pct_inss=0.00,  pct_csll=0.00),
+                ConfiguracaoImpostosServico(tipo_servico=TipoServicoConfig.MANUTENCAO, pct_pis=0.65, pct_cofins=3.00, pct_inss=11.00, pct_csll=1.00),
+                ConfiguracaoImpostosServico(tipo_servico=TipoServicoConfig.ASSISTENCIA, pct_pis=0.65, pct_cofins=3.00, pct_inss=11.00, pct_csll=1.00),
+                ConfiguracaoImpostosServico(tipo_servico=TipoServicoConfig.OUTROS,      pct_pis=0.00, pct_cofins=0.00, pct_inss=0.00,  pct_csll=0.00),
             ]
             db.add_all(defaults)
             db.commit()

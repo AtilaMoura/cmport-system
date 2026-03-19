@@ -451,7 +451,6 @@ def _validar_impostos_vs_config(db: Session, db_nota) -> None:
 
         valor = float(db_nota.valor or 0)
         campos = {
-            'iss':    (float(config.pct_iss),    float(db_nota.iss or 0)),
             'pis':    (float(config.pct_pis),    float(db_nota.pis or 0)),
             'cofins': (float(config.pct_cofins), float(db_nota.cofins or 0)),
             'inss':   (float(config.pct_inss),   float(db_nota.inss or 0)),

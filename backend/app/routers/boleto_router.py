@@ -39,7 +39,7 @@ def gerar_boletos(request: GerarBoletosRequest, db: Session = Depends(get_db)):
     return BoletoService.gerar_boletos(
         db, request.nota_ids, request.data_vencimento_override,
         request.valor_total_override, request.mensagem,
-        request.pct_iss, request.pct_pis, request.pct_cofins,
+        request.pct_pis, request.pct_cofins,
         request.pct_inss, request.pct_csll,
         request.aplicar_juros, request.taxa_juros,
     )
@@ -106,7 +106,7 @@ def gerar_parcelas_faltantes(
     """Gera parcelas que ainda não foram emitidas para uma nota parcelada."""
     return BoletoService.gerar_parcelas_faltantes(
         db, nota_id, request.valor_total_override, request.mensagem,
-        request.pct_iss, request.pct_pis, request.pct_cofins,
+        request.pct_pis, request.pct_cofins,
         request.pct_inss, request.pct_csll,
         request.aplicar_juros, request.taxa_juros,
     )
