@@ -12,8 +12,23 @@ interface Servico {
   data_servico: string;
   descricao: string | null;
   nota_fiscal_id: number | null;
+  numero_os: string | null;
   criado_em: string;
   atualizado_em: string;
+}
+
+interface ConfigImpostos {
+  pct_iss: number;
+  pct_pis: number;
+  pct_cofins: number;
+  pct_inss: number;
+  pct_csll: number;
+  valor_bruto: number;
+  valor_liquido: number;
+  numero_os: string | null;
+  aplicar_juros_default: boolean;
+  alerta_impostos: boolean;
+  divergencia_impostos: Record<string, { pct: number; config: number; xml: number }> | null;
 }
 
 interface Condominio {
@@ -43,6 +58,8 @@ interface NotaFiscal {
   csll: number | null;
   icms: number | null;
   prev: number | null;
+  alerta_impostos: number;
+  divergencia_impostos: Record<string, { pct: number; config: number; xml: number }> | null;
 }
 
 interface Boleto {
@@ -132,10 +149,20 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [regValorPago, setRegValorPago] = useState('');
   const [regSaving, setRegSaving] = useState(false);
 
-  // Modal "Gerar Inter"
+  // Modal "Gerar Inter" — pré-visualização com impostos editáveis
   const [modalInter, setModalInter] = useState(false);
+  const [configImpostos, setConfigImpostos] = useState<ConfigImpostos | null>(null);
   const [interValor, setInterValor] = useState('');
   const [interMensagem, setInterMensagem] = useState('');
+  const [interPctIss, setInterPctIss] = useState('0');
+  const [interPctPis, setInterPctPis] = useState('0');
+  const [interPctCofins, setInterPctCofins] = useState('0');
+  const [interPctInss, setInterPctInss] = useState('0');
+  const [interPctCsll, setInterPctCsll] = useState('0');
+  const [interAplicarJuros, setInterAplicarJuros] = useState(true);
+  const [interTaxaJuros, setInterTaxaJuros] = useState('1.00');
+  const [interDataVencimento, setInterDataVencimento] = useState('');
+  const [carregandoConfig, setCarregandoConfig] = useState(false);
 
   // Modal "Marcar Pago"
   const [modalPago, setModalPago] = useState<Boleto | null>(null);
@@ -276,26 +303,51 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   }
   const parcelasDisplay = notaFiscal ? getParcelasDisplay() : [];
 
-  const calcularValorLiquido = (nota: NotaFiscal): number => {
-    if (nota.tipo === 'OUTROS') return nota.valor;
-    const impostos = (nota.iss ?? 0) + (nota.pis ?? 0) + (nota.cofins ?? 0) + (nota.inss ?? 0) + (nota.csll ?? 0);
-    return Math.max(Math.round((nota.valor - impostos) * 100) / 100, 0.01);
+  const calcularValorLiquidoModal = (): number => {
+    if (!configImpostos) return parseFloat(interValor) || 0;
+    const bruto = configImpostos.valor_bruto;
+    const totalPct = (parseFloat(interPctIss) + parseFloat(interPctPis) + parseFloat(interPctCofins) + parseFloat(interPctInss) + parseFloat(interPctCsll)) / 100;
+    return Math.max(Math.round(bruto * (1 - totalPct) * 100) / 100, 0.01);
   };
 
-  const handleGerarParcelasFaltantes = () => {
+  const handleGerarParcelasFaltantes = async () => {
     if (!notaFiscal) return;
-    const liquido = calcularValorLiquido(notaFiscal);
-    setInterValor(liquido.toFixed(2));
-    setInterMensagem('');
-    setModalInter(true);
+    setCarregandoConfig(true);
+    try {
+      const { data: cfg } = await api.get<ConfigImpostos>(`/boletos/config-impostos/${notaFiscal.id}`);
+      setConfigImpostos(cfg);
+      setInterPctIss(cfg.pct_iss.toFixed(2));
+      setInterPctPis(cfg.pct_pis.toFixed(2));
+      setInterPctCofins(cfg.pct_cofins.toFixed(2));
+      setInterPctInss(cfg.pct_inss.toFixed(2));
+      setInterPctCsll(cfg.pct_csll.toFixed(2));
+      setInterValor(cfg.valor_liquido.toFixed(2));
+      setInterAplicarJuros(cfg.aplicar_juros_default);
+      setInterTaxaJuros('1.00');
+      setInterDataVencimento('');
+      setInterMensagem('');
+      setModalInter(true);
+    } catch {
+      alert('Erro ao carregar configuração de impostos.');
+    } finally {
+      setCarregandoConfig(false);
+    }
   };
 
   const handleConfirmarGerarInter = async () => {
     if (!notaFiscal) return;
     setGerandoParcelas(true);
     try {
-      const body: Record<string, unknown> = {};
-      if (interValor) body.valor_total_override = parseFloat(interValor);
+      const body: Record<string, unknown> = {
+        pct_iss:    parseFloat(interPctIss),
+        pct_pis:    parseFloat(interPctPis),
+        pct_cofins: parseFloat(interPctCofins),
+        pct_inss:   parseFloat(interPctInss),
+        pct_csll:   parseFloat(interPctCsll),
+        aplicar_juros: interAplicarJuros,
+        taxa_juros: parseFloat(interTaxaJuros) || 1.0,
+      };
+      if (interDataVencimento) body.data_vencimento_override = interDataVencimento;
       if (interMensagem.trim()) body.mensagem = interMensagem.trim();
       await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
       setModalInter(false);
@@ -304,6 +356,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       alert('Erro ao gerar boletos Inter.');
     } finally {
       setGerandoParcelas(false);
+    }
+  };
+
+  const handleDispensarAlerta = async () => {
+    if (!notaFiscal) return;
+    try {
+      const { data: updated } = await api.patch(`/notas-fiscais/${notaFiscal.id}/dispensar-alerta`);
+      setNotaFiscal(updated);
+    } catch {
+      alert('Erro ao dispensar alerta.');
     }
   };
 
@@ -514,6 +576,12 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Data do Serviço</p>
                         <p className="font-bold text-slate-900 dark:text-white">{pd(servico.data_servico)}</p>
                       </div>
+                      {servico.numero_os && (
+                        <div className="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-4 col-span-2">
+                          <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Ordem de Serviço (OS)</p>
+                          <p className="font-black text-purple-700 dark:text-purple-300 text-lg">#{servico.numero_os}</p>
+                        </div>
+                      )}
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
                       <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Descrição</p>
@@ -587,6 +655,31 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     {notaFiscal.data_pagamento ? 'Nota Paga' : 'Nota Pendente'}
                     <span className="ml-auto font-normal opacity-70 text-xs">status: {notaFiscal.status}</span>
                   </div>
+                  {/* Alerta de divergência de impostos */}
+                  {notaFiscal.alerta_impostos === 1 && notaFiscal.divergencia_impostos && (
+                    <div className="mt-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-700 rounded-xl p-4 flex items-start gap-3">
+                      <span className="text-xl shrink-0">⚠️</span>
+                      <div className="flex-1">
+                        <p className="font-bold text-amber-800 dark:text-amber-300 text-sm mb-1">Divergência de impostos detectada</p>
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">
+                          Os percentuais do XML diferem da configuração do sistema. Verifique antes de gerar o boleto.
+                        </p>
+                        <div className="space-y-1 text-xs font-mono">
+                          {Object.entries(notaFiscal.divergencia_impostos).map(([campo, d]) => (
+                            <div key={campo} className="flex gap-4 text-amber-700 dark:text-amber-400">
+                              <span className="uppercase w-14">{campo}</span>
+                              <span>config: R$ {d.config.toFixed(2)}</span>
+                              <span>xml: R$ {d.xml.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <button onClick={handleDispensarAlerta}
+                          className="mt-2 text-xs font-bold text-amber-700 dark:text-amber-400 underline hover:no-underline">
+                          Dispensar alerta
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {notaFiscal.descricao_servico && (
                     <div className="mt-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
                       <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Descrição da nota</p>
@@ -616,10 +709,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     </span>
                     <button
                       onClick={handleGerarParcelasFaltantes}
-                      disabled={gerandoParcelas}
+                      disabled={gerandoParcelas || carregandoConfig}
                       className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
                     >
-                      {gerandoParcelas ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
+                      {(gerandoParcelas || carregandoConfig) ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
                       Gerar Inter (faltantes)
                     </button>
                   </div>
@@ -673,6 +766,26 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                             )}
                             {boleto && (boleto.situacao === 'EMABERTO' || boleto.situacao === 'VENCIDO') && (
                               <>
+                                {boleto.codigo_solicitacao && (
+                                  <>
+                                    <a
+                                      href={`http://localhost:8000/api/v1/boletos/${boleto.codigo_solicitacao}/pdf`}
+                                      target="_blank" rel="noopener noreferrer"
+                                      className="px-3 py-1.5 text-xs font-bold bg-slate-700 text-white rounded-lg hover:brightness-110 transition-all"
+                                      title="Visualizar PDF"
+                                    >
+                                      📄 PDF
+                                    </a>
+                                    <a
+                                      href={`http://localhost:8000/api/v1/boletos/${boleto.codigo_solicitacao}/pdf`}
+                                      download={`boleto_${boleto.codigo_solicitacao}.pdf`}
+                                      className="px-3 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
+                                      title="Baixar PDF"
+                                    >
+                                      ⬇️
+                                    </a>
+                                  </>
+                                )}
                                 <button
                                   onClick={() => {
                                     setModalPago(boleto);
@@ -953,46 +1066,88 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      {/* Modal Gerar Inter */}
-      {modalInter && notaFiscal && (
+      {/* Modal Gerar Inter — pré-visualização com impostos editáveis */}
+      {modalInter && notaFiscal && configImpostos && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">Emitir Boleto Inter</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">Revise o valor e a mensagem antes de emitir.</p>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full p-8 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">Pré-visualização — Boleto Inter</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
+              Nota {notaFiscal.numero_nota} · {notaFiscal.parcelas} parcela(s)
+              {configImpostos.numero_os && <span> · OS {configImpostos.numero_os}</span>}
+            </p>
 
+            {/* Breakdown de impostos */}
             {notaFiscal.tipo !== 'OUTROS' && (
-              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-5 space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Valor Bruto (NF)</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{fmt(notaFiscal.valor)}</span>
-                </div>
-                {notaFiscal.iss ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>ISS</span><span>- {fmt(notaFiscal.iss)}</span></div> : null}
-                {notaFiscal.pis ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>PIS</span><span>- {fmt(notaFiscal.pis)}</span></div> : null}
-                {notaFiscal.cofins ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>COFINS</span><span>- {fmt(notaFiscal.cofins)}</span></div> : null}
-                {notaFiscal.inss ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>INSS</span><span>- {fmt(notaFiscal.inss)}</span></div> : null}
-                {notaFiscal.csll ? <div className="flex justify-between text-red-600 dark:text-red-400"><span>CSLL</span><span>- {fmt(notaFiscal.csll)}</span></div> : null}
-                <div className="flex justify-between font-bold text-green-700 dark:text-green-400 border-t border-slate-200 dark:border-slate-700 pt-1 mt-1">
-                  <span>Valor Líquido</span>
-                  <span>{fmt(calcularValorLiquido(notaFiscal))}</span>
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-5">
+                <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase mb-3">Impostos Retidos (editável)</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600 dark:text-slate-400 w-20">Valor Bruto</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{fmt(configImpostos.valor_bruto)}</span>
+                  </div>
+                  {([
+                    ['ISS',    interPctIss,    setInterPctIss],
+                    ['PIS',    interPctPis,    setInterPctPis],
+                    ['COFINS', interPctCofins, setInterPctCofins],
+                    ['INSS',   interPctInss,   setInterPctInss],
+                    ['CSLL',   interPctCsll,   setInterPctCsll],
+                  ] as [string, string, (v: string) => void][]).map(([label, pct, setPct]) => (
+                    <div key={label} className="flex justify-between items-center gap-2">
+                      <span className="text-red-600 dark:text-red-400 w-20 font-bold text-xs">{label}</span>
+                      <div className="flex items-center gap-1 flex-1">
+                        <input
+                          type="number" step="0.01" min="0" max="100"
+                          value={pct}
+                          onChange={e => setPct(e.target.value)}
+                          className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-green-500 outline-none text-right"
+                        />
+                        <span className="text-xs text-slate-400">%</span>
+                      </div>
+                      <span className="text-red-600 dark:text-red-400 text-xs w-24 text-right">
+                        - {fmt(configImpostos.valor_bruto * parseFloat(pct || '0') / 100)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between font-black text-green-700 dark:text-green-400 border-t border-slate-200 dark:border-slate-700 pt-2 mt-1 text-base">
+                    <span>Valor Líquido</span>
+                    <span>{fmt(calcularValorLiquidoModal())}</span>
+                  </div>
                 </div>
               </div>
             )}
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Valor Total a Cobrar (R$)</label>
-                <input type="number" step="0.01" min="0.01" value={interValor} onChange={e => setInterValor(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white" />
-                {notaFiscal.parcelas > 1 && (
-                  <p className="text-xs text-slate-400 mt-1">Será dividido entre as {notaFiscal.parcelas} parcelas.</p>
+              {/* Juros */}
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" id="inter-juros" checked={interAplicarJuros} onChange={e => setInterAplicarJuros(e.target.checked)}
+                    className="w-4 h-4 rounded accent-green-600" />
+                  <label htmlFor="inter-juros" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">Aplicar juros de mora</label>
+                </div>
+                {interAplicarJuros && (
+                  <div className="flex items-center gap-1">
+                    <input type="number" step="0.01" min="0" value={interTaxaJuros} onChange={e => setInterTaxaJuros(e.target.value)}
+                      className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-green-500 outline-none text-right" />
+                    <span className="text-xs text-slate-400">% a.m.</span>
+                  </div>
                 )}
               </div>
+
+              {/* Data vencimento override */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Data de Vencimento (1ª parcela)</label>
+                <input type="date" value={interDataVencimento} onChange={e => setInterDataVencimento(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white" />
+                <p className="text-xs text-slate-400 mt-1">Deixe vazio para usar a data original da nota.</p>
+              </div>
+
+              {/* Mensagem */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Mensagem no Boleto</label>
                 <input type="text" maxLength={300} value={interMensagem} onChange={e => setInterMensagem(e.target.value)}
-                  placeholder={`OS ${servico.id} — ${notaFiscal.numero_nota}`}
+                  placeholder={`OS ${configImpostos.numero_os || servico.id} | NF: ${notaFiscal.numero_nota}`}
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white" />
-                <p className="text-xs text-slate-400 mt-1">Deixe vazio para usar OS {servico.id} automaticamente.</p>
+                <p className="text-xs text-slate-400 mt-1">Deixe vazio para usar OS automaticamente.</p>
               </div>
             </div>
 
@@ -1001,7 +1156,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all disabled:opacity-50">
                 Cancelar
               </button>
-              <button onClick={handleConfirmarGerarInter} disabled={gerandoParcelas || !interValor}
+              <button onClick={handleConfirmarGerarInter} disabled={gerandoParcelas}
                 className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                 {gerandoParcelas && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                 Emitir Boleto
