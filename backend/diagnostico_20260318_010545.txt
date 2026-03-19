@@ -1,0 +1,1063 @@
+====================================================================================================
+  DIAGNÓSTICO CMPORT  —  18/03/2026 01:05:40
+  Banco: cmport_gerenciamento@localhost
+====================================================================================================
+
+====================================================================================================
+  1. CONDOMINIOS
+====================================================================================================
+  Total cadastrados                             632
+    Com CNPJ                                    303
+    Sem CNPJ ⚠                   329  (boleto impossível sem CNPJ)
+    Com endereço                                632
+    Sem endereço                                0
+    Com contato                                 92
+    Sem contato ⚠                540  (email/tel faltam no boleto)
+    Inativos                                    0
+
+----------------------------------------------------------------------------------------------------
+  ⚠  329 condomínios SEM CNPJ
+----------------------------------------------------------------------------------------------------
+  #  798  Andorinha
+  #  800  Condomínio Edifício Accordes Vila Mascote
+  #  801  Condomínio Edifício Boulevard Morumbi
+  #  802  Edifício Eleve Vila Romana
+  #  803  Condomínio Edifício Villa Romana Boulevard
+  #  804  Elizabetta Parasmo
+  #  805  Condomínio Edifício Klabin One
+  #  806  Condomínio Edifício Maxhaus Campo Belo
+  #  807  Rochester
+  #  808  Supremo Campo Belo
+  #  809  Vita Home Club
+  #  811  Condomínio Edifício Vista Arboris Mistral
+  #  812  Condomínio Edifício Salete
+  #  813  Condomínio Edifício Glam Moema
+  #  814  Casa Bosque da Saúde
+  #  817  Casa da Dona Marcia
+  #  822  Casa do Alexandre
+  #  824  Condominio Edificio Piazza Di Spagna
+  #  834  Condomínio Lauro Monteiro
+  #  835  Condominio Edificio Dulce
+  #  837  Sergio Loopkey
+  #  842  Condomínio Clube Itaim
+  #  843  Condomínio Edifício Barão Antonina
+  #  845  Condominio Edificio Carlos Magno
+  #  848  Washington
+  #  849  Sofia
+  #  851  Condomínio Perdizes Nobre
+  #  853  Henrique 
+  #  854  Vanessa 
+  #  855  Antonio 
+  #  858  João (Igreja)
+  #  859  Condomínio Edifício Marisa
+  #  862  Casa 
+  #  863  Cliente Carrão 
+  #  867  Egle 
+  #  868  Casa Adriana 
+  #  869  Casa do Washigton 
+  #  870  Dayana 
+  #  874  ESTACAO DE TRABALHO COMPARTILHADO COWORKING LTDA. EPP
+  #  875  Marcel
+  #  877  Condomínio Vila Flores Edifício Tulipas
+  #  879  Condomínio Edificio Maria Suzana
+  #  880  Nilza (Mercadinho) 
+  #  881  Condomínio Fiore Hortência
+  #  882  Condomínio Edifício Uirapuru
+  #  884  Cond. Maison Du Soleil
+  #  885  francisco
+  #  886  Andre 
+  #  891  Condominio Privê Cidade Jardim Bloco A
+  #  893  Casa Ary (Iara)
+  #  894  Condomínio Humanari
+  #  895  Condominio Quality House Jardim Prudencia
+  #  896  JJS Service
+  #  898  Condominio Prime House 
+  #  899  Paulo Lacticínio
+  #  900  Clivio
+  #  901  Edgar 
+  #  904   Alexandre
+  #  906  Quality Cont Organização Contábil
+  #  908  Rodrigo (Seguro) 
+  #  919  Condominio Julio
+  #  921  Condominio Passione
+  #  926  Condominio Edificio Rosa F. Mauro
+  #  931  Condominio Novo Tatuapé
+  #  932  Condominio Primavera
+  #  933  Condominio Indiana Gardem
+  #  934  Condominio Saint German
+  #  935  Casa da Dona Iara
+  #  936  Condominio Neo Vila Carrao
+  #  937  Orion Real Estate Management and Administration Ltda
+  #  938  Residencial Place Vendome
+  #  939  Green Park
+  #  940  Condominio Salinas do Maranhão
+  #  941  Cliente Miguel 
+  #  943  Condominio Sommare
+  #  944  Condomínio Residencial Parque Seletto
+  #  946  Condominio Villagio Splendore
+  #  948  Maria Eugênia Risueño Anjos
+  #  949  Condomínio Paula Ferreira
+  #  950  Simone 
+  #  951  Condomínio Residencial Vila Ema
+  #  953  condomínio Parque Selletto 
+  #  954  Condominio Lyon
+  #  955  Condominio Varandas Vila Carrão (INATIVO)
+  #  956  Hotel Butantã 
+  #  957  Condominio Autem
+  #  959  Condomínio Edifício Tapajos
+  #  960  Condomínio Edifício Itaparica
+  #  961  Dona Adélia Camajhi
+  #  962  Cliente Cristina
+  #  963  Condomínio Edifício Félix Guisard
+  #  965  Condominio Edificio Maria Angelica 
+  #  966  Bruno 
+  #  967  Washington
+  #  968  Condomínio Edifício Suria
+  #  970  Condominio Tayaman
+  #  971  Quartier Campo Belo
+  #  974  Condominio Edifício Pedra Azul 
+  #  984  Condomino Mario Farina 
+  #  985  Itaú
+  #  987  Jose Luís 
+  #  989  Charles 
+  #  990  Escola Estadual Profº Inah Jacy de Castro Aguiar
+  #  992  Condomínio Edifício Itaúba
+  #  995  Condomínio Edifício Tequest Point Two
+  #  998  EE Professora Maria de Lourdes Albergaria
+  #  999  Casa do Buiu 
+  # 1001  Casa do Pai do Clebinho
+  # 1005  Condomínio Edifício St Michael Jardim Guedala
+  # 1007  Gordinho 
+  # 1008  Casa da Mãe do Buiu
+  # 1010  Condomínio Edificio Gutemberg
+  # 1011  Condomínio Edifício Julia
+  # 1015  Condominio Edificio Alcatrazes
+  # 1016  Real Grandeza
+  # 1018  Translute Transportes Rodoviários de Cargas
+  # 1019  Condominio Vilagio Di Verona
+  # 1020  Condominio Mirante  de Guaianases
+  # 1021  Condomínio Guilhermina
+  # 1023  Condomínio Edifício Valente
+  # 1026  Condomínio Residencial Real Corin
+  # 1027  Condominio Vaneza
+  # 1028  Condominio Santa Cruz Bloco 9
+  # 1031  Débora 
+  # 1032  Condomínio Das Rosas
+  # 1035  Condomínio Edifício Sommare
+  # 1036  Condomínio Parque Estação Gianneti
+  # 1037  Edificio Residencial Morada de Anacas
+  # 1038  Condominio  São Rafael
+  # 1039  Amanda
+  # 1042  Condominio Jd Guarapari
+  # 1043  Condominio Blueline Parada Inglesa
+  # 1046  Edifício Ufficio Majore Mooca
+  # 1049  Condomínio Edifício Residencial Fernandes
+  # 1050  Residencial Chafariz de Pedra - Bloco B
+  # 1051  Condomínio Nossa Senhora Fátima
+  # 1052  Condomínio Edificio Dona Mariana
+  # 1053  Condomínio Primícias
+  # 1054  Residencial Chafariz de Pedra - Bloco C
+  # 1055  Condomínio Residencial Gilda
+  # 1057  Condominio  Mewe Jardins 
+  # 1058  Condomínio Edifício Jardin de Giverny
+  # 1062  Condominio Saint Michael
+  # 1063  Cartório de Registro Civil de Sapopemba
+  # 1065  Condominio Clube Vila Mariana
+  # 1066  Condominio Governador Mario Covas
+  # 1068  Leandro (Casa)
+  # 1069  Condominio Boa Vista
+  # 1070  Condominio Vilagio de Milano
+  # 1071  Condomínio In Trianon
+  # 1073  Condomínio Edifício Solar Dos Sete Candeeiros
+  # 1074  Residencial Xanquere
+  # 1075  Condomínio Edficio Bianco
+  # 1076  Conjunto Residencial Cibracon
+  # 1077  Condomínio Harmonia Morumbi Residence
+  # 1081  Roni Braga Pereira 
+  # 1082  Condominio Edificio Monterrey
+  # 1083  Casa da Sogra D
+  # 1084  Condominio Village
+  # 1086  Edifício Mario Cantoni
+  # 1087  Condomínio Flor do Ipê
+  # 1089  Edifício New Port
+  # 1090  Conjunto Residencial Solar Flamboyants
+  # 1092  Condomínio Residencial - Code Ponte Rasa
+  # 1093  Edifício Lorenzetti
+  # 1095  Casa (Rua Ana Santesso)
+  # 1099  Condominio Residencial Nova America II
+  # 1101  Cliente Vivian
+  # 1102  Cliente Gabriela 
+  # 1103  Samuel 
+  # 1104  Bruno Construtora
+  # 1105  Residencial Vida Nova Jaraguá
+  # 1107  Condominio Arte Arquitetura 
+  # 1108  Cynthia Soares Barbosa Miguel
+  # 1109  Condominio Guttemberg
+  # 1114  Kimura Borrachas
+  # 1115  Condomínio Edifício Green Park
+  # 1116  Condominio Edificio 13
+  # 1117  Casa do Anderson
+  # 1119  Condominio Edificio Inova Pirituba
+  # 1121  Condominio Edifício Parc Dorsay
+  # 1123  Condominio Vicente Giordano
+  # 1124  Odontoledo - Excelência em Odontologia - Unidade III Planalto Paulista
+  # 1125  Escritório (Base) 
+  # 1127  Maria Eugênia Risueño Anjos (Rua Turi) 
+  # 1128  Edifício Tilney
+  # 1129  IM Instalações e Equipamentos Eletrônicos (Assistência Técnica))
+  # 1130  Gesa Laboratorio Tecnico Assistencia
+  # 1132  Aletrônicos Assistência Técnica - Alexandre Placas
+  # 1133  JV Port. Assistência Técnica - Assis Motores 
+  # 1135  Condomínio Edifício Fabius
+  # 1136  Condominio Edificio New Place
+  # 1138  Gevi Gamma Eletrônica
+  # 1140  J Santos - Fornecedores
+  # 1141  Condomínio Edifício Fiori Di Perdizes
+  # 1146  Condomínio Edifício Itapoa
+  # 1148  Condominio Edificio Barreto
+  # 1150  Center G
+  # 1151  Zn Distribuidora
+  # 1152  Disfer Distribuidora de Ferragens Ltda
+  # 1153  Diproseg São Paulo - Aline 
+  # 1154  Posto Ipiranga - Auto Posto Sapopetro
+  # 1155  Edifício Chafil
+  # 1156  Condominio 74
+  # 1157  Jla Soluções em Informática 
+  # 1158  Condominio Edificio Motta Cardoso
+  # 1159  Condominio Edificio Mansão das Rosas
+  # 1160  Kylber 
+  # 1161  Edifício Palmares Itamaracá
+  # 1162  LSC Assistência técnica de eletrônicos (nice) 
+  # 1163  Condomínio Edifício Manhattan
+  # 1164  Condomínio Chateau Latour
+  # 1165  Condomínio Vila das Flores
+  # 1166  Marinho Auto Peças (Óleo) 
+  # 1170  Condomínio Edificio Toulon
+  # 1171  Condominio Bella
+  # 1172  Condominio Canarias
+  # 1173  Condominio Citta Di Verona
+  # 1174  Condominio Edificio Suely
+  # 1175  Condominio Edificio Antígua
+  # 1176  Condominio das Camélias
+  # 1177  J M Recondicionamento Motores Elétricos - Claudio 
+  # 1181  JS Thenório
+  # 1182  Sinapar - Fornecedores 
+  # 1183  Speed Distribuidora
+  # 1186  Condomínio Edifício Taba
+  # 1187  Comercial Elétrica Forca (Fornecedor)
+  # 1188  Rocha & Vader (Advogacia)
+  # 1191  INOVAPORT Equipamentos Eletrônicos (GG PORT)
+  # 1192  Condominio Ed. New Avenue Trade Hall
+  # 1193  Shopping Plaza Mooca
+  # 1194  Armarinhos Fernandes da Mooca
+  # 1195  Condominio Edificio Icaraí
+  # 1199  Condominio Emilia
+  # 1200  Condominio Edificio  Warsow
+  # 1201  Espaço Atos
+  # 1203  Escola Irene Ribeiro
+  # 1205  Condominio Edificio Paulista Tower
+  # 1206  Condominio Ilha de Lancarotti
+  # 1208  Condomínio Edifício Maceió
+  # 1209  Edifício Natania
+  # 1210  Condomínio Edifício New Port
+  # 1211  Edifício Gibraltar
+  # 1212  Condominio 
+  # 1213  PorteSeg
+  # 1216  Lounge 71
+  # 1217  Bremen Instrumentação
+  # 1218  Comércio Metais Palmares LTDA
+  # 1219  Telman Distribuidora - Brooklin
+  # 1220  Condominio EAL
+  # 1222  Rafaela Victor - Unidade 04 
+  # 1223  Condominio (R. Dr Bacelar 857)
+  # 1224  Jenni - Cliente 
+  # 1227  Desmonte Sukatão
+  # 1228  Edifício Oswaldo Saviano
+  # 1229  Residencial Juquehy
+  # 1231  Edifício Maison Monet
+  # 1232  Condomínio Edifício Luciana
+  # 1233  Condominio São Jorge
+  # 1238  Brascontel Telecomunicações Comércio Importação e Exportação
+  # 1239  Condominio Edificio Lucia
+  # 1242  Condominio Edificio Gritrudes
+  # 1244  Condominio Visconde do Rio Claro
+  # 1246  Condominio Edificio Vera Cruz
+  # 1250  Condominio SIM Sapopemba
+  # 1251  Condominio Edificio Vera Regina
+  # 1252  Casa do Paulo (Laticinio)
+  # 1253  Thiago Gegivão
+  # 1256  Condomonio Edificio Paysage
+  # 1257  Ed. Jacarandá
+  # 1259  João Felipe (Casa)
+  # 1261  Condomínio Pau Brasil
+  # 1264  Nortis | Solo Jardins
+  # 1267  Assistencia diproseg
+  # 1270  Condominio Villa Siena
+  # 1271  Cond. Ed. Barão de Antonina
+  # 1275  Silva taveira de amorim
+  # 1277  Casa do Rafael (Quisi)
+  # 1282  Condomínio Califórnia Park
+  # 1283  Obra do Kylber
+  # 1284  Condominio Ricardo
+  # 1285  Kylber Escritorio (Sapucaia)
+  # 1286  Condominio Edificio Allegro
+  # 1291  CONDOMINIO EDIFICIO LUCA
+  # 1293  Valdecir Castelaro
+  # 1304  CONDOMINIO EDIFICIO VILA MARIANA
+  # 1316  Aritana Ap 211
+  # 1319  CONDOMINIO EDIFICIO MILLENIUM
+  # 1321  CLAUTEC DISTRIBUIDORA
+  # 1332  CONDOMINIO EDIFICIO ABOUT VILA MARIANA
+  # 1340  CONDOMINIO EDFICIO CUBE VILLA
+  # 1348  Kelly 
+  # 1350  PPA ZONA NORTE
+  # 1351  Octavio Saviano
+  # 1352  TIANE
+  # 1353  CONDOMINIO NOBLE HILLS
+  # 1355  BBARE(Obras)
+  # 1358  Condomínio Edifício Montery
+  # 1359  Condomínio Duo Lifestyle By Helbor (Residencial)
+  # 1360  Condomínio Edifício Spot Light Pompéia
+  # 1361  CONDOMÍNIO EDIFÍCIO ALESSANDRA
+  # 1362  CONDOMINIO EDIFICIO TERRAS DO CHÁ
+  # 1363  CONDOMINIO CAMPO SEED
+  # 1364  CONDOMINIO EDIFICIO CHARME
+  # 1365  CONDOMONIO EDIFICIO SIP
+  # 1366  Realtà Parque Da Mooca
+  # 1367  Condomínio Selete
+  # 1368  Condomínio vero 
+  # 1370  Condomínio Edifício São Bento Green Park
+  # 1371  CASA DA NEIDE
+  # 1372  CASA DO SR. HELMET
+  # 1375  ED Bagattini
+  # 1377  Casa da Creuza
+  # 1378  Obra Quilber
+  # 1379  Casa 26
+  # 1380  Hotel de Cachorro
+  # 1382  Condomínio Edifício Vila Romana
+  # 1383  Condomínio Edifício Dolores
+  # 1385  Cliente Vinicius
+  # 1386  Condomínio Edifício Maria Domitila
+  # 1388  Instituição beneficente Espírita
+  # 1389  Dra. Patricia Alpiovezza
+  # 1390  Ed Peixoto Gomide
+  # 1391  Torre Branca
+  # 1392  Málaga e Maiorca
+  # 1394  Instituto Fedor Meyer
+  # 1396  Condomínio Edifício Seed Gamaro
+  # 1397  Eletrofix Informática
+  # 1398  CONDOMINIO EDIFICIO IMPERIAL
+
+====================================================================================================
+  2. NOTAS FISCAIS
+====================================================================================================
+  Total                                         162
+    Ativas                                      158
+    Canceladas                                  4
+
+    Tipo ASSISTENCIA                              70  |  R$    85.249,96
+    Tipo MANUTENCAO                               92  |  R$    54.488,60
+
+  Sem condomínio vinculado ⚠                    1
+  Com cond. mas sem CNPJ ⚠                      1
+  Vencidas sem pagamento ⚠                      82
+  Com data_pagamento preenchida                 65
+  Parceladas (parcelas > 1)                     10
+  Com parcelas = NULL ⚠          0  (risco de crash ao gerar boleto)
+
+----------------------------------------------------------------------------------------------------
+  ⚠  82 NOTAS VENCIDAS sem pagamento
+----------------------------------------------------------------------------------------------------
+      ID  Número                           Valor        Venc  Tipo          Condomínio
+  ------------------------------------------------------------------------------------------------
+  # 3513  25-2                    R$     3.200,00  09/01/2026  ASSISTENCIA   Condominio Edificio Macunaima  (68d atraso)
+  # 3542  4-2                     R$       350,00  09/01/2026  ASSISTENCIA   Condominio Edificio Raposo Tavares  (68d atraso)
+  # 3543  5-2                     R$       350,00  09/01/2026  ASSISTENCIA   Condominio Edificio Reynolds  (68d atraso)
+  # 3544  6-2                     R$       350,00  09/01/2026  ASSISTENCIA   Condominio Edificio Maison Saint Etienne  (68d atraso)
+  # 3545  7-2                     R$     2.500,00  09/01/2026  ASSISTENCIA   Condominio Edificio Park  (68d atraso)
+  # 3450  7528                    R$       900,00  10/01/2026  MANUTENCAO    EDIFICIO ASSUMPTA DE SICA  (67d atraso)
+  # 3451  7529                    R$       750,00  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO ALVORADA  (67d atraso)
+  # 3452  7530                    R$       480,00  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO BAHAMAS  (67d atraso)
+  # 3453  7531                    R$       365,53  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO BONAIRE  (67d atraso)
+  # 3454  7532                    R$       450,00  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO CAP MARTINIQUE  (67d atraso)
+  # 3455  7533                    R$       730,12  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO CEZARIO MOTTA  (67d atraso)
+  # 3456  7534                    R$       459,49  10/01/2026  MANUTENCAO    Condominio Edificio Cintia  (67d atraso)
+  # 3457  7535                    R$       946,15  10/01/2026  MANUTENCAO    Condominio Edificio Costa Brava  (67d atraso)
+  # 3458  7536                    R$       700,00  10/01/2026  MANUTENCAO    Condominio Cube Vila Ipojuca  (67d atraso)
+  # 3459  7537                    R$       542,55  10/01/2026  MANUTENCAO    Condomínio Residencial Ipiranga  (67d atraso)
+  # 3460  7538                    R$       475,75  10/01/2026  MANUTENCAO    Condominio Edificio Lucerna  (67d atraso)
+  # 3461  7539                    R$       350,00  10/01/2026  MANUTENCAO    Condominio Edificio Odete  (67d atraso)
+  # 3462  7540                    R$       572,24  10/01/2026  MANUTENCAO    Condominio Edificio Olivais  (67d atraso)
+  # 3463  7541                    R$       632,29  10/01/2026  MANUTENCAO    Condominio Edificio Paço de Hygienopolis  (67d atraso)
+  # 3464  7542                    R$       650,00  10/01/2026  MANUTENCAO    Edificio Penthouse Campo Belo  (67d atraso)
+  # 3465  7543                    R$       400,00  10/01/2026  MANUTENCAO    Condominio Edificio Piazza Fontana  (67d atraso)
+  # 3466  7544                    R$       400,00  10/01/2026  MANUTENCAO    Condominio Edificio Raposo Tavares  (67d atraso)
+  # 3467  7545                    R$       400,00  10/01/2026  MANUTENCAO    Sbios - Investimentos Imobilirios  (67d atraso)
+  # 3468  7546                    R$       900,00  10/01/2026  MANUTENCAO    CONDOMINIO SINTONIA PERDIZES  (67d atraso)
+  # 3469  7547                    R$       600,00  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO THE CRYSTAL HOUSE  (67d atraso)
+  # 3470  7548                    R$       200,00  10/01/2026  MANUTENCAO    Condomínio Ville Courchevel  (67d atraso)
+  # 3471  7549                    R$       638,42  12/01/2026  MANUTENCAO    Condominio Edificio Angra dos Reis  (65d atraso)
+  # 3472  7550                    R$       414,34  12/01/2026  MANUTENCAO    Condominio Edificio Concor  (65d atraso)
+  # 3473  7551                    R$       555,54  12/01/2026  MANUTENCAO    Condominio Edificio Maison Saint Etienne  (65d atraso)
+  # 3474  7552                    R$       428,57  12/01/2026  MANUTENCAO    Condominio Edificio Park  (65d atraso)
+  # 3475  7553                    R$       609,38  12/01/2026  MANUTENCAO    Condominio Edificio Piazza Fontana  (65d atraso)
+  # 3476  7554                    R$       423,73  12/01/2026  MANUTENCAO    Condominio Edificio Raposo Tavares  (65d atraso)
+  # 3477  7555                    R$       542,53  12/01/2026  MANUTENCAO    Condominio Edificio Vermont  (65d atraso)
+  # 3478  7556                    R$       448,98  12/01/2026  MANUTENCAO    Condominio Edificio Via Del Corso  (65d atraso)
+  # 3546  9-2                     R$       350,00  12/01/2026  ASSISTENCIA   Condominio Edificio Via Del Corso  (65d atraso)
+  # 3547  10-2                    R$     3.600,00  12/01/2026  ASSISTENCIA   Condominio Edificio Raposo Tavares  (65d atraso)
+  # 3548  11-2                    R$       450,00  12/01/2026  ASSISTENCIA   Condominio Edificio Jardim Buenos Aires  (65d atraso)
+  # 3549  12-2                    R$     1.500,00  13/01/2026  ASSISTENCIA   Condominio Edificio Green Gold  (64d atraso)
+  # 3550  13-2                    R$       250,00  13/01/2026  ASSISTENCIA   Condominio Edificio Odete  (64d atraso)
+  # 3551  14-2                    R$     1.150,00  13/01/2026  ASSISTENCIA   Condominio Edificio Cintia  (64d atraso)
+  # 3479  7557                    R$       749,18  15/01/2026  MANUTENCAO    Edificio Helbor Loft Evolution  (62d atraso)
+  # 3480  7558                    R$       592,45  15/01/2026  MANUTENCAO    Condominio Edificio Ibirapuera Park  (62d atraso)
+  # 3481  7559                    R$       465,37  15/01/2026  MANUTENCAO    Condominio Edificio Jardim Buenos Aires  (62d atraso)
+  # 3482  7560                    R$       518,62  15/01/2026  MANUTENCAO    Condominio Edificio Park Avenue  (62d atraso)
+  # 3483  7561                    R$       460,98  15/01/2026  MANUTENCAO    Condominio Edificio Reynolds  (62d atraso)
+  # 3552  15-2                    R$     1.450,00  15/01/2026  ASSISTENCIA   Condomínio Residencial Ipiranga  (62d atraso)
+  # 3553  16-2                    R$     1.000,00  15/01/2026  ASSISTENCIA   CONDOMINIO EDIFICIO BONAIRE  (62d atraso)
+  # 3554  17-2                    R$     1.460,00  15/01/2026  ASSISTENCIA   Condominio Edificio Olivais  (62d atraso)
+  # 3555  18-2                    R$     1.950,00  15/01/2026  ASSISTENCIA   Condominio Edificio Costa Brava  (62d atraso)
+  # 3556  19-2                    R$       300,00  16/01/2026  ASSISTENCIA   Condominio Edificio Via Del Corso  (61d atraso)
+  # 3557  20-2                    R$     6.414,96  16/01/2026  ASSISTENCIA   Condominio Edificio Jose Antonio Alpiovezza  (61d atraso)
+  # 3559  7522                    R$       280,00  28/01/2026  ASSISTENCIA   Condomínio Edifício Lorenzetti  (49d atraso)
+  # 3560  7523                    R$       280,00  28/01/2026  ASSISTENCIA   Condomínio Flamboyant  (49d atraso)
+  # 3561  7524                    R$       280,00  28/01/2026  ASSISTENCIA   Antonio   (49d atraso)
+  # 3562  7525                    R$       450,00  28/01/2026  ASSISTENCIA   Condomínio Edificio São Vicente  (49d atraso)
+  # 3563  7526                    R$       280,00  28/01/2026  ASSISTENCIA   Zeuno Simoes Espolio (Cond. Edificio Tapajos)  (49d atraso)
+  # 3564  7527                    R$       750,00  28/01/2026  ASSISTENCIA   Condominio Edificio Olivais  (49d atraso)
+  # 3495  7573                    R$        70,00  09/02/2026  ASSISTENCIA   Condominio Edificio Green Gold  (37d atraso)
+  # 3510  21-2                    R$       475,00  09/02/2026  ASSISTENCIA   Condominio Edificio San Marino  (37d atraso)
+  # 3511  22-2                    R$       180,00  09/02/2026  ASSISTENCIA   Condominio Edificio Green Gold  (37d atraso)
+  # 3516  28-2                    R$       100,00  09/02/2026  ASSISTENCIA   Condominio Edificio Raposo Tavares  (37d atraso)
+  # 3518  30-2                    R$       350,00  09/02/2026  ASSISTENCIA   Condominio Cube Vila Ipojuca  (37d atraso)
+  # 3519  31-2                    R$        50,00  09/02/2026  ASSISTENCIA   Condominio Edificio Jardim Buenos Aires  (37d atraso)
+  # 3521  33-2                    R$     3.540,00  09/02/2026  ASSISTENCIA   Condominio Edificio Maison Saint Etienne  (37d atraso)
+  # 3522  35-2                    R$       515,00  09/02/2026  ASSISTENCIA   CONDOMINIO RESIDENCIAL ARAUCARIAS  (37d atraso)
+  # 3484  7562                    R$       700,01  20/02/2026  MANUTENCAO    Associação Dos Moradores Do Conj Res Fortezza Di Ferrara  (26d atraso)
+  # 3485  7563                    R$       617,77  20/02/2026  MANUTENCAO    Condominio Edificio Jose Antonio Alpiovezza  (26d atraso)
+  # 3486  7564                    R$       520,72  20/02/2026  MANUTENCAO    Condominio Edificio Jussara  (26d atraso)
+  # 3487  7565                    R$       309,10  20/02/2026  MANUTENCAO    Condominio Residencial Le Monde  (26d atraso)
+  # 3488  7566                    R$       556,14  20/02/2026  MANUTENCAO    Condominio Edificio Macunaima  (26d atraso)
+  # 3489  7567                    R$       532,78  20/02/2026  MANUTENCAO    Condomínio Edifício Margaux  (26d atraso)
+  # 3490  7568                    R$     2.000,00  20/02/2026  MANUTENCAO    Condominio Edificio Mont Blanc  (26d atraso)
+  # 3491  7569                    R$       656,77  20/02/2026  MANUTENCAO    Condominio Edificio Verbena  (26d atraso)
+  # 3529  43-2                    R$     1.465,00  23/02/2026  ASSISTENCIA   Condomínio Cullinan  (23d atraso)
+  # 3492  7570                    R$       800,00  25/02/2026  MANUTENCAO    CONDOMINIO RESIDENCIAL ARAUCARIAS  (21d atraso)
+  # 3493  7571                    R$       500,00  25/02/2026  MANUTENCAO    Condomínio Cullinan  (21d atraso)
+  # 3494  7572                    R$       726,69  25/02/2026  MANUTENCAO    Condomínio Edifício Olga  (21d atraso)
+  # 3505  7583                    R$       800,00  26/02/2026  ASSISTENCIA   SHIFT MOBILIDADE LTDA (SEGUNDO)  (20d atraso)
+  # 3535  50-2                    R$     1.850,00  26/02/2026  ASSISTENCIA   Condominio Edificio Olivais  (20d atraso)
+  # 3536  51-2                    R$       450,00  26/02/2026  ASSISTENCIA   Condominio Edificio Park  (20d atraso)
+  # 3412  7604                    R$       700,00  10/03/2026  MANUTENCAO    Condominio Cube Vila Ipojuca  (8d atraso)
+  # 3427  7619                    R$       414,34  12/03/2026  MANUTENCAO    Condominio Edificio Concor  (6d atraso)
+
+----------------------------------------------------------------------------------------------------
+  ⚠  1 notas SEM condomínio (CNPJ não cruzou)
+----------------------------------------------------------------------------------------------------
+      ID  Número                           Valor        Venc  Cliente / Emitente
+  ------------------------------------------------------------------------------------------------
+  # 3498  7576                    R$       600,00  13/02/2026  ARQMEDS MAMORARIA LTDA
+         Observação: Emitente: CMPORT SISTEMAS DE ELETRONICOS DE SEGURANCA LTDA | CNPJ: 22761557000188
+
+----------------------------------------------------------------------------------------------------
+  ⚠  1 notas cujo condomínio não tem CNPJ cadastrado
+----------------------------------------------------------------------------------------------------
+  # 3561  7524                    R$       280,00  cond:#855 Antonio 
+
+----------------------------------------------------------------------------------------------------
+  ℹ  4 notas CANCELADAS
+----------------------------------------------------------------------------------------------------
+      ID  Número                           Valor  Condomínio
+  --------------------------------------------------------------------------------
+  # 3539  24-2                    R$     1.395,00  CONDOMINIO RESIDENCIAL ARAUCARIAS
+  # 3540  34-2                    R$    25.000,00  Condominio Residencial Le Monde
+  # 3541  45-2                    R$       450,00  Condominio Edificio Park
+  # 3558  3-2                     R$       350,00  Condominio Edificio Raposo Tavares
+
+====================================================================================================
+  3. SERVIÇOS (Manutenções / Assistências)
+====================================================================================================
+  Total                                         161
+    ASSISTENCIA                                 69
+    MANUTENCAO                                  92
+  Sem nota fiscal vinculada                     0
+  Notas MANUT/ASSIST sem serviço ⚠              1
+  Notas com >1 serviço ⚠                        0
+
+----------------------------------------------------------------------------------------------------
+  ⚠  1 notas MANUT/ASSIST sem serviço gerado
+----------------------------------------------------------------------------------------------------
+  # 3498  7576                    ASSISTENCIA   —
+
+====================================================================================================
+  4. BOLETOS — Visão Geral
+====================================================================================================
+  Total boletos no banco                        68
+
+    PAGO                                          63  |  R$    28.111,96
+    CANCELADO                                      3  |  R$     1.312,62
+    EXPIRADO                                       2  |  R$       550,00
+
+  Valor total recebido (PAGO)                   R$    28.128,92
+  Valor pendente (EMABERTO+VENCIDO)             R$         0,00
+
+  Sem código Inter (não emitido) ⚠              0
+  Sem nota vinculada ⚠                          0
+  Vencidos em aberto ⚠                          0
+  Inconsistências de parcelas ⚠                 5
+  Boletos PAGO mas nota sem dt_pag ⚠            0
+  Divergência nota.valor vs boletos ⚠           52
+  PAGO sem condomínio ($ não atrib.) ⚠          1
+
+----------------------------------------------------------------------------------------------------
+  LISTAGEM COMPLETA DOS 68 BOLETOS
+----------------------------------------------------------------------------------------------------
+     ID   Nota  Nº Nota                   Parc           Valor     Emissão  Vencimento   Pagamento  Situação      NossoNum        Condomínio
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+  # 492  #3403  7595                       1/1  R$       632,62                    02/03/2026  10/03/2026           —  CANCELADO     —               CONDOMINIO EDIFICIO ALVORADA
+  # 510  #3404  7596                       1/1  R$       759,15                    02/03/2026  10/03/2026           —  PAGO          —               EDIFICIO ASSUMPTA DE SICA
+  # 512  #3405  7597                       1/1  R$       404,88                    02/03/2026  10/03/2026           —  PAGO          —               CONDOMINIO EDIFICIO BAHAMAS
+  # 511  #3406  7598                       1/1  R$       351,31                    02/03/2026  10/03/2026           —  PAGO          —               CONDOMINIO BEM VIVER GENERAL JARDIM
+  # 502  #3407  7599                       1/1  R$       308,31                    02/03/2026  10/03/2026           —  PAGO          —               CONDOMINIO EDIFICIO BONAIRE
+  # 509  #3408  7600                       1/1  R$       379,58                    02/03/2026  10/03/2026           —  PAGO          —               CONDOMINIO EDIFICIO CAP MARTINIQUE
+  # 508  #3409  7601                       1/1  R$       615,86                    02/03/2026  10/03/2026           —  PAGO          —               CONDOMINIO EDIFICIO CEZARIO MOTTA
+  # 501  #3410  7602                       1/1  R$       387,59                    02/03/2026  10/03/2026           —  PAGO          —               Condominio Edificio Cintia
+  # 503  #3411  7603                       1/1  R$       798,08                    02/03/2026  10/03/2026           —  PAGO          —               Condominio Edificio Costa Brava
+  # 507  #3413  7605                       1/1  R$       590,45                    02/03/2026  10/03/2026           —  PAGO          —               Condominio Edificio Green Gold
+  # 498  #3414  7606                       1/1  R$       457,63                    02/03/2026  10/03/2026           —  PAGO          —               Condomínio Residencial Ipiranga
+  # 499  #3415  7607                       1/1  R$       401,30                    02/03/2026  10/03/2026           —  PAGO          —               Condominio Edificio Lucerna
+  # 496  #3416  7608                       1/1  R$       295,22                    02/03/2026  10/03/2026           —  PAGO          —               Condominio Edificio Odete
+  # 495  #3417  7609                       1/1  R$       482,68                    02/03/2026  10/03/2026           —  PAGO          —               Condominio Edificio Olivais
+  # 504  #3418  7610                       1/1  R$       533,34                    02/03/2026  10/03/2026           —  PAGO          —               Condominio Edificio Paço de Hygienopolis
+  # 500  #3419  7611                       1/1  R$       571,65                    02/03/2026  10/03/2026           —  PAGO          —               Edificio Penthouse Campo Belo
+  # 505  #3420  7612                       1/1  R$       337,40                    02/03/2026  10/03/2026           —  PAGO          —               Condominio Edificio Piazza Fontana
+  # 493  #3421  7613                       1/1  R$       337,40                    02/03/2026  10/03/2026           —  PAGO          —               Condominio Edificio Raposo Tavares
+  # 497  #3422  7614                       1/1  R$       337,40                    02/03/2026  10/03/2026           —  PAGO          —               Sbios - Investimentos Imobilirios
+  # 506  #3423  7615                       1/1  R$       759,15                    02/03/2026  10/03/2026           —  PAGO          —               CONDOMINIO SINTONIA PERDIZES
+  # 494  #3424  7616                       1/1  R$       506,10                    02/03/2026  10/03/2026           —  PAGO          —               CONDOMINIO EDIFICIO THE CRYSTAL HOUSE
+  # 480  #3425  7617                       1/1  R$       168,70                    03/03/2026  10/03/2026           —  PAGO          —               Condomínio Ville Courchevel
+  # 479  #3426  7618                       1/1  R$       538,51                    03/03/2026  12/03/2026           —  PAGO          —               Condominio Edificio Angra dos Reis
+  # 485  #3428  7620                       1/1  R$       468,59                    03/03/2026  12/03/2026           —  PAGO          —               Condominio Edificio Maison Saint Etienne
+  # 483  #3429  7621                       1/1  R$       361,49                    03/03/2026  12/03/2026           —  PAGO          —               Condominio Edificio Park
+  # 488  #3430  7622                       1/1  R$       514,02                    03/03/2026  12/03/2026           —  PAGO          —               Condominio Edificio Piazza Fontana
+  # 491  #3431  7623                       1/1  R$       357,42                    03/03/2026  12/03/2026           —  PAGO          —               Condominio Edificio Raposo Tavares
+  # 484  #3432  7624                       1/1  R$       457,61                    03/03/2026  12/03/2026           —  PAGO          —               Condominio Edificio Vermont
+  # 490  #3433  7625                       1/1  R$       378,71                    03/03/2026  12/03/2026           —  PAGO          —               Condominio Edificio Via Del Corso
+  # 486  #3434  7626                       1/1  R$       631,93                    03/03/2026  15/03/2026           —  PAGO          —               Edificio Helbor Loft Evolution
+  # 482  #3435  7627                       1/1  R$       499,74                    03/03/2026  15/03/2026           —  PAGO          —               Condominio Edificio Ibirapuera Park
+  # 481  #3436  7628                       1/1  R$       392,55                    03/03/2026  15/03/2026           —  PAGO          —               Condominio Edificio Jardim Buenos Aires
+  # 489  #3437  7629                       1/1  R$       437,46                    03/03/2026  15/03/2026           —  PAGO          —               Condominio Edificio Park Avenue
+  # 487  #3438  7630                       1/1  R$       388,83                    03/03/2026  15/03/2026           —  PAGO          —               Condominio Edificio Reynolds
+  # 536  #3496  7574                       1/1  R$       236,18                    10/02/2026  13/02/2026           —  PAGO          —               Condomínio Edifício Helena Maria
+  # 531  #3497  7575                       1/1  R$       253,05                    10/02/2026  13/02/2026           —  PAGO          —               Condomínio Edifício Lorenzetti
+  # 530  #3498  7576                       1/1  R$       506,10 (rec:R$       517,90)                    10/02/2026  13/02/2026           —  PAGO          —               —
+  # 532  #3499  7577                       1/1  R$       236,18                    10/02/2026  13/02/2026           —  PAGO          —               Condomínio Flamboyant
+  # 528  #3500  7578                       1/1  R$       295,22                    10/02/2026  13/02/2026           —  PAGO          —               Condominio Conjunto Residencial Villar do Paraiso
+  # 527  #3501  7579                       1/1  R$       632,62                    10/02/2026  13/02/2026           —  PAGO          —               Condominio Edificio Park Avenue
+  # 529  #3502  7580                       1/1  R$       253,05                    10/02/2026  13/02/2026           —  PAGO          —               Condomínio Edifício Five Stars
+  # 533  #3503  7581                       1/1  R$       320,53                    10/02/2026  13/02/2026           —  PAGO          —               Condominio Edificio Olivais
+  # 535  #3504  7582                       1/1  R$       236,18                    10/02/2026  13/02/2026           —  PAGO          —               Condominio Edificio San Marino
+  # 513  #3506  7584                       1/1  R$       236,18                    23/02/2026  26/02/2026           —  PAGO          —               Condomínio Flamboyant
+  # 515  #3507  7588                       1/1  R$       354,27                    23/02/2026  26/02/2026           —  PAGO          —               Edificio Helbor Loft Evolution
+  # 514  #3508  7587                       1/1  R$       236,18                    23/02/2026  26/02/2026           —  PAGO          —               Condominio Edificio San Marino
+  # 516  #3509  7589                       1/1  R$       236,18                    23/02/2026  26/02/2026           —  PAGO          —               Condominio Edificio Porto Alegre
+  # 539  #3511  22-2                       1/1  R$       180,00                    04/02/2026  09/02/2026           —  CANCELADO     —               Condominio Edificio Green Gold
+  # 540  #3512  23-2                       1/1  R$       250,00                    04/02/2026  09/02/2026           —  PAGO          —               Condominio Edificio Odete
+  # 538  #3514  26-2                       1/2  R$       600,00                    04/02/2026  09/02/2026           —  PAGO          —               Condominio Edificio Lucerna
+  # 545  #3515  27-2                       1/1  R$       720,00                    04/02/2026  09/02/2026           —  PAGO          —               Condominio Edificio Paço de Hygienopolis
+  # 542  #3516  28-2                       1/1  R$       100,00                    04/02/2026  09/02/2026           —  EXPIRADO      —               Condominio Edificio Raposo Tavares
+  # 544  #3517  29-2                       1/1  R$       400,00                    04/02/2026  09/02/2026           —  PAGO          —               Condomínio Edifício Dakota
+  # 543  #3520  32-2                       1/1  R$        70,00                    04/02/2026  09/02/2026           —  PAGO          —               Condomínio Edifício Margaux
+  # 541  #3523  36-2                       1/1  R$       250,00                    04/02/2026  09/02/2026           —  PAGO          —               Condominio Residencial Le Monde
+  # 534  #3524  37-2                       1/1  R$       250,00                    10/02/2026  13/02/2026           —  PAGO          —               CONDOMINIO SINTONIA PERDIZES
+  # 537  #3525  38-2                       1/1  R$       250,00                    10/02/2026  13/02/2026           —  PAGO          —               Condominio Estilo Higienopolis
+  # 525  #3526  40-2                       1/2  R$       380,00                    18/02/2026  23/02/2026           —  PAGO          —               CONDOMINIO EDIFICIO BAHAMAS
+  # 524  #3527  41-2                       1/1  R$       680,00                    18/02/2026  23/02/2026           —  PAGO          —               CONDOMINIO EDIFICIO MARIANGELA TEIXEIRA
+  # 523  #3528  42-2                       1/2  R$     2.725,00                    18/02/2026  23/02/2026           —  PAGO          —               CONDOMINIO EDIFICIO THE CRYSTAL HOUSE
+  # 478  #3530  44-2                       1/1  R$       315,00                    11/03/2026  16/03/2026           —  PAGO          —               Condominio Edificio Mont Blanc
+  # 526  #3531  46-2                       1/1  R$       120,00                    18/02/2026  23/02/2026           —  PAGO          —               Condominio Edificio Paço de Hygienopolis
+  # 522  #3532  47-2                       1/2  R$       910,00                    23/02/2026  26/02/2026           —  PAGO          —               Condomínio Cullinan
+  # 521  #3533  48-2                       1/1  R$       250,00 (rec:R$       255,16)                    23/02/2026  26/02/2026           —  PAGO          —               EDIFICIO ASSUMPTA DE SICA
+  # 518  #3534  49-2                       1/1  R$       450,00                    23/02/2026  26/02/2026           —  PAGO          —               Condominio Edificio Vermont
+  # 517  #3536  51-2                       1/1  R$       450,00                    23/02/2026  26/02/2026           —  EXPIRADO      —               Condominio Edificio Park
+  # 520  #3537  52-2                       1/1  R$       250,00                    23/02/2026  26/02/2026           —  PAGO          —               Condomínio Edifício Ninon
+  # 519  #3538  53-2                       1/2  R$       500,00                    23/02/2026  26/02/2026           —  CANCELADO     —               CONDOMINIO SINTONIA PERDIZES
+
+----------------------------------------------------------------------------------------------------
+  ⚠  5 INCONSISTÊNCIAS DE PARCELAS
+----------------------------------------------------------------------------------------------------
+  Notas onde a quantidade de boletos gerados ≠ parcelas esperadas na nota.
+  Precisa gerar os boletos das parcelas faltantes.
+
+  Nota #3514 (26-2)  esperadas:2  geradas:1  números gerados:[1]
+    → FALTAM as parcelas: [2]
+    Boleto #538 parcela 1  R$       600,00  venc:09/02/2026  PAGO
+  Nota #3526 (40-2)  esperadas:2  geradas:1  números gerados:[1]
+    → FALTAM as parcelas: [2]
+    Boleto #525 parcela 1  R$       380,00  venc:23/02/2026  PAGO
+  Nota #3528 (42-2)  esperadas:2  geradas:1  números gerados:[1]
+    → FALTAM as parcelas: [2]
+    Boleto #523 parcela 1  R$     2.725,00  venc:23/02/2026  PAGO
+  Nota #3532 (47-2)  esperadas:2  geradas:1  números gerados:[1]
+    → FALTAM as parcelas: [2]
+    Boleto #522 parcela 1  R$       910,00  venc:26/02/2026  PAGO
+  Nota #3538 (53-2)  esperadas:2  geradas:1  números gerados:[1]
+    → FALTAM as parcelas: [2]
+    Boleto #519 parcela 1  R$       500,00  venc:26/02/2026  CANCELADO
+
+----------------------------------------------------------------------------------------------------
+  ⚠  52 notas com DIVERGÊNCIA de valor (nota ≠ soma boletos)
+----------------------------------------------------------------------------------------------------
+  Causas comuns: ISS descontado no boleto, boleto importado do Inter com valor diferente,
+  ou erro no cálculo de parcelas.
+
+      ID  Número                      Valor Nota    Soma Boletos     Diferença       %  Condomínio
+  --------------------------------------------------------------------------------------------------------------
+  # 3528  42-2                    R$     5.450,00  R$     2.725,00  R$    -2.725,00   50.0%  CONDOMINIO EDIFICIO THE CRYSTAL HOUSE
+         Boleto #523 parc:1/2  R$     2.725,00  PAGO
+  # 3532  47-2                    R$     1.820,00  R$       910,00  R$      -910,00   50.0%  Condomínio Cullinan
+         Boleto #522 parc:1/2  R$       910,00  PAGO
+  # 3514  26-2                    R$     1.200,00  R$       600,00  R$      -600,00   50.0%  Condominio Edificio Lucerna
+         Boleto #538 parc:1/2  R$       600,00  PAGO
+  # 3538  53-2                    R$     1.000,00  R$       500,00  R$      -500,00   50.0%  CONDOMINIO SINTONIA PERDIZES
+         Boleto #519 parc:1/2  R$       500,00  CANCELADO
+  # 3526  40-2                    R$       760,00  R$       380,00  R$      -380,00   50.0%  CONDOMINIO EDIFICIO BAHAMAS
+         Boleto #525 parc:1/2  R$       380,00  PAGO
+  # 3411  7603                    R$       946,15  R$       798,08  R$      -148,07   84.4%  Condominio Edificio Costa Brava
+         Boleto #503 parc:1/1  R$       798,08  PAGO
+  # 3404  7596                    R$       900,00  R$       759,15  R$      -140,85   84.4%  EDIFICIO ASSUMPTA DE SICA
+         Boleto #510 parc:1/1  R$       759,15  PAGO
+  # 3423  7615                    R$       900,00  R$       759,15  R$      -140,85   84.4%  CONDOMINIO SINTONIA PERDIZES
+         Boleto #506 parc:1/1  R$       759,15  PAGO
+  # 3403  7595                    R$       750,00  R$       632,62  R$      -117,38   84.3%  CONDOMINIO EDIFICIO ALVORADA
+         Boleto #492 parc:1/1  R$       632,62  CANCELADO
+  # 3501  7579                    R$       750,00  R$       632,62  R$      -117,38   84.3%  Condominio Edificio Park Avenue
+         Boleto #527 parc:1/1  R$       632,62  PAGO
+  # 3434  7626                    R$       749,18  R$       631,93  R$      -117,25   84.3%  Edificio Helbor Loft Evolution
+         Boleto #486 parc:1/1  R$       631,93  PAGO
+  # 3409  7601                    R$       730,12  R$       615,86  R$      -114,26   84.4%  CONDOMINIO EDIFICIO CEZARIO MOTTA
+         Boleto #508 parc:1/1  R$       615,86  PAGO
+  # 3413  7605                    R$       700,00  R$       590,45  R$      -109,55   84.4%  Condominio Edificio Green Gold
+         Boleto #507 parc:1/1  R$       590,45  PAGO
+  # 3419  7611                    R$       677,72  R$       571,65  R$      -106,07   84.3%  Edificio Penthouse Campo Belo
+         Boleto #500 parc:1/1  R$       571,65  PAGO
+  # 3426  7618                    R$       638,42  R$       538,51  R$       -99,91   84.4%  Condominio Edificio Angra dos Reis
+         Boleto #479 parc:1/1  R$       538,51  PAGO
+  # 3418  7610                    R$       632,29  R$       533,34  R$       -98,95   84.4%  Condominio Edificio Paço de Hygienopolis
+         Boleto #504 parc:1/1  R$       533,34  PAGO
+  # 3430  7622                    R$       609,38  R$       514,02  R$       -95,36   84.4%  Condominio Edificio Piazza Fontana
+         Boleto #488 parc:1/1  R$       514,02  PAGO
+  # 3424  7616                    R$       600,00  R$       506,10  R$       -93,90   84.4%  CONDOMINIO EDIFICIO THE CRYSTAL HOUSE
+         Boleto #494 parc:1/1  R$       506,10  PAGO
+  # 3498  7576                    R$       600,00  R$       506,10  R$       -93,90   84.4%  —
+         Boleto #530 parc:1/1  R$       506,10  PAGO
+  # 3435  7627                    R$       592,45  R$       499,74  R$       -92,71   84.4%  Condominio Edificio Ibirapuera Park
+         Boleto #482 parc:1/1  R$       499,74  PAGO
+  # 3417  7609                    R$       572,24  R$       482,68  R$       -89,56   84.3%  Condominio Edificio Olivais
+         Boleto #495 parc:1/1  R$       482,68  PAGO
+  # 3428  7620                    R$       555,54  R$       468,59  R$       -86,95   84.3%  Condominio Edificio Maison Saint Etienne
+         Boleto #485 parc:1/1  R$       468,59  PAGO
+  # 3414  7606                    R$       542,55  R$       457,63  R$       -84,92   84.3%  Condomínio Residencial Ipiranga
+         Boleto #498 parc:1/1  R$       457,63  PAGO
+  # 3432  7624                    R$       542,53  R$       457,61  R$       -84,92   84.3%  Condominio Edificio Vermont
+         Boleto #484 parc:1/1  R$       457,61  PAGO
+  # 3437  7629                    R$       518,62  R$       437,46  R$       -81,16   84.4%  Condominio Edificio Park Avenue
+         Boleto #489 parc:1/1  R$       437,46  PAGO
+  # 3405  7597                    R$       480,00  R$       404,88  R$       -75,12   84.4%  CONDOMINIO EDIFICIO BAHAMAS
+         Boleto #512 parc:1/1  R$       404,88  PAGO
+  # 3415  7607                    R$       475,75  R$       401,30  R$       -74,45   84.4%  Condominio Edificio Lucerna
+         Boleto #499 parc:1/1  R$       401,30  PAGO
+  # 3436  7628                    R$       465,37  R$       392,55  R$       -72,82   84.4%  Condominio Edificio Jardim Buenos Aires
+         Boleto #481 parc:1/1  R$       392,55  PAGO
+  # 3438  7630                    R$       460,98  R$       388,83  R$       -72,15   84.3%  Condominio Edificio Reynolds
+         Boleto #487 parc:1/1  R$       388,83  PAGO
+  # 3410  7602                    R$       459,49  R$       387,59  R$       -71,90   84.4%  Condominio Edificio Cintia
+         Boleto #501 parc:1/1  R$       387,59  PAGO
+  # 3408  7600                    R$       450,00  R$       379,58  R$       -70,42   84.4%  CONDOMINIO EDIFICIO CAP MARTINIQUE
+         Boleto #509 parc:1/1  R$       379,58  PAGO
+  # 3433  7625                    R$       448,98  R$       378,71  R$       -70,27   84.3%  Condominio Edificio Via Del Corso
+         Boleto #490 parc:1/1  R$       378,71  PAGO
+  # 3429  7621                    R$       428,57  R$       361,49  R$       -67,08   84.3%  Condominio Edificio Park
+         Boleto #483 parc:1/1  R$       361,49  PAGO
+  # 3431  7623                    R$       423,73  R$       357,42  R$       -66,31   84.4%  Condominio Edificio Raposo Tavares
+         Boleto #491 parc:1/1  R$       357,42  PAGO
+  # 3507  7588                    R$       420,00  R$       354,27  R$       -65,73   84.3%  Edificio Helbor Loft Evolution
+         Boleto #515 parc:1/1  R$       354,27  PAGO
+  # 3406  7598                    R$       416,50  R$       351,31  R$       -65,19   84.3%  CONDOMINIO BEM VIVER GENERAL JARDIM
+         Boleto #511 parc:1/1  R$       351,31  PAGO
+  # 3420  7612                    R$       400,00  R$       337,40  R$       -62,60   84.3%  Condominio Edificio Piazza Fontana
+         Boleto #505 parc:1/1  R$       337,40  PAGO
+  # 3421  7613                    R$       400,00  R$       337,40  R$       -62,60   84.3%  Condominio Edificio Raposo Tavares
+         Boleto #493 parc:1/1  R$       337,40  PAGO
+  # 3422  7614                    R$       400,00  R$       337,40  R$       -62,60   84.3%  Sbios - Investimentos Imobilirios
+         Boleto #497 parc:1/1  R$       337,40  PAGO
+  # 3503  7581                    R$       380,00  R$       320,53  R$       -59,47   84.3%  Condominio Edificio Olivais
+         Boleto #533 parc:1/1  R$       320,53  PAGO
+  # 3407  7599                    R$       365,53  R$       308,31  R$       -57,22   84.3%  CONDOMINIO EDIFICIO BONAIRE
+         Boleto #502 parc:1/1  R$       308,31  PAGO
+  # 3416  7608                    R$       350,00  R$       295,22  R$       -54,78   84.3%  Condominio Edificio Odete
+         Boleto #496 parc:1/1  R$       295,22  PAGO
+  # 3500  7578                    R$       350,00  R$       295,22  R$       -54,78   84.3%  Condominio Conjunto Residencial Villar do Paraiso
+         Boleto #528 parc:1/1  R$       295,22  PAGO
+  # 3497  7575                    R$       300,00  R$       253,05  R$       -46,95   84.4%  Condomínio Edifício Lorenzetti
+         Boleto #531 parc:1/1  R$       253,05  PAGO
+  # 3502  7580                    R$       300,00  R$       253,05  R$       -46,95   84.4%  Condomínio Edifício Five Stars
+         Boleto #529 parc:1/1  R$       253,05  PAGO
+  # 3496  7574                    R$       280,00  R$       236,18  R$       -43,82   84.4%  Condomínio Edifício Helena Maria
+         Boleto #536 parc:1/1  R$       236,18  PAGO
+  # 3499  7577                    R$       280,00  R$       236,18  R$       -43,82   84.4%  Condomínio Flamboyant
+         Boleto #532 parc:1/1  R$       236,18  PAGO
+  # 3504  7582                    R$       280,00  R$       236,18  R$       -43,82   84.4%  Condominio Edificio San Marino
+         Boleto #535 parc:1/1  R$       236,18  PAGO
+  # 3506  7584                    R$       280,00  R$       236,18  R$       -43,82   84.4%  Condomínio Flamboyant
+         Boleto #513 parc:1/1  R$       236,18  PAGO
+  # 3508  7587                    R$       280,00  R$       236,18  R$       -43,82   84.4%  Condominio Edificio San Marino
+         Boleto #514 parc:1/1  R$       236,18  PAGO
+  # 3509  7589                    R$       280,00  R$       236,18  R$       -43,82   84.4%  Condominio Edificio Porto Alegre
+         Boleto #516 parc:1/1  R$       236,18  PAGO
+  # 3425  7617                    R$       200,00  R$       168,70  R$       -31,30   84.3%  Condomínio Ville Courchevel
+         Boleto #480 parc:1/1  R$       168,70  PAGO
+
+----------------------------------------------------------------------------------------------------
+  🔴  1 boletos PAGO sem condomínio — R$       517,90 NÃO ATRIBUÍDOS
+----------------------------------------------------------------------------------------------------
+  Dinheiro recebido mas a nota não está vinculada a nenhum condomínio.
+  Ação necessária: identificar o pagador e vincular a nota ao condomínio correto.
+
+  Boleto #530  Nota #3498 (7576)  R$       506,10  recebido:R$       517,90  pago:—  nosso:—
+
+====================================================================================================
+  5. CRUZAMENTOS E PENDÊNCIAS
+====================================================================================================
+  Notas ativas sem nenhum boleto                90
+    → sem condomínio (impossível)               0
+    → cond. sem CNPJ (bloqueado)                1
+    → PRONTAS para gerar boleto ✔               89
+
+    Valor pendente (prontas sem boleto)         R$    73.486,47
+
+----------------------------------------------------------------------------------------------------
+  ✔  89 notas PRONTAS para gerar boleto  (R$    73.486,47)
+----------------------------------------------------------------------------------------------------
+      ID  Número                           Valor        Venc  Tipo          Condomínio
+  ------------------------------------------------------------------------------------------------
+  # 3513  25-2                    R$     3.200,00  09/01/2026  ASSISTENCIA   Condominio Edificio Macunaima  5x  ← 68d ATRASADA
+  # 3542  4-2                     R$       350,00  09/01/2026  ASSISTENCIA   Condominio Edificio Raposo Tavares  ← 68d ATRASADA
+  # 3543  5-2                     R$       350,00  09/01/2026  ASSISTENCIA   Condominio Edificio Reynolds  ← 68d ATRASADA
+  # 3544  6-2                     R$       350,00  09/01/2026  ASSISTENCIA   Condominio Edificio Maison Saint Etienne  ← 68d ATRASADA
+  # 3545  7-2                     R$     2.500,00  09/01/2026  ASSISTENCIA   Condominio Edificio Park  ← 68d ATRASADA
+  # 3450  7528                    R$       900,00  10/01/2026  MANUTENCAO    EDIFICIO ASSUMPTA DE SICA  ← 67d ATRASADA
+  # 3451  7529                    R$       750,00  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO ALVORADA  ← 67d ATRASADA
+  # 3452  7530                    R$       480,00  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO BAHAMAS  ← 67d ATRASADA
+  # 3453  7531                    R$       365,53  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO BONAIRE  ← 67d ATRASADA
+  # 3454  7532                    R$       450,00  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO CAP MARTINIQUE  ← 67d ATRASADA
+  # 3455  7533                    R$       730,12  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO CEZARIO MOTTA  ← 67d ATRASADA
+  # 3456  7534                    R$       459,49  10/01/2026  MANUTENCAO    Condominio Edificio Cintia  ← 67d ATRASADA
+  # 3457  7535                    R$       946,15  10/01/2026  MANUTENCAO    Condominio Edificio Costa Brava  ← 67d ATRASADA
+  # 3458  7536                    R$       700,00  10/01/2026  MANUTENCAO    Condominio Cube Vila Ipojuca  ← 67d ATRASADA
+  # 3459  7537                    R$       542,55  10/01/2026  MANUTENCAO    Condomínio Residencial Ipiranga  ← 67d ATRASADA
+  # 3460  7538                    R$       475,75  10/01/2026  MANUTENCAO    Condominio Edificio Lucerna  ← 67d ATRASADA
+  # 3461  7539                    R$       350,00  10/01/2026  MANUTENCAO    Condominio Edificio Odete  ← 67d ATRASADA
+  # 3462  7540                    R$       572,24  10/01/2026  MANUTENCAO    Condominio Edificio Olivais  ← 67d ATRASADA
+  # 3463  7541                    R$       632,29  10/01/2026  MANUTENCAO    Condominio Edificio Paço de Hygienopolis  ← 67d ATRASADA
+  # 3464  7542                    R$       650,00  10/01/2026  MANUTENCAO    Edificio Penthouse Campo Belo  ← 67d ATRASADA
+  # 3465  7543                    R$       400,00  10/01/2026  MANUTENCAO    Condominio Edificio Piazza Fontana  ← 67d ATRASADA
+  # 3466  7544                    R$       400,00  10/01/2026  MANUTENCAO    Condominio Edificio Raposo Tavares  ← 67d ATRASADA
+  # 3467  7545                    R$       400,00  10/01/2026  MANUTENCAO    Sbios - Investimentos Imobilirios  ← 67d ATRASADA
+  # 3468  7546                    R$       900,00  10/01/2026  MANUTENCAO    CONDOMINIO SINTONIA PERDIZES  ← 67d ATRASADA
+  # 3469  7547                    R$       600,00  10/01/2026  MANUTENCAO    CONDOMINIO EDIFICIO THE CRYSTAL HOUSE  ← 67d ATRASADA
+  # 3470  7548                    R$       200,00  10/01/2026  MANUTENCAO    Condomínio Ville Courchevel  ← 67d ATRASADA
+  # 3471  7549                    R$       638,42  12/01/2026  MANUTENCAO    Condominio Edificio Angra dos Reis  ← 65d ATRASADA
+  # 3472  7550                    R$       414,34  12/01/2026  MANUTENCAO    Condominio Edificio Concor  ← 65d ATRASADA
+  # 3473  7551                    R$       555,54  12/01/2026  MANUTENCAO    Condominio Edificio Maison Saint Etienne  ← 65d ATRASADA
+  # 3474  7552                    R$       428,57  12/01/2026  MANUTENCAO    Condominio Edificio Park  ← 65d ATRASADA
+  # 3475  7553                    R$       609,38  12/01/2026  MANUTENCAO    Condominio Edificio Piazza Fontana  ← 65d ATRASADA
+  # 3476  7554                    R$       423,73  12/01/2026  MANUTENCAO    Condominio Edificio Raposo Tavares  ← 65d ATRASADA
+  # 3477  7555                    R$       542,53  12/01/2026  MANUTENCAO    Condominio Edificio Vermont  ← 65d ATRASADA
+  # 3478  7556                    R$       448,98  12/01/2026  MANUTENCAO    Condominio Edificio Via Del Corso  ← 65d ATRASADA
+  # 3546  9-2                     R$       350,00  12/01/2026  ASSISTENCIA   Condominio Edificio Via Del Corso  ← 65d ATRASADA
+  # 3547  10-2                    R$     3.600,00  12/01/2026  ASSISTENCIA   Condominio Edificio Raposo Tavares  ← 65d ATRASADA
+  # 3548  11-2                    R$       450,00  12/01/2026  ASSISTENCIA   Condominio Edificio Jardim Buenos Aires  ← 65d ATRASADA
+  # 3549  12-2                    R$     1.500,00  13/01/2026  ASSISTENCIA   Condominio Edificio Green Gold  ← 64d ATRASADA
+  # 3550  13-2                    R$       250,00  13/01/2026  ASSISTENCIA   Condominio Edificio Odete  ← 64d ATRASADA
+  # 3551  14-2                    R$     1.150,00  13/01/2026  ASSISTENCIA   Condominio Edificio Cintia  ← 64d ATRASADA
+  # 3479  7557                    R$       749,18  15/01/2026  MANUTENCAO    Edificio Helbor Loft Evolution  ← 62d ATRASADA
+  # 3480  7558                    R$       592,45  15/01/2026  MANUTENCAO    Condominio Edificio Ibirapuera Park  ← 62d ATRASADA
+  # 3481  7559                    R$       465,37  15/01/2026  MANUTENCAO    Condominio Edificio Jardim Buenos Aires  ← 62d ATRASADA
+  # 3482  7560                    R$       518,62  15/01/2026  MANUTENCAO    Condominio Edificio Park Avenue  ← 62d ATRASADA
+  # 3483  7561                    R$       460,98  15/01/2026  MANUTENCAO    Condominio Edificio Reynolds  ← 62d ATRASADA
+  # 3552  15-2                    R$     1.450,00  15/01/2026  ASSISTENCIA   Condomínio Residencial Ipiranga  ← 62d ATRASADA
+  # 3553  16-2                    R$     1.000,00  15/01/2026  ASSISTENCIA   CONDOMINIO EDIFICIO BONAIRE  ← 62d ATRASADA
+  # 3554  17-2                    R$     1.460,00  15/01/2026  ASSISTENCIA   Condominio Edificio Olivais  ← 62d ATRASADA
+  # 3555  18-2                    R$     1.950,00  15/01/2026  ASSISTENCIA   Condominio Edificio Costa Brava  ← 62d ATRASADA
+  # 3556  19-2                    R$       300,00  16/01/2026  ASSISTENCIA   Condominio Edificio Via Del Corso  ← 61d ATRASADA
+  # 3557  20-2                    R$     6.414,96  16/01/2026  ASSISTENCIA   Condominio Edificio Jose Antonio Alpiovezza  ← 61d ATRASADA
+  # 3559  7522                    R$       280,00  28/01/2026  ASSISTENCIA   Condomínio Edifício Lorenzetti  ← 49d ATRASADA
+  # 3560  7523                    R$       280,00  28/01/2026  ASSISTENCIA   Condomínio Flamboyant  ← 49d ATRASADA
+  # 3562  7525                    R$       450,00  28/01/2026  ASSISTENCIA   Condomínio Edificio São Vicente  ← 49d ATRASADA
+  # 3563  7526                    R$       280,00  28/01/2026  ASSISTENCIA   Zeuno Simoes Espolio (Cond. Edificio Tapajos)  ← 49d ATRASADA
+  # 3564  7527                    R$       750,00  28/01/2026  ASSISTENCIA   Condominio Edificio Olivais  ← 49d ATRASADA
+  # 3495  7573                    R$        70,00  09/02/2026  ASSISTENCIA   Condominio Edificio Green Gold  ← 37d ATRASADA
+  # 3510  21-2                    R$       475,00  09/02/2026  ASSISTENCIA   Condominio Edificio San Marino  ← 37d ATRASADA
+  # 3518  30-2                    R$       350,00  09/02/2026  ASSISTENCIA   Condominio Cube Vila Ipojuca  ← 37d ATRASADA
+  # 3519  31-2                    R$        50,00  09/02/2026  ASSISTENCIA   Condominio Edificio Jardim Buenos Aires  ← 37d ATRASADA
+  # 3521  33-2                    R$     3.540,00  09/02/2026  ASSISTENCIA   Condominio Edificio Maison Saint Etienne  5x  ← 37d ATRASADA
+  # 3522  35-2                    R$       515,00  09/02/2026  ASSISTENCIA   CONDOMINIO RESIDENCIAL ARAUCARIAS  3x  ← 37d ATRASADA
+  # 3484  7562                    R$       700,01  20/02/2026  MANUTENCAO    Associação Dos Moradores Do Conj Res Fortezza Di Ferrara  ← 26d ATRASADA
+  # 3485  7563                    R$       617,77  20/02/2026  MANUTENCAO    Condominio Edificio Jose Antonio Alpiovezza  ← 26d ATRASADA
+  # 3486  7564                    R$       520,72  20/02/2026  MANUTENCAO    Condominio Edificio Jussara  ← 26d ATRASADA
+  # 3487  7565                    R$       309,10  20/02/2026  MANUTENCAO    Condominio Residencial Le Monde  ← 26d ATRASADA
+  # 3488  7566                    R$       556,14  20/02/2026  MANUTENCAO    Condominio Edificio Macunaima  ← 26d ATRASADA
+  # 3489  7567                    R$       532,78  20/02/2026  MANUTENCAO    Condomínio Edifício Margaux  ← 26d ATRASADA
+  # 3490  7568                    R$     2.000,00  20/02/2026  MANUTENCAO    Condominio Edificio Mont Blanc  ← 26d ATRASADA
+  # 3491  7569                    R$       656,77  20/02/2026  MANUTENCAO    Condominio Edificio Verbena  ← 26d ATRASADA
+  # 3529  43-2                    R$     1.465,00  23/02/2026  ASSISTENCIA   Condomínio Cullinan  3x  ← 23d ATRASADA
+  # 3492  7570                    R$       800,00  25/02/2026  MANUTENCAO    CONDOMINIO RESIDENCIAL ARAUCARIAS  ← 21d ATRASADA
+  # 3493  7571                    R$       500,00  25/02/2026  MANUTENCAO    Condomínio Cullinan  ← 21d ATRASADA
+  # 3494  7572                    R$       726,69  25/02/2026  MANUTENCAO    Condomínio Edifício Olga  ← 21d ATRASADA
+  # 3505  7583                    R$       800,00  26/02/2026  ASSISTENCIA   SHIFT MOBILIDADE LTDA (SEGUNDO)  ← 20d ATRASADA
+  # 3535  50-2                    R$     1.850,00  26/02/2026  ASSISTENCIA   Condominio Edificio Olivais  3x  ← 20d ATRASADA
+  # 3412  7604                    R$       700,00  10/03/2026  MANUTENCAO    Condominio Cube Vila Ipojuca  ← 8d ATRASADA
+  # 3427  7619                    R$       414,34  12/03/2026  MANUTENCAO    Condominio Edificio Concor  ← 6d ATRASADA
+  # 3439  7631                    R$       700,01  20/03/2026  MANUTENCAO    Associação Dos Moradores Do Conj Res Fortezza Di Ferrara
+  # 3440  7632                    R$       617,77  20/03/2026  MANUTENCAO    Condominio Edificio Jose Antonio Alpiovezza
+  # 3441  7633                    R$       520,72  20/03/2026  MANUTENCAO    Condominio Edificio Jussara
+  # 3442  7634                    R$       309,10  20/03/2026  MANUTENCAO    Condominio Residencial Le Monde
+  # 3443  7635                    R$       556,14  20/03/2026  MANUTENCAO    Condominio Edificio Macunaima
+  # 3444  7636                    R$       532,78  20/03/2026  MANUTENCAO    Condomínio Edifício Margaux
+  # 3445  7638                    R$     2.000,00  20/03/2026  MANUTENCAO    Condominio Edificio Mont Blanc
+  # 3446  7639                    R$       656,77  20/03/2026  MANUTENCAO    Condominio Edificio Verbena
+  # 3447  7640                    R$       800,00  25/03/2026  MANUTENCAO    CONDOMINIO RESIDENCIAL ARAUCARIAS
+  # 3448  7641                    R$       500,00  25/03/2026  MANUTENCAO    Condomínio Cullinan
+  # 3449  7642                    R$       726,69  25/03/2026  MANUTENCAO    Condomínio Edifício Olga
+
+----------------------------------------------------------------------------------------------------
+  ⚠  1 notas bloqueadas — condomínio sem CNPJ
+----------------------------------------------------------------------------------------------------
+  # 3561  7524                    R$       280,00  cond:#855 Antonio 
+
+----------------------------------------------------------------------------------------------------
+  📊  RANKING INADIMPLÊNCIA — top 30 condomínios com mais valor em atraso
+----------------------------------------------------------------------------------------------------
+    #  Condomínio                                           Qtd Notas    Total Devido
+  -------------------------------------------------------------------------------------
+    1  Condominio Edificio Jose Antonio Alpiovezza                  2  R$     7.032,73
+    2  Condominio Edificio Raposo Tavares                           5  R$     4.873,73
+    3  Condominio Edificio Olivais                                  4  R$     4.632,24
+    4  Condominio Edificio Maison Saint Etienne                     3  R$     4.445,54
+    5  Condominio Edificio Macunaima                                2  R$     3.756,14
+    6  Condominio Edificio Park                                     3  R$     3.378,57
+    7  Condominio Edificio Costa Brava                              2  R$     2.896,15
+    8  Condominio Edificio Mont Blanc                               1  R$     2.000,00
+    9  Condomínio Residencial Ipiranga                              2  R$     1.992,55
+   10  Condomínio Cullinan                                          2  R$     1.965,00
+   11  Condominio Cube Vila Ipojuca                                 3  R$     1.750,00
+   12  Condominio Edificio Green Gold                               3  R$     1.750,00
+   13  Condominio Edificio Cintia                                   2  R$     1.609,49
+   14  CONDOMINIO EDIFICIO BONAIRE                                  2  R$     1.365,53
+   15  CONDOMINIO RESIDENCIAL ARAUCARIAS                            2  R$     1.315,00
+   16  Condominio Edificio Via Del Corso                            3  R$     1.098,98
+   17  Condominio Edificio Piazza Fontana                           2  R$     1.009,38
+   18  Condominio Edificio Jardim Buenos Aires                      3  R$       965,37
+   19  EDIFICIO ASSUMPTA DE SICA                                    1  R$       900,00
+   20  CONDOMINIO SINTONIA PERDIZES                                 1  R$       900,00
+   21  Condominio Edificio Concor                                   2  R$       828,68
+   22  Condominio Edificio Reynolds                                 2  R$       810,98
+   23  SHIFT MOBILIDADE LTDA (SEGUNDO)                              1  R$       800,00
+   24  CONDOMINIO EDIFICIO ALVORADA                                 1  R$       750,00
+   25  Edificio Helbor Loft Evolution                               1  R$       749,18
+   26  CONDOMINIO EDIFICIO CEZARIO MOTTA                            1  R$       730,12
+   27  Condomínio Edifício Olga                                     1  R$       726,69
+   28  Associação Dos Moradores Do Conj Res Fortezza Di Ferrara           1  R$       700,01
+   29  Condominio Edificio Verbena                                  1  R$       656,77
+   30  Edificio Penthouse Campo Belo                                1  R$       650,00
+
+====================================================================================================
+  6. RESUMO FINANCEIRO
+====================================================================================================
+  Valor total notas ativas                      R$   112.543,56
+  Valor notas canceladas                        R$    27.195,00
+
+  Recebido via boletos (PAGO)                   R$    28.128,92
+  Em aberto / vencido (boletos ativos)          R$         0,00
+  Expirado / cancelado (boletos)                R$     1.862,62
+  Sem boleto emitido (a cobrança)               R$    73.766,47
+
+    Taxa de recebimento                         25.0%
+
+====================================================================================================
+  9B. ANALISE CRUZADA  INTER API  vs  BANCO LOCAL  —  2026-01-01 a 2026-03-18
+====================================================================================================
+  Periodo analisado                             2026-01-01  a  2026-03-18
+
+  Cobranças no Inter (periodo)                  100
+  Boletos no DB (periodo)                       68
+
+  Situações no Inter:
+      CANCELADO                                   10  |  R$     2.217,64
+      EXPIRADO                                     4  |  R$     1.765,56
+      RECEBIDO                                    86  |  R$    38.771,26
+
+  Situações no banco local (periodo):
+      CANCELADO                                    3  |  R$     1.312,62
+      EXPIRADO                                     2  |  R$       550,00
+      PAGO                                        63  |  R$    28.111,96
+
+  Matched (Inter + DB coincidentes)             65
+    Totalmente OK (status+valor+pagto)          3
+    Divergencia de status                       61
+    Divergencia de valor                        1
+    Divergencia de data pagamento               0
+
+  No Inter mas FORA do DB (periodo)             35
+  No DB mas FORA do Inter (periodo)             3
+  No DB sem codigo Inter (forma Inter)          0
+  No DB manuais (outros meios pgto)             0
+
+----------------------------------------------------------------------------------------------------
+  DIVERGENCIAS DE STATUS — 61 boletos
+----------------------------------------------------------------------------------------------------
+  Ação: o banco local deve ser sincronizado com o status do Inter.
+
+   ID_DB  Nota                    Condominio                             Inter            DB           Valor  Vencimento
+  ------------------------------------------------------------------------------------------------------------------------
+  #  531  7575                    Condomínio Edifício Lorenzetti      RECEBIDO          PAGO  R$       253,05  13/02/2026
+  #  497  7614                    Sbios - Investimentos Imobilirios      RECEBIDO          PAGO  R$       337,40  10/03/2026
+  #  544  29-2                    Condomínio Edifício Dakota          RECEBIDO          PAGO  R$       400,00  09/02/2026
+  #  485  7620                    Condominio Edificio Maison Saint Etienne      RECEBIDO          PAGO  R$       468,59  12/03/2026
+  #  529  7580                    Condomínio Edifício Five Stars      RECEBIDO          PAGO  R$       253,05  13/02/2026
+  #  498  7606                    Condomínio Residencial Ipiranga      RECEBIDO          PAGO  R$       457,63  10/03/2026
+  #  484  7624                    Condominio Edificio Vermont         RECEBIDO          PAGO  R$       457,61  12/03/2026
+  #  534  37-2                    CONDOMINIO SINTONIA PERDIZES        RECEBIDO          PAGO  R$       250,00  13/02/2026
+  #  541  36-2                    Condominio Residencial Le Monde      RECEBIDO          PAGO  R$       250,00  09/02/2026
+  #  496  7608                    Condominio Edificio Odete           RECEBIDO          PAGO  R$       295,22  10/03/2026
+  #  506  7615                    CONDOMINIO SINTONIA PERDIZES        RECEBIDO          PAGO  R$       759,15  10/03/2026
+  #  487  7630                    Condominio Edificio Reynolds        RECEBIDO          PAGO  R$       388,83  15/03/2026
+  #  540  23-2                    Condominio Edificio Odete           RECEBIDO          PAGO  R$       250,00  09/02/2026
+  #  490  7625                    Condominio Edificio Via Del Corso      RECEBIDO          PAGO  R$       378,71  12/03/2026
+  #  530  7576                    —                                   RECEBIDO          PAGO  R$       506,10  13/02/2026
+  #  521  48-2                    EDIFICIO ASSUMPTA DE SICA           RECEBIDO          PAGO  R$       250,00  26/02/2026
+  #  495  7609                    Condominio Edificio Olivais         RECEBIDO          PAGO  R$       482,68  10/03/2026
+  #  481  7628                    Condominio Edificio Jardim Buenos Aires      RECEBIDO          PAGO  R$       392,55  15/03/2026
+  #  523  42-2                    CONDOMINIO EDIFICIO THE CRYSTAL HOUSE      RECEBIDO          PAGO  R$     2.725,00  23/02/2026
+  #  516  7589                    Condominio Edificio Porto Alegre      RECEBIDO          PAGO  R$       236,18  26/02/2026
+  #  504  7610                    Condominio Edificio Paço de Hygienopolis      RECEBIDO          PAGO  R$       533,34  10/03/2026
+  #  501  7602                    Condominio Edificio Cintia          RECEBIDO          PAGO  R$       387,59  10/03/2026
+  #  525  40-2                    CONDOMINIO EDIFICIO BAHAMAS         RECEBIDO          PAGO  R$       380,00  23/02/2026
+  #  478  44-2                    Condominio Edificio Mont Blanc      RECEBIDO          PAGO  R$       315,00  16/03/2026
+  #  502  7599                    CONDOMINIO EDIFICIO BONAIRE         RECEBIDO          PAGO  R$       308,31  10/03/2026
+  #  520  52-2                    Condomínio Edifício Ninon           RECEBIDO          PAGO  R$       250,00  26/02/2026
+  #  510  7596                    EDIFICIO ASSUMPTA DE SICA           RECEBIDO          PAGO  R$       759,15  10/03/2026
+  #  483  7621                    Condominio Edificio Park            RECEBIDO          PAGO  R$       361,49  12/03/2026
+  #  494  7616                    CONDOMINIO EDIFICIO THE CRYSTAL HOUSE      RECEBIDO          PAGO  R$       506,10  10/03/2026
+  #  536  7574                    Condomínio Edifício Helena Maria      RECEBIDO          PAGO  R$       236,18  13/02/2026
+  #  518  49-2                    Condominio Edificio Vermont         RECEBIDO          PAGO  R$       450,00  26/02/2026
+  #  499  7607                    Condominio Edificio Lucerna         RECEBIDO          PAGO  R$       401,30  10/03/2026
+  #  507  7605                    Condominio Edificio Green Gold      RECEBIDO          PAGO  R$       590,45  10/03/2026
+  #  489  7629                    Condominio Edificio Park Avenue      RECEBIDO          PAGO  R$       437,46  15/03/2026
+  #  514  7587                    Condominio Edificio San Marino      RECEBIDO          PAGO  R$       236,18  26/02/2026
+  #  493  7613                    Condominio Edificio Raposo Tavares      RECEBIDO          PAGO  R$       337,40  10/03/2026
+  #  508  7601                    CONDOMINIO EDIFICIO CEZARIO MOTTA      RECEBIDO          PAGO  R$       615,86  10/03/2026
+  #  488  7622                    Condominio Edificio Piazza Fontana      RECEBIDO          PAGO  R$       514,02  12/03/2026
+  #  524  41-2                    CONDOMINIO EDIFICIO MARIANGELA TEIXEIRA      RECEBIDO          PAGO  R$       680,00  23/02/2026
+  #  479  7618                    Condominio Edificio Angra dos Reis      RECEBIDO          PAGO  R$       538,51  12/03/2026
+  #  527  7579                    Condominio Edificio Park Avenue      RECEBIDO          PAGO  R$       632,62  13/02/2026
+  #  509  7600                    CONDOMINIO EDIFICIO CAP MARTINIQUE      RECEBIDO          PAGO  R$       379,58  10/03/2026
+  #  491  7623                    Condominio Edificio Raposo Tavares      RECEBIDO          PAGO  R$       357,42  12/03/2026
+  #  500  7611                    Edificio Penthouse Campo Belo       RECEBIDO          PAGO  R$       571,65  10/03/2026
+  #  538  26-2                    Condominio Edificio Lucerna         RECEBIDO          PAGO  R$       600,00  09/02/2026
+  #  526  46-2                    Condominio Edificio Paço de Hygienopolis      RECEBIDO          PAGO  R$       120,00  23/02/2026
+  #  532  7577                    Condomínio Flamboyant               RECEBIDO          PAGO  R$       236,18  13/02/2026
+  #  512  7597                    CONDOMINIO EDIFICIO BAHAMAS         RECEBIDO          PAGO  R$       404,88  10/03/2026
+  #  528  7578                    Condominio Conjunto Residencial Villar do Paraiso      RECEBIDO          PAGO  R$       295,22  13/02/2026
+  #  533  7581                    Condominio Edificio Olivais         RECEBIDO          PAGO  R$       320,53  13/02/2026
+  #  535  7582                    Condominio Edificio San Marino      RECEBIDO          PAGO  R$       236,18  13/02/2026
+  #  515  7588                    Edificio Helbor Loft Evolution      RECEBIDO          PAGO  R$       354,27  26/02/2026
+  #  482  7627                    Condominio Edificio Ibirapuera Park      RECEBIDO          PAGO  R$       499,74  15/03/2026
+  #  486  7626                    Edificio Helbor Loft Evolution      RECEBIDO          PAGO  R$       631,93  15/03/2026
+  #  505  7612                    Condominio Edificio Piazza Fontana      RECEBIDO          PAGO  R$       337,40  10/03/2026
+  #  537  38-2                    Condominio Estilo Higienopolis      RECEBIDO          PAGO  R$       250,00  13/02/2026
+  #  480  7617                    Condomínio Ville Courchevel         RECEBIDO          PAGO  R$       168,70  10/03/2026
+  #  511  7598                    CONDOMINIO BEM VIVER GENERAL JARDIM      RECEBIDO          PAGO  R$       351,31  10/03/2026
+  #  522  47-2                    Condomínio Cullinan                 RECEBIDO          PAGO  R$       910,00  26/02/2026
+  #  503  7603                    Condominio Edificio Costa Brava      RECEBIDO          PAGO  R$       798,08  10/03/2026
+  #  513  7584                    Condomínio Flamboyant               RECEBIDO          PAGO  R$       236,18  26/02/2026
+
+----------------------------------------------------------------------------------------------------
+  DIVERGENCIAS DE VALOR — 1 boletos
+----------------------------------------------------------------------------------------------------
+
+   ID_DB  Nota                         Val Inter          Val DB          Diff  Vencimento
+  ------------------------------------------------------------------------------------------
+  #  519  53-2                    R$     1.000,00  R$       500,00  R$       500,00  26/02/2026
+
+----------------------------------------------------------------------------------------------------
+  COBRANÇAS NO INTER SEM REGISTRO LOCAL — 35
+----------------------------------------------------------------------------------------------------
+  Esses boletos foram emitidos no Inter mas nao foram importados para o banco local.
+  Possíveis causas: gerados fora do sistema, período anterior, ou importacao pendente.
+
+  #     CodigoSolicitacao                       SeuNumero                  Valor        Venc  Sit           Pagador
+  ----------------------------------------------------------------------------------------------------------------------------------
+  1     b6d92bde-928b-4631-837c-cf3052d0e6fd    000.000.068A      R$       700,00  2026-03-16  RECEBIDO      CONDOMINIO EDIFICIO IBIRAPUERA PARK
+  2     630f405f-2f8c-48c3-8700-228c3cf46b58    000.000.067A      R$       600,00  2026-03-16  RECEBIDO      CONDOMINIO EDIFICIO MAISON DE LORRAINE
+  3     b6cbe01d-e523-43b0-934d-ddb94fdfd525    000.000.070A      R$       150,00  2026-03-16  RECEBIDO      CONDOMINIO EDIFICIO VIA DEL CORSO
+  4     b576bb28-51db-4657-9724-41b96838a952    7650A             R$       548,28  2026-03-16  RECEBIDO      CONDOMINIO EDIFICIO ROSA F MAURO
+  5     ff170ab1-a75e-48e2-8971-da191cc24306    000.000.069A      R$       350,00  2026-03-16  RECEBIDO      CONDOMINIO EDIFICIO CEZARIO MOTTA
+  6     4e4e1881-623d-42aa-8bfb-88928dee4d9e    000.000.061A      R$       575,00  2026-03-13  EXPIRADO      CONDOMINIO BEM VIVER GENERAL JARDIM
+  7     bcf97ad7-3990-46f1-a606-1a2992bb9b78    7648.063A         R$       501,52  2026-03-13  EXPIRADO      CONDOMINIO EDIFICIO CHANCELER
+  8     0d356e3e-687f-4707-8770-0747b0671dc2    7645A             R$       891,19  2026-03-13  RECEBIDO      CONDOMINIO EDIFICIO VERMONT
+  9     aa61d7bf-5d52-46a2-8ee1-f3f081c5ebe4    7647.062A         R$       353,05  2026-03-13  RECEBIDO      CONDOMINIO EDIFICIO ASSUMPTA DE SICA
+  10    8eead09a-4d22-4d7d-99b8-e37bec0ec7ed    000.000.064A      R$       595,00  2026-03-13  RECEBIDO      EDIFICIO PENTHOUSE CAMPO BELO
+  11    4c5d6630-c332-4eef-a5af-3b060d63feb0    7644.060A         R$     1.050,88  2026-03-12  RECEBIDO      CONDOMINIO EDIFICIO MARIANGELA TEXEIRA
+  12    4b30b56a-106a-4b70-b934-9818d04844e9    7616M             R$       349,50  2026-03-12  RECEBIDO      CONDOMINIO EDIFICIO CONCOR
+  13    5c9ca00a-21c7-4e38-8dc4-f89569e8f3ec    7605M             R$       590,45  2026-03-10  RECEBIDO      Condominio Edificio Green Gold
+  14    f2d0477f-e384-4c75-b3c9-6ee9eef6e668    7595M             R$       632,62  2026-03-10  RECEBIDO      CONDOMINIO EDIFICIO ALVORADA
+  15    e05b5165-3aa0-4dea-9fe5-6ddb47dfeed8    000.000.057A      R$       450,00  2026-03-03  RECEBIDO      CONDOMINIO EDIFICIO ANGRA DOS REIS
+  16    ff42a9f9-a745-4cdd-bbf0-511d1133806b    000.000.055A      R$       250,00  2026-03-03  RECEBIDO      CONDOMINIO EDIFICIO CAP MARTINIQUE
+  17    8c02784f-9eca-4a73-8d82-86b650861c68    000.000.056A      R$       350,00  2026-03-03  RECEBIDO      CONDOMINIO EDIFICIO ALVORADA
+  18    a80c3886-d8ac-4d8f-a353-f05ffae62013    7591A             R$       295,22  2026-03-03  RECEBIDO      CONDOMINIO EDIFICIO OLIVAIS
+  19    dca4ee6e-9301-4267-926f-4a2bb9a6499f    943934330         R$        10,01  2026-02-27  CANCELADO     Gabriel Moreira Pedretti
+  20    7a900afb-f2df-4c6d-81d8-80cb9d485ec4    2323              R$        10,00  2026-02-27  CANCELADO     Gabriel Moreira Pedretti
+  21    9c5dc81a-bc41-44ce-9a93-73943291b8da    11                R$        10,00  2026-02-27  CANCELADO     Gabriel Moreira Pedretti
+  22    aeb1dbe1-3d60-484d-8dce-c0621f789667    7593A             R$       320,53  2026-03-03  RECEBIDO      CONDOMINIO EDIFICIOS GREVILLE E FLAMBOYANT
+  23    c08d620c-2ae3-430c-8753-f2d013ce1182    7592A             R$       531,40  2026-03-03  RECEBIDO      CONDOMINIO EDIFICIO NINON
+  24    a54fd430-cd15-4fbc-ba5e-17d2f34fefa6    7594A             R$       236,18  2026-03-03  RECEBIDO      CONDOMINIO FELICITA RESIDENCIAL
+  25    7fbdb0bc-6e5a-4ba1-9cee-1bae2d91fb9c    001               R$        20,00  2026-02-26  CANCELADO     Gabriel Moreira Pedretti
+  26    27dec3ed-1ddf-4c40-ae60-3ae59a011462    000.000.053A      R$       500,00  2026-02-26  RECEBIDO      CONDOMINIO EDIFICIO SINTONIA PERDIZES
+  27    b8371898-51c3-42eb-b020-4f6d896db62e    001               R$        20,00  2026-02-19  CANCELADO     Gabriel Moreira Pedretti
+  28    2586bff6-f529-4a3c-a712-e7afbfb88eef    001               R$        20,00  2026-02-19  CANCELADO     Gabriel Moreira Pedretti
+  29    ef98bb2e-50d7-4738-9715-b1f4d48c4e25    000.000.044A      R$       315,00  2026-02-23  RECEBIDO      CONDOMINIO EDIFICIO MONT BLANC
+  30    b5fb129d-ef97-44a9-b058-a6d1b703bc03    000.000.044A      R$       315,00  2026-02-23  CANCELADO     CONDOMINIO CULLINAN
+  31    ec6115d7-69aa-44f2-b084-b43d1ec19faf    000.000.021A      R$       475,00  2026-02-09  RECEBIDO      CONDOMINO EDIFICIO SAN MARINO
+  32    b759ce9d-1171-4a62-96e5-ac22e231f432    000.000.035A      R$       515,00  2026-02-09  RECEBIDO      CONDOMINIO EDIFICIO ARAUCARIAS
+  33    ad2886cd-1533-4017-8fab-882207abcc1b    022/7573A         R$       239,04  2026-02-09  EXPIRADO      Condominio Edificio Green Gold
+  34    9fa5930d-e392-44f0-9fd7-93a681b4e9ec    000.000.030A      R$       350,00  2026-02-09  RECEBIDO      CONDOMINIO CUBE VILA IPOJUCA
+  35    271f1fb8-8b60-48dc-adc0-685deffc7c81    000.000.031A      R$        50,00  2026-02-09  RECEBIDO      CONDOMINIO EDIFICIO JARDIM BUENOS AIRES
+
+----------------------------------------------------------------------------------------------------
+  BOLETOS DB SEM CORRESPONDENTE NO INTER — 3
+----------------------------------------------------------------------------------------------------
+  Esses boletos estao no banco local com codigo_solicitacao, mas o Inter nao os retornou.
+  Possíveis causas: cancelados em outro periodo, erro na emissao, ou codigo desatualizado.
+
+  #  542  28-2                    Cod: ed4d9ebe-9e66-49e0-9ca0-8ea92ad5eab3  Sit: EXPIRADO  Valor: R$       100,00  Venc: 09/02/2026  Cond: Condominio Edificio Raposo Tavares
+  #  543  32-2                    Cod: 0c62946a-b0e0-45cc-965b-22ce745ede8c  Sit: PAGO  Valor: R$        70,00  Venc: 09/02/2026  Cond: Condomínio Edifício Margaux
+  #  545  27-2                    Cod: fd6c76c3-9f66-4a20-94e7-549fd6fe1b81  Sit: PAGO  Valor: R$       720,00  Venc: 09/02/2026  Cond: Condominio Edificio Paço de Hygienopolis
+
+----------------------------------------------------------------------------------------------------
+  CONCLUSAO
+----------------------------------------------------------------------------------------------------
+  OK  3 boleto(s) completamente sincronizados (status + valor + pagamento).
+  ACAO NECESSARIA: 61 boleto(s) com status divergente (Inter vs DB).
+        -> Use a rota POST /boletos/sincronizar-inter ou atualize manualmente.
+  VERIFICAR: 1 boleto(s) com valor diferente do Inter.
+  VERIFICAR: 35 cobranca(s) no Inter sem registro local.
+        -> Podem ter sido emitidas fora do sistema ou sao de outro período.
+  VERIFICAR: 3 boleto(s) locais sem correspondente no Inter.
+
+====================================================================================================
+  Fim do diagnóstico  —  18/03/2026 01:05:45
+====================================================================================================

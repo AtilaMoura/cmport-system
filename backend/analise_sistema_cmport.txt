@@ -1,0 +1,563 @@
+====================================================================================================
+  ANÁLISE COMPLETA DO SISTEMA CMPORT — 16/03/2026
+  Baseada no relatório diagnostico_20260316_172246.txt + leitura completa do código
+====================================================================================================
+
+Esta análise cobre o que está funcionando, o que está faltando, o que está errado nos dados,
+e o que precisa ser implementado para o sistema funcionar de forma completa e confiável.
+
+====================================================================================================
+  PARTE 1 — SITUAÇÃO ATUAL DOS DADOS (o que o diagnóstico revelou)
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+  1.1  PANORAMA GERAL
+----------------------------------------------------------------------------------------------------
+
+  156 notas fiscais importadas (152 ativas, 4 canceladas)
+  85 boletos na base local
+  141 notas vencidas sem pagamento registrado  (92,8% das ativas!)
+  0 notas com data_pagamento preenchida        (campo completamente vazio no sistema)
+  67 notas PRONTAS para gerar boleto           (R$ 61.646,37 sem cobrança emitida)
+  63 boletos com valor diferente da nota       (maioria com desconto de 15,65%)
+  R$ 35.584,51 recebidos via boletos Inter     (taxa de recebimento: 32,3%)
+  R$ 517,90 recebidos sem condomínio           (dinheiro sem destinatário identificado)
+
+  → O sistema está funcionando apenas para gerar boletos Inter.
+    Tudo que envolve registrar que foi pago (e de que forma) não existe.
+
+----------------------------------------------------------------------------------------------------
+  1.2  O PROBLEMA DO ISS — CAUSA DA DIVERGÊNCIA EM 63 NOTAS
+----------------------------------------------------------------------------------------------------
+
+  Nas notas do grupo 7528–7589 (manutenção de janeiro), o boleto tem valor = 84,35% da nota.
+  Exemplos:
+    Nota 7528  R$ 900,00  →  Boleto R$ 759,15  (−15,65%)
+    Nota 7529  R$ 750,00  →  Boleto R$ 632,63  (−15,65%)
+    Nota 7546  R$ 900,00  →  Boleto R$ 759,15  (−15,65%)
+
+  O percentual 15,65% é consistente em TODAS essas notas. Isso é ISS (Imposto Sobre Serviços)
+  que o município de São Paulo retém. O tomador (condomínio) paga o valor LÍQUIDO (sem ISS)
+  e o prestador recolhe o ISS separadamente para a Prefeitura.
+
+  O valor correto do boleto É o valor líquido (sem ISS). O valor da nota é o bruto.
+  O sistema atualmente não tem nenhum campo para registrar isso.
+
+  Nas notas de assistência (21-2, 22-2, etc.), boleto = valor da nota (sem desconto).
+  Isso sugere que essas notas NÃO sofrem retenção de ISS, ou que o ISS já está embutido.
+
+  IMPACTO: O relatório financeiro mostra "recebido: R$ 35.584,51" mas essa é a soma dos valores
+  NOMINAIS dos boletos, não os valores da nota. A reconciliação financeira real é impossível
+  sem saber qual é o percentual de ISS aplicado a cada nota.
+
+----------------------------------------------------------------------------------------------------
+  1.3  O PROBLEMA DAS PARCELAS FALTANTES
+----------------------------------------------------------------------------------------------------
+
+  6 notas parceladas geraram apenas a parcela 1:
+    Nota #1930 (26-2)  2x  →  só parcela 1 gerada (PAGO)  →  falta parcela 2
+    Nota #1938 (35-2)  3x  →  só parcela 1 gerada (PAGO)  →  faltam parcelas 2 e 3
+    Nota #1942 (40-2)  2x  →  só parcela 1 gerada (PAGO)  →  falta parcela 2
+    Nota #1944 (42-2)  2x  →  só parcela 1 gerada (PAGO)  →  falta parcela 2
+    Nota #1948 (47-2)  2x  →  só parcela 1 gerada (PAGO)  →  falta parcela 2
+    Nota #1954 (53-2)  2x  →  só parcela 1 gerada (CANCELADO)  →  falta parcela 2
+
+  Essas notas foram importadas ANTES da implementação do sistema de parcelas.
+  O sistema não tem um endpoint para gerar as parcelas faltantes de uma nota que já
+  tem a parcela 1 emitida. Precisa ser criado.
+
+----------------------------------------------------------------------------------------------------
+  1.4  NOTA #1914 — DINHEIRO RECEBIDO SEM CONDOMÍNIO
+----------------------------------------------------------------------------------------------------
+
+  Nota fiscal nº 7576  →  R$ 517,90 recebidos  →  SEM condomínio vinculado.
+  O CNPJ do tomador dessa nota é "ARQMEDS MAMORARIA LTDA" (provavelmente um escritório
+  de arquitetura ou marmoraria) que não está cadastrado no sistema como condomínio.
+
+  R$ 517,90 estão no caixa do banco Inter mas não há como saber a quem atribuir esse valor.
+  Ação necessária: identificar o condomínio e vincular a nota manualmente.
+
+----------------------------------------------------------------------------------------------------
+  1.5  76 BOLETOS PAGO — 0 NOTAS COM DATA_PAGAMENTO
+----------------------------------------------------------------------------------------------------
+
+  Todos os 76 boletos marcados como PAGO têm data_pagamento = NULL.
+  Isso acontece porque a sincronização do Inter atualiza o STATUS do boleto mas nunca
+  atualiza o campo data_pagamento na tabela notas_fiscais.
+
+  CORREÇÃO JÁ APLICADA: foi adicionada a função _atualizar_data_pagamento_nota() no
+  boleto_service.py que, após marcar um boleto como PAGO, verifica se todos os boletos
+  da nota estão pagos e atualiza nota.data_pagamento.
+
+  Para corrigir os dados existentes, é necessário rodar uma sincronização ou executar
+  um script de correção SQL.
+
+
+====================================================================================================
+  PARTE 2 — O QUE ESTÁ FALTANDO NO CÓDIGO (lacunas críticas)
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+  2.1  FORMA DE PAGAMENTO — LACUNA MAIS CRÍTICA
+----------------------------------------------------------------------------------------------------
+
+  PROBLEMA: O sistema assume que TODO pagamento é feito via boleto Banco Inter.
+  REALIDADE: Clientes pagam também por:
+    - PIX (direto na conta)
+    - Dinheiro / cheque (entregue presencialmente)
+    - Boleto de outro banco (ex: Itaú)
+    - Transferência bancária (TED/DOC)
+
+  O que existe hoje:
+    - Tabela boletos: só vincula nota a boleto Inter
+    - Não há como registrar pagamento em outra forma
+    - Se o cliente paga por PIX, o sistema nunca saberá
+
+  O que precisa ser criado:
+
+  OPÇÃO A — Campo simples na nota:
+    Na tabela notas_fiscais, adicionar:
+      forma_pagamento  VARCHAR(20)   (ex: BOLETO_INTER, BOLETO_ITAU, PIX, DINHEIRO, TRANSFERENCIA)
+      banco_pagamento  VARCHAR(50)   (ex: "Itaú AG 0341 CC 12345-6")
+    E um endpoint: PATCH /notas-fiscais/{id}/registrar-pagamento
+      Body: { data_pagamento, valor_recebido, forma_pagamento, observacao }
+    Isso simplesmente marca a nota como paga com a forma e data informadas.
+
+  OPÇÃO B — Tabela separada de pagamentos (mais completo, mais trabalho):
+    Criar tabela pagamentos:
+      id, nota_fiscal_id, boleto_id (nullable), data_pagamento, valor,
+      forma (enum), banco, observacao, criado_em
+    Permite:
+      - Uma nota paga em partes (PIX de metade, boleto do resto)
+      - Rastrear exatamente quem pagou o quê e quando
+      - Relatório de recebimentos por forma de pagamento
+
+  RECOMENDAÇÃO: Começar com Opção A (mais simples, resolve 90% dos casos).
+  Migrar para Opção B quando houver necessidade de múltiplas formas por nota.
+
+----------------------------------------------------------------------------------------------------
+  2.2  ENDPOINT PARA GERAR PARCELAS FALTANTES
+----------------------------------------------------------------------------------------------------
+
+  PROBLEMA: gerar_boletos() recusa se já existe boleto para a nota:
+    if existentes:
+        erros.append({"nota_id": nota_id, "erro": "Boleto(s) já gerado(s)"})
+        continue
+
+  Isso impede gerar as parcelas 2, 3, etc. de notas que já têm parcela 1.
+
+  O que precisa ser criado:
+    Endpoint: POST /boletos/gerar-parcelas-faltantes/{nota_id}
+    Lógica:
+      1. Busca nota e seus boletos existentes
+      2. Calcula quais parcelas estão faltando (range(1, parcelas+1) - {nums existentes})
+      3. Gera somente as parcelas que faltam no Inter
+      4. Não toca nas parcelas existentes
+
+  Notas que precisam disso agora:
+    #1930 (26-2) → parcela 2  |  venc: 09/03/2026
+    #1938 (35-2) → parcelas 2 e 3  |  vencs: 09/03 e 09/04/2026
+    #1942 (40-2) → parcela 2  |  venc: 23/03/2026
+    #1944 (42-2) → parcela 2  |  venc: 23/03/2026
+    #1948 (47-2) → parcela 2  |  venc: 26/03/2026
+    #1954 (53-2) → parcela 2  |  mas parcela 1 está CANCELADA — avaliar se gera
+
+----------------------------------------------------------------------------------------------------
+  2.3  ENDPOINT PARA VINCULAR NOTA A CONDOMÍNIO MANUALMENTE
+----------------------------------------------------------------------------------------------------
+
+  PROBLEMA: Nota #1914 (7576) não entrou porque o CNPJ do tomador não está cadastrado.
+  Hoje não há como corrigir isso pela interface — seria necessário ir direto no banco de dados.
+
+  O que precisa ser criado:
+    Endpoint: PATCH /notas-fiscais/{id}/vincular-condominio
+      Body: { condominio_id: int }
+    Lógica:
+      1. Atualiza nota.condominio_id
+      2. Verifica se o condomínio tem CNPJ (avisa se não tiver)
+      3. Gera serviço se a nota for MANUTENCAO ou ASSISTENCIA e ainda não houver serviço
+
+----------------------------------------------------------------------------------------------------
+  2.4  CAMPO ISS / VALOR LÍQUIDO NA NOTA FISCAL
+----------------------------------------------------------------------------------------------------
+
+  PROBLEMA: O boleto Inter é emitido com 84,35% do valor da nota.
+  O sistema não tem nenhum campo para registrar isso.
+  Resultado: divergência entre nota.valor e boleto.valor_nominal em 63 notas.
+
+  O que precisa ser adicionado ao modelo NotaFiscal:
+    percentual_iss   Float  nullable  (ex: 15.65)
+    valor_iss        Float  nullable  (ex: 140.85 para nota de R$ 900)
+    valor_liquido    Float  nullable  (ex: 759.15 — é o que o cliente paga)
+
+  Na importação do XML (notas_fiscais/service.py), extrair o ISS do campo XML se disponível.
+  Na geração do boleto (boleto_service.py), usar nota.valor_liquido como valorNominal
+  em vez de nota.valor quando o valor_liquido estiver preenchido.
+
+----------------------------------------------------------------------------------------------------
+  2.5  CAMPO DE OBSERVAÇÃO / FORMA NO MODELO DE BOLETO
+----------------------------------------------------------------------------------------------------
+
+  Adicionar ao modelo Boleto:
+    forma_pagamento   VARCHAR(20)   (BOLETO_INTER, BOLETO_ITAU, PIX, DINHEIRO, TRANSFERENCIA)
+    banco_pagamento   VARCHAR(100)  (para boletos de outros bancos: "Itaú", "Bradesco" etc.)
+    linha_digitavel   VARCHAR(60)   (para boletos de outros bancos, registro manual)
+    observacao        TEXT          (campo livre para anotações)
+
+  Isso permite:
+    - Boleto do Itaú criado manualmente sem chamar a API Inter
+    - Histórico de qual banco processou cada pagamento
+    - Anotações sobre negociação (ex: "acordado desconto de 10%")
+
+----------------------------------------------------------------------------------------------------
+  2.6  ENDPOINT PARA CRIAR BOLETO MANUAL (SEM INTER)
+----------------------------------------------------------------------------------------------------
+
+  PROBLEMA: Hoje só é possível criar boletos via Banco Inter. Se o cliente quer
+  boleto do Itaú ou quer registrar um acordo de pagamento, não há como fazer.
+
+  O que precisa ser criado:
+    Endpoint: POST /boletos/registrar-manual
+      Body: {
+        nota_fiscal_id: int,
+        numero_parcela: int,
+        total_parcelas: int,
+        valor_nominal: float,
+        data_vencimento: date,
+        forma_pagamento: str,   (BOLETO_ITAU, PIX, DINHEIRO, etc.)
+        banco_pagamento: str,   (opcional)
+        linha_digitavel: str,   (opcional)
+        observacao: str         (opcional)
+      }
+    Lógica:
+      1. Cria boleto SEM chamar API Inter (sem codigo_solicitacao)
+      2. situacao = EMABERTO
+      3. Se forma = DINHEIRO e já foi recebido, permite passar situacao = PAGO
+
+    Endpoint: POST /boletos/{id}/registrar-pagamento (para marcar pagamento manual)
+      Body: {
+        data_pagamento: date,
+        valor_recebido: float,
+        forma_pagamento: str,
+        observacao: str
+      }
+      Lógica: atualiza situacao = PAGO, data_pagamento, valor_total_recebido
+              chama _atualizar_data_pagamento_nota()
+
+----------------------------------------------------------------------------------------------------
+  2.7  STATUS NO SERVIÇO (ManutencaoAssistencia)
+----------------------------------------------------------------------------------------------------
+
+  PROBLEMA: O modelo ManutencaoAssistencia não tem:
+    - Campo valor (o serviço não sabe quanto custa, só a nota sabe)
+    - Campo status (não há como saber se foi concluído, cancelado, aguardando)
+    - Campo responsavel_tecnico ou nome_tecnico
+    - Campo numero_os (ordem de serviço)
+    - Campo data_conclusao
+
+  Hoje o serviço é criado automaticamente na importação da nota, com:
+    tipo, data_servico (= data da nota), descricao (= discriminação da nota), condominio_id
+
+  O que está faltando (sugestão de campos a adicionar):
+    status           VARCHAR(20)  (ABERTO, EM_ANDAMENTO, CONCLUIDO, CANCELADO)
+    valor            Float        (espelha nota.valor ou valor_liquido)
+    data_conclusao   Date
+    tecnico          VARCHAR(100)
+    numero_os        VARCHAR(50)
+
+  Sem isso, a tela de serviços só mostra o histórico mas não o acompanhamento real.
+
+----------------------------------------------------------------------------------------------------
+  2.8  SINCRONIZAÇÃO AUTOMÁTICA
+----------------------------------------------------------------------------------------------------
+
+  PROBLEMA: A sincronização com o Inter é 100% manual.
+  Se alguém pagar um boleto hoje à noite, o sistema só vai saber quando alguém
+  clicar em "Sincronizar" na interface.
+
+  O que precisa ser implementado:
+    Opção A (simples): Endpoint GET /boletos/sincronizar-pendentes que roda
+      a sincronização dos boletos EMABERTO e VENCIDO. Configurar chamada
+      automática via cron externo (Windows Task Scheduler, etc.).
+
+    Opção B (ideal): Webhook da API Inter.
+      O Banco Inter suporta notificações via webhook quando um boleto é pago.
+      Ao receber a notificação, o sistema atualiza automaticamente o boleto.
+      Precisaria de um endpoint: POST /webhooks/inter
+      e configuração no portal Inter.
+
+    Por enquanto: Opção A é suficiente. Rodar: python -c "import requests;
+      requests.post('http://localhost:8000/api/v1/boletos/sincronizar')"
+      via cron diário resolve o problema principal.
+
+----------------------------------------------------------------------------------------------------
+  2.9  CONDOMÍNIOS SEM CNPJ — 318 REGISTROS
+----------------------------------------------------------------------------------------------------
+
+  PROBLEMA: 318 de 617 condomínios não têm CNPJ (51,5%).
+  Para esses condomínios é IMPOSSÍVEL gerar boleto Inter.
+  Muitos parecem ser pessoas físicas ("Casa da Dona Marcia", "Elizabetta Parasmo",
+  "Henrique", "Vanessa", etc.) ou clientes informais.
+
+  O que está faltando:
+    1. Diferenciar no cadastro: CONDOMÍNIO (tem CNPJ, gera boleto) vs CLIENTE_PF
+       (pessoa física, CNPJ não aplicável, pagamento só por outras formas)
+    2. Campo cpf para clientes pessoa física (que poderiam ter boleto com CPF)
+    3. Campo tipo_cliente: CONDOMINIO, PF, PJ_SEM_CNPJ
+
+  Enquanto isso não existe, 318 registros nunca terão boleto gerado.
+
+----------------------------------------------------------------------------------------------------
+  2.10  NOTAS TIPO "OUTROS" — DESTINO INCERTO
+----------------------------------------------------------------------------------------------------
+
+  PROBLEMA: Notas do tipo OUTROS não geram serviço e não são cobradas automaticamente.
+  No código, o fluxo é:
+    - MANUTENCAO → gera ManutencaoAssistencia + pode gerar boleto
+    - ASSISTENCIA → gera ManutencaoAssistencia + pode gerar boleto
+    - OUTROS → não gera serviço, mas PODE gerar boleto
+
+  A seção 5 (cruzamentos) inclui notas OUTROS na lista de "prontas para gerar boleto",
+  o que está correto — elas podem ter boleto. Mas não há distinção visual/filtro.
+
+  Sugestão: adicionar filtro por tipo na tela de boletos e na lista de prontas para gerar.
+
+
+====================================================================================================
+  PARTE 3 — INCONSISTÊNCIAS DE DADOS QUE PRECISAM SER CORRIGIDAS
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+  3.1  CORREÇÃO URGENTE — 76 NOTAS PAGO SEM DATA_PAGAMENTO
+----------------------------------------------------------------------------------------------------
+
+  Execute no banco de dados:
+
+  UPDATE notas_fiscais nf
+  JOIN (
+    SELECT nota_fiscal_id, MAX(data_pagamento) as dt_pag
+    FROM boletos
+    WHERE situacao IN ('PAGO','BAIXADO') AND data_pagamento IS NOT NULL
+    GROUP BY nota_fiscal_id
+  ) b ON b.nota_fiscal_id = nf.id
+  SET nf.data_pagamento = b.dt_pag
+  WHERE nf.data_pagamento IS NULL;
+
+  NOTA: Como boleto.data_pagamento também está NULL (os 76 boletos têm data_pagamento = NULL),
+  o UPDATE acima não funcionará. O que está em `valor_total_recebido` veio do Inter mas
+  a data de pagamento real precisa ser buscada pela API Inter individualmente para cada boleto.
+
+  Alternativa: rodar a sincronização GET /api/v1/boletos/sincronizar-do-inter com o
+  período correto, que vai preencher data_pagamento dos boletos via API, e então
+  a nova função _atualizar_data_pagamento_nota() vai preencher a nota automaticamente.
+
+----------------------------------------------------------------------------------------------------
+  3.2  PARCELAS FALTANTES — 6 NOTAS
+----------------------------------------------------------------------------------------------------
+
+  Após criar o endpoint de "gerar parcelas faltantes", executar para:
+    Nota #1930, #1938, #1942, #1944, #1948  (exceto #1954 cuja parcela 1 está CANCELADA)
+
+  ATENÇÃO: As parcelas faltantes provavelmente já estão vencidas. Verificar se é mais
+  adequado criar o boleto atrasado ou negociar nova data com o condomínio.
+
+----------------------------------------------------------------------------------------------------
+  3.3  NOTA #1914 — VINCULAR AO CONDOMÍNIO CORRETO
+----------------------------------------------------------------------------------------------------
+
+  O boleto 7576 foi pago (R$ 517,90). A nota existe. O cliente é "ARQMEDS MAMORARIA LTDA".
+  Pesquisar no cadastro se esse CNPJ pertence a algum condomínio com nome diferente.
+  Se não encontrar, criar o cadastro e vincular.
+
+----------------------------------------------------------------------------------------------------
+  3.4  NOTA #1911 (7573) — VALOR DIVERGENTE NO SENTIDO OPOSTO
+----------------------------------------------------------------------------------------------------
+
+  Nota: R$ 70,00  →  Boleto: R$ 239,04  (341,5%!!!)
+  Isso é claramente um erro: o boleto foi emitido com valor muito maior que a nota.
+  O boleto está EXPIRADO, então não foi pago. Mas é um dado inconsistente.
+  Verificar se houve troca de boleto com outra nota.
+
+----------------------------------------------------------------------------------------------------
+  3.5  NOTA #1964 (11-2) — BOLETO COM 2,2% DO VALOR
+----------------------------------------------------------------------------------------------------
+
+  Nota: R$ 450,00  →  Boleto: R$ 10,00  (CANCELADO, 2,2% do valor)
+  Claramente um boleto de teste ou gerado com erro. Já está cancelado.
+  A nota em si tem 67 notas prontas para gerar — provavelmente precisa de novo boleto correto.
+  Mas a nota está na lista de notas com boleto (porém cancelado) e não vai aparecer
+  nas "prontas para gerar" porque a query de cruzamento exclui notas com qualquer boleto.
+
+  BUG: Notas com TODOS os boletos CANCELADOS ou EXPIRADOS deveriam aparecer como
+  "prontas para gerar novo boleto" — hoje elas ficam presas e não aparecem.
+
+
+====================================================================================================
+  PARTE 4 — BUGS E LACUNAS NO FLUXO DE IMPORTAÇÃO DE NOTAS
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+  4.1  NOTA IMPORTADA SEM SERVIÇO AUTOMÁTICO — NOTAS MANUT/ASSIST SEM SERVIÇO
+----------------------------------------------------------------------------------------------------
+
+  O diagnóstico pode mostrar notas MANUT/ASSIST sem serviço gerado.
+  Isso acontece quando:
+    - A nota foi importada mas o condomínio não estava vinculado na hora (nota.condominio_id = NULL)
+    - Depois que o CNPJ foi cadastrado no condomínio e a nota re-importada, o serviço não foi criado
+
+  CORREÇÃO: Criar endpoint POST /servicos/gerar-faltantes que varre notas MANUT/ASSIST
+  sem serviço vinculado e gera o serviço retroativamente.
+
+----------------------------------------------------------------------------------------------------
+  4.2  IMPORTAÇÃO DUPLICADA — RISCO REAL
+----------------------------------------------------------------------------------------------------
+
+  O campo numero_nota tem unique=True, então nota duplicada seria rejeitada pelo banco.
+  MAS: para notas parceladas, o número da nota é igual para todas as parcelas.
+  Ex: nota "25-2" pode ter parcelas 1/5. Se re-importar o XML, qual número vai ter?
+  O sistema atual usa sempre o número do XML diretamente. Para notas parceladas de
+  assistência (formato "XX-2"), o sistema poderia criar duplicatas se a lógica de
+  número não for cuidadosa.
+
+----------------------------------------------------------------------------------------------------
+  4.3  DATA DE VENCIMENTO PADRÃO
+----------------------------------------------------------------------------------------------------
+
+  Quando o vencimento não é encontrado na discriminação do XML, o sistema usa a
+  data de emissão como vencimento (data_vencimento = data_emissao).
+  Isso gera notas com vencimento = data de emissão, que ficam "vencidas" imediatamente.
+  141 notas vencidas no sistema — parte delas pode ser por esse motivo.
+
+  SUGESTÃO: Quando não encontrar vencimento, usar emissão + 30 dias como padrão,
+  e/ou marcar a nota com um flag "vencimento_estimado = True" para revisão manual.
+
+----------------------------------------------------------------------------------------------------
+  4.4  NOTAS COM VENCIMENTO NO PASSADO SÃO BLOQUEADAS PARA BOLETO?
+----------------------------------------------------------------------------------------------------
+
+  O Banco Inter rejeita boletos com data de vencimento no passado.
+  O sistema tenta emitir boleto com nota.data_vencimento como data de vencimento.
+  Se a nota tem 66 dias de atraso, a API Inter vai rejeitar o boleto.
+
+  SOLUÇÃO: Ao gerar boleto de nota vencida, usar:
+    - data_vencimento = hoje + 5 dias (como padrão para negociação)
+    - ou perguntar ao usuário qual nova data usar
+
+
+====================================================================================================
+  PARTE 5 — PRIORIDADES DE IMPLEMENTAÇÃO
+====================================================================================================
+
+  PRIORIDADE 1 — CRÍTICO (resolve problemas financeiros imediatos)
+  ─────────────────────────────────────────────────────────────────
+  [ ] Endpoint POST /boletos/registrar-manual
+      → Permite criar boleto Itaú / registrar PIX / dinheiro sem precisar da API Inter
+
+  [ ] Endpoint POST /boletos/{id}/registrar-pagamento
+      → Marca boleto como pago manualmente com forma (PIX, dinheiro, Itaú)
+      → Chama _atualizar_data_pagamento_nota() automaticamente
+
+  [ ] Campo forma_pagamento nos boletos e nas notas
+      → Enum: BOLETO_INTER, BOLETO_ITAU, PIX, DINHEIRO, TRANSFERENCIA, CHEQUE
+
+  [ ] Gerar boletos para as 67 notas prontas
+      → Atenção: notas com vencimento passado precisam de nova data
+
+  PRIORIDADE 2 — ALTO (resolve dados inconsistentes)
+  ────────────────────────────────────────────────────
+  [ ] Endpoint POST /boletos/gerar-parcelas-faltantes/{nota_id}
+      → Gera parcelas 2, 3... de notas que já têm parcela 1
+
+  [ ] Endpoint PATCH /notas-fiscais/{id}/vincular-condominio
+      → Corrige nota #1914 e futuras notas sem CNPJ mapeado
+
+  [ ] Sincronização automática (cron) dos boletos pendentes
+      → Hoje é 100% manual — boletos PAGO só aparecem quando alguém clica
+
+  [ ] Correção do data_pagamento nas 76 notas com boleto PAGO
+      → Sincronizar via API Inter para preencher as datas de pagamento dos boletos
+        e depois a nova função preenche a nota
+
+  PRIORIDADE 3 — MÉDIO (melhoria do modelo de dados)
+  ────────────────────────────────────────────────────
+  [ ] Campos ISS na nota fiscal (percentual_iss, valor_iss, valor_liquido)
+      → Resolve divergência de 63 notas vs boletos e reconcilia financeiro
+
+  [ ] Fix: notas com TODOS boletos CANCELADOS/EXPIRADOS devem aparecer como
+      "prontas para gerar" — hoje ficam presas no sistema
+
+  [ ] Geração de serviço retroativo para notas MANUT/ASSIST sem serviço
+
+  [ ] Campo data_conclusao, status e valor no modelo ManutencaoAssistencia
+
+  PRIORIDADE 4 — BAIXO (melhorias de longo prazo)
+  ─────────────────────────────────────────────────
+  [ ] Webhook da API Inter (pagamento automático em tempo real)
+  [ ] Tipo de cliente (PF / PJ / CONDOMINIO) para tratar os 318 sem CNPJ
+  [ ] Tabela pagamentos separada (para múltiplas formas por nota)
+  [ ] Campo vencimento_estimado na nota
+  [ ] Relatório mensal de recebimentos por forma de pagamento
+  [ ] Tela de conciliação: notas pagas vs boletos pagos vs dinheiro recebido
+
+
+====================================================================================================
+  PARTE 6 — RESUMO FINANCEIRO REAL (análise dos números)
+====================================================================================================
+
+  Valor total das notas ativas:       R$ 110.223,56
+  Valor recebido via boleto Inter:    R$  35.584,51  (32,3%)
+  Valor sem boleto emitido:           R$  61.646,37  (55,9%)  ← GERAR URGENTE
+  Expirado/cancelado (perdido?):      R$   2.701,44  ( 2,5%)
+  Em aberto com boleto ativo:         R$       0,00
+
+  OBSERVAÇÃO IMPORTANTE: O "valor recebido" de R$ 35.584,51 é a soma dos
+  valor_nominal dos boletos PAGO. Mas como há desconto de ISS (~15,65%) nos
+  boletos de manutenção, o valor REAL das notas correspondentes é maior.
+  A base bruta (valor das notas) recebida é aproximadamente R$ 35.584,51 / 0,8435
+  = R$ 42.187 em notas brutas.
+
+  Os R$ 61.646,37 sem boleto incluem:
+    - 50 notas de manutenção (março 2026): ~R$ 35.000 (vencem entre 10-25/03)
+    - 17 notas de assistência (jan-fev 2026): ~R$ 26.000 (já vencidas 60+ dias)
+    - As notas de assistência vencidas são o maior risco de inadimplência
+
+  Top 5 devedores (notas vencidas sem boleto):
+    1. Condominio Jose Antonio Alpiovezza:  R$  7.032,73  (2 notas)
+    2. CONDOMINIO EDIFICIO THE CRYSTAL HOUSE: R$  6.650,00  (3 notas)
+    3. Condominio Edificio Raposo Tavares:  R$  5.697,46  (7 notas!)
+    4. Condominio Edificio Maison Saint Etienne: R$  5.001,08  (4 notas)
+    5. Condominio Edificio Olivais:         R$  4.834,48  (5 notas)
+
+  Raposo Tavares tem 7 notas em atraso — é o cliente com maior frequência de inadimplência.
+
+
+====================================================================================================
+  PARTE 7 — OPINIÃO TÉCNICA GERAL
+====================================================================================================
+
+  O sistema CMPort está bem estruturado para a operação principal: importar XML,
+  vincular ao condomínio e gerar boleto no Inter. Esse fluxo funciona.
+
+  Os problemas estão nos CASOS QUE FOGEM DO FLUXO PADRÃO:
+    - Cliente que paga por PIX → sistema não registra
+    - Cliente que paga com boleto Itaú → sistema não registra
+    - Nota sem CNPJ mapeado → fica órfã para sempre
+    - Nota parcelada com parcela 1 paga → sistema não consegue gerar parcela 2
+    - Boleto vencido → API Inter vai rejeitar ao tentar gerar
+
+  A MAIOR LACUNA IMEDIATA é a ausência de qualquer mecanismo de registro de
+  pagamento que não seja via sincronização Inter. Com R$ 61.646,37 em notas sem
+  boleto (muitas já vencidas), grande parte desses valores podem estar sendo
+  cobrados informalmente (PIX, depósito) sem qualquer registro no sistema.
+
+  SUGESTÃO DE PRÓXIMOS PASSOS (ordem de execução):
+    1. Criar endpoint de registrar pagamento manual (PIX/dinheiro)
+    2. Gerar boletos para as 67 notas prontas (ajustando data para notas vencidas)
+    3. Sincronizar Inter para preencher data_pagamento dos 76 boletos PAGO
+    4. Criar endpoint de gerar parcelas faltantes
+    5. Corrigir nota #1914 vinculando ao condomínio correto
+    6. Adicionar campos ISS para reconciliação financeira correta
+
+====================================================================================================
+  Fim da análise — CMPort 16/03/2026
+====================================================================================================

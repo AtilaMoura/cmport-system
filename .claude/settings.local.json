@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(venvScriptspython.exe:*)",
+      "Bash(\"venv/Scripts/python.exe\":*)",
+      "Bash(\"venv/Scripts/pip.exe\" install:*)",
+      "Bash(cp:*)",
+      "Bash(cd:*)",
+      "Bash(docker exec:*)",
+      "Bash(ls:*)",
+      "Bash(./venv/Scripts/python.exe -c \"\nfrom app.services.boleto_service import BoletoService\nfrom app.routers.dev_router import router as dev\nfrom app.schemas.boleto_schema import VincularNotaRequest, NotaSemBoletoResponse\nprint\\('Todos os imports OK'\\)\nprint\\('Métodos do BoletoService:', [m for m in dir\\(BoletoService\\) if not m.startswith\\('_'\\)]\\)\n\" 2>&1 | grep -v \"INFO\\\\|sqlalchemy\\\\|BEGIN\\\\|COMMIT\\\\|DESCRIBE\")",
+      "Bash(python -c \"from app.main import app\")",
+      "Bash(docker ps:*)",
+      "Bash(npm run:*)",
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(venv/Scripts/python -c \"import app.main\")",
+      "Bash(dir:*)",
+      "Bash(venv/Scripts/python diagnostico.py --analise-xml --salvar)",
+      "Bash(PYTHONUTF8=1 venv/Scripts/python -X utf8 diagnostico.py --analise-xml --salvar)",
+      "Bash(find C:/Users/amand/OneDrive/Documentos/CMport/cmport-system/backend -name *.zip -o -name *.xml)",
+      "Bash(PYTHONUTF8=1 venv/Scripts/python -X utf8 diagnostico.py --xml xml --analise-xml --salvar)",
+      "Bash(PYTHONUTF8=1 venv/Scripts/python -X utf8 -c \":*)",
+      "Bash(PYTHONUTF8=1 venv/Scripts/python -X utf8 diagnostico.py --extracao-xml xml --salvar)",
+      "Bash(PYTHONUTF8=1 venv/Scripts/python -X utf8 -W ignore -c \":*)",
+      "Bash(venv/Scripts/python -c \"import pydantic; print\\(pydantic.__version__\\)\")",
+      "Bash(venv/Scripts/python -c \":*)",
+      "Bash(\"venv/Scripts/python.exe\" diagnostico.py --analise-inter --salvar)",
+      "Bash(PYTHONIOENCODING=utf-8 \"venv/Scripts/python.exe\" diagnostico.py --analise-inter --salvar)",
+      "Bash(\"venv/Scripts/python.exe\" -c \":*)",
+      "Bash(python -c \":*)"
+    ]
+  }
+}
