@@ -34,6 +34,10 @@ class NotaFiscalImportada(NotaFiscalBase):
     csll:   Optional[float] = None
     icms:   Optional[float] = None
     prev:   Optional[float] = None
+    # descartado no schema (não persistido diretamente), mas aceito no dict dos parsers
+    data_emissao: Optional[date] = None
+    data_servico: Optional[date] = None
+    numero_os:    Optional[str] = None
 
 
 class NotaFiscalResponse(BaseModel):
@@ -59,6 +63,9 @@ class NotaFiscalResponse(BaseModel):
     csll:   Optional[float] = None
     icms:   Optional[float] = None
     prev:   Optional[float] = None
+    # alertas de divergência de impostos
+    alerta_impostos:      int = 0
+    divergencia_impostos: Optional[dict] = None
     criado_em: datetime
 
     model_config = {"from_attributes": True}

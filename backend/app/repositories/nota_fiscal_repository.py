@@ -22,9 +22,14 @@ class NotaFiscalRepository:
         db.refresh(db_nota)
         return db_nota
 
+    # Campos presentes no schema mas que não são colunas do modelo NotaFiscal
+    _CAMPOS_NAO_MODELO = {'data_emissao', 'data_servico', 'numero_os'}
+
     @staticmethod
     def create_importada(db: Session, nota: NotaFiscalImportada):
-        db_nota = NotaFiscal(**nota.model_dump())
+        dados = {k: v for k, v in nota.model_dump().items()
+                 if k not in NotaFiscalRepository._CAMPOS_NAO_MODELO}
+        db_nota = NotaFiscal(**dados)
         db.add(db_nota)
         db.commit()
         db.refresh(db_nota)

@@ -19,6 +19,7 @@ class ManutencaoAssistencia(Base):
     nota_fiscal_id = Column(Integer, ForeignKey("notas_fiscais.id"), nullable=True, index=True)
 
     tipo = Column(SQLEnum(TipoServico), nullable=False, index=True)
+    numero_os = Column(String(50), nullable=True)
     data_servico = Column(Date, nullable=False)
     descricao = Column(Text, nullable=True)
 

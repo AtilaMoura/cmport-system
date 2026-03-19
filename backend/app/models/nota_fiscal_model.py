@@ -58,4 +58,8 @@ class NotaFiscal(Base):
 
     xml_original = Column(Text, nullable=False)
 
+    # Alertas de divergência de impostos (comparação XML vs configuração)
+    alerta_impostos      = Column(Integer, default=0, nullable=False)   # 0=ok, 1=alerta ativo
+    divergencia_impostos = Column(JSON, nullable=True)
+
     criado_em = Column(DateTime, server_default=func.now())

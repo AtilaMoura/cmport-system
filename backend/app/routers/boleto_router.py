@@ -9,7 +9,8 @@ from app.schemas.boleto_schema import (
     BoletoResponse, GerarBoletosRequest, GerarBoletosResponse,
     SincronizarResponse, SincronizarInterResponse, BoletoStats,
     RegistrarPagamentoRequest, CriarBoletoManualRequest, GerarParcelasFaltantesResponse,
-    GerarParcelasFaltantesRequest, VincularNotaRequest, NotaSemBoletoResponse
+    GerarParcelasFaltantesRequest, VincularNotaRequest, NotaSemBoletoResponse,
+    ConfigImpostosResponse,
 )
 
 router = APIRouter()
@@ -23,12 +24,24 @@ def get_db():
         db.close()
 
 
+@router.get("/config-impostos/{nota_id}", response_model=ConfigImpostosResponse)
+def get_config_impostos(nota_id: int, db: Session = Depends(get_db)):
+    """Retorna configuração de impostos e valor líquido para modal de pré-visualização."""
+    try:
+        return BoletoService.get_config_impostos(db, nota_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.post("/gerar", response_model=GerarBoletosResponse)
 def gerar_boletos(request: GerarBoletosRequest, db: Session = Depends(get_db)):
     """Gera boleto(s) para uma ou mais notas fiscais."""
     return BoletoService.gerar_boletos(
         db, request.nota_ids, request.data_vencimento_override,
         request.valor_total_override, request.mensagem,
+        request.pct_iss, request.pct_pis, request.pct_cofins,
+        request.pct_inss, request.pct_csll,
+        request.aplicar_juros, request.taxa_juros,
     )
 
 
@@ -93,6 +106,9 @@ def gerar_parcelas_faltantes(
     """Gera parcelas que ainda não foram emitidas para uma nota parcelada."""
     return BoletoService.gerar_parcelas_faltantes(
         db, nota_id, request.valor_total_override, request.mensagem,
+        request.pct_iss, request.pct_pis, request.pct_cofins,
+        request.pct_inss, request.pct_csll,
+        request.aplicar_juros, request.taxa_juros,
     )
 
 

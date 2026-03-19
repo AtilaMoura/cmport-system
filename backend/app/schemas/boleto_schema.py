@@ -35,11 +35,41 @@ class GerarBoletosRequest(BaseModel):
     data_vencimento_override: Optional[date] = None
     valor_total_override: Optional[float] = None   # Sobrescreve o valor calculado (já líquido)
     mensagem: Optional[str] = None                 # Aparece no boleto — ex: "OS 123"
+    # Overrides de percentual de imposto (usa config da tabela se None)
+    pct_iss:    Optional[float] = None
+    pct_pis:    Optional[float] = None
+    pct_cofins: Optional[float] = None
+    pct_inss:   Optional[float] = None
+    pct_csll:   Optional[float] = None
+    # Juros: None = default por tipo (True para serviço, False para produto)
+    aplicar_juros: Optional[bool] = None
+    taxa_juros:    Optional[float] = 1.0   # % ao mês
 
 
 class GerarParcelasFaltantesRequest(BaseModel):
     valor_total_override: Optional[float] = None
     mensagem: Optional[str] = None
+    pct_iss:    Optional[float] = None
+    pct_pis:    Optional[float] = None
+    pct_cofins: Optional[float] = None
+    pct_inss:   Optional[float] = None
+    pct_csll:   Optional[float] = None
+    aplicar_juros: Optional[bool] = None
+    taxa_juros:    Optional[float] = 1.0
+
+
+class ConfigImpostosResponse(BaseModel):
+    pct_iss:    float
+    pct_pis:    float
+    pct_cofins: float
+    pct_inss:   float
+    pct_csll:   float
+    valor_bruto:  float
+    valor_liquido: float
+    numero_os: Optional[str] = None
+    aplicar_juros_default: bool
+    alerta_impostos: bool = False
+    divergencia_impostos: Optional[dict] = None
 
 
 class GerarBoletosResponse(BaseModel):

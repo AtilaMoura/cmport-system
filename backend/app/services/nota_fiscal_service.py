@@ -58,6 +58,19 @@ def limpar_descricao(descricao: str) -> str:
     return descricao.strip()
 
 
+def extrair_numero_os(texto: str) -> Optional[str]:
+    """
+    Extrai o número da Ordem de Serviço da discriminação/infCpl.
+    Suporta:
+      NFSe: 'Numero ordem servico: 12345'
+      NFe:  'Numero da ordem servico: 12345'
+    """
+    if not texto:
+        return None
+    match = re.search(r'[Nn]umero\s+(?:da\s+)?ordem\s+servi[cç]o[:\s]+(\d+)', texto)
+    return match.group(1) if match else None
+
+
 def extrair_data_servico(discriminacao: str) -> Optional[date]:
     """
     Extrai a data real de execução do serviço a partir da discriminação/infCpl.
@@ -220,6 +233,7 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
 
     descricao_limpa = limpar_descricao(discriminacao)
     data_servico_real = extrair_data_servico(discriminacao) or data_emissao
+    numero_os = extrair_numero_os(discriminacao)
 
     return {
         'numero_nota': numero or f"NFSE-{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -232,6 +246,7 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
         'data_vencimento': data_vencimento,
         'data_emissao': data_emissao,
         'data_servico': data_servico_real,
+        'numero_os': numero_os,
         'cliente_nome': razao_dest,
         'observacao': f"Emitente: {razao_emit} | CNPJ: {cnpj_emit}",
         'descricao_servico': descricao_limpa,
@@ -339,6 +354,7 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
 
     descricao_limpa = limpar_descricao(inf_compl)
     data_servico_real = extrair_data_servico(inf_compl) or data_emissao
+    numero_os = extrair_numero_os(inf_compl)
 
     return {
         'numero_nota': f"{numero}-{serie}" if serie and numero else (numero or f"NFE-{datetime.now().strftime('%Y%m%d%H%M%S')}"),
@@ -353,6 +369,7 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
         'data_servico': data_servico_real,
         'cliente_nome': razao_dest,
         'observacao': f"Emitente: {razao_emit} | CNPJ: {cnpj_emit}",
+        'numero_os': numero_os,
         'descricao_servico': descricao_limpa,
         'condominio_id': condominio_id,
         'xml_original': xml_str,
@@ -417,6 +434,46 @@ def processar_cancelamento_nfe(xml_str: str, db: Session) -> dict:
         return {'status': 'erro', 'mensagem': str(e)}
 
 
+
+
+def _validar_impostos_vs_config(db: Session, db_nota) -> None:
+    """
+    Compara os valores de impostos do XML contra os percentuais da configuração.
+    Se houver divergência > R$0,10, seta alerta_impostos=True e divergencia_impostos com detalhes.
+    Não bloqueia o fluxo.
+    """
+    try:
+        from app.models.configuracao_impostos_model import ConfiguracaoImpostosServico, TipoServicoConfig
+        tipo_config = TipoServicoConfig(db_nota.tipo.value)
+        config = db.query(ConfiguracaoImpostosServico).filter_by(tipo_servico=tipo_config, ativo=True).first()
+        if not config:
+            return
+
+        valor = float(db_nota.valor or 0)
+        campos = {
+            'iss':    (float(config.pct_iss),    float(db_nota.iss or 0)),
+            'pis':    (float(config.pct_pis),    float(db_nota.pis or 0)),
+            'cofins': (float(config.pct_cofins), float(db_nota.cofins or 0)),
+            'inss':   (float(config.pct_inss),   float(db_nota.inss or 0)),
+            'csll':   (float(config.pct_csll),   float(db_nota.csll or 0)),
+        }
+
+        divergencias = {}
+        for campo, (pct, xml_val) in campos.items():
+            config_val = round(valor * pct / 100, 2)
+            if abs(config_val - xml_val) > 0.10:
+                divergencias[campo] = {
+                    'pct': pct,
+                    'config': config_val,
+                    'xml': xml_val,
+                }
+
+        if divergencias:
+            db_nota.alerta_impostos = 1
+            db_nota.divergencia_impostos = divergencias
+            print(f"[ValidarImpostos] Nota {db_nota.numero_nota}: divergencias={list(divergencias.keys())}")
+    except Exception as e:
+        print(f"[ValidarImpostos] Erro: {e}")
 
 
 def corrigir_datas_servico(db: Session) -> dict:
@@ -531,12 +588,29 @@ class NotaFiscalService:
             if not servico_existente:
                 try:
                     tipo_str = "assistencia" if db_nota.tipo == TipoNota.ASSISTENCIA else "manutencao"
+                    # Extrair numero_os do XML se disponível
+                    numero_os = None
+                    if db_nota.xml_original:
+                        try:
+                            tipo_xml = detectar_tipo_xml(db_nota.xml_original)
+                            if tipo_xml == 'NFSe':
+                                root_os = ET.fromstring(db_nota.xml_original)
+                                el_os = root_os.find('.//Discriminacao')
+                                numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                            elif tipo_xml == 'NFe':
+                                root_os = ET.fromstring(db_nota.xml_original)
+                                ns_os = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+                                el_os = root_os.find('.//nfe:infAdic/nfe:infCpl', ns_os)
+                                numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                        except Exception:
+                            pass
                     servico = ServicoCreate(
                         condominio_id=condominio_id,
                         tipo=tipo_str,
                         data_servico=db_nota.data_vencimento,
                         descricao=db_nota.descricao_servico or db_nota.observacao or "",
                         nota_fiscal_id=nota_id,
+                        numero_os=numero_os,
                     )
                     ServicoService.create_servico(db, servico)
                 except Exception as e:
@@ -771,6 +845,10 @@ class NotaFiscalService:
                 db_nota = NotaFiscalRepository.create_importada(db, nota_importada)
                 print(f"[IMPORT] Nota {db_nota.numero_nota} salva com ID={db_nota.id}")
 
+                # Validar impostos vs configuração (alerta não-bloqueante)
+                _validar_impostos_vs_config(db, db_nota)
+                db.commit()
+
                 if dados_nota['condominio_id'] and dados_nota['tipo'] in [TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]:
                     try:
                         tipo_servico_str = "assistencia" if dados_nota['tipo'] == TipoNota.ASSISTENCIA else "manutencao"
@@ -780,9 +858,10 @@ class NotaFiscalService:
                             data_servico=dados_nota.get('data_servico') or dados_nota['data_emissao'],
                             descricao=dados_nota['descricao_servico'],
                             nota_fiscal_id=db_nota.id,
+                            numero_os=dados_nota.get('numero_os'),
                         )
                         ServicoService.create_servico(db, servico)
-                        print(f"[IMPORT] Servico '{tipo_servico_str}' criado para nota {db_nota.numero_nota}")
+                        print(f"[IMPORT] Servico '{tipo_servico_str}' criado para nota {db_nota.numero_nota} OS={dados_nota.get('numero_os')}")
                     except Exception as e:
                         print(f"[IMPORT] ERRO ao criar servico: {e}")
                         erros.append({"arquivo": filename, "erro": f"Nota importada, mas erro ao criar servico: {e}"})

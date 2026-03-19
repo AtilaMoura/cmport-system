@@ -164,6 +164,20 @@ def vincular_condominio(id: int, body: VincularCondominioRequest, db: Session = 
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.patch("/{id}/dispensar-alerta", response_model=NotaFiscalResponse)
+def dispensar_alerta_impostos(id: int, db: Session = Depends(get_db)):
+    """Remove o alerta de divergência de impostos de uma nota fiscal."""
+    from app.models.nota_fiscal_model import NotaFiscal
+    db_nota = db.query(NotaFiscal).filter(NotaFiscal.id == id).first()
+    if not db_nota:
+        raise HTTPException(status_code=404, detail="Nota não encontrada.")
+    db_nota.alerta_impostos = 0
+    db_nota.divergencia_impostos = None
+    db.commit()
+    db.refresh(db_nota)
+    return db_nota
+
+
 @router.post("/{id}/revalidar")
 def revalidar_nota(id: int, db: Session = Depends(get_db)):
     """Re-parseia o xml_original e corrige o status da nota."""

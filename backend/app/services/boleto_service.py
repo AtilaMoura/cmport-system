@@ -17,30 +17,74 @@ def _limpar_cnpj(cnpj: str) -> str:
     return "".join(filter(str.isdigit, cnpj or ""))
 
 
-def _calcular_valor_base(nota) -> float:
+def _calcular_valor_liquido(db: Session, nota, pcts_override: dict = None) -> float:
     """
-    Notas de serviço (MANUTENCAO/ASSISTENCIA — NFSe): desconta impostos retidos.
-    Notas de produto (OUTROS — NFe): valor integral da NF.
+    Calcula o valor líquido da nota descontando impostos com base na tabela de configuração.
+    Para MANUTENCAO/ASSISTENCIA: aplica os percentuais da config (ou override).
+    Para OUTROS: retorna valor integral.
+    pcts_override: dict com chaves opcionais pct_iss, pct_pis, pct_cofins, pct_inss, pct_csll (floats)
     """
     from app.models.nota_fiscal_model import TipoNota
-    if nota.tipo in (TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA):
+    from app.models.configuracao_impostos_model import ConfiguracaoImpostosServico, TipoServicoConfig
+
+    if nota.tipo not in (TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA):
+        return float(nota.valor)
+
+    try:
+        tipo_cfg = TipoServicoConfig(nota.tipo.value)
+        config = db.query(ConfiguracaoImpostosServico).filter_by(tipo_servico=tipo_cfg, ativo=True).first()
+    except Exception:
+        config = None
+
+    if config:
+        pct_iss    = (pcts_override or {}).get('pct_iss',    float(config.pct_iss))
+        pct_pis    = (pcts_override or {}).get('pct_pis',    float(config.pct_pis))
+        pct_cofins = (pcts_override or {}).get('pct_cofins', float(config.pct_cofins))
+        pct_inss   = (pcts_override or {}).get('pct_inss',   float(config.pct_inss))
+        pct_csll   = (pcts_override or {}).get('pct_csll',   float(config.pct_csll))
+    else:
+        # Fallback: usa valores absolutos do XML se não houver config
         impostos = sum(x for x in [nota.iss, nota.pis, nota.cofins, nota.inss, nota.csll] if x)
-        return max(round(nota.valor - impostos, 2), 0.01)
-    return nota.valor
+        return max(round(float(nota.valor) - impostos, 2), 0.01)
+
+    total_pct = (pct_iss + pct_pis + pct_cofins + pct_inss + pct_csll) / 100
+    return max(round(float(nota.valor) * (1 - total_pct), 2), 0.01)
 
 
-def _montar_mensagem_payload(mensagem: str | None, numero_nota: str, servico_id: int | None) -> dict | None:
+def _montar_mensagem_payload(mensagem: str | None, numero_nota: str, numero_os: str | None) -> dict | None:
     """Monta o objeto 'mensagem' para o payload Inter (até 60 chars por linha)."""
     linhas = []
     if mensagem:
         for i in range(0, min(len(mensagem), 300), 60):
             linhas.append(mensagem[i:i + 60])
-    elif servico_id:
-        linhas.append(f"OS: {servico_id} | NF: {numero_nota}")
+    elif numero_os:
+        linhas.append(f"OS: {numero_os} | NF: {numero_nota}")
     if not linhas:
         return None
     keys = ["linha1", "linha2", "linha3", "linha4", "linha5"]
     return {keys[i]: linha for i, linha in enumerate(linhas[:5])}
+
+
+def _montar_mora_multa(aplicar_juros: bool, taxa_juros: float) -> dict:
+    """Monta os campos de mora e multa para o payload Inter."""
+    if not aplicar_juros:
+        return {}
+    return {
+        "mora": {
+            "tipo": "TAXA_MENSAL",
+            "taxa": taxa_juros,
+        },
+        "multa": {
+            "tipo": "PERCENTUAL",
+            "valor": 2.0,
+        },
+    }
+
+
+def _aplicar_juros_default(nota) -> bool:
+    """True para serviços (juros padrão ativo); False para OUTROS (produto sem juros)."""
+    from app.models.nota_fiscal_model import TipoNota
+    return nota.tipo in (TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA)
 
 
 def _mapear_situacao(situacao_inter: str) -> SituacaoBoleto:
@@ -238,9 +282,23 @@ class BoletoService:
         data_vencimento_override: date = None,
         valor_total_override: float = None,
         mensagem: str = None,
+        pct_iss: float = None,
+        pct_pis: float = None,
+        pct_cofins: float = None,
+        pct_inss: float = None,
+        pct_csll: float = None,
+        aplicar_juros: bool = None,
+        taxa_juros: float = 1.0,
     ) -> GerarBoletosResponse:
         sucesso = []
         erros = []
+
+        pcts_override = {}
+        if pct_iss    is not None: pcts_override['pct_iss']    = pct_iss
+        if pct_pis    is not None: pcts_override['pct_pis']    = pct_pis
+        if pct_cofins is not None: pcts_override['pct_cofins'] = pct_cofins
+        if pct_inss   is not None: pcts_override['pct_inss']   = pct_inss
+        if pct_csll   is not None: pcts_override['pct_csll']   = pct_csll
 
         for nota_id in nota_ids:
             try:
@@ -269,10 +327,13 @@ class BoletoService:
                 # Busca OS vinculada para compor a mensagem no boleto
                 from app.models.servico_model import ManutencaoAssistencia as _MA
                 servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota_id).first()
-                servico_os_id = servico_os.id if servico_os else None
+                numero_os = (servico_os.numero_os if servico_os else None)
+
+                usar_juros = aplicar_juros if aplicar_juros is not None else _aplicar_juros_default(nota)
+                mora_payload = _montar_mora_multa(usar_juros, taxa_juros or 1.0)
 
                 total_parcelas = nota.parcelas if nota.parcelas and nota.parcelas > 0 else 1
-                valor_base = valor_total_override if valor_total_override else _calcular_valor_base(nota)
+                valor_base = valor_total_override if valor_total_override else _calcular_valor_liquido(db, nota, pcts_override or None)
                 valor_parcela = round(valor_base / total_parcelas, 2)
                 valor_ultima = round(valor_base - valor_parcela * (total_parcelas - 1), 2)
 
@@ -291,7 +352,7 @@ class BoletoService:
                 }
 
                 base_numero = nota.numero_nota or str(nota_id)
-                msg_payload = _montar_mensagem_payload(mensagem, base_numero, servico_os_id)
+                msg_payload = _montar_mensagem_payload(mensagem, base_numero, numero_os)
 
                 for i in range(total_parcelas):
                     numero_parcela = i + 1
@@ -318,6 +379,7 @@ class BoletoService:
                     }
                     if msg_payload:
                         payload["mensagem"] = msg_payload
+                    payload.update(mora_payload)
 
                     resposta = inter_client.emitir_boleto(payload)
 
@@ -416,6 +478,13 @@ class BoletoService:
         nota_id: int,
         valor_total_override: float = None,
         mensagem: str = None,
+        pct_iss: float = None,
+        pct_pis: float = None,
+        pct_cofins: float = None,
+        pct_inss: float = None,
+        pct_csll: float = None,
+        aplicar_juros: bool = None,
+        taxa_juros: float = 1.0,
     ) -> GerarParcelasFaltantesResponse:
         """Gera apenas as parcelas que ainda não existem para uma nota parcelada."""
         nota = NotaFiscalRepository.get_by_id(db, nota_id)
@@ -443,14 +512,24 @@ class BoletoService:
         # OS vinculada para mensagem
         from app.models.servico_model import ManutencaoAssistencia as _MA
         servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota_id).first()
-        servico_os_id = servico_os.id if servico_os else None
+        numero_os = (servico_os.numero_os if servico_os else None)
 
-        valor_base = valor_total_override if valor_total_override else _calcular_valor_base(nota)
+        pcts_override = {}
+        if pct_iss    is not None: pcts_override['pct_iss']    = pct_iss
+        if pct_pis    is not None: pcts_override['pct_pis']    = pct_pis
+        if pct_cofins is not None: pcts_override['pct_cofins'] = pct_cofins
+        if pct_inss   is not None: pcts_override['pct_inss']   = pct_inss
+        if pct_csll   is not None: pcts_override['pct_csll']   = pct_csll
+
+        usar_juros = aplicar_juros if aplicar_juros is not None else _aplicar_juros_default(nota)
+        mora_payload = _montar_mora_multa(usar_juros, taxa_juros or 1.0)
+
+        valor_base = valor_total_override if valor_total_override else _calcular_valor_liquido(db, nota, pcts_override or None)
         valor_parcela = round(valor_base / total_parcelas, 2)
         valor_ultima = round(valor_base - valor_parcela * (total_parcelas - 1), 2)
 
         base_numero = nota.numero_nota or str(nota_id)
-        msg_payload = _montar_mensagem_payload(mensagem, base_numero, servico_os_id)
+        msg_payload = _montar_mensagem_payload(mensagem, base_numero, numero_os)
 
         pagador = {
             "cpfCnpj": _limpar_cnpj(condominio.cnpj),
@@ -487,6 +566,7 @@ class BoletoService:
                 }
                 if msg_payload:
                     payload["mensagem"] = msg_payload
+                payload.update(mora_payload)
 
                 resposta = inter_client.emitir_boleto(payload)
 
@@ -511,6 +591,47 @@ class BoletoService:
                 erros.append({"nota_id": nota_id, "parcela": numero_parcela, "erro": str(e)})
 
         return GerarParcelasFaltantesResponse(sucesso=sucesso, erros=erros)
+
+    @staticmethod
+    def get_config_impostos(db: Session, nota_id: int) -> dict:
+        """Retorna configuração de impostos e valor líquido calculado para uso no frontend (modal)."""
+        from app.models.configuracao_impostos_model import ConfiguracaoImpostosServico, TipoServicoConfig
+        from app.models.servico_model import ManutencaoAssistencia as _MA
+
+        nota = NotaFiscalRepository.get_by_id(db, nota_id)
+        if not nota:
+            raise Exception("Nota não encontrada.")
+
+        try:
+            tipo_cfg = TipoServicoConfig(nota.tipo.value)
+            config = db.query(ConfiguracaoImpostosServico).filter_by(tipo_servico=tipo_cfg, ativo=True).first()
+        except Exception:
+            config = None
+
+        pct_iss    = float(config.pct_iss)    if config else 0.0
+        pct_pis    = float(config.pct_pis)    if config else 0.0
+        pct_cofins = float(config.pct_cofins) if config else 0.0
+        pct_inss   = float(config.pct_inss)   if config else 0.0
+        pct_csll   = float(config.pct_csll)   if config else 0.0
+
+        valor_liquido = _calcular_valor_liquido(db, nota)
+
+        servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota_id).first()
+        numero_os = servico_os.numero_os if servico_os else None
+
+        return {
+            "pct_iss":    pct_iss,
+            "pct_pis":    pct_pis,
+            "pct_cofins": pct_cofins,
+            "pct_inss":   pct_inss,
+            "pct_csll":   pct_csll,
+            "valor_bruto":  float(nota.valor),
+            "valor_liquido": valor_liquido,
+            "numero_os": numero_os,
+            "aplicar_juros_default": _aplicar_juros_default(nota),
+            "alerta_impostos": bool(nota.alerta_impostos),
+            "divergencia_impostos": nota.divergencia_impostos,
+        }
 
     @staticmethod
     def cancelar_boleto(db: Session, codigo_solicitacao: str) -> BoletoResponse:

@@ -14,6 +14,7 @@ class ServicoBase(BaseModel):
     data_servico: date
     descricao: Optional[str] = None
     nota_fiscal_id: Optional[int] = None
+    numero_os: Optional[str] = None
 
 
 class ServicoCreate(ServicoBase):
@@ -25,6 +26,7 @@ class ServicoUpdate(BaseModel):
     data_servico: Optional[date] = None
     descricao: Optional[str] = None
     nota_fiscal_id: Optional[int] = None
+    numero_os: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -32,6 +34,7 @@ class ServicoUpdate(BaseModel):
 class ServicoResponse(ServicoBase):
     id: int
     condominio_id: int
+    numero_os: Optional[str] = None
     criado_em: datetime
     atualizado_em: datetime
 
