@@ -79,11 +79,14 @@ class ImportacaoResponse(BaseModel):
 
 
 class NotaFiscalUpdate(BaseModel):
+    numero_nota: Optional[str] = None
     data_vencimento: Optional[date] = None
     data_pagamento: Optional[date] = None
     observacao: Optional[str] = None
     cliente_nome: Optional[str] = None
     valor: Optional[float] = None
+    parcelas: Optional[int] = None
+    descricao_servico: Optional[str] = None
     status: Optional[StatusNota] = None
     tipo: Optional[TipoNota] = None
     condominio_id: Optional[int] = None

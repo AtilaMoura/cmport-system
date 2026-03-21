@@ -28,7 +28,48 @@
       "Bash(\"venv/Scripts/python.exe\" diagnostico.py --analise-inter --salvar)",
       "Bash(PYTHONIOENCODING=utf-8 \"venv/Scripts/python.exe\" diagnostico.py --analise-inter --salvar)",
       "Bash(\"venv/Scripts/python.exe\" -c \":*)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(./venv/Scripts/python.exe -c \":*)",
+      "Bash(python -m py_compile app/models/configuracao_impostos_model.py)",
+      "Bash(python -m py_compile app/schemas/boleto_schema.py)",
+      "Bash(python -m py_compile app/schemas/nota_fiscal_schema.py)",
+      "Bash(python -m py_compile app/schemas/servico_schema.py)",
+      "Bash(python -m py_compile app/services/boleto_service.py)",
+      "Bash(python -m py_compile app/services/nota_fiscal_service.py)",
+      "Bash(python -m py_compile app/routers/boleto_router.py)",
+      "Bash(python -m py_compile app/routers/nota_fiscal_router.py)",
+      "Bash(npx tsc:*)",
+      "Bash(cmd /c \"taskkill /PID 30228 /F && taskkill /PID 23184 /F\")",
+      "Bash(cmd /c \"taskkill /PID 30228 /F\")",
+      "Bash(cmd /c \"taskkill /PID 23184 /F\")",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(node --trace-deprecation -e \"require\\(''''./node_modules/chart.js''''\\)\")",
+      "Bash(curl -s http://localhost:8000/api/v1/boletos/notas-sem-boleto)",
+      "Bash(curl -s http://localhost:8000/api/v1/notas-fiscais/)",
+      "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(f''''Total notas: {len\\(data\\)}''''\\); [print\\(f''''  #{n[\"\"id\"\"]} {n[\"\"numero_nota\"\"]} | {n[\"\"tipo\"\"]} | R$n[\"\"\"valor\"\"\"] | {n[\"\"parcelas\"\"]}x | venc:{n[\"\"data_vencimento\"\"]}''''\\) for n in data[:5]]\")",
+      "Bash(curl:*)",
+      "Bash(head -5 docker exec cmport_db mysql -uroot -proot -e \"SHOW DATABASES;\")",
+      "Bash(git commit:*)",
+      "Bash(python -c \"from app.schemas.boleto_schema import GerarParcelasFaltantesRequest; r = GerarParcelasFaltantesRequest\\(parcelas_selecionadas=[1,2,3]\\); print\\(''parcelas_selecionadas:'', r.parcelas_selecionadas\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app/schemas/boleto_schema.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app/services/boleto_service.py''\\).read\\(\\)\\); ast.parse\\(open\\(''app/routers/boleto_router.py''\\).read\\(\\)\\); ast.parse\\(open\\(''app/schemas/nota_fiscal_schema.py''\\).read\\(\\)\\); print\\(''All OK''\\)\")",
+      "Bash(git:*)"
     ]
+  },
+  "mcpServers": {
+    "mysql-cmport": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@benborla29/mcp-server-mysql"
+      ],
+      "env": {
+        "MYSQL_HOST": "127.0.0.1",
+        "MYSQL_PORT": "3306",
+        "MYSQL_USER": "cmport",
+        "MYSQL_PASS": "cmport123",
+        "MYSQL_DB": "cmport_gerenciamento"
+      }
+    }
   }
 }

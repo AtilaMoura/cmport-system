@@ -54,6 +54,8 @@ class GerarParcelasFaltantesRequest(BaseModel):
     pct_csll:   Optional[float] = None
     aplicar_juros: Optional[bool] = None
     taxa_juros:    Optional[float] = 1.0
+    data_vencimento_override: Optional[date] = None
+    parcelas_selecionadas: Optional[List[int]] = None  # Se informado, gera apenas essas parcelas
 
 
 class ConfigImpostosResponse(BaseModel):

@@ -87,6 +87,13 @@ interface ParcelaDisplay {
   data: string | null;
 }
 
+interface ParcelaItem {
+  numero: number;
+  valor: string;           // liquid value for this parcel (editable in step 1)
+  dataVencimento: string;  // ISO date string
+  situacaoBoleto: string | null; // null = no boleto, else boleto.situacao
+}
+
 const SITUACAO_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
   EMABERTO:  { label: 'Em Aberto', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',     dot: 'bg-blue-500' },
   PAGO:      { label: 'Pago',      cls: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400', dot: 'bg-green-500' },
@@ -110,6 +117,13 @@ function fmt(v: number) {
 function pd(s: string) {
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('pt-BR');
+}
+
+function addDays(dateStr: string, days: number): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
 }
 
 export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -151,8 +165,6 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   // Modal "Gerar Inter" — pré-visualização com impostos editáveis
   const [modalInter, setModalInter] = useState(false);
   const [configImpostos, setConfigImpostos] = useState<ConfigImpostos | null>(null);
-  const [interValor, setInterValor] = useState('');
-  const [interValorEditado, setInterValorEditado] = useState(false);
   const [interMensagem, setInterMensagem] = useState('');
   const [interAplicarPis, setInterAplicarPis] = useState(true);
   const [interPctPis, setInterPctPis] = useState('0');
@@ -162,9 +174,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [interPctInss, setInterPctInss] = useState('0');
   const [interAplicarCsll, setInterAplicarCsll] = useState(true);
   const [interPctCsll, setInterPctCsll] = useState('0');
-  const [interAplicarJuros, setInterAplicarJuros] = useState(true);
-  const [interTaxaJuros, setInterTaxaJuros] = useState('1.00');
   const [interDataVencimento, setInterDataVencimento] = useState('');
+  const [interNumeroNota, setInterNumeroNota] = useState('');
+  const [interDescricaoExpanded, setInterDescricaoExpanded] = useState(false);
+  const [interEtapa, setInterEtapa] = useState<1 | 2>(1);
+  const [interAprovado, setInterAprovado] = useState(false);
+  const [interParcelasItens, setInterParcelasItens] = useState<ParcelaItem[]>([]);
+  const [interPayloadExpanded, setInterPayloadExpanded] = useState<number | null>(null);
+  const [gerandoParcelaNum, setGerandoParcelaNum] = useState<number | null>(null);
+  const [interParcelaFoco, setInterParcelaFoco] = useState<number | null>(null);
   const [carregandoConfig, setCarregandoConfig] = useState(false);
 
   // Modal "Marcar Pago"
@@ -307,17 +325,29 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const parcelasDisplay = notaFiscal ? getParcelasDisplay() : [];
 
   const calcularValorLiquidoModal = (): number => {
-    if (!configImpostos) return parseFloat(interValor) || 0;
+    if (!configImpostos) return 0;
     const bruto = configImpostos.valor_bruto;
     const pis    = interAplicarPis    ? parseFloat(interPctPis    || '0') : 0;
     const cofins = interAplicarCofins ? parseFloat(interPctCofins || '0') : 0;
     const inss   = interAplicarInss   ? parseFloat(interPctInss   || '0') : 0;
     const csll   = interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0;
     const totalPct = (pis + cofins + inss + csll) / 100;
-    return Math.max(Math.round(bruto * (1 - totalPct) * 100) / 100, 0.01);
+    return Math.max(bruto * (1 - totalPct), 0.01);
   };
 
-  const handleGerarParcelasFaltantes = async () => {
+  const totalImpostosModal = () => {
+    if (!configImpostos) return 0;
+    const bruto = configImpostos.valor_bruto;
+    return bruto * ((interAplicarPis ? parseFloat(interPctPis||'0') : 0) +
+      (interAplicarCofins ? parseFloat(interPctCofins||'0') : 0) +
+      (interAplicarInss ? parseFloat(interPctInss||'0') : 0) +
+      (interAplicarCsll ? parseFloat(interPctCsll||'0') : 0)) / 100;
+  };
+
+  const somaParcelasModal = () =>
+    interParcelasItens.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
+
+  const handleGerarParcelasFaltantes = async (parcelaNum?: number) => {
     if (!notaFiscal) return;
     setCarregandoConfig(true);
     try {
@@ -332,20 +362,35 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       setInterPctInss(String(cfg.pct_inss ?? 0));
       setInterAplicarCsll(cfg.pct_csll > 0);
       setInterPctCsll(String(cfg.pct_csll ?? 0));
-      setInterValor(String(cfg.valor_liquido ?? notaFiscal.valor));
-      setInterValorEditado(false);
-      setInterAplicarJuros(cfg.aplicar_juros_default ?? true);
-      setInterTaxaJuros('1.00');
-      setInterDataVencimento('');
-      setInterMensagem('');
+      setInterDataVencimento(notaFiscal.data_vencimento);
+      setInterNumeroNota(notaFiscal.numero_nota);
+      setInterDescricaoExpanded(false);
+      setInterMensagem([notaFiscal.descricao_servico, cfg.numero_os ? `OS: ${cfg.numero_os}` : null].filter(Boolean).join(' | '));
+      // Initialize per-parcel items
+      const liquido = cfg.valor_liquido ?? notaFiscal.valor;
+      const n = notaFiscal.parcelas || 1;
+      const parcelaBase = Math.floor(liquido / n * 100) / 100;
+      const parcelaUltima = liquido - parcelaBase * (n - 1);
+      const items: ParcelaItem[] = Array.from({ length: n }, (_, i) => {
+        const num = i + 1;
+        const boleto = boletos.find(b => b.numero_parcela === num && b.situacao !== 'CANCELADO' && b.situacao !== 'EXPIRADO');
+        const situacao = boleto ? boleto.situacao : (boletos.find(b => b.numero_parcela === num) ? boletos.find(b => b.numero_parcela === num)!.situacao : null);
+        const val = boleto ? boleto.valor_nominal.toFixed(2) : (num === n ? parcelaUltima.toFixed(2) : parcelaBase.toFixed(2));
+        const data = boleto ? boleto.data_vencimento : addDays(notaFiscal.data_vencimento, 30 * i);
+        return { numero: num, valor: val, dataVencimento: data, situacaoBoleto: situacao };
+      });
+      setInterParcelasItens(items);
+      setInterEtapa(1);
+      setInterAprovado(false);
+      setInterPayloadExpanded(null);
+      setInterParcelaFoco(parcelaNum ?? null);
       setModalInter(true);
     } catch (err: unknown) {
       console.error('[handleGerarParcelasFaltantes] Erro:', err);
-      // Fallback: abre modal com defaults baseados na nota local
       const fallback: ConfigImpostos = {
         pct_pis: 0.65, pct_cofins: 3, pct_inss: 11, pct_csll: 1,
         valor_bruto: notaFiscal.valor,
-        valor_liquido: Math.max(notaFiscal.valor * (1 - 0.1565), 0.01),
+        valor_liquido: notaFiscal.valor * (1 - 0.1565),
         numero_os: null,
         aplicar_juros_default: notaFiscal.tipo !== 'OUTROS',
         alerta_impostos: false,
@@ -356,12 +401,26 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       setInterAplicarCofins(true); setInterPctCofins('3');
       setInterAplicarInss(true); setInterPctInss('11');
       setInterAplicarCsll(true); setInterPctCsll('1');
-      setInterValor(String(fallback.valor_liquido.toFixed(2)));
-      setInterValorEditado(false);
-      setInterAplicarJuros(fallback.aplicar_juros_default);
-      setInterTaxaJuros('1.00');
-      setInterDataVencimento('');
-      setInterMensagem('');
+      setInterDataVencimento(notaFiscal.data_vencimento);
+      setInterNumeroNota(notaFiscal.numero_nota);
+      setInterDescricaoExpanded(false);
+      setInterMensagem(notaFiscal.descricao_servico || '');
+      const n = notaFiscal.parcelas || 1;
+      const parcelaBase = Math.floor(fallback.valor_liquido / n * 100) / 100;
+      const parcelaUltima = fallback.valor_liquido - parcelaBase * (n - 1);
+      const items: ParcelaItem[] = Array.from({ length: n }, (_, i) => {
+        const num = i + 1;
+        const boleto = boletos.find(b => b.numero_parcela === num && b.situacao !== 'CANCELADO' && b.situacao !== 'EXPIRADO');
+        const situacao = boleto ? boleto.situacao : (boletos.find(b => b.numero_parcela === num) ? boletos.find(b => b.numero_parcela === num)!.situacao : null);
+        const val = boleto ? boleto.valor_nominal.toFixed(2) : (num === n ? parcelaUltima.toFixed(2) : parcelaBase.toFixed(2));
+        const data = boleto ? boleto.data_vencimento : addDays(notaFiscal.data_vencimento, 30 * i);
+        return { numero: num, valor: val, dataVencimento: data, situacaoBoleto: situacao };
+      });
+      setInterParcelasItens(items);
+      setInterEtapa(1);
+      setInterAprovado(false);
+      setInterPayloadExpanded(null);
+      setInterParcelaFoco(parcelaNum ?? null);
       setModalInter(true);
       alert('Aviso: usando configuração padrão de impostos (endpoint de config não respondeu).');
     } finally {
@@ -369,27 +428,76 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
   };
 
-  const handleConfirmarGerarInter = async () => {
+  const handleAprovarBoletos = () => {
+    setInterAprovado(true);
+    setInterEtapa(2);
+  };
+
+  const handleGerarParcelaSingle = async (item: ParcelaItem) => {
     if (!notaFiscal) return;
-    setGerandoParcelas(true);
+    setGerandoParcelaNum(item.numero);
     try {
-      const valorLiquido = interValorEditado ? parseFloat(interValor) : calcularValorLiquidoModal();
+      if (interNumeroNota && interNumeroNota !== notaFiscal.numero_nota) {
+        await api.put(`/notas-fiscais/${notaFiscal.id}`, { numero_nota: interNumeroNota });
+      }
+      const valorParcela = parseFloat(item.valor);
+      const totalParcelas = notaFiscal.parcelas || 1;
+      // Adjust base date so backend computes exactly this date for this parcel
+      const adjustedBase = addDays(item.dataVencimento, -30 * (item.numero - 1));
       const body: Record<string, unknown> = {
         pct_pis:    interAplicarPis    ? parseFloat(interPctPis    || '0') : 0,
         pct_cofins: interAplicarCofins ? parseFloat(interPctCofins || '0') : 0,
         pct_inss:   interAplicarInss   ? parseFloat(interPctInss   || '0') : 0,
         pct_csll:   interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0,
-        aplicar_juros: interAplicarJuros,
-        taxa_juros: parseFloat(interTaxaJuros) || 1.0,
+        aplicar_juros: false,
+        parcelas_selecionadas: [item.numero],
+        valor_total_override: valorParcela * totalParcelas,
+        data_vencimento_override: adjustedBase,
       };
-      if (interValorEditado && valorLiquido > 0) body.valor_total_override = valorLiquido;
-      if (interDataVencimento) body.data_vencimento_override = interDataVencimento;
       if (interMensagem.trim()) body.mensagem = interMensagem.trim();
       await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
+      await carregarDados();
+      setInterParcelasItens(prev => prev.map(p =>
+        p.numero === item.numero ? { ...p, situacaoBoleto: 'EMABERTO' } : p
+      ));
+    } catch {
+      alert(`Erro ao gerar boleto para parcela ${item.numero}.`);
+    } finally {
+      setGerandoParcelaNum(null);
+    }
+  };
+
+  const handleGerarTodos = async () => {
+    if (!notaFiscal) return;
+    setGerandoParcelas(true);
+    try {
+      if (interNumeroNota && interNumeroNota !== notaFiscal.numero_nota) {
+        await api.put(`/notas-fiscais/${notaFiscal.id}`, { numero_nota: interNumeroNota });
+      }
+      const faltantes = interParcelasItens.filter(p =>
+        p.situacaoBoleto === null || p.situacaoBoleto === 'CANCELADO' || p.situacaoBoleto === 'EXPIRADO'
+      );
+      for (const item of faltantes) {
+        const valorParcela = parseFloat(item.valor);
+        const totalParcelas = notaFiscal.parcelas || 1;
+        const adjustedBase = addDays(item.dataVencimento, -30 * (item.numero - 1));
+        const body: Record<string, unknown> = {
+          pct_pis:    interAplicarPis    ? parseFloat(interPctPis    || '0') : 0,
+          pct_cofins: interAplicarCofins ? parseFloat(interPctCofins || '0') : 0,
+          pct_inss:   interAplicarInss   ? parseFloat(interPctInss   || '0') : 0,
+          pct_csll:   interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0,
+          aplicar_juros: false,
+          parcelas_selecionadas: [item.numero],
+          valor_total_override: valorParcela * totalParcelas,
+          data_vencimento_override: adjustedBase,
+        };
+        if (interMensagem.trim()) body.mensagem = interMensagem.trim();
+        await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
+      }
       setModalInter(false);
       await carregarDados();
     } catch {
-      alert('Erro ao gerar boletos Inter.');
+      alert('Erro ao gerar boletos.');
     } finally {
       setGerandoParcelas(false);
     }
@@ -744,7 +852,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                       {totalPago}/{boletos.length} pago(s) · {fmt(valorRecebido)} recebido
                     </span>
                     <button
-                      onClick={handleGerarParcelasFaltantes}
+                      onClick={() => handleGerarParcelasFaltantes()}
                       disabled={gerandoParcelas || carregandoConfig}
                       className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
                     >
@@ -787,18 +895,28 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                           </div>
                           <div className="flex items-center gap-2">
                             {!boleto && (
-                              <button
-                                onClick={() => {
-                                  setModalRegistrar(parcela.parcela);
-                                  setRegValor(parcela.valor.toFixed(2));
-                                  setRegData(parcela.data || '');
-                                  setRegForma('PIX'); setRegBanco(''); setRegObs('');
-                                  setRegJaPago(false); setRegDataPago(''); setRegValorPago('');
-                                }}
-                                className="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:brightness-110 transition-all"
-                              >
-                                + Registrar
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleGerarParcelasFaltantes(parcela.parcela)}
+                                  disabled={gerandoParcelas || carregandoConfig}
+                                  className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  {(gerandoParcelas || carregandoConfig) ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
+                                  Gerar Inter
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setModalRegistrar(parcela.parcela);
+                                    setRegValor(parcela.valor.toFixed(2));
+                                    setRegData(parcela.data || '');
+                                    setRegForma('PIX'); setRegBanco(''); setRegObs('');
+                                    setRegJaPago(false); setRegDataPago(''); setRegValorPago('');
+                                  }}
+                                  className="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:brightness-110 transition-all"
+                                >
+                                  + Registrar
+                                </button>
+                              </>
                             )}
                             {boleto && (boleto.situacao === 'EMABERTO' || boleto.situacao === 'VENCIDO') && (
                               <>
@@ -854,6 +972,14 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                             )}
                             {boleto && (boleto.situacao === 'CANCELADO' || boleto.situacao === 'EXPIRADO') && (
                               <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleGerarParcelasFaltantes(parcela.parcela)}
+                                  disabled={gerandoParcelas || carregandoConfig}
+                                  className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  {(gerandoParcelas || carregandoConfig) ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
+                                  Gerar Inter
+                                </button>
                                 <button
                                   onClick={() => {
                                     setModalRegistrar(parcela.parcela);
@@ -1102,154 +1228,412 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      {/* Modal Gerar Inter — pré-visualização com impostos editáveis */}
+      {/* Modal Gerar Boleto Inter — 2 Etapas */}
       {modalInter && notaFiscal && configImpostos && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full p-8 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">Pré-visualização — Boleto Inter</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
-              Nota {notaFiscal.numero_nota} · {notaFiscal.parcelas} parcela(s)
-              {configImpostos.numero_os && <span> · OS {configImpostos.numero_os}</span>}
-            </p>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
 
-            {/* Breakdown de impostos */}
-            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-5">
-              <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase mb-3">Impostos Retidos</p>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-600 dark:text-slate-400 w-20">Valor Bruto</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{fmt(configImpostos.valor_bruto)}</span>
-                </div>
-                {([
-                  ['PIS',    interAplicarPis,    setInterAplicarPis,    interPctPis,    setInterPctPis],
-                  ['COFINS', interAplicarCofins, setInterAplicarCofins, interPctCofins, setInterPctCofins],
-                  ['INSS',   interAplicarInss,   setInterAplicarInss,   interPctInss,   setInterPctInss],
-                  ['CSLL',   interAplicarCsll,   setInterAplicarCsll,   interPctCsll,   setInterPctCsll],
-                ] as [string, boolean, (v: boolean) => void, string, (v: string) => void][]).map(([label, aplicar, setAplicar, pct, setPct]) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <input
-                      type="checkbox" checked={aplicar}
-                      onChange={e => { setAplicar(e.target.checked); setInterValorEditado(false); }}
-                      className="w-4 h-4 rounded accent-red-500"
-                    />
-                    <span className={`w-16 font-bold text-xs ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400 line-through'}`}>{label}</span>
-                    <div className="flex items-center gap-1 flex-1">
-                      <input
-                        type="number" step="0.01" min="0" max="100"
-                        value={pct}
-                        disabled={!aplicar}
-                        onChange={e => { setPct(e.target.value); setInterValorEditado(false); }}
-                        className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-green-500 outline-none text-right disabled:opacity-40"
-                      />
-                      <span className="text-xs text-slate-400">%</span>
-                    </div>
-                    <span className={`text-xs w-24 text-right ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
-                      {aplicar ? `- ${fmt(configImpostos.valor_bruto * parseFloat(pct || '0') / 100)}` : '—'}
+            {/* Header */}
+            <div className="sticky top-0 bg-white dark:bg-slate-900 px-6 pt-5 pb-4 border-b border-slate-200 dark:border-slate-800 z-10 rounded-t-2xl">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-xs font-black px-2 py-0.5 rounded-full ${interEtapa === 1 ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'}`}>
+                      Etapa {interEtapa} de 2
                     </span>
+                    {interAprovado && <span className="text-xs font-bold text-green-600 dark:text-green-400">✅ Aprovado</span>}
                   </div>
-                ))}
-                <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1">
-                  <div className="flex justify-between items-center">
-                    <span className="font-black text-green-700 dark:text-green-400 text-base">Valor Líquido</span>
-                    <div className="flex items-center gap-2">
-                      {!interValorEditado && (
-                        <span className="font-black text-green-700 dark:text-green-400 text-base">{fmt(calcularValorLiquidoModal())}</span>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                    {interEtapa === 1 ? 'Configuração dos Boletos' : 'Gerar Boletos'}
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                    {notaFiscal.numero_nota} · {fmt(configImpostos.valor_bruto)} · {notaFiscal.parcelas} parcela(s)
+                  </p>
+                </div>
+                <button onClick={() => setModalInter(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+
+              {/* ═══ ETAPA 1 ═══ */}
+              {interEtapa === 1 && (
+                <>
+                  {/* Seção: Nota */}
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase">Nota Fiscal</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">Valor Total da Nota</span>
+                      <span className="font-black text-slate-900 dark:text-white text-xl">{fmt(configImpostos.valor_bruto)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Número da Nota</label>
+                        <input type="text" value={interNumeroNota} onChange={e => setInterNumeroNota(e.target.value)}
+                          className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-900 dark:text-white" />
+                      </div>
+                      {configImpostos.numero_os && (
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Número OS</label>
+                          <p className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-300">{configImpostos.numero_os}</p>
+                        </div>
                       )}
-                      <input
-                        type="number" step="0.01" min="0.01"
-                        value={interValorEditado ? interValor : calcularValorLiquidoModal().toFixed(2)}
-                        onChange={e => { setInterValor(e.target.value); setInterValorEditado(true); }}
-                        onFocus={() => { if (!interValorEditado) { setInterValor(calcularValorLiquidoModal().toFixed(2)); setInterValorEditado(true); } }}
-                        className={`w-32 px-2 py-1 text-sm font-bold rounded-lg border focus:ring-2 focus:ring-green-500 outline-none text-right ${
-                          interValorEditado
-                            ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400 text-yellow-700 dark:text-yellow-300'
-                            : 'bg-green-50 dark:bg-green-900/20 border-green-300 text-green-700 dark:text-green-400'
-                        }`}
-                        title="Clique para editar o valor diretamente"
-                      />
                     </div>
                   </div>
-                  {interValorEditado && (
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs text-yellow-600 dark:text-yellow-400">Valor editado manualmente</span>
-                      <button onClick={() => { setInterValorEditado(false); }} className="text-xs text-slate-500 underline hover:no-underline">resetar</button>
+
+                  {/* Seção: Impostos */}
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase">Impostos Retidos</p>
+                      <div className="flex gap-3">
+                        <button onClick={() => { setInterAplicarPis(true); setInterAplicarCofins(true); setInterAplicarInss(true); setInterAplicarCsll(true); }}
+                          className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">✓ Todos</button>
+                        <button onClick={() => { setInterAplicarPis(false); setInterAplicarCofins(false); setInterAplicarInss(false); setInterAplicarCsll(false); }}
+                          className="text-xs font-bold text-slate-500 hover:underline">✗ Nenhum</button>
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {/* Juros */}
-              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <input type="checkbox" id="inter-juros" checked={interAplicarJuros} onChange={e => setInterAplicarJuros(e.target.checked)}
-                    className="w-4 h-4 rounded accent-green-600" />
-                  <label htmlFor="inter-juros" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">Aplicar juros de mora</label>
-                </div>
-                {interAplicarJuros && (
-                  <div className="flex items-center gap-1">
-                    <input type="number" step="0.01" min="0" value={interTaxaJuros} onChange={e => setInterTaxaJuros(e.target.value)}
-                      className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-green-500 outline-none text-right" />
-                    <span className="text-xs text-slate-400">% a.m.</span>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+                    <span>Valor Bruto</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{fmt(configImpostos.valor_bruto)}</span>
                   </div>
-                )}
-              </div>
+                  {([
+                        ['PIS',    interAplicarPis,    setInterAplicarPis,    interPctPis,    setInterPctPis],
+                        ['COFINS', interAplicarCofins, setInterAplicarCofins, interPctCofins, setInterPctCofins],
+                        ['INSS',   interAplicarInss,   setInterAplicarInss,   interPctInss,   setInterPctInss],
+                        ['CSLL',   interAplicarCsll,   setInterAplicarCsll,   interPctCsll,   setInterPctCsll],
+                      ] as [string, boolean, (v: boolean) => void, string, (v: string) => void][]).map(([label, aplicar, setAplicar, pct, setPct]) => (
+                        <div key={label} className="flex items-center gap-2">
+                          <input type="checkbox" checked={aplicar} onChange={e => setAplicar(e.target.checked)} className="w-4 h-4 rounded accent-red-500" />
+                          <span className={`w-16 font-bold text-xs ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400 line-through'}`}>{label}</span>
+                          <div className="flex items-center gap-1 flex-1">
+                            <input type="number" step="0.01" min="0" max="100" value={pct} disabled={!aplicar}
+                              onChange={e => setPct(e.target.value)}
+                              className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-green-500 outline-none text-right disabled:opacity-40" />
+                            <span className="text-xs text-slate-400">%</span>
+                          </div>
+                          <span className={`text-xs w-24 text-right ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
+                            {aplicar ? `- ${fmt(configImpostos.valor_bruto * parseFloat(pct || '0') / 100)}` : '—'}
+                          </span>
+                        </div>
+                      ))}
+                      <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1 space-y-1.5">
+                        <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
+                          <span>Total Impostos</span>
+                          <span className="font-bold text-red-600 dark:text-red-400">- {fmt(totalImpostosModal())}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="font-black text-green-700 dark:text-green-400 text-base">Valor Líquido Total</span>
+                          <span className="font-black text-green-700 dark:text-green-400 text-base">{fmt(calcularValorLiquidoModal())}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-              {/* Data vencimento override */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Data de Vencimento (1ª parcela)</label>
-                <input type="date" value={interDataVencimento} onChange={e => setInterDataVencimento(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white" />
-                <p className="text-xs text-slate-400 mt-1">Deixe vazio para usar a data original da nota.</p>
-              </div>
+                  {/* Seção: Parcelas */}
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase mb-3">Valores das Parcelas</p>
+                    <div className="space-y-2">
+                      {interParcelasItens.map(item => {
+                        const isFaltante = item.situacaoBoleto === null || item.situacaoBoleto === 'CANCELADO' || item.situacaoBoleto === 'EXPIRADO';
+                        const isPago = item.situacaoBoleto === 'PAGO' || item.situacaoBoleto === 'BAIXADO';
+                        const isLocked = !isFaltante;
+                        return (
+                          <div key={item.numero} className={`flex items-center gap-3 p-2 rounded-lg ${
+                            isPago ? 'bg-green-50 dark:bg-green-500/10' :
+                            isLocked ? 'bg-blue-50 dark:bg-blue-500/10' :
+                            interParcelaFoco === item.numero ? 'bg-yellow-50 dark:bg-yellow-500/10 ring-1 ring-yellow-400' :
+                            'bg-white dark:bg-slate-950'
+                          }`}>
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0 ${
+                              isPago ? 'bg-green-500' : isLocked ? 'bg-blue-500' : 'bg-slate-400 dark:bg-slate-600'
+                            }`}>{item.numero}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-slate-500 dark:text-slate-400">Parcela {item.numero}/{notaFiscal.parcelas}</span>
+                                {item.situacaoBoleto && (
+                                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${SITUACAO_CONFIG[item.situacaoBoleto]?.cls}`}>
+                                    {SITUACAO_CONFIG[item.situacaoBoleto]?.label}
+                                  </span>
+                                )}
+                                {!item.situacaoBoleto && <span className="text-xs text-slate-400 italic">A gerar</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number" step="0.01" min="0.01"
+                                value={item.valor}
+                                disabled={isLocked}
+                                onChange={e => setInterParcelasItens(prev => prev.map(p => p.numero === item.numero ? { ...p, valor: e.target.value } : p))}
+                                className={`w-28 px-2 py-1.5 text-sm font-black rounded-lg border text-right outline-none ${
+                                  isLocked
+                                    ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed'
+                                    : 'bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-green-500 text-slate-900 dark:text-white'
+                                }`}
+                              />
+                              <input
+                                type="date"
+                                value={item.dataVencimento}
+                                disabled={isLocked}
+                                onChange={e => setInterParcelasItens(prev => prev.map(p => p.numero === item.numero ? { ...p, dataVencimento: e.target.value } : p))}
+                                className={`px-2 py-1.5 text-xs rounded-lg border outline-none ${
+                                  isLocked
+                                    ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed'
+                                    : 'bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-green-500 text-slate-900 dark:text-white'
+                                }`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2">* Parcelas com boleto emitido têm valor bloqueado</p>
+                  </div>
 
-              {/* Mensagem */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Mensagem no Boleto</label>
-                <input type="text" maxLength={300} value={interMensagem} onChange={e => setInterMensagem(e.target.value)}
-                  placeholder={`OS ${configImpostos.numero_os || servico.id} | NF: ${notaFiscal.numero_nota}`}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white" />
-                <p className="text-xs text-slate-400 mt-1">Deixe vazio para usar OS automaticamente.</p>
-              </div>
+                  {/* Seção: Validação */}
+                  {(() => {
+                    const liquido = calcularValorLiquidoModal();
+                    const soma = somaParcelasModal();
+                    const diff = soma - liquido;
+                    const ok = Math.abs(diff) < 0.005;
+                    return (
+                      <div className={`rounded-xl p-4 border-2 ${ok ? 'bg-green-50 dark:bg-green-500/10 border-green-300 dark:border-green-700' : 'bg-red-50 dark:bg-red-500/10 border-red-300 dark:border-red-700'}`}>
+                        <p className="text-xs font-black uppercase mb-3 text-slate-500 dark:text-slate-400">Validação</p>
+                        <div className="space-y-1.5 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">Valor Total da Nota</span>
+                            <span className="font-bold text-slate-900 dark:text-white">{fmt(configImpostos.valor_bruto)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">(-) Total Impostos</span>
+                            <span className="font-bold text-red-600 dark:text-red-400">- {fmt(totalImpostosModal())}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">Valor Líquido Esperado</span>
+                            <span className="font-bold text-slate-900 dark:text-white">{fmt(liquido)}</span>
+                          </div>
+                          <div className="border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                            <div className="flex justify-between">
+                              <span className="text-slate-600 dark:text-slate-400">Soma das Parcelas</span>
+                              <span className="font-bold text-slate-900 dark:text-white">{fmt(soma)}</span>
+                            </div>
+                            <div className="flex justify-between mt-1">
+                              <span className={`font-black text-base ${ok ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                                {ok ? '✅ Diferença' : '❌ Diferença'}
+                              </span>
+                              <span className={`font-black text-base ${ok ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                                {diff >= 0 ? '+' : ''}{diff.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {!ok && (
+                          <p className="mt-2 text-xs text-red-600 dark:text-red-400 font-semibold">
+                            Ajuste os valores das parcelas para que a soma seja exatamente {fmt(liquido)}.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Seção: Descrição */}
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <button onClick={() => setInterDescricaoExpanded(p => !p)} className="flex items-center justify-between w-full">
+                      <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase flex items-center gap-2">
+                        <span>📄</span> Descrição / Mensagem
+                      </p>
+                      <span className="text-slate-400 text-sm">{interDescricaoExpanded ? '▲' : '▼'}</span>
+                    </button>
+                    {!interDescricaoExpanded && interMensagem && (
+                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{interMensagem}</p>
+                    )}
+                    {interDescricaoExpanded && (
+                      <textarea value={interMensagem} onChange={e => setInterMensagem(e.target.value)} rows={4} maxLength={500}
+                        className="mt-3 w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white resize-y" />
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* ═══ ETAPA 2 ═══ */}
+              {interEtapa === 2 && (
+                <>
+                  {/* Resumo aprovado */}
+                  <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800 rounded-xl p-4">
+                    <p className="text-xs font-black text-green-700 dark:text-green-400 uppercase mb-2">✅ Configuração Aprovada — Valores Bloqueados</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400 text-xs">Nota</span>
+                        <p className="font-bold text-slate-900 dark:text-white">{interNumeroNota || notaFiscal.numero_nota}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400 text-xs">Total</span>
+                        <p className="font-bold text-slate-900 dark:text-white">{fmt(configImpostos.valor_bruto)}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400 text-xs">Impostos</span>
+                        <p className="font-bold text-red-600 dark:text-red-400">
+                          {[
+                            interAplicarPis    && `PIS ${interPctPis}%`,
+                            interAplicarCofins && `COFINS ${interPctCofins}%`,
+                            interAplicarInss   && `INSS ${interPctInss}%`,
+                            interAplicarCsll   && `CSLL ${interPctCsll}%`,
+                          ].filter(Boolean).join(' + ') || 'Nenhum'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400 text-xs">Valor Líquido</span>
+                        <p className="font-black text-green-700 dark:text-green-400">{fmt(calcularValorLiquidoModal())}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Parcelas para geração */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase">Parcelas</p>
+                    {interParcelasItens.map(item => {
+                      const isFaltante = item.situacaoBoleto === null || item.situacaoBoleto === 'CANCELADO' || item.situacaoBoleto === 'EXPIRADO';
+                      const isPago = item.situacaoBoleto === 'PAGO' || item.situacaoBoleto === 'BAIXADO';
+                      const isGerandoThis = gerandoParcelaNum === item.numero;
+                      const isGerandoOutro = gerandoParcelaNum !== null && gerandoParcelaNum !== item.numero;
+                      // Build payload preview
+                      const basePrev = addDays(item.dataVencimento, -30 * (item.numero - 1));
+                      const seuNumBase = (interNumeroNota || notaFiscal.numero_nota || String(notaFiscal.id));
+                      const sufixo = `-${item.numero}/${notaFiscal.parcelas}`;
+                      const seuNum = (seuNumBase.slice(0, 15 - sufixo.length) + sufixo).slice(0, 15);
+                      const payloadPreview = {
+                        seuNumero: seuNum,
+                        valorNominal: parseFloat(item.valor),
+                        dataVencimento: item.dataVencimento,
+                        mensagem: interMensagem.trim() ? { linha1: interMensagem.trim().slice(0, 60), ...(interMensagem.trim().length > 60 ? { linha2: interMensagem.trim().slice(60, 120) } : {}) } : undefined,
+                        _base_date_override: basePrev,
+                      };
+                      return (
+                        <div key={item.numero} className={`rounded-xl border overflow-hidden ${
+                          isPago ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-500/5' :
+                          item.situacaoBoleto === 'EMABERTO' || item.situacaoBoleto === 'VENCIDO' ? 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-500/5' :
+                          'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+                        }`}>
+                          <div className="flex items-center gap-3 p-4">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0 ${
+                              isPago ? 'bg-green-500' : item.situacaoBoleto === 'EMABERTO' ? 'bg-blue-500' : item.situacaoBoleto === 'VENCIDO' ? 'bg-orange-500' : 'bg-slate-400'
+                            }`}>{item.numero}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-slate-900 dark:text-white text-sm">Parcela {item.numero}/{notaFiscal.parcelas}</span>
+                                {item.situacaoBoleto && (
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${SITUACAO_CONFIG[item.situacaoBoleto]?.cls}`}>
+                                    {SITUACAO_CONFIG[item.situacaoBoleto]?.label}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm font-black text-green-700 dark:text-green-400 mt-0.5">{fmt(parseFloat(item.valor) || 0)}</p>
+                            </div>
+                            {/* Date editable in step 2 */}
+                            {isFaltante && (
+                              <input
+                                type="date"
+                                value={item.dataVencimento}
+                                onChange={e => setInterParcelasItens(prev => prev.map(p => p.numero === item.numero ? { ...p, dataVencimento: e.target.value } : p))}
+                                className="px-2 py-1.5 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white"
+                              />
+                            )}
+                            {!isFaltante && !isPago && (
+                              <span className="text-xs text-slate-500 dark:text-slate-400">{pd(item.dataVencimento)}</span>
+                            )}
+                          </div>
+                          {/* Actions & Preview */}
+                          {(isFaltante || isPago) && (
+                            <div className="px-4 pb-3 flex items-center justify-between gap-2 flex-wrap">
+                              <button
+                                onClick={() => setInterPayloadExpanded(interPayloadExpanded === item.numero ? null : item.numero)}
+                                className="text-xs text-slate-500 dark:text-slate-400 hover:underline flex items-center gap-1"
+                              >
+                                👁 {interPayloadExpanded === item.numero ? 'Ocultar' : 'Preview payload'}
+                              </button>
+                              {isFaltante && (
+                                <button
+                                  onClick={() => handleGerarParcelaSingle(item)}
+                                  disabled={isGerandoThis || isGerandoOutro || gerandoParcelas}
+                                  className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  {isGerandoThis ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando...</> : '🏦 Gerar Inter'}
+                                </button>
+                              )}
+                              {isPago && <span className="text-xs text-slate-400 italic">Pago — não pode ser regerar</span>}
+                            </div>
+                          )}
+                          {interPayloadExpanded === item.numero && (
+                            <div className="px-4 pb-4">
+                              <div className="bg-slate-900 dark:bg-slate-950 rounded-lg p-3 text-xs font-mono text-green-400 overflow-x-auto whitespace-pre">
+                                {JSON.stringify(payloadPreview, null, 2)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Descrição editável na etapa 2 */}
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <button onClick={() => setInterDescricaoExpanded(p => !p)} className="flex items-center justify-between w-full">
+                      <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase flex items-center gap-2">
+                        <span>📄</span> Descrição / Mensagem do Boleto
+                      </p>
+                      <span className="text-slate-400 text-sm">{interDescricaoExpanded ? '▲' : '▼'}</span>
+                    </button>
+                    {!interDescricaoExpanded && interMensagem && (
+                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{interMensagem}</p>
+                    )}
+                    {interDescricaoExpanded && (
+                      <textarea value={interMensagem} onChange={e => setInterMensagem(e.target.value)} rows={4} maxLength={500}
+                        className="mt-3 w-full px-3 py-2 text-sm rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-slate-900 dark:text-white resize-y" />
+                    )}
+                  </div>
+                </>
+              )}
+
             </div>
 
-            {/* Debug: preview do payload que será enviado */}
-            <details className="mt-4">
-              <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600 select-none">Ver payload Inter (debug)</summary>
-              <pre className="mt-2 text-xs bg-slate-100 dark:bg-slate-800 rounded-xl p-3 overflow-auto max-h-48 text-slate-700 dark:text-slate-300">
-{JSON.stringify({
-  nota_id: notaFiscal.id,
-  nota: notaFiscal.numero_nota,
-  parcelas: notaFiscal.parcelas,
-  valor_bruto: configImpostos.valor_bruto,
-  impostos: {
-    pis: interAplicarPis ? interPctPis : '0 (desativado)',
-    cofins: interAplicarCofins ? interPctCofins : '0 (desativado)',
-    inss: interAplicarInss ? interPctInss : '0 (desativado)',
-    csll: interAplicarCsll ? interPctCsll : '0 (desativado)',
-  },
-  valor_liquido: interValorEditado ? parseFloat(interValor) : calcularValorLiquidoModal(),
-  valor_editado_manualmente: interValorEditado,
-  aplicar_juros: interAplicarJuros,
-  taxa_juros: interTaxaJuros,
-  data_vencimento_override: interDataVencimento || '(da nota)',
-  mensagem: interMensagem || `OS: ${configImpostos.numero_os || servico.id} | NF: ${notaFiscal.numero_nota}`,
-}, null, 2)}
-              </pre>
-            </details>
-
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setModalInter(false)} disabled={gerandoParcelas}
-                className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all disabled:opacity-50">
-                Cancelar
-              </button>
-              <button onClick={handleConfirmarGerarInter} disabled={gerandoParcelas}
-                className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                {gerandoParcelas && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                Emitir Boleto (TESTE)
-              </button>
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-white dark:bg-slate-900 px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex gap-3 rounded-b-2xl">
+              {interEtapa === 1 && (
+                <>
+                  <button onClick={() => setModalInter(false)}
+                    className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all">
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleAprovarBoletos}
+                    disabled={Math.abs(somaParcelasModal() - calcularValorLiquidoModal()) >= 0.005}
+                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    ✅ Aprovar Boletos →
+                  </button>
+                </>
+              )}
+              {interEtapa === 2 && (
+                <>
+                  <button onClick={() => { setInterEtapa(1); setInterAprovado(false); }}
+                    disabled={gerandoParcelas || gerandoParcelaNum !== null}
+                    className="py-3 px-4 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all disabled:opacity-50 text-sm whitespace-nowrap">
+                    🔄 Reabrir Config
+                  </button>
+                  <button
+                    onClick={handleGerarTodos}
+                    disabled={gerandoParcelas || gerandoParcelaNum !== null || interParcelasItens.filter(p => p.situacaoBoleto === null || p.situacaoBoleto === 'CANCELADO' || p.situacaoBoleto === 'EXPIRADO').length === 0}
+                    className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {gerandoParcelas && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                    🏦 Gerar Todos ({interParcelasItens.filter(p => p.situacaoBoleto === null || p.situacaoBoleto === 'CANCELADO' || p.situacaoBoleto === 'EXPIRADO').length} faltantes)
+                  </button>
+                </>
+              )}
             </div>
+
           </div>
         </div>
       )}

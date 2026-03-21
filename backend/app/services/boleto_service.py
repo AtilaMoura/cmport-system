@@ -378,12 +378,7 @@ class BoletoService:
                         payload["mensagem"] = msg_payload
                     payload.update(mora_payload)
 
-                    # ── MODO TESTE: descomente a linha abaixo para chamar o Inter de verdade ──
-                    # resposta = inter_client.emitir_boleto(payload)
-                    import uuid as _uuid
-                    resposta = {"codigoSolicitacao": f"TESTE-{_uuid.uuid4().hex[:12].upper()}", "nossoNumero": None}
-                    print(f"[TESTE] Payload que seria enviado ao Inter:\n{payload}")
-                    # ────────────────────────────────────────────────────────────────────────
+                    resposta = inter_client.emitir_boleto(payload)
 
                     db_boleto = BoletoRepository.create(db, {
                         "nota_fiscal_id": nota_id,
@@ -402,7 +397,6 @@ class BoletoService:
                     })
 
                     sucesso.append(BoletoResponse.model_validate(db_boleto))
-                    print(f"[TESTE] Boleto simulado nota {nota_id} parcela {numero_parcela}/{total_parcelas}: {resposta.get('codigoSolicitacao')}")
 
             except Exception as e:
                 erros.append({"nota_id": nota_id, "erro": str(e)})
@@ -486,6 +480,8 @@ class BoletoService:
         pct_csll: float = None,
         aplicar_juros: bool = None,
         taxa_juros: float = 1.0,
+        data_vencimento_override: date = None,
+        parcelas_selecionadas: list = None,
     ) -> GerarParcelasFaltantesResponse:
         """Gera apenas as parcelas que ainda não existem para uma nota parcelada."""
         nota = NotaFiscalRepository.get_by_id(db, nota_id)
@@ -496,6 +492,10 @@ class BoletoService:
         total_parcelas = nota.parcelas if nota.parcelas and nota.parcelas > 0 else 1
         nums_existentes = {b.numero_parcela for b in existentes}
         faltantes = [p for p in range(1, total_parcelas + 1) if p not in nums_existentes]
+
+        # Filtra pelas parcelas selecionadas pelo usuário, se informado
+        if parcelas_selecionadas:
+            faltantes = [p for p in faltantes if p in parcelas_selecionadas]
 
         if not faltantes:
             return GerarParcelasFaltantesResponse(sucesso=[], erros=[{"nota_id": nota_id, "erro": "Todas as parcelas já foram geradas."}])
@@ -550,7 +550,8 @@ class BoletoService:
 
         for numero_parcela in faltantes:
             try:
-                data_venc = nota.data_vencimento + timedelta(days=30 * (numero_parcela - 1))
+                data_base = data_vencimento_override or nota.data_vencimento
+                data_venc = data_base + timedelta(days=30 * (numero_parcela - 1))
                 data_inter = max(data_venc, date.today() + timedelta(days=5))
                 valor = valor_ultima if numero_parcela == total_parcelas else valor_parcela
 
@@ -568,12 +569,7 @@ class BoletoService:
                     payload["mensagem"] = msg_payload
                 payload.update(mora_payload)
 
-                # ── MODO TESTE: descomente a linha abaixo para chamar o Inter de verdade ──
-                # resposta = inter_client.emitir_boleto(payload)
-                import uuid as _uuid
-                resposta = {"codigoSolicitacao": f"TESTE-{_uuid.uuid4().hex[:12].upper()}", "nossoNumero": None}
-                print(f"[TESTE] Payload que seria enviado ao Inter:\n{payload}")
-                # ────────────────────────────────────────────────────────────────────────
+                resposta = inter_client.emitir_boleto(payload)
 
                 db_boleto = BoletoRepository.create(db, {
                     "nota_fiscal_id": nota_id,
