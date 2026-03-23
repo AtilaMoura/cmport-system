@@ -198,7 +198,7 @@ function FormNovoCondominio() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-12">
+    <form onSubmit={handleSubmit} className="space-y-8 lg:space-y-12">
       {error && (
         <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-400">
           {error}
@@ -383,7 +383,7 @@ function FormNovoCondominio() {
 
         <div className="space-y-4">
           {formData.contatos.map((contato, index) => (
-            <div key={index} className="p-6 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-3xl">
+            <div key={index} className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-3xl">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <input 
                   placeholder="Nome *"
@@ -443,17 +443,17 @@ function FormNovoCondominio() {
         </div>
       </section>
 
-      <div className="pt-8 flex flex-col md:flex-row gap-4">
+      <div className="pt-4 sm:pt-8 flex flex-col sm:flex-row gap-3 sm:gap-4">
         <Link
           href="/condominios"
-          className="flex-1 py-5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-[1.5rem] font-black text-lg text-center hover:bg-slate-300 dark:hover:bg-slate-700 transition-all"
+          className="flex-1 py-3 sm:py-5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-[1.5rem] font-black text-base sm:text-lg text-center hover:bg-slate-300 dark:hover:bg-slate-700 transition-all"
         >
           CANCELAR
         </Link>
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={loading}
-          className="flex-1 py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-lg shadow-xl shadow-blue-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 py-3 sm:py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-base sm:text-lg shadow-xl shadow-blue-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'CRIANDO...' : 'FINALIZAR CADASTRO'}
         </button>
@@ -464,22 +464,22 @@ function FormNovoCondominio() {
 
 export default function NovoCondominioPage() {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 md:p-10">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-3 sm:p-6 lg:p-10">
+      <div className="max-w-5xl mx-auto space-y-4 sm:space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-              <span className="text-2xl">+</span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0">
+              <span className="text-xl sm:text-2xl">+</span>
             </div>
             <div>
-              <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Novo Condomínio</h1>
-              <p className="text-slate-500 font-medium italic text-sm">Inicie o onboarding de uma nova unidade na base CMPort</p>
+              <h1 className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Novo Condomínio</h1>
+              <p className="text-slate-500 font-medium italic text-xs sm:text-sm">Inicie o onboarding de uma nova unidade na base CMPort</p>
             </div>
           </div>
           <Link
             href="/condominios"
-            className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+            className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -488,7 +488,7 @@ export default function NovoCondominioPage() {
         </div>
 
         {/* Container do Formulário */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-sm overflow-hidden p-8 md:p-12">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] sm:rounded-[2.5rem] shadow-sm overflow-hidden p-4 sm:p-8 md:p-12">
           <FormNovoCondominio />
         </div>
       </div>

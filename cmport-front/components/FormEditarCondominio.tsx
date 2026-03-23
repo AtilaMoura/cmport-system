@@ -49,7 +49,7 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-10">
+    <form onSubmit={handleSubmit} className="space-y-6 lg:space-y-10">
       
       {/* SEÇÃO 1: DADOS BÁSICOS */}
       <section className="space-y-6">
@@ -105,11 +105,11 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
 
         <div className="grid grid-cols-1 gap-4">
           {formData.contatos.map((contato: any, index: number) => (
-            <div key={index} className="p-6 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl relative group">
-              <button 
+            <div key={index} className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl relative group">
+              <button
                 type="button"
                 onClick={() => removeContato(index)}
-                className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-sm font-semibold"
               >
                 Remover
               </button>
@@ -159,11 +159,11 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
       </section>
 
       {/* BOTÕES DE AÇÃO */}
-      <div className="flex gap-4 pt-10 border-t border-slate-200 dark:border-slate-800">
-        <button 
-          type="submit" 
+      <div className="flex gap-4 pt-6 sm:pt-10 border-t border-slate-200 dark:border-slate-800">
+        <button
+          type="submit"
           disabled={loading}
-          className="flex-1 py-4 bg-brand text-white rounded-2xl font-black shadow-lg shadow-brand/20 hover:brightness-110 disabled:opacity-50 transition-all"
+          className="flex-1 py-3 sm:py-4 bg-brand text-white rounded-2xl font-black shadow-lg shadow-brand/20 hover:brightness-110 disabled:opacity-50 transition-all"
         >
           {loading ? 'Sincronizando...' : 'SALVAR ALTERAÇÕES'}
         </button>
