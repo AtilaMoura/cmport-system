@@ -292,21 +292,21 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header + Period selector */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-8 py-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 lg:py-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <div className="flex items-center gap-3 mb-1">
-                <div className="w-2 h-8 bg-indigo-600 rounded-full" />
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">Dashboard</h1>
+                <div className="w-2 h-6 sm:h-8 bg-indigo-600 rounded-full" />
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Dashboard</h1>
               </div>
-              <p className="text-slate-600 dark:text-slate-400 text-lg ml-5">Analise completa do negocio</p>
+              <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-lg ml-5">Analise completa do negocio</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {PERIODOS.map(p => (
                 <button
                   key={p.key}
                   onClick={() => setPeriodo(p.key)}
-                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                  className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${
                     periodo === p.key
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -320,10 +320,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8 py-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-4 lg:space-y-8">
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
           {[
             { label: 'Servicos',        value: kpis.totalServicos, fmt: String, prev: kpisAnt.totalServicos, icon: '🛠️', cls: 'bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-800/50', txtCls: 'text-purple-900 dark:text-purple-300', href: '/servicos' },
             { label: 'Notas Emitidas',  value: kpis.totalNotas,    fmt: String, prev: kpisAnt.totalNotas,    icon: '📄', cls: 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-800/50', txtCls: 'text-orange-900 dark:text-orange-300', href: '/notas' },
@@ -333,13 +333,13 @@ export default function DashboardPage() {
             const v = varPct(card.value, card.prev);
             return (
               <Link key={card.label} href={card.href}
-                className={`${card.cls} p-5 rounded-2xl shadow-sm hover:shadow-lg transition-all hover:-translate-y-0.5`}
+                className={`${card.cls} p-3 sm:p-5 rounded-2xl shadow-sm hover:shadow-lg transition-all hover:-translate-y-0.5`}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-2xl">{card.icon}</span>
+                <div className="flex items-center justify-between mb-2 sm:mb-3">
+                  <span className="text-xl sm:text-2xl">{card.icon}</span>
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full bg-white/60 dark:bg-black/20 ${varCls(v)}`}>{pctLabel(v)}</span>
                 </div>
-                <p className={`text-2xl font-black ${card.txtCls} mb-0.5`}>{card.fmt(card.value)}</p>
+                <p className={`text-xl sm:text-2xl font-black ${card.txtCls} mb-0.5`}>{card.fmt(card.value)}</p>
                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">{card.label}</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">ant: {card.fmt(card.prev)}</p>
               </Link>
@@ -348,21 +348,21 @@ export default function DashboardPage() {
         </div>
 
         {/* Comparativo Quantidade */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-5 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+          <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white mb-3 sm:mb-5 flex items-center gap-2">
             <span className="text-xl">📊</span> Comparativo Mensal — Quantidade: Servicos / Notas / Boletos
           </h3>
-          <div className="h-72">
+          <div className="h-52 sm:h-72">
             <Bar data={comparativoQtdData} options={chartBase} />
           </div>
         </div>
 
         {/* Comparativo Valor */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-5 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+          <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white mb-3 sm:mb-5 flex items-center gap-2">
             <span className="text-xl">💵</span> Comparativo Financeiro — Emitido / Recebido / Pendente por Mes
           </h3>
-          <div className="h-72">
+          <div className="h-52 sm:h-72">
             <Bar data={comparativoValorData} options={{
               ...chartBase,
               scales: {
@@ -374,12 +374,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Ano vs Ano + Semana a semana */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-5 flex items-center gap-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+            <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white mb-3 sm:mb-5 flex items-center gap-2">
               <span className="text-xl">📈</span> Faturamento: {anoAtual} vs {anoAtual - 1}
             </h3>
-            <div className="h-64">
+            <div className="h-48 sm:h-64">
               <Line data={anoVsAnoData} options={{
                 ...chartBase,
                 scales: {
@@ -389,23 +389,23 @@ export default function DashboardPage() {
               } as ChartOptions<'line'>} />
             </div>
           </div>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-5 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+            <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white mb-3 sm:mb-5 flex items-center gap-2">
               <span className="text-xl">📅</span> Servicos por Semana — Mes Atual
             </h3>
-            <div className="h-64">
+            <div className="h-48 sm:h-64">
               <Bar data={semanasData} options={chartBase} />
             </div>
           </div>
         </div>
 
         {/* Analise Imposto / Lucro */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 lg:mb-6">
+            <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <span className="text-xl">🧮</span> Analise Financeira — Imposto & Receita Liquida
             </h3>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Taxa ISS:</span>
               <div className="flex gap-1">
                 {[2, 3, 4, 5].map(r => (
@@ -419,7 +419,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 lg:gap-4 mb-4 lg:mb-6">
             {[
               { label: 'Faturamento Bruto',     value: fmt(kpis.valorEmitido),   icon: '📄', cls: 'bg-slate-50 dark:bg-slate-800',                                                       txtCls: 'text-slate-900 dark:text-white' },
               { label: `ISS Est. (${issRate}%)`, value: fmt(kpis.issEstimado),    icon: '🏛️', cls: 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30',           txtCls: 'text-red-700 dark:text-red-400' },
@@ -427,9 +427,9 @@ export default function DashboardPage() {
               { label: 'Recebido (Boletos)',      value: fmt(kpis.valorRecebido),  icon: '💳', cls: 'bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-800/30', txtCls: 'text-indigo-700 dark:text-indigo-400' },
               { label: 'Inadimplencia',           value: fmt(kpis.valorPendente),  icon: '⚠️', cls: 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-800/30', txtCls: 'text-orange-700 dark:text-orange-400' },
             ].map(card => (
-              <div key={card.label} className={`${card.cls} p-4 rounded-2xl`}>
+              <div key={card.label} className={`${card.cls} p-3 lg:p-4 rounded-2xl`}>
                 <div className="text-2xl mb-2">{card.icon}</div>
-                <p className={`text-lg font-black mb-1 ${card.txtCls}`}>{card.value}</p>
+                <p className={`text-base lg:text-lg font-black mb-1 ${card.txtCls}`}>{card.value}</p>
                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase leading-tight">{card.label}</p>
               </div>
             ))}
@@ -461,20 +461,20 @@ export default function DashboardPage() {
         </div>
 
         {/* Status Boletos */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+          <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
             <span className="text-xl">🏦</span> Status dos Boletos no Periodo
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 lg:gap-4">
             {[
-              { label: 'Em Aberto',        value: kpis.boletosAberto,   cls: 'text-blue-600 dark:text-blue-400',   bg: 'bg-blue-50 dark:bg-blue-500/10' },
-              { label: 'Pagos',            value: kpis.boletosPagos,    cls: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-500/10' },
-              { label: 'Vencidos',         value: kpis.boletosVencidos, cls: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-500/10' },
-              { label: 'Cancelados',       value: kpis.boletosCanc,     cls: 'text-red-600 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-500/10' },
-              { label: 'Expirados/Baixados', value: kpis.boletosExp,    cls: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800' },
+              { label: 'Em Aberto',          value: kpis.boletosAberto,   cls: 'text-blue-600 dark:text-blue-400',     bg: 'bg-blue-50 dark:bg-blue-500/10' },
+              { label: 'Pagos',              value: kpis.boletosPagos,    cls: 'text-green-600 dark:text-green-400',   bg: 'bg-green-50 dark:bg-green-500/10' },
+              { label: 'Vencidos',           value: kpis.boletosVencidos, cls: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-500/10' },
+              { label: 'Cancelados',         value: kpis.boletosCanc,     cls: 'text-red-600 dark:text-red-400',       bg: 'bg-red-50 dark:bg-red-500/10' },
+              { label: 'Expirados/Baixados', value: kpis.boletosExp,      cls: 'text-slate-600 dark:text-slate-400',   bg: 'bg-slate-100 dark:bg-slate-800' },
             ].map(item => (
-              <Link href="/boletos" key={item.label} className={`${item.bg} p-5 rounded-2xl text-center hover:opacity-80 transition-opacity`}>
-                <p className={`text-3xl font-black ${item.cls} mb-1`}>{item.value}</p>
+              <Link href="/boletos" key={item.label} className={`${item.bg} p-3 sm:p-5 rounded-2xl text-center hover:opacity-80 transition-opacity`}>
+                <p className={`text-2xl sm:text-3xl font-black ${item.cls} mb-1`}>{item.value}</p>
                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">{item.label}</p>
               </Link>
             ))}
@@ -482,13 +482,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Top condominios + Distribuicao */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+            <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
               <span className="text-xl">🏆</span> Top 5 Condominios por Faturamento
             </h3>
             {topCondominiosData.labels.length > 0 ? (
-              <div className="h-64">
+              <div className="h-48 sm:h-64">
                 <Bar data={topCondominiosData} options={{
                   ...chartBase,
                   indexAxis: 'y',
@@ -499,17 +499,17 @@ export default function DashboardPage() {
                 }} />
               </div>
             ) : (
-              <div className="h-64 flex items-center justify-center text-slate-400">Sem dados no periodo</div>
+              <div className="h-48 sm:h-64 flex items-center justify-center text-slate-400">Sem dados no periodo</div>
             )}
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+            <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
               <span className="text-xl">🥧</span> Distribuicao de Servicos por Tipo
             </h3>
             {(distribuicaoData.datasets[0].data[0] + distribuicaoData.datasets[0].data[1]) > 0 ? (
               <>
-                <div className="h-52">
+                <div className="h-44 sm:h-52">
                   <Doughnut data={distribuicaoData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#64748b' } } } }} />
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-4">
@@ -524,7 +524,7 @@ export default function DashboardPage() {
                 </div>
               </>
             ) : (
-              <div className="h-64 flex items-center justify-center text-slate-400">Sem dados no periodo</div>
+              <div className="h-48 sm:h-64 flex items-center justify-center text-slate-400">Sem dados no periodo</div>
             )}
           </div>
         </div>
