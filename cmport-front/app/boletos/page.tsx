@@ -574,8 +574,8 @@ export default function BoletosPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-8 py-8">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 lg:gap-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <Link href="/notas" className="text-slate-400 hover:text-indigo-600 transition-colors">
@@ -584,42 +584,42 @@ export default function BoletosPage() {
                   </svg>
                 </Link>
                 <div className="w-2 h-8 bg-indigo-600 rounded-full" />
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">Boletos</h1>
+                <h1 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Boletos</h1>
               </div>
-              <p className="text-slate-600 dark:text-slate-400 text-lg ml-12">
+              <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-lg ml-12">
                 Gestão de cobranças via Banco Inter
               </p>
             </div>
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
               <button
                 onClick={() => setShowSyncModal(true)}
                 disabled={sincronizandoInter}
-                className="bg-green-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-green-600/20 hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50"
+                className="bg-green-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-black shadow-lg shadow-green-600/20 hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50 text-sm sm:text-base"
               >
                 {sincronizandoInter
-                  ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Importando...</>
-                  : <><span className="text-xl">🏦</span> Importar do Inter</>}
+                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Importando...</>
+                  : <><span>🏦</span> Importar</>}
               </button>
               <button
                 onClick={sincronizarStatus}
                 disabled={sincronizando}
-                className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50"
+                className="bg-indigo-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-black shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50 text-sm sm:text-base"
               >
                 {sincronizando
-                  ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sincronizando...</>
-                  : <><span className="text-xl">🔄</span> Sincronizar Status</>}
+                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sincronizando...</>
+                  : <><span>🔄</span> Sincronizar</>}
               </button>
               <Link
                 href="/notas"
-                className="bg-orange-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-orange-600/20 hover:brightness-110 transition-all flex items-center gap-2"
+                className="bg-orange-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-black shadow-lg shadow-orange-600/20 hover:brightness-110 transition-all flex items-center gap-2 text-sm sm:text-base"
               >
-                <span className="text-xl">📄</span> Notas Fiscais
+                <span>📄</span> Notas
               </Link>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mt-6 border-b border-slate-200 dark:border-slate-800 -mb-px">
+          <div className="flex gap-1 mt-4 sm:mt-6 border-b border-slate-200 dark:border-slate-800 -mb-px overflow-x-auto">
             {([
               { key: 'boletos', label: 'Todos os Boletos', count: boletos.length },
               { key: 'notas_sem_boleto', label: 'Notas sem Boleto', count: notasSemBoleto.length },
@@ -647,7 +647,7 @@ export default function BoletosPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8 py-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-4 lg:space-y-8">
 
         {/* ===== ABA: TODOS OS BOLETOS ===== */}
         {pageTab === 'boletos' && (
@@ -662,7 +662,7 @@ export default function BoletosPage() {
               ].map(card => (
                 <div key={card.label} className={`${card.cls} p-5 rounded-2xl shadow-sm`}>
                   <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">{card.label}</p>
-                  <p className={`text-3xl font-black ${card.textCls}`}>{card.value}</p>
+                  <p className={`text-xl sm:text-3xl font-black ${card.textCls}`}>{card.value}</p>
                 </div>
               ))}
             </div>
@@ -685,8 +685,8 @@ export default function BoletosPage() {
 
             {/* Graficos */}
             {boletosFiltrados.length > 0 && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-6">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <span className="text-xl">🥧</span> Distribuição por Status
                   </h3>
@@ -694,8 +694,8 @@ export default function BoletosPage() {
                     <Doughnut data={doughnutData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#64748b' } } } }} />
                   </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+                  <h3 className="text-base lg:text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <span className="text-xl">📊</span> Valores — Últimos 6 Meses
                   </h3>
                   <div className="h-56">
@@ -706,7 +706,7 @@ export default function BoletosPage() {
             )}
 
             {/* Filtros */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-5">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm space-y-4 lg:space-y-5">
 
               {/* Linha 1: busca + mês vencimento + mês emissão */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
