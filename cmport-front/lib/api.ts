@@ -6,11 +6,18 @@ export const api = axios.create({
   baseURL: '/api/v1',
 });
 
-// Adiciona o token Bearer em todas as requisições
+// Adiciona o token Bearer e trailing slash para evitar 307 que derruba o Authorization
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  // Garante trailing slash no path para não provocar redirect 307
+  if (config.url) {
+    const [path, query] = config.url.split('?');
+    if (!path.endsWith('/')) {
+      config.url = path + '/' + (query ? '?' + query : '');
+    }
   }
   return config;
 });

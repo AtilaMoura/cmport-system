@@ -105,7 +105,6 @@ app = FastAPI(
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    redirect_slashes=False,  # evita 307 que derruba o header Authorization
 )
 
 app.add_middleware(
