@@ -293,30 +293,30 @@ export default function NotasPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-8 py-8">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 lg:gap-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-2 h-8 bg-orange-600 rounded-full" />
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">Notas Fiscais</h1>
+                <h1 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Notas Fiscais</h1>
               </div>
-              <p className="text-slate-600 dark:text-slate-400 text-lg ml-5">Gestao completa de faturamento</p>
+              <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-lg ml-5">Gestao completa de faturamento</p>
             </div>
-            <div className="flex gap-3 flex-wrap">
-              <Link href="/boletos" className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center gap-2">
-                <span className="text-xl">🏦</span> Boletos
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              <Link href="/boletos" className="bg-indigo-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-black shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center gap-2 text-sm sm:text-base">
+                <span>🏦</span> Boletos
               </Link>
               <button onClick={revalidarXmls} disabled={revalidando}
-                className="bg-amber-600 text-white px-5 py-3 rounded-2xl font-black shadow-lg shadow-amber-600/20 hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2">
+                className="bg-amber-600 text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl font-black shadow-lg shadow-amber-600/20 hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2 text-sm sm:text-base">
                 {revalidando
                   ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Revalidando...</>
-                  : <><span>🔍</span> Revalidar XMLs</>}
+                  : <><span>🔍</span> Revalidar</>}
               </button>
-              <button onClick={exportarExcel} className="bg-green-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-green-600/20 hover:brightness-110 transition-all flex items-center gap-2">
-                <span className="text-xl">📊</span> Exportar
+              <button onClick={exportarExcel} className="bg-green-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-black shadow-lg shadow-green-600/20 hover:brightness-110 transition-all flex items-center gap-2 text-sm sm:text-base">
+                <span>📊</span> Exportar
               </button>
-              <Link href="/notas/importar" className="bg-orange-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-orange-600/20 hover:brightness-110 transition-all flex items-center gap-2">
-                <span className="text-xl">📤</span> Importar XMLs
+              <Link href="/notas/importar" className="bg-orange-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-black shadow-lg shadow-orange-600/20 hover:brightness-110 transition-all flex items-center gap-2 text-sm sm:text-base">
+                <span>📤</span> Importar
               </Link>
             </div>
           </div>
@@ -326,7 +326,7 @@ export default function NotasPage() {
       {/* Revalidar feedback */}
       {revalidarMsg && (
         <div className="bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-800/30">
-          <div className="max-w-7xl mx-auto px-8 py-2 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
             <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{revalidarMsg}</p>
             <button onClick={() => setRevalidarMsg(null)} className="text-amber-500 hover:text-amber-700 text-lg">×</button>
           </div>
@@ -335,7 +335,7 @@ export default function NotasPage() {
 
       {/* Filtros sempre visiveis */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-8 py-4 space-y-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 space-y-3">
           {/* Filtro status */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Status:</span>
@@ -435,8 +435,8 @@ export default function NotasPage() {
 
       {/* Tabs */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="flex gap-1">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex gap-1 overflow-x-auto">
             {[
               { key: 'geral',   label: '📊 Visao Geral' },
               { key: 'lista',   label: '📋 Todas as Notas' },
@@ -454,68 +454,68 @@ export default function NotasPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
         {/* TAB: Visao Geral */}
         {activeTab === 'geral' && (
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-orange-50 dark:bg-orange-500/10 rounded-xl"><span className="text-2xl">📄</span></div>
+          <div className="space-y-4 lg:space-y-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-6">
+              <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-orange-50 dark:bg-orange-500/10 rounded-xl"><span className="text-xl lg:text-2xl">📄</span></div>
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400">TOTAL</span>
                 </div>
-                <p className="text-4xl font-black text-slate-900 dark:text-white mb-1">{stats.total}</p>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold">Notas Emitidas</p>
+                <p className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white mb-1">{stats.total}</p>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-semibold">Notas Emitidas</p>
               </div>
 
-              <div className="gradient-brand p-6 rounded-2xl shadow-lg text-white">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl"><span className="text-2xl">💰</span></div>
+              <div className="gradient-brand p-4 lg:p-6 rounded-2xl shadow-lg text-white">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-white/20 backdrop-blur-sm rounded-xl"><span className="text-xl lg:text-2xl">💰</span></div>
                   <span className="text-xs font-bold text-white/70">FATURAMENTO</span>
                 </div>
-                <p className="text-3xl font-black text-white mb-1">{fmt(stats.valorTotal)}</p>
-                <p className="text-sm text-white/80 font-semibold">Valor Total</p>
+                <p className="text-xl sm:text-3xl font-black text-white mb-1">{fmt(stats.valorTotal)}</p>
+                <p className="text-xs sm:text-sm text-white/80 font-semibold">Valor Total</p>
               </div>
 
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 p-6 rounded-2xl border border-green-200 dark:border-green-800/50 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-xl"><span className="text-2xl">📈</span></div>
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 p-4 lg:p-6 rounded-2xl border border-green-200 dark:border-green-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-green-100 dark:bg-green-500/20 rounded-xl"><span className="text-xl lg:text-2xl">📈</span></div>
                   <span className="text-xs font-bold text-green-700 dark:text-green-400 uppercase">A RECEBER</span>
                 </div>
-                <p className="text-3xl font-black text-green-900 dark:text-green-400 mb-1">{fmt(stats.valorReceber)}</p>
-                <p className="text-sm text-green-700 dark:text-green-500 font-semibold">{notasAReceber.length} notas pendentes</p>
+                <p className="text-xl sm:text-3xl font-black text-green-900 dark:text-green-400 mb-1">{fmt(stats.valorReceber)}</p>
+                <p className="text-xs sm:text-sm text-green-700 dark:text-green-500 font-semibold">{notasAReceber.length} notas pendentes</p>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-xl"><span className="text-2xl">📊</span></div>
+              <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-blue-50 dark:bg-blue-500/10 rounded-xl"><span className="text-xl lg:text-2xl">📊</span></div>
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400">MEDIA</span>
                 </div>
-                <p className="text-3xl font-black text-slate-900 dark:text-white mb-1">{fmt(stats.mediaValor)}</p>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold">Valor Medio</p>
+                <p className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white mb-1">{fmt(stats.mediaValor)}</p>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-semibold">Valor Medio</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-6">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+                <h3 className="text-base lg:text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                   <span className="text-xl">🥧</span> Distribuicao por Tipo
                 </h3>
-                <div className="h-64">
+                <div className="h-48 sm:h-64">
                   <Doughnut data={distribuicaoTipoData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#64748b' } } } }} />
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+                <h3 className="text-base lg:text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                   <span className="text-xl">📊</span> Top 5 Condominios (Valor)
                 </h3>
                 {top5Condominios.length > 0 ? (
-                  <div className="h-64">
+                  <div className="h-48 sm:h-64">
                     <Bar data={valorPorCondominioData} options={{ responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b' } }, y: { ticks: { color: '#64748b' } } } }} />
                   </div>
                 ) : (
-                  <div className="h-64 flex items-center justify-center text-slate-400">Sem dados com filtros ativos</div>
+                  <div className="h-48 sm:h-64 flex items-center justify-center text-slate-400">Sem dados com filtros ativos</div>
                 )}
               </div>
             </div>
@@ -524,9 +524,9 @@ export default function NotasPage() {
 
         {/* TAB: Lista / A Receber */}
         {(activeTab === 'lista' || activeTab === 'receber') && (
-          <div className="space-y-6">
+          <div className="space-y-4 lg:space-y-6">
             {selecionadasCount > 0 && (
-              <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-800 rounded-2xl px-6 py-4 flex items-center justify-between gap-4">
+              <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-800 rounded-2xl px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div>
                   <p className="text-violet-700 dark:text-violet-400 font-bold">
                     {selecionadasCount}/2 nota(s) selecionada(s) para vínculo
@@ -554,7 +554,75 @@ export default function NotasPage() {
               </div>
             )}
 
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+            {/* Mobile cards (< md) */}
+            <div className="md:hidden space-y-3">
+              {listaAtiva.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center shadow-sm">
+                  <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full"><span className="text-3xl">📄</span></div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Nenhuma nota encontrada</h3>
+                  <p className="text-slate-500 dark:text-slate-400 mb-4">Ajuste os filtros ou importe novas XMLs</p>
+                  <Link href="/notas/importar" className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-xl font-bold hover:brightness-110 transition-all">
+                    <span>📤</span> Importar XMLs
+                  </Link>
+                </div>
+              ) : listaAtiva.map(nota => {
+                const notaBoletos = boletos[nota.id] || [];
+                const isSel = selecionadas.has(nota.id);
+                const totalParcelas = notaBoletos.length;
+                const pagas = notaBoletos.filter(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO').length;
+                return (
+                  <div key={nota.id} className={`bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-sm ${isSel ? 'border-violet-300 dark:border-violet-700' : 'border-slate-200 dark:border-slate-800'}`}>
+                    <div className="flex items-start gap-3 mb-3">
+                      {elegivel(nota) && (
+                        <input type="checkbox" checked={isSel} onChange={() => toggleSelecionada(nota.id)}
+                          disabled={!isSel && selecionadas.size >= 2}
+                          className="w-4 h-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500 disabled:opacity-30 mt-1 shrink-0" />
+                      )}
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white shadow-sm shrink-0">
+                        <span className="text-lg">{getTipoIcon(nota.tipo)}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-bold text-slate-900 dark:text-white">{nota.numero_nota}</p>
+                          {nota.nota_vinculada_id && <span className="text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-1.5 py-0.5 rounded-full">🔗</span>}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${getTipoColor(nota.tipo)}`}>{nota.tipo}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="font-black text-green-600 dark:text-green-400 text-sm">{fmt(nota.valor)}</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">{nota.parcelas > 1 ? `${nota.parcelas}x` : 'À vista'}</span>
+                          <span className="text-xs text-slate-400">venc. {pd(nota.data_vencimento).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        {totalParcelas > 0 && (
+                          <div className="mt-2 flex gap-1">
+                            {notaBoletos.map(b => (
+                              <div key={b.id}
+                                title={`Parcela ${b.numero_parcela}: ${SITUACAO_CONFIG[b.situacao]?.label}`}
+                                className={`h-1.5 flex-1 rounded-full ${
+                                  b.situacao === 'PAGO' || b.situacao === 'BAIXADO' ? 'bg-green-500' :
+                                  b.situacao === 'VENCIDO' ? 'bg-orange-500' :
+                                  b.situacao === 'CANCELADO' ? 'bg-red-400' :
+                                  b.situacao === 'EXPIRADO' ? 'bg-slate-400' : 'bg-blue-400'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {totalParcelas > 1 && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{pagas}/{totalParcelas} paga(s)</p>}
+                      </div>
+                    </div>
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                      <Link href={`/notas/${nota.id}`} className="flex items-center gap-1 text-sm font-semibold text-orange-600 dark:text-orange-400">
+                        Ver detalhes
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop table (md+) */}
+            <div className="hidden md:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-lg">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>

@@ -469,7 +469,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Fixed top header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-8 py-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 lg:py-6">
           <div className="flex items-center justify-between">
             <Link
               href="/notas"
@@ -478,7 +478,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
               <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Voltar para lista
+              <span className="hidden sm:inline">Voltar para lista</span>
             </Link>
 
             <div className="flex gap-3">
@@ -534,26 +534,26 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Main content */}
-      <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8 grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
         {/* Left: nota details */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-4 lg:space-y-6">
           {/* Hero card */}
-          <div className={`bg-gradient-to-r ${getTipoColor(nota.tipo)} rounded-3xl p-8 text-white shadow-xl`}>
-            <div className="flex items-start justify-between">
+          <div className={`bg-gradient-to-r ${getTipoColor(nota.tipo)} rounded-3xl p-4 sm:p-8 text-white shadow-xl`}>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 text-2xl font-black">
+                <div className="inline-flex items-center gap-2 text-lg sm:text-2xl font-black">
                   {getTipoIcon(nota.tipo)}
                   {nota.tipo}
                 </div>
-                <h1 className="text-4xl font-black">Nota #{nota.numero_nota}</h1>
+                <h1 className="text-2xl sm:text-4xl font-black">Nota #{nota.numero_nota}</h1>
                 {nota.nota_vinculada_id && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 rounded-full text-sm font-bold">
                     🔗 2 notas vinculadas
                   </span>
                 )}
               </div>
-              <div className="text-right space-y-1">
-                <p className="text-3xl font-black">R$ {nota.valor.toFixed(2)}</p>
+              <div className="text-left sm:text-right space-y-1">
+                <p className="text-xl sm:text-3xl font-black">R$ {nota.valor.toFixed(2)}</p>
                 <p className="text-sm opacity-80">Parcelas: {nota.parcelas}</p>
               </div>
             </div>
@@ -567,7 +567,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                 Detalhes Editaveis
               </h3>
             </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                   Data de Vencimento
@@ -651,7 +651,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   Condominio Associado
                 </h3>
               </div>
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <Link
                   href={`/condominios/${condominio.id}`}
                   className="group flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
@@ -718,7 +718,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-4 lg:space-y-6">
           {/* Cobracas section */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
             <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">

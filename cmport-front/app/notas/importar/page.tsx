@@ -57,16 +57,16 @@ export default function ImportarNotasPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 md:p-10">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-3 sm:p-6 md:p-10">
+      <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-orange-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-              <span className="text-2xl">📤</span>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+              <span className="text-xl sm:text-2xl">📤</span>
             </div>
             <div>
-              <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
+              <h1 className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
                 Importar Notas Fiscais
               </h1>
               <p className="text-slate-500 font-medium italic text-sm">
@@ -77,7 +77,7 @@ export default function ImportarNotasPage() {
         </div>
 
         {/* Formulário */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-sm p-8 md:p-12">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] sm:rounded-[2.5rem] shadow-sm p-4 sm:p-8 md:p-12">
           <form onSubmit={handleSubmit} className="space-y-8">
             
             {/* Seleção de Tipo */}
