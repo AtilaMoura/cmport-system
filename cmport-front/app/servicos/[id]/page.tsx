@@ -28,6 +28,7 @@ interface ConfigImpostos {
   aplicar_juros_default: boolean;
   alerta_impostos: boolean;
   divergencia_impostos: Record<string, { pct: number; config: number; xml: number }> | null;
+  parcelas_json: Array<{ parcela: number; valor: number; data: string | null }> | null;
   nota_vinculada_id: number | null;
   nota_vinculada_numero: string | null;
   valor_nota_vinculada: number | null;
@@ -416,16 +417,25 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         setVinculoAplicarImpostoEm((regra as 'nota_a' | 'nota_b' | 'ambas' | 'nenhuma') || 'nota_a');
       }
       // Initialize per-parcel items
-      const liquido = cfg.valor_liquido ?? notaFiscal.valor;
       const n = notaFiscal.parcelas || 1;
+      const parcelasMap = new Map((cfg.parcelas_json ?? []).map(p => [p.parcela, p]));
+      const usarParcelasJson = parcelasMap.size > 0;
+      // Fallback: divisão igual pelo valor líquido
+      const liquido = cfg.valor_liquido ?? notaFiscal.valor;
       const parcelaBase = Math.floor(liquido / n * 100) / 100;
       const parcelaUltima = liquido - parcelaBase * (n - 1);
       const items: ParcelaItem[] = Array.from({ length: n }, (_, i) => {
         const num = i + 1;
         const boleto = boletos.find(b => b.numero_parcela === num && b.situacao !== 'CANCELADO' && b.situacao !== 'EXPIRADO');
         const situacao = boleto ? boleto.situacao : (boletos.find(b => b.numero_parcela === num) ? boletos.find(b => b.numero_parcela === num)!.situacao : null);
-        const val = boleto ? boleto.valor_nominal.toFixed(2) : (num === n ? parcelaUltima.toFixed(2) : parcelaBase.toFixed(2));
-        const data = boleto ? boleto.data_vencimento : addDays(notaFiscal.data_vencimento, 30 * i);
+        const pJson = parcelasMap.get(num);
+        const val = boleto
+          ? boleto.valor_nominal.toFixed(2)
+          : usarParcelasJson && pJson
+            ? pJson.valor.toFixed(2)
+            : (num === n ? parcelaUltima.toFixed(2) : parcelaBase.toFixed(2));
+        const dataJson = usarParcelasJson && pJson?.data ? pJson.data : null;
+        const data = boleto ? boleto.data_vencimento : (dataJson ?? addDays(notaFiscal.data_vencimento, 30 * i));
         return { numero: num, valor: val, dataVencimento: data, situacaoBoleto: situacao };
       });
       setInterParcelasItens(items);
@@ -444,6 +454,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         aplicar_juros_default: notaFiscal.tipo !== 'OUTROS',
         alerta_impostos: false,
         divergencia_impostos: null,
+        parcelas_json: null,
         nota_vinculada_id: null,
         nota_vinculada_numero: null,
         valor_nota_vinculada: null,
@@ -458,14 +469,22 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       setInterDescricaoExpanded(false);
       setInterMensagem(notaFiscal.descricao_servico || '');
       const n = notaFiscal.parcelas || 1;
+      const parcelasMapFallback = new Map((notaFiscal.parcelas_json ?? []).map(p => [p.parcela, p]));
+      const usarParcelasJsonFallback = parcelasMapFallback.size > 0;
       const parcelaBase = Math.floor(fallback.valor_liquido / n * 100) / 100;
       const parcelaUltima = fallback.valor_liquido - parcelaBase * (n - 1);
       const items: ParcelaItem[] = Array.from({ length: n }, (_, i) => {
         const num = i + 1;
         const boleto = boletos.find(b => b.numero_parcela === num && b.situacao !== 'CANCELADO' && b.situacao !== 'EXPIRADO');
         const situacao = boleto ? boleto.situacao : (boletos.find(b => b.numero_parcela === num) ? boletos.find(b => b.numero_parcela === num)!.situacao : null);
-        const val = boleto ? boleto.valor_nominal.toFixed(2) : (num === n ? parcelaUltima.toFixed(2) : parcelaBase.toFixed(2));
-        const data = boleto ? boleto.data_vencimento : addDays(notaFiscal.data_vencimento, 30 * i);
+        const pJson = parcelasMapFallback.get(num);
+        const val = boleto
+          ? boleto.valor_nominal.toFixed(2)
+          : usarParcelasJsonFallback && pJson
+            ? pJson.valor.toFixed(2)
+            : (num === n ? parcelaUltima.toFixed(2) : parcelaBase.toFixed(2));
+        const dataJson = usarParcelasJsonFallback && pJson?.data ? pJson.data : null;
+        const data = boleto ? boleto.data_vencimento : (dataJson ?? addDays(notaFiscal.data_vencimento, 30 * i));
         return { numero: num, valor: val, dataVencimento: data, situacaoBoleto: situacao };
       });
       setInterParcelasItens(items);
@@ -646,13 +665,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-8 py-5">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 lg:py-5">
           <div className="flex items-center justify-between">
             <Link href="/servicos" className="inline-flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 font-semibold transition-colors group">
               <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Voltar
+              <span className="hidden sm:inline">Voltar</span>
             </Link>
             <div className="flex gap-2">
               {!editando ? (
@@ -680,39 +699,39 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-4 lg:space-y-6">
 
         {/* Hero */}
-        <div className={`bg-gradient-to-br ${gradColor} rounded-3xl p-8 shadow-2xl text-white relative overflow-hidden`}>
+        <div className={`bg-gradient-to-br ${gradColor} rounded-3xl p-4 sm:p-8 shadow-2xl text-white relative overflow-hidden`}>
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 pointer-events-none" />
-          <div className="relative flex items-start justify-between flex-wrap gap-6">
-            <div className="flex items-center gap-5">
-              <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg text-3xl shrink-0">{icon}</div>
+          <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex items-center gap-3 sm:gap-5">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg text-2xl sm:text-3xl shrink-0">{icon}</div>
               <div>
-                <p className="text-sm opacity-80 mb-0.5">Serviço #{servico.id}</p>
-                <h1 className="text-3xl font-black tracking-tight">{nome}</h1>
-                <p className="text-base opacity-90 mt-1">
+                <p className="text-xs sm:text-sm opacity-80 mb-0.5">Serviço #{servico.id}</p>
+                <h1 className="text-xl sm:text-3xl font-black tracking-tight">{nome}</h1>
+                <p className="text-sm sm:text-base opacity-90 mt-1">
                   {condominio?.nome || '—'} · {pd(servico.data_servico)}
                 </p>
               </div>
             </div>
             {/* Resumo financeiro rápido */}
-            <div className="flex gap-4 flex-wrap">
+            <div className="flex gap-2 sm:gap-4 flex-wrap">
               {notaFiscal && (
-                <div className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-3 border border-white/20 text-center">
+                <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 sm:px-5 py-2 sm:py-3 border border-white/20 text-center">
                   <p className="text-xs opacity-75 uppercase font-bold mb-0.5">Valor Nota</p>
-                  <p className="text-xl font-black">{fmt(notaFiscal.valor)}</p>
+                  <p className="text-base sm:text-xl font-black">{fmt(notaFiscal.valor)}</p>
                 </div>
               )}
               {boletos.length > 0 && (
                 <>
-                  <div className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-3 border border-white/20 text-center">
+                  <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 sm:px-5 py-2 sm:py-3 border border-white/20 text-center">
                     <p className="text-xs opacity-75 uppercase font-bold mb-0.5">Cobrado</p>
-                    <p className="text-xl font-black">{fmt(valorBruto)}</p>
+                    <p className="text-base sm:text-xl font-black">{fmt(valorBruto)}</p>
                   </div>
-                  <div className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-3 border border-white/20 text-center">
+                  <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 sm:px-5 py-2 sm:py-3 border border-white/20 text-center">
                     <p className="text-xs opacity-75 uppercase font-bold mb-0.5">Recebido</p>
-                    <p className="text-xl font-black">{fmt(valorRecebido)}</p>
+                    <p className="text-base sm:text-xl font-black">{fmt(valorRecebido)}</p>
                   </div>
                 </>
               )}
@@ -741,9 +760,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-6">
           {/* Coluna principal */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-3 lg:space-y-6">
 
             {/* Dados do Serviço */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -752,7 +771,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                   <span className="text-xl">📋</span> {editando ? 'Editar Serviço' : 'Dados do Serviço'}
                 </h2>
               </div>
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 {editando ? (
                   <div className="space-y-4">
                     <div>
@@ -928,8 +947,8 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-8 text-center shadow-sm">
-                <span className="text-4xl mb-3 block">📄</span>
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-6 sm:p-8 text-center shadow-sm">
+                <span className="text-3xl sm:text-4xl mb-3 block">📄</span>
                 <p className="text-slate-500 dark:text-slate-400 font-semibold">Sem nota fiscal vinculada</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Este serviço não está associado a nenhuma nota fiscal.</p>
               </div>
@@ -1146,7 +1165,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-3 lg:space-y-6">
             {/* Condomínio */}
             {condominio && (
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">

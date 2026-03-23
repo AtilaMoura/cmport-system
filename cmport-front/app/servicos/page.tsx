@@ -606,124 +606,11 @@ export default function ServicosPage() {
     return Array.from({ length: total }, (_, i) => ({ parcela: i + 1, valor: valorParcela, data: null }));
   }
 
-  // Render service list table
-  const renderListaServicos = (lista: Servico[]) => (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-lg">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-              {['Condominio', 'Tipo', 'Data', 'Nota Fiscal', 'Parcelas', 'Cobranca', 'Acoes'].map(h => (
-                <th key={h} className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {lista.map(servico => {
-              const nota = servico.nota_fiscal_id ? notas[servico.nota_fiscal_id] : undefined;
-              const boletos = servico.nota_fiscal_id ? (boletosPorNota[servico.nota_fiscal_id] ?? []) : [];
-              const primeiroAberto = boletos.find(b => b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO');
-              const primeiroPago = boletos.find(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO');
-              const primeiroBoleto = primeiroPago || primeiroAberto || boletos[0];
-              const todasParcelas = nota ? (nota.parcelas ?? 1) : 0;
-              const parcelasGeradas = boletos.length;
-              const faltamParcelas = todasParcelas > parcelasGeradas;
-
-              return (
-                <tr key={servico.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white shadow-sm">
-                        <span className="text-sm font-bold">{condominios[servico.condominio_id]?.nome.substring(0, 2).toUpperCase() || '??'}</span>
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900 dark:text-white">{condominios[servico.condominio_id]?.nome || 'Desconhecido'}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">ID: {servico.condominio_id}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${getTipoColor(servico.tipo)}`}>
-                      <span>{getTipoIcon(servico.tipo)}</span>
-                      {servico.tipo === 'manutencao' ? 'Manutencao' : 'Assistencia'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-5">
-                    <p className="text-sm font-medium text-slate-900 dark:text-white">{pd(servico.data_servico).toLocaleDateString('pt-BR')}</p>
-                  </td>
-                  <td className="px-6 py-5">
-                    {servico.nota_fiscal_id ? (
-                      nota ? (
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-xs font-mono text-slate-500 dark:text-slate-400">#{nota.numero_nota}</p>
-                            {nota.descricao_servico?.startsWith('Notas vinculadas:') && (
-                              <span className="text-xs font-black px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
-                                🔗 2 notas
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm font-black text-green-600 dark:text-green-400">{brl(nota.valor)}</p>
-                          <p className="text-xs text-slate-400 dark:text-slate-500">Venc: {pd(nota.data_vencimento).toLocaleDateString('pt-BR')}</p>
-                        </div>
-                      ) : <span className="text-xs text-slate-400">Nota #{servico.nota_fiscal_id}</span>
-                    ) : (
-                      <button
-                        onClick={() => { setVincularServicoId(servico.id); setVincularNotaId(''); setVincularErro(null); }}
-                        className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-                      >
-                        + Vincular nota
-                      </button>
-                    )}
-                  </td>
-                  <td className="px-6 py-5">
-                    {nota?.parcelas ? (
-                      <div className="flex flex-col gap-1">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
-                          {nota.parcelas}x
-                        </span>
-                        {parcelasGeradas > 0 && (
-                          <span className="text-xs text-slate-500 dark:text-slate-400">{parcelasGeradas}/{nota.parcelas} geradas</span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-5">
-                    {servico.nota_fiscal_id && nota ? (
-                      primeiroBoleto && !faltamParcelas ? (
-                        <Link href="/boletos">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${BOLETO_STATUS[primeiroBoleto.situacao]?.cls ?? ''}`}>
-                            {BOLETO_STATUS[primeiroBoleto.situacao]?.label ?? primeiroBoleto.situacao}
-                          </span>
-                        </Link>
-                      ) : (
-                        <button
-                          onClick={() => abrirModalBoleto(servico)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all"
-                        >
-                          🏦 {primeiroBoleto ? 'Gerar Faltantes' : 'Gerar Boleto'}
-                        </button>
-                      )
-                    ) : (
-                      <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-5 text-right">
-                    <Link href={`/servicos/${servico.id}`} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-all group-hover:translate-x-1">
-                      Ver detalhes
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {lista.length === 0 && (
-        <div className="py-16 text-center">
+  // Render service list — mobile cards + desktop table
+  const renderListaServicos = (lista: Servico[]) => {
+    if (lista.length === 0) {
+      return (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center shadow-lg">
           <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full"><span className="text-3xl">🛠️</span></div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Nenhum servico encontrado</h3>
           <p className="text-slate-500 dark:text-slate-400 mb-4">Ajuste os filtros ou importe notas fiscais</p>
@@ -731,29 +618,226 @@ export default function ServicosPage() {
             <span>📤</span> Importar Notas
           </Link>
         </div>
-      )}
-    </div>
-  );
+      );
+    }
+    return (
+      <>
+        {/* Mobile cards (< md) */}
+        <div className="md:hidden space-y-3">
+          {lista.map(servico => {
+            const nota = servico.nota_fiscal_id ? notas[servico.nota_fiscal_id] : undefined;
+            const boletos = servico.nota_fiscal_id ? (boletosPorNota[servico.nota_fiscal_id] ?? []) : [];
+            const primeiroAberto = boletos.find(b => b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO');
+            const primeiroPago = boletos.find(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO');
+            const primeiroBoleto = primeiroPago || primeiroAberto || boletos[0];
+            const todasParcelas = nota ? (nota.parcelas ?? 1) : 0;
+            const parcelasGeradas = boletos.length;
+            const faltamParcelas = todasParcelas > parcelasGeradas;
+            return (
+              <div key={servico.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white shadow-sm shrink-0">
+                    <span className="text-sm font-bold">{condominios[servico.condominio_id]?.nome.substring(0, 2).toUpperCase() || '??'}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-900 dark:text-white truncate">{condominios[servico.condominio_id]?.nome || 'Desconhecido'}</p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${getTipoColor(servico.tipo)}`}>
+                        {getTipoIcon(servico.tipo)} {servico.tipo === 'manutencao' ? 'Manut.' : 'Assist.'}
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{pd(servico.data_servico).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Nota + Parcelas */}
+                <div className="mb-3 text-sm">
+                  {servico.nota_fiscal_id ? (
+                    nota ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">#{nota.numero_nota}</span>
+                        <span className="font-black text-green-600 dark:text-green-400">{brl(nota.valor)}</span>
+                        {nota.parcelas && nota.parcelas > 1 && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold">
+                            {parcelasGeradas}/{nota.parcelas} parc.
+                          </span>
+                        )}
+                      </div>
+                    ) : <span className="text-xs text-slate-400">Nota #{servico.nota_fiscal_id}</span>
+                  ) : (
+                    <button
+                      onClick={() => { setVincularServicoId(servico.id); setVincularNotaId(''); setVincularErro(null); }}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      + Vincular nota
+                    </button>
+                  )}
+                </div>
+                {/* Actions row */}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                  {servico.nota_fiscal_id && nota ? (
+                    primeiroBoleto && !faltamParcelas ? (
+                      <Link href="/boletos">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${BOLETO_STATUS[primeiroBoleto.situacao]?.cls ?? ''}`}>
+                          {BOLETO_STATUS[primeiroBoleto.situacao]?.label ?? primeiroBoleto.situacao}
+                        </span>
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => abrirModalBoleto(servico)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all"
+                      >
+                        🏦 {primeiroBoleto ? 'Gerar Faltantes' : 'Gerar Boleto'}
+                      </button>
+                    )
+                  ) : <span />}
+                  <Link href={`/servicos/${servico.id}`} className="flex items-center gap-1 text-sm font-semibold text-purple-600 dark:text-purple-400">
+                    Ver detalhes
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table (md+) */}
+        <div className="hidden md:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                  {['Condominio', 'Tipo', 'Data', 'Nota Fiscal', 'Parcelas', 'Cobranca', 'Acoes'].map(h => (
+                    <th key={h} className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {lista.map(servico => {
+                  const nota = servico.nota_fiscal_id ? notas[servico.nota_fiscal_id] : undefined;
+                  const boletos = servico.nota_fiscal_id ? (boletosPorNota[servico.nota_fiscal_id] ?? []) : [];
+                  const primeiroAberto = boletos.find(b => b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO');
+                  const primeiroPago = boletos.find(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO');
+                  const primeiroBoleto = primeiroPago || primeiroAberto || boletos[0];
+                  const todasParcelas = nota ? (nota.parcelas ?? 1) : 0;
+                  const parcelasGeradas = boletos.length;
+                  const faltamParcelas = todasParcelas > parcelasGeradas;
+                  return (
+                    <tr key={servico.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white shadow-sm">
+                            <span className="text-sm font-bold">{condominios[servico.condominio_id]?.nome.substring(0, 2).toUpperCase() || '??'}</span>
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white">{condominios[servico.condominio_id]?.nome || 'Desconhecido'}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">ID: {servico.condominio_id}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${getTipoColor(servico.tipo)}`}>
+                          <span>{getTipoIcon(servico.tipo)}</span>
+                          {servico.tipo === 'manutencao' ? 'Manutencao' : 'Assistencia'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5">
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">{pd(servico.data_servico).toLocaleDateString('pt-BR')}</p>
+                      </td>
+                      <td className="px-6 py-5">
+                        {servico.nota_fiscal_id ? (
+                          nota ? (
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-xs font-mono text-slate-500 dark:text-slate-400">#{nota.numero_nota}</p>
+                                {nota.descricao_servico?.startsWith('Notas vinculadas:') && (
+                                  <span className="text-xs font-black px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
+                                    🔗 2 notas
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm font-black text-green-600 dark:text-green-400">{brl(nota.valor)}</p>
+                              <p className="text-xs text-slate-400 dark:text-slate-500">Venc: {pd(nota.data_vencimento).toLocaleDateString('pt-BR')}</p>
+                            </div>
+                          ) : <span className="text-xs text-slate-400">Nota #{servico.nota_fiscal_id}</span>
+                        ) : (
+                          <button
+                            onClick={() => { setVincularServicoId(servico.id); setVincularNotaId(''); setVincularErro(null); }}
+                            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                          >
+                            + Vincular nota
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-6 py-5">
+                        {nota?.parcelas ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                              {nota.parcelas}x
+                            </span>
+                            {parcelasGeradas > 0 && (
+                              <span className="text-xs text-slate-500 dark:text-slate-400">{parcelasGeradas}/{nota.parcelas} geradas</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-5">
+                        {servico.nota_fiscal_id && nota ? (
+                          primeiroBoleto && !faltamParcelas ? (
+                            <Link href="/boletos">
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${BOLETO_STATUS[primeiroBoleto.situacao]?.cls ?? ''}`}>
+                                {BOLETO_STATUS[primeiroBoleto.situacao]?.label ?? primeiroBoleto.situacao}
+                              </span>
+                            </Link>
+                          ) : (
+                            <button
+                              onClick={() => abrirModalBoleto(servico)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all"
+                            >
+                              🏦 {primeiroBoleto ? 'Gerar Faltantes' : 'Gerar Boleto'}
+                            </button>
+                          )
+                        ) : (
+                          <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <Link href={`/servicos/${servico.id}`} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-all group-hover:translate-x-1">
+                          Ver detalhes
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-8 py-8">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 lg:gap-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-2 h-8 bg-purple-600 rounded-full" />
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">Manutencoes & Assistencias</h1>
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Manutencoes & Assistencias</h1>
               </div>
-              <p className="text-slate-600 dark:text-slate-400 text-lg ml-5">Analise completa de produtividade</p>
+              <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-lg ml-5">Analise completa de produtividade</p>
             </div>
-            <div className="flex gap-3">
-              <button onClick={exportarExcel} className="bg-green-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-green-600/20 hover:brightness-110 transition-all flex items-center gap-2">
-                <span className="text-xl">📊</span> Exportar Excel
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={exportarExcel} className="w-full sm:w-auto bg-green-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-black shadow-lg shadow-green-600/20 hover:brightness-110 transition-all flex items-center justify-center gap-2 text-sm sm:text-base">
+                <span className="text-lg sm:text-xl">📊</span> Exportar Excel
               </button>
-              <Link href="/servicos/novo" className="bg-purple-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-purple-600/20 hover:brightness-110 transition-all flex items-center gap-2">
-                <span className="text-xl">+</span> Novo Servico
+              <Link href="/servicos/novo" className="w-full sm:w-auto bg-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-black shadow-lg shadow-purple-600/20 hover:brightness-110 transition-all flex items-center justify-center gap-2 text-sm sm:text-base">
+                <span className="text-lg sm:text-xl">+</span> Novo Servico
               </Link>
             </div>
           </div>
@@ -762,7 +846,7 @@ export default function ServicosPage() {
 
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-8 py-4 space-y-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <input
               type="text"
@@ -841,7 +925,7 @@ export default function ServicosPage() {
 
       {/* Tabs */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex gap-1 overflow-x-auto">
             {[
               { key: 'geral',       label: '📊 Visao Geral' },
@@ -861,73 +945,73 @@ export default function ServicosPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
         {/* TAB: Visao Geral */}
         {activeTab === 'geral' && (
-          <div className="space-y-8">
+          <div className="space-y-4 lg:space-y-8">
             {/* KPI cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-purple-50 dark:bg-purple-500/10 rounded-xl"><span className="text-2xl">📋</span></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-6">
+              <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-purple-50 dark:bg-purple-500/10 rounded-xl"><span className="text-xl lg:text-2xl">📋</span></div>
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400">TOTAL</span>
                 </div>
-                <p className="text-4xl font-black text-slate-900 dark:text-white mb-1">{stats.total}</p>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold">Servicos Realizados</p>
+                <p className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white mb-1">{stats.total}</p>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-semibold">Servicos Realizados</p>
               </div>
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30 p-6 rounded-2xl border border-purple-200 dark:border-purple-800/50 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-purple-100 dark:bg-purple-500/20 rounded-xl"><span className="text-2xl">🛠️</span></div>
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30 p-4 lg:p-6 rounded-2xl border border-purple-200 dark:border-purple-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-purple-100 dark:bg-purple-500/20 rounded-xl"><span className="text-xl lg:text-2xl">🛠️</span></div>
                   <span className="text-xs font-bold text-purple-700 dark:text-purple-400">PREVENTIVA</span>
                 </div>
-                <p className="text-4xl font-black text-purple-900 dark:text-purple-400 mb-1">{stats.manutencoes}</p>
-                <p className="text-sm text-purple-700 dark:text-purple-500 font-semibold">Manutencoes</p>
+                <p className="text-2xl sm:text-4xl font-black text-purple-900 dark:text-purple-400 mb-1">{stats.manutencoes}</p>
+                <p className="text-xs sm:text-sm text-purple-700 dark:text-purple-500 font-semibold">Manutencoes</p>
               </div>
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 p-6 rounded-2xl border border-blue-200 dark:border-blue-800/50 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-500/20 rounded-xl"><span className="text-2xl">🔧</span></div>
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 p-4 lg:p-6 rounded-2xl border border-blue-200 dark:border-blue-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-blue-100 dark:bg-blue-500/20 rounded-xl"><span className="text-xl lg:text-2xl">🔧</span></div>
                   <span className="text-xs font-bold text-blue-700 dark:text-blue-400">CORRETIVA</span>
                 </div>
-                <p className="text-4xl font-black text-blue-900 dark:text-blue-400 mb-1">{stats.assistencias}</p>
-                <p className="text-sm text-blue-700 dark:text-blue-500 font-semibold">Assistencias</p>
+                <p className="text-2xl sm:text-4xl font-black text-blue-900 dark:text-blue-400 mb-1">{stats.assistencias}</p>
+                <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-500 font-semibold">Assistencias</p>
               </div>
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 p-6 rounded-2xl border border-green-200 dark:border-green-800/50 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-xl"><span className="text-2xl">📅</span></div>
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 p-4 lg:p-6 rounded-2xl border border-green-200 dark:border-green-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-green-100 dark:bg-green-500/20 rounded-xl"><span className="text-xl lg:text-2xl">📅</span></div>
                   <span className="text-xs font-bold text-green-700 dark:text-green-400">ESTE MES</span>
                 </div>
-                <p className="text-4xl font-black text-green-900 dark:text-green-400 mb-1">{stats.esteMes}</p>
-                <p className="text-sm text-green-700 dark:text-green-500 font-semibold">Servicos</p>
+                <p className="text-2xl sm:text-4xl font-black text-green-900 dark:text-green-400 mb-1">{stats.esteMes}</p>
+                <p className="text-xs sm:text-sm text-green-700 dark:text-green-500 font-semibold">Servicos</p>
               </div>
             </div>
 
             {/* Financial cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-950/30 dark:to-teal-950/30 p-6 rounded-2xl border border-green-200 dark:border-green-800/50 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-xl"><span className="text-2xl">💰</span></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-6">
+              <div className="bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-950/30 dark:to-teal-950/30 p-4 lg:p-6 rounded-2xl border border-green-200 dark:border-green-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-green-100 dark:bg-green-500/20 rounded-xl"><span className="text-xl lg:text-2xl">💰</span></div>
                   <span className="text-xs font-bold text-green-700 dark:text-green-400">VALOR TOTAL</span>
                 </div>
-                <p className="text-3xl font-black text-green-900 dark:text-green-400 mb-1">{brl(stats.valorTotal)}</p>
-                <p className="text-sm text-green-700 dark:text-green-500 font-semibold">Soma das notas fiscais</p>
+                <p className="text-xl sm:text-3xl font-black text-green-900 dark:text-green-400 mb-1">{brl(stats.valorTotal)}</p>
+                <p className="text-xs sm:text-sm text-green-700 dark:text-green-500 font-semibold">Soma das notas fiscais</p>
               </div>
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-6 rounded-2xl border border-blue-200 dark:border-blue-800/50 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-500/20 rounded-xl"><span className="text-2xl">🏦</span></div>
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-4 lg:p-6 rounded-2xl border border-blue-200 dark:border-blue-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-blue-100 dark:bg-blue-500/20 rounded-xl"><span className="text-xl lg:text-2xl">🏦</span></div>
                   <span className="text-xs font-bold text-blue-700 dark:text-blue-400">VALOR COBRADO</span>
                 </div>
-                <p className="text-3xl font-black text-blue-900 dark:text-blue-400 mb-1">{brl(valorCobrado)}</p>
-                <p className="text-sm text-blue-700 dark:text-blue-500 font-semibold">Soma dos boletos emitidos</p>
+                <p className="text-xl sm:text-3xl font-black text-blue-900 dark:text-blue-400 mb-1">{brl(valorCobrado)}</p>
+                <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-500 font-semibold">Soma dos boletos emitidos</p>
               </div>
             </div>
 
             {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-6">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+                <h3 className="text-base lg:text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                   <span className="text-xl">📈</span> Evolucao (Ultimos 6 Meses)
                 </h3>
-                <div className="h-64">
+                <div className="h-48 sm:h-64">
                   <Line data={servicosPorMesData} options={{
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: true, position: 'top', labels: { color: '#64748b', boxWidth: 12 } } },
@@ -939,20 +1023,20 @@ export default function ServicosPage() {
                   }} />
                 </div>
               </div>
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm">
+                <h3 className="text-base lg:text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                   <span className="text-xl">🥧</span> Distribuicao por Tipo
                 </h3>
-                <div className="h-64">
+                <div className="h-48 sm:h-64">
                   <Doughnut data={distribuicaoTipoData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#64748b' } } } }} />
                 </div>
               </div>
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm lg:col-span-2">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 lg:p-6 shadow-sm lg:col-span-2">
+                <h3 className="text-base lg:text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                   <span className="text-xl">🏆</span> Top 5 Condominios
                 </h3>
                 {topCondominiosData.labels.length > 0 ? (
-                  <div className="h-64">
+                  <div className="h-48 sm:h-64">
                     <Bar data={topCondominiosData} options={{
                       responsive: true, maintainAspectRatio: false, indexAxis: 'y',
                       plugins: { legend: { display: true, position: 'top', labels: { color: '#64748b', boxWidth: 12 } } },
@@ -960,7 +1044,7 @@ export default function ServicosPage() {
                     }} />
                   </div>
                 ) : (
-                  <div className="h-64 flex items-center justify-center text-slate-400">Sem dados com filtros ativos</div>
+                  <div className="h-48 sm:h-64 flex items-center justify-center text-slate-400">Sem dados com filtros ativos</div>
                 )}
               </div>
             </div>
@@ -986,44 +1070,44 @@ export default function ServicosPage() {
 
         {/* TAB: KPIs */}
         {activeTab === 'kpis' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 lg:gap-6">
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-50 dark:bg-purple-500/10 rounded-full mb-4"><span className="text-3xl">📊</span></div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Media Mensal</p>
-                <p className="text-5xl font-black text-purple-600 dark:text-purple-400 mb-2">{stats.mediaPorMes}</p>
+                <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-purple-50 dark:bg-purple-500/10 rounded-full mb-3 sm:mb-4"><span className="text-2xl sm:text-3xl">📊</span></div>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Media Mensal</p>
+                <p className="text-3xl sm:text-5xl font-black text-purple-600 dark:text-purple-400 mb-2">{stats.mediaPorMes}</p>
                 <p className="text-xs text-slate-500">Servicos por mes (periodo)</p>
               </div>
             </div>
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-50 dark:bg-green-500/10 rounded-full mb-4"><span className="text-3xl">✅</span></div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Com Nota Fiscal</p>
-                <p className="text-5xl font-black text-green-600 dark:text-green-400 mb-2">{stats.comNota}</p>
+                <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-green-50 dark:bg-green-500/10 rounded-full mb-3 sm:mb-4"><span className="text-2xl sm:text-3xl">✅</span></div>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Com Nota Fiscal</p>
+                <p className="text-3xl sm:text-5xl font-black text-green-600 dark:text-green-400 mb-2">{stats.comNota}</p>
                 <p className="text-xs text-slate-500">{stats.total > 0 ? ((stats.comNota / stats.total) * 100).toFixed(1) : 0}% do total</p>
               </div>
             </div>
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-50 dark:bg-orange-500/10 rounded-full mb-4"><span className="text-3xl">⚠️</span></div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Sem Nota Fiscal</p>
-                <p className="text-5xl font-black text-orange-600 dark:text-orange-400 mb-2">{stats.semNota}</p>
+                <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-orange-50 dark:bg-orange-500/10 rounded-full mb-3 sm:mb-4"><span className="text-2xl sm:text-3xl">⚠️</span></div>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Sem Nota Fiscal</p>
+                <p className="text-3xl sm:text-5xl font-black text-orange-600 dark:text-orange-400 mb-2">{stats.semNota}</p>
                 <p className="text-xs text-slate-500">{stats.total > 0 ? ((stats.semNota / stats.total) * 100).toFixed(1) : 0}% do total</p>
               </div>
             </div>
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-50 dark:bg-teal-500/10 rounded-full mb-4"><span className="text-3xl">🎯</span></div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Ticket Medio</p>
-                <p className="text-3xl font-black text-teal-600 dark:text-teal-400 mb-2">{stats.comNota > 0 ? brl(stats.valorTotal / stats.comNota) : brl(0)}</p>
+                <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-teal-50 dark:bg-teal-500/10 rounded-full mb-3 sm:mb-4"><span className="text-2xl sm:text-3xl">🎯</span></div>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Ticket Medio</p>
+                <p className="text-xl sm:text-3xl font-black text-teal-600 dark:text-teal-400 mb-2">{stats.comNota > 0 ? brl(stats.valorTotal / stats.comNota) : brl(0)}</p>
                 <p className="text-xs text-slate-500">Valor medio por servico com nota</p>
               </div>
             </div>
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-50 dark:bg-indigo-500/10 rounded-full mb-4"><span className="text-3xl">📬</span></div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Taxa de Cobranca</p>
-                <p className="text-5xl font-black text-indigo-600 dark:text-indigo-400 mb-2">
+                <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-indigo-50 dark:bg-indigo-500/10 rounded-full mb-3 sm:mb-4"><span className="text-2xl sm:text-3xl">📬</span></div>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-semibold mb-2 uppercase">Taxa de Cobranca</p>
+                <p className="text-3xl sm:text-5xl font-black text-indigo-600 dark:text-indigo-400 mb-2">
                   {stats.comNota > 0 ? (() => {
                     const comBoleto = servicosFiltrados.filter(s => s.nota_fiscal_id && (boletosPorNota[s.nota_fiscal_id]?.length ?? 0) > 0).length;
                     return `${((comBoleto / stats.comNota) * 100).toFixed(1)}%`;
@@ -1033,11 +1117,11 @@ export default function ServicosPage() {
               </div>
             </div>
             {stats.total > 0 && (
-              <div className="bg-gradient-to-br from-purple-600 to-purple-700 p-8 rounded-2xl shadow-lg text-white md:col-span-3">
+              <div className="bg-gradient-to-br from-purple-600 to-purple-700 p-4 sm:p-8 rounded-2xl shadow-lg text-white md:col-span-3">
                 <div className="text-center">
-                  <p className="text-sm font-bold mb-2 uppercase opacity-90">Taxa de Manutencao Preventiva</p>
-                  <p className="text-6xl font-black mb-4">{((stats.manutencoes / stats.total) * 100).toFixed(1)}%</p>
-                  <p className="text-sm opacity-90">{stats.manutencoes} manutencoes preventivas de {stats.total} servicos totais</p>
+                  <p className="text-xs sm:text-sm font-bold mb-2 uppercase opacity-90">Taxa de Manutencao Preventiva</p>
+                  <p className="text-4xl sm:text-6xl font-black mb-3 sm:mb-4">{((stats.manutencoes / stats.total) * 100).toFixed(1)}%</p>
+                  <p className="text-xs sm:text-sm opacity-90">{stats.manutencoes} manutencoes preventivas de {stats.total} servicos totais</p>
                 </div>
               </div>
             )}
