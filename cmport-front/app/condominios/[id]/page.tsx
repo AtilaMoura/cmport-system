@@ -1,22 +1,36 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+"use client"
+
+import { useEffect, useState } from 'react';
+import { useParams, notFound } from 'next/navigation';
 import { api } from '@/lib/api';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 
-async function getCondominio(id: string) {
-  try {
-    const response = await api.get(`/condominios/${id}`);
-    return response.data;
-  } catch (error) {
-    return null;
+export default function DetalhesCondominio() {
+  const params = useParams();
+  const id = params.id as string;
+  const [condo, setCondo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFoundState, setNotFoundState] = useState(false);
+
+  useEffect(() => {
+    api.get(`/condominios/${id}`)
+      .then(r => setCondo(r.data))
+      .catch(() => setNotFoundState(true))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+        <div className="text-slate-500 dark:text-slate-400 font-semibold">Carregando...</div>
+      </div>
+    );
   }
-}
 
-export default async function DetalhesCondominio({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const condo = await getCondominio(id);
-
-  if (!condo) notFound();
+  if (notFoundState || !condo) {
+    notFound();
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -274,5 +288,5 @@ export default async function DetalhesCondominio({ params }: { params: Promise<{
         </div>
       </div>
     </div>
-  )
+  );
 }

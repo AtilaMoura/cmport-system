@@ -1,21 +1,36 @@
+"use client"
+
+import { useEffect, useState } from 'react';
+import { useParams, notFound } from 'next/navigation';
 import { api } from '@/lib/api';
-import { notFound } from 'next/navigation';
 import { FormEditarCondominio } from '@/components/FormEditarCondominio';
 
-async function getCondominio(id: string) {
-  try {
-    const response = await api.get(`/condominios/${id}`);
-    return response.data;
-  } catch (error) {
-    return null;
+export default function EditarPage() {
+  const params = useParams();
+  const id = params.id as string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [condo, setCondo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFoundState, setNotFoundState] = useState(false);
+
+  useEffect(() => {
+    api.get(`/condominios/${id}`)
+      .then(r => setCondo(r.data))
+      .catch(() => setNotFoundState(true))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+        <div className="text-slate-500 dark:text-slate-400 font-semibold">Carregando...</div>
+      </div>
+    );
   }
-}
 
-export default async function EditarPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const condo = await getCondominio(id);
-
-  if (!condo) notFound();
+  if (notFoundState || !condo) {
+    notFound();
+  }
 
   return (
     <div className="p-3 sm:p-6 lg:p-10 max-w-4xl mx-auto space-y-4 sm:space-y-8 animate-in fade-in duration-500">
