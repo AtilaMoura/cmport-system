@@ -104,7 +104,8 @@ app = FastAPI(
     description="API para gerenciamento de condominios, manutenções, assistências e boletos",
     version="2.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    redirect_slashes=False,  # evita 307 que derruba o header Authorization
 )
 
 app.add_middleware(
