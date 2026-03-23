@@ -4,24 +4,21 @@ security.py — Utilitários de segurança: hash de senha e geração/validaçã
 from datetime import datetime, timedelta
 from typing import Any
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
-
-# Contexto bcrypt para hash de senhas
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 8
 
 
 def hash_senha(senha: str) -> str:
-    return _pwd_context.hash(senha)
+    return bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verificar_senha(senha: str, senha_hash: str) -> bool:
-    return _pwd_context.verify(senha, senha_hash)
+    return bcrypt.checkpw(senha.encode("utf-8"), senha_hash.encode("utf-8"))
 
 
 def criar_token(data: dict[str, Any]) -> str:
