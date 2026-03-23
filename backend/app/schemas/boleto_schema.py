@@ -72,6 +72,8 @@ class ConfigImpostosResponse(BaseModel):
     aplicar_juros_default: bool
     alerta_impostos: bool = False
     divergencia_impostos: Optional[dict] = None
+    # Parcelas com valores e datas extraídos do XML
+    parcelas_json: Optional[List[dict]] = None
     # Campos extras para notas vinculadas
     nota_vinculada_id:     Optional[int]   = None
     nota_vinculada_numero: Optional[str]   = None

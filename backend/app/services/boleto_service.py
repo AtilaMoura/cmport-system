@@ -659,6 +659,7 @@ class BoletoService:
             "aplicar_juros_default": _aplicar_juros_default(nota),
             "alerta_impostos": bool(nota.alerta_impostos),
             "divergencia_impostos": nota.divergencia_impostos,
+            "parcelas_json": nota.parcelas_json,
             "nota_vinculada_id": None,
             "nota_vinculada_numero": None,
             "valor_nota_vinculada": None,
