@@ -337,7 +337,7 @@ class BoletoService:
                 pagador = {
                     "cpfCnpj": _limpar_cnpj(condominio.cnpj),
                     "tipoPessoa": "JURIDICA",
-                    "nome": condominio.razao_social or condominio.nome,
+                    "nome": nota.cliente_nome or condominio.razao_social or condominio.nome,
                     "email": (contato.email if contato else "") or "",
                     "telefone": (contato.telefone if contato else "") or "",
                     "endereco": (endereco.rua if endereco else None) or "Não informado",
@@ -560,7 +560,7 @@ class BoletoService:
         pagador = {
             "cpfCnpj": _limpar_cnpj(condominio.cnpj),
             "tipoPessoa": "JURIDICA",
-            "nome": condominio.razao_social or condominio.nome,
+            "nome": nota.cliente_nome or condominio.razao_social or condominio.nome,
             "email": (contato.email if contato else "") or "",
             "telefone": (contato.telefone if contato else "") or "",
             "endereco": (endereco.rua if endereco else None) or "Não informado",
