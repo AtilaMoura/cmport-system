@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
-import { ThemeProvider } from "@/components/theme-provider"; // Vamos criar esse arquivo
+import { ThemeProvider } from "@/components/theme-provider";
+import AppShell from "@/components/AppShell";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -17,7 +17,6 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // suppressHydrationWarning é necessário para o next-themes não dar erro no console
     <html lang="pt-br" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider
@@ -26,12 +25,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300">
-            <Sidebar />
-            <main className="md:ml-56 lg:ml-64 pt-14 md:pt-0 overflow-y-auto">
-              {children}
-            </main>
-          </div>
+          <AppShell>{children}</AppShell>
         </ThemeProvider>
       </body>
     </html>

@@ -10,6 +10,8 @@ from typing import Optional
 
 from app.core.database import SessionLocal
 from app.core.config import settings
+from app.core.dependencies import require_dev
+from app.models.usuario_model import Usuario
 
 router = APIRouter()
 
@@ -72,7 +74,7 @@ class SeedResponse(BaseModel):
 # ─── Endpoints ──────────────────────────────────────────────────────────────
 
 @router.post("/reset", response_model=ResetResponse)
-def reset_dados_teste(request: ResetRequest, db: Session = Depends(get_db)):
+def reset_dados_teste(request: ResetRequest, db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
     """
     Apaga TODOS os boletos, notas fiscais e serviços do banco.
     Condominios só são apagados se incluir_condominios_teste=True e nome começa com 'TESTE'.
@@ -116,7 +118,7 @@ def reset_dados_teste(request: ResetRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/reset-tudo", response_model=ResetTudoResponse)
-def reset_tudo(request: ResetTudoRequest, db: Session = Depends(get_db)):
+def reset_tudo(request: ResetTudoRequest, db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
     """
     Apaga ABSOLUTAMENTE TUDO do banco de dados: boletos, notas, serviços,
     auditoria, contatos, endereços e condomínios.
@@ -230,7 +232,7 @@ def progresso_sync_condominios():
 
 
 @router.post("/limpar-dados")
-def limpar_dados(db: Session = Depends(get_db)):
+def limpar_dados(db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
     """
     Apaga boletos, serviços e notas fiscais. NÃO apaga condominios.
     Sem confirmação — use apenas em desenvolvimento.
@@ -277,6 +279,7 @@ def seed_dados_teste(
     gerar_nota: bool = True,
     gerar_boleto: bool = False,
     db: Session = Depends(get_db),
+    _: Usuario = Depends(require_dev),
 ):
     """
     Cria dados de teste:

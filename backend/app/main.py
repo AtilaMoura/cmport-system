@@ -7,10 +7,11 @@ if hasattr(sys.stdout, 'buffer'):
 if hasattr(sys.stderr, 'buffer'):
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import engine, Base
+from app.core.dependencies import get_current_user
 
 # Importar todos os models para registrar no Base antes do create_all
 import app.models.condominio_model
@@ -21,8 +22,10 @@ import app.models.nota_fiscal_model
 import app.models.exclusao_model
 import app.models.boleto_model
 import app.models.configuracao_impostos_model
+import app.models.usuario_model  # tabela de usuários
 
 # Importar todos os routers
+from app.routers.auth_router import router as auth_router
 from app.routers.condominio_router import router as condominios_router
 from app.routers.endereco_router import router as enderecos_router
 from app.routers.contato_router import router as contatos_router
@@ -33,10 +36,12 @@ from app.routers.auditoria_router import router as auditoria_router
 from app.routers.boleto_router import router as boletos_router
 from app.routers.dev_router import router as dev_router
 
-# Criar tabelas no banco
+# Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
 
-# Seed da tabela de configuração de impostos (idempotente)
+
+# ── Seeds de startup ─────────────────────────────────────────────────────────
+
 def _seed_configuracao_impostos():
     from app.core.database import SessionLocal
     from app.models.configuracao_impostos_model import ConfiguracaoImpostosServico, TipoServicoConfig
@@ -53,7 +58,46 @@ def _seed_configuracao_impostos():
     finally:
         db.close()
 
+
+def _seed_usuarios():
+    """Cria os usuários iniciais se a tabela estiver vazia."""
+    from app.core.database import SessionLocal
+    from app.core.security import hash_senha
+    from app.models.usuario_model import Usuario, RoleUsuario
+    db = SessionLocal()
+    try:
+        if db.query(Usuario).count() == 0:
+            usuarios_iniciais = [
+                Usuario(
+                    nome="Atila Dev",
+                    email="atila.dev@cmport.com",
+                    senha_hash=hash_senha("CMport@dev2026"),
+                    role=RoleUsuario.DEV,
+                ),
+                Usuario(
+                    nome="Administrador",
+                    email="admin@cmport.com",
+                    senha_hash=hash_senha("CMport@adm2026"),
+                    role=RoleUsuario.ADMIN,
+                ),
+                Usuario(
+                    nome="Usuário",
+                    email="usuario@cmport.com",
+                    senha_hash=hash_senha("CMport@usr2026"),
+                    role=RoleUsuario.USUARIO,
+                ),
+            ]
+            db.add_all(usuarios_iniciais)
+            db.commit()
+            print("[seed] 3 usuários iniciais criados.")
+    finally:
+        db.close()
+
+
 _seed_configuracao_impostos()
+_seed_usuarios()
+
+# ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="CMPort - Sistema de Gestão",
@@ -65,21 +109,27 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(condominios_router, prefix="/api/v1/condominios", tags=["Condominios"])
-app.include_router(enderecos_router, prefix="/api/v1/enderecos", tags=["Endereços"])
-app.include_router(contatos_router, prefix="/api/v1/contatos", tags=["Contatos"])
-app.include_router(servicos_router, prefix="/api/v1/servicos", tags=["Manutenções e Assistências"])
-app.include_router(notas_router, prefix="/api/v1/notas-fiscais", tags=["Notas Fiscais"])
-app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["Dashboard"])
-app.include_router(auditoria_router, prefix="/api/v1/auditoria", tags=["Auditoria"])
-app.include_router(boletos_router, prefix="/api/v1/boletos", tags=["Boletos"])
-app.include_router(dev_router, prefix="/api/v1/dev", tags=["Dev/Test"])
+# Auth — público (sem Depends)
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["Autenticação"])
+
+# Todos os outros routers exigem usuário autenticado
+_auth = [Depends(get_current_user)]
+
+app.include_router(condominios_router, prefix="/api/v1/condominios",  tags=["Condominios"],                    dependencies=_auth)
+app.include_router(enderecos_router,   prefix="/api/v1/enderecos",    tags=["Endereços"],                      dependencies=_auth)
+app.include_router(contatos_router,    prefix="/api/v1/contatos",     tags=["Contatos"],                       dependencies=_auth)
+app.include_router(servicos_router,    prefix="/api/v1/servicos",     tags=["Manutenções e Assistências"],     dependencies=_auth)
+app.include_router(notas_router,       prefix="/api/v1/notas-fiscais",tags=["Notas Fiscais"],                  dependencies=_auth)
+app.include_router(dashboard_router,   prefix="/api/v1/dashboard",    tags=["Dashboard"],                      dependencies=_auth)
+app.include_router(auditoria_router,   prefix="/api/v1/auditoria",    tags=["Auditoria"],                      dependencies=_auth)
+app.include_router(boletos_router,     prefix="/api/v1/boletos",      tags=["Boletos"],                        dependencies=_auth)
+app.include_router(dev_router,         prefix="/api/v1/dev",          tags=["Dev/Test"],                       dependencies=_auth)
 
 
 @app.get("/", tags=["Root"])

@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # Application
     ENV: str = "development"
 
+    # JWT
+    SECRET_KEY: str = "cmport-secret-dev-key-troque-em-producao"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True

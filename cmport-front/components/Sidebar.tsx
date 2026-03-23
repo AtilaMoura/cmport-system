@@ -5,19 +5,23 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from './ThemeToggle';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const { user, logout } = useAuth();
+
+  const isDev = user?.role === 'DEV';
 
   const menuItems = [
-    { name: 'Dashboard',    icon: '📊', href: '/' },
-    { name: 'Condomínios',  icon: '🏢', href: '/condominios' },
-    { name: 'Serviços',     icon: '🛠️', href: '/servicos' },
-    { name: 'Notas Fiscais',icon: '📄', href: '/notas' },
-    { name: 'Boletos',      icon: '🏦', href: '/boletos' },
-    { name: 'Dev / Teste',  icon: '⚙️', href: '/dev' },
-  ];
+    { name: 'Dashboard',    icon: '📊', href: '/',            roles: ['DEV', 'ADMIN', 'USUARIO'] },
+    { name: 'Condomínios',  icon: '🏢', href: '/condominios', roles: ['DEV', 'ADMIN', 'USUARIO'] },
+    { name: 'Serviços',     icon: '🛠️', href: '/servicos',    roles: ['DEV', 'ADMIN', 'USUARIO'] },
+    { name: 'Notas Fiscais',icon: '📄', href: '/notas',       roles: ['DEV', 'ADMIN', 'USUARIO'] },
+    { name: 'Boletos',      icon: '🏦', href: '/boletos',     roles: ['DEV', 'ADMIN', 'USUARIO'] },
+    { name: 'Dev / Teste',  icon: '⚙️', href: '/dev',         roles: ['DEV'] },
+  ].filter(item => !user || item.roles.includes(user.role));
 
   const fechar = () => setOpen(false);
 
@@ -135,17 +139,32 @@ export default function Sidebar() {
           </div>
 
           {/* Card usuário — escondido no md para economizar espaço */}
-          <div className="hidden lg:block px-2 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-lg flex items-center justify-center shrink-0">
-                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">AD</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">Administrador</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">admin@cmport.com</p>
+          {user && (
+            <div className="hidden lg:block px-2 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-lg flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                    {user.nome.substring(0, 2).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.nome}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{isDev ? '⚙️ DEV' : user.role}</p>
+                </div>
+                <button
+                  onClick={logout}
+                  title="Sair"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors shrink-0"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                </button>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </aside>
     </>
