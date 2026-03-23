@@ -26,9 +26,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="flex min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300">
+          <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300">
             <Sidebar />
-            <main className="flex-1 overflow-y-auto">
+            <main className="md:ml-56 lg:ml-64 pt-14 md:pt-0 overflow-y-auto">
               {children}
             </main>
           </div>

@@ -7,16 +7,21 @@ export function ThemeToggle() {
   const { theme, setTheme, systemTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
-  const [isCompact, setIsCompact] = useState(false)
+  // Inicializador lazy: lê localStorage diretamente no primeiro render do cliente
+  const [isCompact, setIsCompact] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('compact-mode') === 'true'
+  })
 
   useEffect(() => {
-    const compactMode = localStorage.getItem('compact-mode') === 'true'
-    if (compactMode) {
+    // Aplica a classe compact ao DOM na montagem
+    if (isCompact) {
       document.documentElement.classList.add('compact')
     }
-    setIsCompact(compactMode)
+    // setMounted segue o padrão recomendado pelo next-themes para evitar hydration mismatch
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!mounted) {
     return (
