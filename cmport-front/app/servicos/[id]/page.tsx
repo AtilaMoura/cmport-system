@@ -28,6 +28,9 @@ interface ConfigImpostos {
   aplicar_juros_default: boolean;
   alerta_impostos: boolean;
   divergencia_impostos: Record<string, { pct: number; config: number; xml: number }> | null;
+  nota_vinculada_id: number | null;
+  nota_vinculada_numero: string | null;
+  valor_nota_vinculada: number | null;
 }
 
 interface Condominio {
@@ -59,7 +62,10 @@ interface NotaFiscal {
   prev: number | null;
   alerta_impostos: number;
   divergencia_impostos: Record<string, { pct: number; config: number; xml: number }> | null;
+  nota_vinculada_id: number | null;
+  imposto_config_vinculo: { aplicar_imposto_em: string; nota_a_id: number; nota_b_id: number } | null;
 }
+
 
 interface Boleto {
   id: number;
@@ -185,6 +191,11 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [interParcelaFoco, setInterParcelaFoco] = useState<number | null>(null);
   const [carregandoConfig, setCarregandoConfig] = useState(false);
 
+  // Vínculo entre notas
+  const [desvinculando, setDesvinculando] = useState(false);
+  const [notaVinculada, setNotaVinculada] = useState<NotaFiscal | null>(null);
+  const [vinculoAplicarImpostoEm, setVinculoAplicarImpostoEm] = useState<'nota_a' | 'nota_b' | 'ambas' | 'nenhuma'>('nota_a');
+
   // Modal "Marcar Pago"
   const [modalPago, setModalPago] = useState<Boleto | null>(null);
   const [pagoForma, setPagoForma] = useState('PIX');
@@ -218,11 +229,23 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
           api.get(`/notas-fiscais/${s.nota_fiscal_id}`),
           api.get(`/boletos/nota/${s.nota_fiscal_id}`),
         ]);
-        setNotaFiscal(notaRes.data);
+        const nota: NotaFiscal = notaRes.data;
+        setNotaFiscal(nota);
         setBoletos(boletosRes.data || []);
+        if (nota.nota_vinculada_id) {
+          try {
+            const { data: vinc } = await api.get(`/notas-fiscais/${nota.nota_vinculada_id}`);
+            setNotaVinculada(vinc);
+          } catch {
+            setNotaVinculada(null);
+          }
+        } else {
+          setNotaVinculada(null);
+        }
       } else {
         setNotaFiscal(null);
         setBoletos([]);
+        setNotaVinculada(null);
       }
     } catch {
       alert('Serviço não encontrado');
@@ -291,6 +314,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     );
   }
 
+  const temVinculo = !!notaFiscal?.nota_vinculada_id;
+  const temBoletoAtivo = boletos.some(b => b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO');
+
   const gradColor = servico.tipo === 'manutencao' ? 'from-purple-500 to-purple-600' : 'from-blue-500 to-blue-600';
   const icon = servico.tipo === 'manutencao' ? '🛠️' : '🔧';
   const nome = servico.tipo === 'manutencao' ? 'Manutenção Preventiva' : 'Assistência Técnica';
@@ -332,16 +358,35 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     const inss   = interAplicarInss   ? parseFloat(interPctInss   || '0') : 0;
     const csll   = interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0;
     const totalPct = (pis + cofins + inss + csll) / 100;
+    if (configImpostos.nota_vinculada_id) {
+      const valorB = configImpostos.valor_nota_vinculada || 0;
+      const valorA = bruto - valorB;
+      const liquA = valorA * (1 - totalPct);
+      const liquB = valorB * (1 - totalPct);
+      if (vinculoAplicarImpostoEm === 'nota_a')  return Math.max(liquA + valorB, 0.01);
+      if (vinculoAplicarImpostoEm === 'nota_b')  return Math.max(valorA + liquB, 0.01);
+      if (vinculoAplicarImpostoEm === 'ambas')   return Math.max(bruto * (1 - totalPct), 0.01);
+      return bruto; // nenhuma
+    }
     return Math.max(bruto * (1 - totalPct), 0.01);
   };
 
   const totalImpostosModal = () => {
     if (!configImpostos) return 0;
     const bruto = configImpostos.valor_bruto;
-    return bruto * ((interAplicarPis ? parseFloat(interPctPis||'0') : 0) +
+    const pct = ((interAplicarPis ? parseFloat(interPctPis||'0') : 0) +
       (interAplicarCofins ? parseFloat(interPctCofins||'0') : 0) +
       (interAplicarInss ? parseFloat(interPctInss||'0') : 0) +
       (interAplicarCsll ? parseFloat(interPctCsll||'0') : 0)) / 100;
+    if (configImpostos.nota_vinculada_id) {
+      const valorB = configImpostos.valor_nota_vinculada || 0;
+      const valorA = bruto - valorB;
+      if (vinculoAplicarImpostoEm === 'nota_a')  return valorA * pct;
+      if (vinculoAplicarImpostoEm === 'nota_b')  return valorB * pct;
+      if (vinculoAplicarImpostoEm === 'ambas')   return bruto * pct;
+      return 0; // nenhuma
+    }
+    return bruto * pct;
   };
 
   const somaParcelasModal = () =>
@@ -366,6 +411,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       setInterNumeroNota(notaFiscal.numero_nota);
       setInterDescricaoExpanded(false);
       setInterMensagem([notaFiscal.descricao_servico, cfg.numero_os ? `OS: ${cfg.numero_os}` : null].filter(Boolean).join(' | '));
+      if (cfg.nota_vinculada_id) {
+        const regra = notaFiscal.imposto_config_vinculo?.aplicar_imposto_em;
+        setVinculoAplicarImpostoEm((regra as 'nota_a' | 'nota_b' | 'ambas' | 'nenhuma') || 'nota_a');
+      }
       // Initialize per-parcel items
       const liquido = cfg.valor_liquido ?? notaFiscal.valor;
       const n = notaFiscal.parcelas || 1;
@@ -395,6 +444,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         aplicar_juros_default: notaFiscal.tipo !== 'OUTROS',
         alerta_impostos: false,
         divergencia_impostos: null,
+        nota_vinculada_id: null,
+        nota_vinculada_numero: null,
+        valor_nota_vinculada: null,
       };
       setConfigImpostos(fallback);
       setInterAplicarPis(true); setInterPctPis('0.65');
@@ -455,6 +507,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         data_vencimento_override: adjustedBase,
       };
       if (interMensagem.trim()) body.mensagem = interMensagem.trim();
+      if (configImpostos?.nota_vinculada_id) {
+        body.imposto_config_vinculo = {
+          aplicar_imposto_em: vinculoAplicarImpostoEm,
+          nota_a_id: notaFiscal.id,
+          nota_b_id: configImpostos.nota_vinculada_id,
+        };
+      }
       await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
       await carregarDados();
       setInterParcelasItens(prev => prev.map(p =>
@@ -492,6 +551,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
           data_vencimento_override: adjustedBase,
         };
         if (interMensagem.trim()) body.mensagem = interMensagem.trim();
+        if (configImpostos?.nota_vinculada_id) {
+          body.imposto_config_vinculo = {
+            aplicar_imposto_em: vinculoAplicarImpostoEm,
+            nota_a_id: notaFiscal.id,
+            nota_b_id: configImpostos.nota_vinculada_id,
+          };
+        }
         await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
       }
       setModalInter(false);
@@ -741,11 +807,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
             {/* Nota Fiscal Vinculada — detalhes completos */}
             {notaFiscal ? (
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                <div className="px-6 py-4 bg-orange-50 dark:bg-orange-500/10 border-b border-orange-200 dark:border-orange-800/30 flex items-center justify-between">
+                <div className="px-6 py-4 bg-orange-50 dark:bg-orange-500/10 border-b border-orange-200 dark:border-orange-800/30 flex items-center justify-between flex-wrap gap-2">
                   <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
                     <span className="text-xl">📄</span> Nota Fiscal Vinculada
+                    {temVinculo && (
+                      <span className="text-xs font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
+                        🔗 2 notas vinculadas
+                      </span>
+                    )}
                   </h2>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Link href={`/notas/${notaFiscal.id}`}
                       className="px-3 py-1.5 text-xs font-bold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-500/20 rounded-lg hover:brightness-105 transition-all flex items-center gap-1">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
@@ -756,7 +827,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                       {desvinculandoNota
                         ? <div className="w-3 h-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
                         : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.1-1.1m1.415-8.328a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.1-1.1" /></svg>}
-                      Desvincular
+                      Desvincular do serviço
                     </button>
                   </div>
                 </div>
@@ -799,6 +870,30 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     {notaFiscal.data_pagamento ? 'Nota Paga' : 'Nota Pendente'}
                     <span className="ml-auto font-normal opacity-70 text-xs">status: {notaFiscal.status}</span>
                   </div>
+                  {/* Nota Vinculada */}
+                  {temVinculo && notaVinculada && (
+                    <div className="mt-4 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-800/30 rounded-xl p-4">
+                      <p className="text-xs font-black text-violet-600 dark:text-violet-400 uppercase mb-2">🔗 Nota Vinculada (B)</p>
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-0.5">Número</p>
+                          <p className="font-bold text-slate-900 dark:text-white">{notaVinculada.numero_nota}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-0.5">Valor</p>
+                          <p className="font-bold text-violet-700 dark:text-violet-300">{fmt(notaVinculada.valor)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-0.5">Total combinado</p>
+                          <p className="font-black text-violet-700 dark:text-violet-300">{fmt(notaFiscal.valor + notaVinculada.valor)}</p>
+                        </div>
+                      </div>
+                      <Link href={`/notas/${notaVinculada.id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-violet-600 dark:text-violet-400 hover:underline">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        Abrir nota vinculada
+                      </Link>
+                    </div>
+                  )}
                   {/* Alerta de divergência de impostos */}
                   {notaFiscal.alerta_impostos === 1 && notaFiscal.divergencia_impostos && (
                     <div className="mt-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-700 rounded-xl p-4 flex items-start gap-3">
@@ -1282,6 +1377,38 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                       )}
                     </div>
                   </div>
+
+                  {/* Seção: Notas Vinculadas */}
+                  {configImpostos.nota_vinculada_id && (
+                    <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-800/30 rounded-xl p-4 space-y-3">
+                      <p className="text-xs font-black text-violet-600 dark:text-violet-400 uppercase">🔗 Notas Vinculadas</p>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="bg-white dark:bg-slate-900 rounded-lg p-3">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase mb-0.5">Nota A (esta)</p>
+                          <p className="font-black text-slate-900 dark:text-white">{notaFiscal.numero_nota}</p>
+                          <p className="text-violet-600 dark:text-violet-400 font-bold">{fmt(configImpostos.valor_bruto - (configImpostos.valor_nota_vinculada || 0))}</p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-900 rounded-lg p-3">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase mb-0.5">Nota B (vinculada)</p>
+                          <p className="font-black text-slate-900 dark:text-white">{configImpostos.nota_vinculada_numero || `#${configImpostos.nota_vinculada_id}`}</p>
+                          <p className="text-violet-600 dark:text-violet-400 font-bold">{fmt(configImpostos.valor_nota_vinculada || 0)}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-violet-600 dark:text-violet-400 uppercase mb-1.5">Descontar impostos em</label>
+                        <select
+                          value={vinculoAplicarImpostoEm}
+                          onChange={e => setVinculoAplicarImpostoEm(e.target.value as 'nota_a' | 'nota_b' | 'ambas' | 'nenhuma')}
+                          className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-slate-950 border border-violet-200 dark:border-violet-700 focus:ring-2 focus:ring-violet-500 outline-none text-slate-900 dark:text-white font-bold"
+                        >
+                          <option value="nota_a">Nota A (esta nota) — desconta impostos de A, usa bruto de B</option>
+                          <option value="nota_b">Nota B (vinculada) — usa bruto de A, desconta impostos de B</option>
+                          <option value="ambas">Ambas — desconta impostos das duas notas</option>
+                          <option value="nenhuma">Nenhuma — sem retenção (valores brutos)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Seção: Impostos */}
                   <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">

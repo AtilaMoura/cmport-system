@@ -66,6 +66,9 @@ class NotaFiscalResponse(BaseModel):
     # alertas de divergência de impostos
     alerta_impostos:      int = 0
     divergencia_impostos: Optional[dict] = None
+    # vínculo entre notas
+    nota_vinculada_id:      Optional[int]  = None
+    imposto_config_vinculo: Optional[dict] = None
     criado_em: datetime
 
     model_config = {"from_attributes": True}
@@ -90,5 +93,22 @@ class NotaFiscalUpdate(BaseModel):
     status: Optional[StatusNota] = None
     tipo: Optional[TipoNota] = None
     condominio_id: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
+class VincularNotasRequest(BaseModel):
+    nota_a_id: int
+    nota_b_id: int
+
+
+class CandidataVinculoResponse(BaseModel):
+    id: int
+    numero_nota: str
+    valor: float
+    tipo: TipoNota
+    parcelas: int
+    data_vencimento: date
+    cliente_nome: Optional[str] = None
 
     model_config = {"from_attributes": True}

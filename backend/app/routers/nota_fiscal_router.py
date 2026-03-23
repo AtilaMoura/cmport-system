@@ -8,7 +8,10 @@ from pydantic import BaseModel
 
 from app.core.database import SessionLocal
 from app.services.nota_fiscal_service import NotaFiscalService, corrigir_datas_servico
-from app.schemas.nota_fiscal_schema import NotaFiscalCreate, NotaFiscalResponse, ImportacaoResponse, NotaFiscalUpdate
+from app.schemas.nota_fiscal_schema import (
+    NotaFiscalCreate, NotaFiscalResponse, ImportacaoResponse, NotaFiscalUpdate,
+    VincularNotasRequest, CandidataVinculoResponse,
+)
 
 
 class VincularCondominioRequest(BaseModel):
@@ -104,6 +107,39 @@ def exportar_notas_excel(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@router.post("/vincular-notas")
+def vincular_notas(body: VincularNotasRequest, db: Session = Depends(get_db)):
+    """Vincula duas notas do mesmo condomínio: deleta os dois serviços e cria um serviço combinado."""
+    try:
+        return NotaFiscalService.vincular_notas(db, body.nota_a_id, body.nota_b_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{id}/desvincular-notas")
+def desvincular_notas(id: int, db: Session = Depends(get_db)):
+    """Desfaz o vínculo entre duas notas e recria os dois serviços individuais."""
+    try:
+        return NotaFiscalService.desvincular_notas(db, id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/candidatas-vinculo/{servico_id}", response_model=List[CandidataVinculoResponse])
+def get_candidatas_vinculo(servico_id: int, db: Session = Depends(get_db)):
+    """Retorna notas do mesmo condomínio que podem ser vinculadas ao serviço informado."""
+    try:
+        return NotaFiscalService.get_candidatas_vinculo(db, servico_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{id}", response_model=NotaFiscalResponse)

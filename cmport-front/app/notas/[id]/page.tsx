@@ -35,19 +35,8 @@ interface NotaFiscal {
   prev: number | null;
   alerta_impostos: number;
   divergencia_impostos: Record<string, { pct: number; config: number; xml: number }> | null;
-}
-
-interface ConfigImpostos {
-  pct_pis: number;
-  pct_cofins: number;
-  pct_inss: number;
-  pct_csll: number;
-  valor_bruto: number;
-  valor_liquido: number;
-  numero_os: string | null;
-  aplicar_juros_default: boolean;
-  alerta_impostos: boolean;
-  divergencia_impostos: Record<string, { pct: number; config: number; xml: number }> | null;
+  nota_vinculada_id: number | null;
+  imposto_config_vinculo: { aplicar_imposto_em: string; nota_a_id: number; nota_b_id: number } | null;
 }
 
 interface Condominio {
@@ -158,23 +147,8 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
   const [cancelandoBoletoId, setCancelandoBoletoId] = useState<number | null>(null);
   const [deletandoBoletoId, setDeletandoBoletoId] = useState<number | null>(null);
-  const [modalInter, setModalInter] = useState(false);
-  const [configImpostos, setConfigImpostos] = useState<ConfigImpostos | null>(null);
-  const [interValor, setInterValor] = useState('');
-  const [interMensagem, setInterMensagem] = useState('');
-  const [interAplicarPis, setInterAplicarPis] = useState(true);
-  const [interPctPis, setInterPctPis] = useState('0');
-  const [interAplicarCofins, setInterAplicarCofins] = useState(true);
-  const [interPctCofins, setInterPctCofins] = useState('0');
-  const [interAplicarInss, setInterAplicarInss] = useState(true);
-  const [interPctInss, setInterPctInss] = useState('0');
-  const [interAplicarCsll, setInterAplicarCsll] = useState(true);
-  const [interPctCsll, setInterPctCsll] = useState('0');
-  const [interValorEditado, setInterValorEditado] = useState(false);
-  const [interAplicarJuros, setInterAplicarJuros] = useState(true);
-  const [interTaxaJuros, setInterTaxaJuros] = useState('1.00');
-  const [interDataVencimento, setInterDataVencimento] = useState('');
-  const [carregandoConfig, setCarregandoConfig] = useState(false);
+  const [notaVinculada, setNotaVinculada] = useState<NotaFiscal | null>(null);
+  const [desvinculando, setDesvinculando] = useState(false);
 
   const [dataVencimento, setDataVencimento] = useState('');
   const [dataPagamento, setDataPagamento] = useState('');
@@ -231,12 +205,14 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       setObservacao(notaData.observacao || '');
       setClienteNome(notaData.cliente_nome || '');
 
-      const [condoRes, boletosRes] = await Promise.all([
+      const [condoRes, boletosRes, vinculadaRes] = await Promise.all([
         notaData.condominio_id ? api.get(`/condominios/${notaData.condominio_id}`) : Promise.resolve(null),
         api.get(`/boletos/nota/${id}`),
+        notaData.nota_vinculada_id ? api.get(`/notas-fiscais/${notaData.nota_vinculada_id}`) : Promise.resolve(null),
       ]);
       if (condoRes) setCondominio(condoRes.data);
       setBoletos(boletosRes.data || []);
+      setNotaVinculada(vinculadaRes ? vinculadaRes.data : null);
     } catch (error) {
       console.error('Erro ao carregar nota:', error);
       alert('Nota fiscal nao encontrada');
@@ -261,71 +237,17 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     return [{ parcela: 1, valor: nota.valor, data: nota.data_vencimento }];
   };
 
-  const calcularValorLiquidoModal = (): number => {
-    if (!configImpostos) return parseFloat(interValor) || 0;
-    const bruto = configImpostos.valor_bruto;
-    const pis    = interAplicarPis    ? parseFloat(interPctPis    || '0') : 0;
-    const cofins = interAplicarCofins ? parseFloat(interPctCofins || '0') : 0;
-    const inss   = interAplicarInss   ? parseFloat(interPctInss   || '0') : 0;
-    const csll   = interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0;
-    const totalPct = (pis + cofins + inss + csll) / 100;
-    return Math.max(Math.round(bruto * (1 - totalPct) * 100) / 100, 0.01);
-  };
-
-  const abrirModalInter = async () => {
+  const handleDesvincularNotas = async () => {
     if (!nota) return;
-    setCarregandoConfig(true);
+    if (!confirm('Desvincular as notas? O serviço combinado será deletado e dois serviços individuais serão recriados.')) return;
+    setDesvinculando(true);
     try {
-      const { data: cfg } = await api.get<ConfigImpostos>(`/boletos/config-impostos/${nota.id}`);
-      setConfigImpostos(cfg);
-      setInterAplicarPis(cfg.pct_pis > 0); setInterPctPis(cfg.pct_pis.toFixed(2));
-      setInterAplicarCofins(cfg.pct_cofins > 0); setInterPctCofins(cfg.pct_cofins.toFixed(2));
-      setInterAplicarInss(cfg.pct_inss > 0); setInterPctInss(cfg.pct_inss.toFixed(2));
-      setInterAplicarCsll(cfg.pct_csll > 0); setInterPctCsll(cfg.pct_csll.toFixed(2));
-      setInterValor(cfg.valor_liquido.toFixed(2));
-      setInterValorEditado(false);
-      setInterAplicarJuros(cfg.aplicar_juros_default);
-      setInterTaxaJuros('1.00');
-      setInterDataVencimento('');
-      setInterMensagem('');
-      setModalInter(true);
-    } catch {
-      alert('Erro ao carregar configuração de impostos.');
-    } finally {
-      setCarregandoConfig(false);
-    }
-  };
-
-  const handleGerarParcelasFaltantes = () => abrirModalInter();
-  const handleGerarInterParcela = () => abrirModalInter();
-
-  const handleConfirmarGerarInter = async () => {
-    if (!id) return;
-    setGerandoParcelas(true);
-    try {
-      const valorLiquido = interValorEditado ? parseFloat(interValor) : calcularValorLiquidoModal();
-      const body: Record<string, unknown> = {
-        pct_pis:    interAplicarPis    ? parseFloat(interPctPis    || '0') : 0,
-        pct_cofins: interAplicarCofins ? parseFloat(interPctCofins || '0') : 0,
-        pct_inss:   interAplicarInss   ? parseFloat(interPctInss   || '0') : 0,
-        pct_csll:   interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0,
-        aplicar_juros: interAplicarJuros,
-        taxa_juros: parseFloat(interTaxaJuros) || 1.0,
-      };
-      if (interValorEditado && valorLiquido > 0) body.valor_total_override = valorLiquido;
-      if (interDataVencimento) body.data_vencimento_override = interDataVencimento;
-      if (interMensagem.trim()) body.mensagem = interMensagem.trim();
-      const res = await api.post(`/boletos/gerar-parcelas-faltantes/${id}`, body);
-      const { sucesso, erros } = res.data;
-      setModalInter(false);
+      await api.post(`/notas-fiscais/${nota.id}/desvincular-notas`);
       await carregarDados();
-      if (erros.length > 0) {
-        alert(`${sucesso.length} parcela(s) gerada(s).\nErros: ${erros.map((e: { erro: string }) => e.erro).join(', ')}`);
-      }
     } catch {
-      alert('Erro ao gerar parcelas via Inter.');
+      alert('Erro ao desvincular notas.');
     } finally {
-      setGerandoParcelas(false);
+      setDesvinculando(false);
     }
   };
 
@@ -624,6 +546,11 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   {nota.tipo}
                 </div>
                 <h1 className="text-4xl font-black">Nota #{nota.numero_nota}</h1>
+                {nota.nota_vinculada_id && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 rounded-full text-sm font-bold">
+                    🔗 2 notas vinculadas
+                  </span>
+                )}
               </div>
               <div className="text-right space-y-1">
                 <p className="text-3xl font-black">R$ {nota.valor.toFixed(2)}</p>
@@ -747,6 +674,47 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
               </div>
             </div>
           )}
+
+          {/* Nota vinculada */}
+          {nota.nota_vinculada_id && (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-violet-200 dark:border-violet-800/50 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-violet-50 dark:bg-violet-500/10 border-b border-violet-200 dark:border-violet-800/50">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="text-xl">🔗</span>
+                  Nota Vinculada
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
+                {notaVinculada ? (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                      {notaVinculada.tipo === 'ASSISTENCIA' ? '🔧' : '🛠️'}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-900 dark:text-white">Nota #{notaVinculada.numero_nota}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {notaVinculada.tipo} · R$ {notaVinculada.valor.toFixed(2)}
+                      </p>
+                    </div>
+                    <Link href={`/notas/${notaVinculada.id}`} className="text-xs font-bold text-violet-600 dark:text-violet-400 hover:underline">
+                      Ver →
+                    </Link>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Nota #{nota.nota_vinculada_id}</p>
+                )}
+                <button
+                  onClick={handleDesvincularNotas}
+                  disabled={desvinculando}
+                  className="w-full py-2 text-xs font-bold text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-800/30 rounded-xl hover:brightness-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {desvinculando
+                    ? <><div className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /> Desvinculando...</>
+                    : '🔓 Desvincular notas'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -765,23 +733,12 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
               )}
             </div>
 
-            {/* Bulk action: generate missing boletos via Inter */}
-            {hasMissingBoletos && (
-              <div className="mx-4 mt-4 p-3 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-800/30 rounded-xl">
-                <p className="text-xs font-bold text-orange-700 dark:text-orange-400 mb-2">
-                  Parcelas faltantes: {boletosCount}/{totalParcelas} geradas
-                </p>
-                <button
-                  onClick={handleGerarParcelasFaltantes}
-                  disabled={gerandoParcelas || carregandoConfig}
-                  className="w-full py-2 bg-orange-600 text-white rounded-lg font-bold text-xs hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-                >
-                  {gerandoParcelas
-                    ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando...</>
-                    : 'Gerar Parcelas Faltantes no Inter'}
-                </button>
-              </div>
-            )}
+            {/* Info: boletos são gerados no serviço */}
+            <div className="mx-4 mt-4 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Para gerar boletos, acesse o serviço vinculado a esta nota.
+              </p>
+            </div>
 
             {/* Parcelas list */}
             <div className="p-4 space-y-3">
@@ -888,23 +845,13 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                           )
                         )
                       ) : (
-                        <>
-                          <button
-                            onClick={handleGerarInterParcela}
-                            disabled={gerandoParcelas || carregandoConfig}
-                            className="flex-1 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
-                            title="Gerar via Banco Inter"
-                          >
-                            {gerandoParcelas ? '...' : 'Gerar Inter'}
-                          </button>
-                          <button
-                            onClick={() => openModalCobranca(parcela)}
-                            className="flex-1 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
-                            title="Registrar manualmente"
-                          >
-                            + Registrar
-                          </button>
-                        </>
+                        <button
+                          onClick={() => openModalCobranca(parcela)}
+                          className="flex-1 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
+                          title="Registrar manualmente"
+                        >
+                          + Registrar
+                        </button>
                       )}
                     </div>
                   </div>
@@ -1149,124 +1096,6 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 )}
                 Registrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Gerar Boleto Inter — pré-visualização com impostos editáveis */}
-      {modalInter && nota && configImpostos && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full p-8 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">Pré-visualização — Boleto Inter</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
-              Nota {nota.numero_nota} · {nota.parcelas} parcela(s)
-              {configImpostos.numero_os && <span> · OS {configImpostos.numero_os}</span>}
-            </p>
-
-            {/* Breakdown de impostos */}
-            {nota.tipo !== 'OUTROS' && (
-              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-5">
-                <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase mb-3">Impostos Retidos</p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600 dark:text-slate-400 w-20">Valor Bruto</span>
-                    <span className="font-bold text-slate-900 dark:text-white">{fmt(configImpostos.valor_bruto)}</span>
-                  </div>
-                  {([
-                    ['PIS',    interAplicarPis,    setInterAplicarPis,    interPctPis,    setInterPctPis],
-                    ['COFINS', interAplicarCofins, setInterAplicarCofins, interPctCofins, setInterPctCofins],
-                    ['INSS',   interAplicarInss,   setInterAplicarInss,   interPctInss,   setInterPctInss],
-                    ['CSLL',   interAplicarCsll,   setInterAplicarCsll,   interPctCsll,   setInterPctCsll],
-                  ] as [string, boolean, (v: boolean) => void, string, (v: string) => void][]).map(([label, aplicar, setAplicar, pct, setPct]) => (
-                    <div key={label} className="flex items-center gap-2">
-                      <input type="checkbox" checked={aplicar}
-                        onChange={e => { setAplicar(e.target.checked); setInterValorEditado(false); }}
-                        className="w-4 h-4 rounded accent-red-500" />
-                      <span className={`w-16 font-bold text-xs ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400 line-through'}`}>{label}</span>
-                      <div className="flex items-center gap-1 flex-1">
-                        <input type="number" step="0.01" min="0" max="100"
-                          value={pct} disabled={!aplicar}
-                          onChange={e => { setPct(e.target.value); setInterValorEditado(false); }}
-                          className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-orange-500 outline-none text-right disabled:opacity-40" />
-                        <span className="text-xs text-slate-400">%</span>
-                      </div>
-                      <span className={`text-xs w-24 text-right ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
-                        {aplicar ? `- ${fmt(configImpostos.valor_bruto * parseFloat(pct || '0') / 100)}` : '—'}
-                      </span>
-                    </div>
-                  ))}
-                  <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1">
-                    <div className="flex justify-between items-center">
-                      <span className="font-black text-green-700 dark:text-green-400 text-base">Valor Líquido</span>
-                      <div className="flex items-center gap-2">
-                        <input type="number" step="0.01" min="0.01"
-                          value={interValorEditado ? interValor : calcularValorLiquidoModal().toFixed(2)}
-                          onChange={e => { setInterValor(e.target.value); setInterValorEditado(true); }}
-                          onFocus={() => { if (!interValorEditado) { setInterValor(calcularValorLiquidoModal().toFixed(2)); setInterValorEditado(true); } }}
-                          className={`w-32 px-2 py-1 text-sm font-bold rounded-lg border focus:ring-2 outline-none text-right ${
-                            interValorEditado
-                              ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400 text-yellow-700 dark:text-yellow-300 focus:ring-yellow-400'
-                              : 'bg-green-50 dark:bg-green-900/20 border-green-300 text-green-700 dark:text-green-400 focus:ring-green-400'
-                          }`} />
-                      </div>
-                    </div>
-                    {interValorEditado && (
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-yellow-600 dark:text-yellow-400">Valor editado manualmente</span>
-                        <button onClick={() => setInterValorEditado(false)} className="text-xs text-slate-500 underline hover:no-underline">resetar</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {/* Juros */}
-              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <input type="checkbox" id="inter-juros-nota" checked={interAplicarJuros} onChange={e => setInterAplicarJuros(e.target.checked)}
-                    className="w-4 h-4 rounded accent-orange-600" />
-                  <label htmlFor="inter-juros-nota" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">Aplicar juros de mora</label>
-                </div>
-                {interAplicarJuros && (
-                  <div className="flex items-center gap-1">
-                    <input type="number" step="0.01" min="0" value={interTaxaJuros} onChange={e => setInterTaxaJuros(e.target.value)}
-                      className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-orange-500 outline-none text-right" />
-                    <span className="text-xs text-slate-400">% a.m.</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Data vencimento override */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Data de Vencimento (1ª parcela)</label>
-                <input type="date" value={interDataVencimento} onChange={e => setInterDataVencimento(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-slate-900 dark:text-white" />
-                <p className="text-xs text-slate-400 mt-1">Deixe vazio para usar a data original da nota.</p>
-              </div>
-
-              {/* Mensagem */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Mensagem no Boleto</label>
-                <input type="text" maxLength={300} value={interMensagem} onChange={e => setInterMensagem(e.target.value)}
-                  placeholder={configImpostos.numero_os ? `OS ${configImpostos.numero_os} | NF: ${nota.numero_nota}` : `NF: ${nota.numero_nota}`}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-slate-900 dark:text-white" />
-                <p className="text-xs text-slate-400 mt-1">A OS vinculada será adicionada automaticamente se não preenchido.</p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setModalInter(false)} disabled={gerandoParcelas}
-                className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all disabled:opacity-50">
-                Cancelar
-              </button>
-              <button onClick={handleConfirmarGerarInter} disabled={gerandoParcelas}
-                className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                {gerandoParcelas && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                Emitir Boleto
               </button>
             </div>
           </div>

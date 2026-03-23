@@ -482,11 +482,20 @@ class BoletoService:
         taxa_juros: float = 1.0,
         data_vencimento_override: date = None,
         parcelas_selecionadas: list = None,
+        imposto_config_vinculo: dict = None,
     ) -> GerarParcelasFaltantesResponse:
         """Gera apenas as parcelas que ainda não existem para uma nota parcelada."""
+        from app.models.nota_fiscal_model import NotaFiscal as _NF
         nota = NotaFiscalRepository.get_by_id(db, nota_id)
         if not nota:
             return GerarParcelasFaltantesResponse(sucesso=[], erros=[{"nota_id": nota_id, "erro": "Nota não encontrada."}])
+
+        # Persistir configuração de imposto do vínculo, se fornecida
+        if imposto_config_vinculo is not None:
+            db_nota_raw = db.query(_NF).filter(_NF.id == nota_id).first()
+            if db_nota_raw:
+                db_nota_raw.imposto_config_vinculo = imposto_config_vinculo
+                db.flush()
 
         existentes = BoletoRepository.get_all_by_nota_fiscal(db, nota_id)
         total_parcelas = nota.parcelas if nota.parcelas and nota.parcelas > 0 else 1
@@ -524,7 +533,24 @@ class BoletoService:
         usar_juros = aplicar_juros if aplicar_juros is not None else _aplicar_juros_default(nota)
         mora_payload = _montar_mora_multa(usar_juros, taxa_juros or 1.0)
 
-        valor_base = valor_total_override if valor_total_override else _calcular_valor_liquido(db, nota, pcts_override or None)
+        # Para notas vinculadas sem override explícito, calcular valor combinado
+        # conforme a regra de imposto definida em imposto_config_vinculo
+        if valor_total_override:
+            valor_base = valor_total_override
+        elif nota.nota_vinculada_id:
+            parceira = db.query(_NF).filter(_NF.id == nota.nota_vinculada_id).first()
+            cfg = imposto_config_vinculo or (nota.imposto_config_vinculo or {})
+            regra = cfg.get("aplicar_imposto_em", "nota_a")
+            if regra == "nota_a":
+                valor_base = _calcular_valor_liquido(db, nota, pcts_override or None) + float(parceira.valor if parceira else 0)
+            elif regra == "nota_b":
+                valor_base = float(nota.valor) + _calcular_valor_liquido(db, parceira, pcts_override or None)
+            elif regra == "ambas":
+                valor_base = _calcular_valor_liquido(db, nota, pcts_override or None) + _calcular_valor_liquido(db, parceira, pcts_override or None)
+            else:  # "nenhuma"
+                valor_base = float(nota.valor) + float(parceira.valor if parceira else 0)
+        else:
+            valor_base = _calcular_valor_liquido(db, nota, pcts_override or None)
         valor_parcela = round(valor_base / total_parcelas, 2)
         valor_ultima = round(valor_base - valor_parcela * (total_parcelas - 1), 2)
 
@@ -595,9 +621,12 @@ class BoletoService:
 
     @staticmethod
     def get_config_impostos(db: Session, nota_id: int) -> dict:
-        """Retorna configuração de impostos e valor líquido calculado para uso no frontend (modal)."""
+        """Retorna configuração de impostos e valor líquido calculado para uso no frontend (modal).
+        Para notas vinculadas, inclui dados da nota parceira para o modal de aprovação.
+        """
         from app.models.configuracao_impostos_model import ConfiguracaoImpostosServico, TipoServicoConfig
         from app.models.servico_model import ManutencaoAssistencia as _MA
+        from app.models.nota_fiscal_model import NotaFiscal
 
         nota = NotaFiscalRepository.get_by_id(db, nota_id)
         if not nota:
@@ -619,7 +648,7 @@ class BoletoService:
         servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota_id).first()
         numero_os = servico_os.numero_os if servico_os else None
 
-        return {
+        resultado = {
             "pct_pis":    pct_pis,
             "pct_cofins": pct_cofins,
             "pct_inss":   pct_inss,
@@ -630,7 +659,23 @@ class BoletoService:
             "aplicar_juros_default": _aplicar_juros_default(nota),
             "alerta_impostos": bool(nota.alerta_impostos),
             "divergencia_impostos": nota.divergencia_impostos,
+            "nota_vinculada_id": None,
+            "nota_vinculada_numero": None,
+            "valor_nota_vinculada": None,
         }
+
+        # Se a nota tem vínculo, calcular valor combinado e incluir dados da parceira
+        if nota.nota_vinculada_id:
+            parceira = db.query(NotaFiscal).filter(NotaFiscal.id == nota.nota_vinculada_id).first()
+            if parceira:
+                liquido_parceira = _calcular_valor_liquido(db, parceira)
+                resultado["nota_vinculada_id"]     = parceira.id
+                resultado["nota_vinculada_numero"] = parceira.numero_nota
+                resultado["valor_nota_vinculada"]  = float(parceira.valor)
+                resultado["valor_bruto"]           = float(nota.valor) + float(parceira.valor)
+                resultado["valor_liquido"]         = valor_liquido + liquido_parceira
+
+        return resultado
 
     @staticmethod
     def cancelar_boleto(db: Session, codigo_solicitacao: str) -> BoletoResponse:

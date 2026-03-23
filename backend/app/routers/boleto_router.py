@@ -110,6 +110,7 @@ def gerar_parcelas_faltantes(
         request.pct_inss, request.pct_csll,
         request.aplicar_juros, request.taxa_juros,
         request.data_vencimento_override, request.parcelas_selecionadas,
+        request.imposto_config_vinculo,
     )
 
 

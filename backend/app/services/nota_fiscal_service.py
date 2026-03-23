@@ -878,3 +878,202 @@ class NotaFiscalService:
 
         print(f"[IMPORT] <<< Resultado: {processados} importadas | {ja_existentes} ja existentes | {canceladas} canceladas | {len(erros)} erros\n")
         return {"processados": processados, "ja_existentes": ja_existentes, "canceladas": canceladas, "erros": erros}
+
+    @staticmethod
+    def vincular_notas(db: Session, nota_a_id: int, nota_b_id: int) -> dict:
+        """
+        Vincula duas notas do mesmo condomínio de forma simétrica.
+        Deleta os dois serviços existentes e cria um serviço único combinado.
+        O serviço combinado fica com nota_fiscal_id = nota_a.id.
+        """
+        from app.models.nota_fiscal_model import NotaFiscal
+        from app.models.boleto_model import SituacaoBoleto
+        from app.repositories.boleto_repository import BoletoRepository
+
+        nota_a = db.query(NotaFiscal).filter(NotaFiscal.id == nota_a_id).first()
+        nota_b = db.query(NotaFiscal).filter(NotaFiscal.id == nota_b_id).first()
+
+        if not nota_a:
+            raise HTTPException(status_code=404, detail=f"Nota {nota_a_id} não encontrada.")
+        if not nota_b:
+            raise HTTPException(status_code=404, detail=f"Nota {nota_b_id} não encontrada.")
+
+        # Validar mesmo condomínio
+        if nota_a.condominio_id != nota_b.condominio_id:
+            raise HTTPException(status_code=400, detail="As notas pertencem a condomínios diferentes.")
+
+        # Validar que nenhuma já está vinculada
+        if nota_a.nota_vinculada_id is not None:
+            raise HTTPException(status_code=400, detail=f"A nota {nota_a.numero_nota} já está vinculada a outra nota.")
+        if nota_b.nota_vinculada_id is not None:
+            raise HTTPException(status_code=400, detail=f"A nota {nota_b.numero_nota} já está vinculada a outra nota.")
+
+        # Validar que nenhuma tem boleto ativo
+        boletos_a = BoletoRepository.get_all_by_nota_fiscal(db, nota_a_id)
+        boletos_b = BoletoRepository.get_all_by_nota_fiscal(db, nota_b_id)
+        situacoes_ativas = {SituacaoBoleto.EMABERTO, SituacaoBoleto.VENCIDO}
+        if any(b.situacao in situacoes_ativas for b in boletos_a):
+            raise HTTPException(status_code=400, detail=f"A nota {nota_a.numero_nota} tem boleto ativo. Cancele antes de vincular.")
+        if any(b.situacao in situacoes_ativas for b in boletos_b):
+            raise HTTPException(status_code=400, detail=f"A nota {nota_b.numero_nota} tem boleto ativo. Cancele antes de vincular.")
+
+        # Deletar serviços existentes das duas notas
+        servicos = db.query(ManutencaoAssistencia).filter(
+            ManutencaoAssistencia.nota_fiscal_id.in_([nota_a_id, nota_b_id])
+        ).all()
+        for s in servicos:
+            db.delete(s)
+
+        # Criar serviço único combinado (nota_fiscal_id = nota_a.id)
+        tipo_str = "assistencia" if nota_a.tipo == TipoNota.ASSISTENCIA else "manutencao"
+        numero_os = None
+        if nota_a.xml_original:
+            try:
+                tipo_xml = detectar_tipo_xml(nota_a.xml_original)
+                if tipo_xml == 'NFSe':
+                    root_os = ET.fromstring(nota_a.xml_original)
+                    el_os = root_os.find('.//Discriminacao')
+                    numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                elif tipo_xml == 'NFe':
+                    root_os = ET.fromstring(nota_a.xml_original)
+                    ns_os = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+                    el_os = root_os.find('.//nfe:infAdic/nfe:infCpl', ns_os)
+                    numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+            except Exception:
+                pass
+
+        valor_total = float(nota_a.valor) + float(nota_b.valor)
+        servico_combinado = ServicoCreate(
+            condominio_id=nota_a.condominio_id,
+            tipo=tipo_str,
+            data_servico=nota_a.data_vencimento,
+            descricao=f"Notas vinculadas: {nota_a.numero_nota} + {nota_b.numero_nota} | Valor total: R$ {valor_total:.2f}",
+            nota_fiscal_id=nota_a_id,
+            numero_os=numero_os,
+        )
+        novo_servico = ServicoService.create_servico(db, servico_combinado)
+
+        # Vínculo simétrico
+        nota_a.nota_vinculada_id = nota_b_id
+        nota_b.nota_vinculada_id = nota_a_id
+
+        db.commit()
+        db.refresh(nota_a)
+        db.refresh(nota_b)
+
+        print(f"[VincularNotas] Notas {nota_a.numero_nota} <-> {nota_b.numero_nota} vinculadas. Serviço combinado ID={novo_servico.id}")
+        return {
+            "nota_a": NotaFiscalResponse.model_validate(nota_a),
+            "nota_b": NotaFiscalResponse.model_validate(nota_b),
+            "servico_id": novo_servico.id,
+        }
+
+    @staticmethod
+    def desvincular_notas(db: Session, nota_id: int) -> dict:
+        """
+        Desfaz o vínculo entre duas notas.
+        Deleta o serviço combinado e recria os dois serviços individuais
+        usando o pattern de vincular_condominio() (extração do xml_original).
+        """
+        from app.models.nota_fiscal_model import NotaFiscal
+
+        nota = db.query(NotaFiscal).filter(NotaFiscal.id == nota_id).first()
+        if not nota:
+            raise HTTPException(status_code=404, detail="Nota não encontrada.")
+        if nota.nota_vinculada_id is None:
+            raise HTTPException(status_code=400, detail="Esta nota não está vinculada a outra nota.")
+
+        parceira = db.query(NotaFiscal).filter(NotaFiscal.id == nota.nota_vinculada_id).first()
+        if not parceira:
+            raise HTTPException(status_code=404, detail="Nota parceira não encontrada.")
+
+        # Deletar o serviço combinado (vinculado a qualquer uma das duas notas)
+        servicos = db.query(ManutencaoAssistencia).filter(
+            ManutencaoAssistencia.nota_fiscal_id.in_([nota.id, parceira.id])
+        ).all()
+        for s in servicos:
+            db.delete(s)
+
+        # Recriar serviços individuais via xml_original (mesmo pattern de vincular_condominio)
+        for db_nota in [nota, parceira]:
+            if db_nota.tipo not in [TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]:
+                continue
+            if not db_nota.condominio_id:
+                continue
+            try:
+                tipo_str = "assistencia" if db_nota.tipo == TipoNota.ASSISTENCIA else "manutencao"
+                numero_os = None
+                if db_nota.xml_original:
+                    try:
+                        tipo_xml = detectar_tipo_xml(db_nota.xml_original)
+                        if tipo_xml == 'NFSe':
+                            root_os = ET.fromstring(db_nota.xml_original)
+                            el_os = root_os.find('.//Discriminacao')
+                            numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                        elif tipo_xml == 'NFe':
+                            root_os = ET.fromstring(db_nota.xml_original)
+                            ns_os = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+                            el_os = root_os.find('.//nfe:infAdic/nfe:infCpl', ns_os)
+                            numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                    except Exception:
+                        pass
+                servico = ServicoCreate(
+                    condominio_id=db_nota.condominio_id,
+                    tipo=tipo_str,
+                    data_servico=db_nota.data_vencimento,
+                    descricao=db_nota.descricao_servico or db_nota.observacao or "",
+                    nota_fiscal_id=db_nota.id,
+                    numero_os=numero_os,
+                )
+                ServicoService.create_servico(db, servico)
+                print(f"[DesvincularNotas] Serviço recriado para nota {db_nota.numero_nota}")
+            except Exception as e:
+                print(f"[DesvincularNotas] Erro ao recriar serviço para nota {db_nota.numero_nota}: {e}")
+
+        # Limpar vínculo e config de imposto
+        nota.nota_vinculada_id = None
+        nota.imposto_config_vinculo = None
+        parceira.nota_vinculada_id = None
+        parceira.imposto_config_vinculo = None
+
+        db.commit()
+        print(f"[DesvincularNotas] Vínculo removido entre notas ID={nota.id} e ID={parceira.id}")
+        return {"mensagem": f"Notas {nota.numero_nota} e {parceira.numero_nota} desvinculadas com sucesso."}
+
+    @staticmethod
+    def get_candidatas_vinculo(db: Session, servico_id: int) -> list:
+        """
+        Retorna notas do mesmo condomínio do serviço que podem ser vinculadas:
+        - AUTORIZADA
+        - Sem nota_vinculada_id (não já vinculadas)
+        - Sem boleto ativo (EMABERTO ou VENCIDO)
+        - Tipo ASSISTENCIA ou MANUTENCAO
+        - Diferente da nota atual do serviço
+        """
+        from app.models.nota_fiscal_model import NotaFiscal
+        from app.models.boleto_model import Boleto, SituacaoBoleto
+
+        servico = db.query(ManutencaoAssistencia).filter(ManutencaoAssistencia.id == servico_id).first()
+        if not servico:
+            raise HTTPException(status_code=404, detail="Serviço não encontrado.")
+
+        nota_atual_id = servico.nota_fiscal_id
+        condominio_id = servico.condominio_id
+
+        # Subquery: ids de notas com boleto ativo
+        from sqlalchemy import select
+        notas_com_boleto_ativo = db.query(Boleto.nota_fiscal_id).filter(
+            Boleto.situacao.in_([SituacaoBoleto.EMABERTO, SituacaoBoleto.VENCIDO])
+        ).subquery()
+
+        candidatas = db.query(NotaFiscal).filter(
+            NotaFiscal.condominio_id == condominio_id,
+            NotaFiscal.status == StatusNota.AUTORIZADA,
+            NotaFiscal.tipo.in_([TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]),
+            NotaFiscal.nota_vinculada_id.is_(None),
+            NotaFiscal.id != nota_atual_id,
+            NotaFiscal.id.notin_(notas_com_boleto_ativo),
+        ).order_by(NotaFiscal.data_vencimento.desc()).all()
+
+        from app.schemas.nota_fiscal_schema import CandidataVinculoResponse
+        return [CandidataVinculoResponse.model_validate(n) for n in candidatas]

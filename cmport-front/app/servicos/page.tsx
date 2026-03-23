@@ -655,7 +655,14 @@ export default function ServicosPage() {
                     {servico.nota_fiscal_id ? (
                       nota ? (
                         <div>
-                          <p className="text-xs font-mono text-slate-500 dark:text-slate-400">#{nota.numero_nota}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-xs font-mono text-slate-500 dark:text-slate-400">#{nota.numero_nota}</p>
+                            {nota.descricao_servico?.startsWith('Notas vinculadas:') && (
+                              <span className="text-xs font-black px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
+                                🔗 2 notas
+                              </span>
+                            )}
+                          </div>
                           <p className="text-sm font-black text-green-600 dark:text-green-400">{brl(nota.valor)}</p>
                           <p className="text-xs text-slate-400 dark:text-slate-500">Venc: {pd(nota.data_vencimento).toLocaleDateString('pt-BR')}</p>
                         </div>

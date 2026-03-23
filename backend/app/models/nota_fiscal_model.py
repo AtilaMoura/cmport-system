@@ -62,4 +62,12 @@ class NotaFiscal(Base):
     alerta_impostos      = Column(Integer, default=0, nullable=False)   # 0=ok, 1=alerta ativo
     divergencia_impostos = Column(JSON, nullable=True)
 
+    # Vínculo entre duas notas (simétrico: A aponta para B e B aponta para A)
+    nota_vinculada_id = Column(Integer, ForeignKey("notas_fiscais.id"), nullable=True, index=True)
+    nota_vinculada = relationship("NotaFiscal", remote_side="NotaFiscal.id", foreign_keys=[nota_vinculada_id])
+
+    # Configuração de imposto definida na aprovação do boleto vinculado
+    # {"aplicar_imposto_em": "nota_a"|"nota_b"|"ambas"|"nenhuma", "nota_a_id": int, "nota_b_id": int}
+    imposto_config_vinculo = Column(JSON, nullable=True)
+
     criado_em = Column(DateTime, server_default=func.now())

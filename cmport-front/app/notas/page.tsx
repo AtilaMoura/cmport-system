@@ -23,6 +23,7 @@ interface NotaFiscal {
   cliente_nome: string | null;
   condominio_id: number | null;
   criado_em: string;
+  nota_vinculada_id: number | null;
 }
 
 interface Condominio {
@@ -40,17 +41,6 @@ interface Boleto {
   situacao: 'EMABERTO' | 'PAGO' | 'CANCELADO' | 'EXPIRADO' | 'VENCIDO' | 'BAIXADO';
   numero_parcela: number;
   total_parcelas: number;
-}
-
-interface ConfigImpostos {
-  pct_pis: number;
-  pct_cofins: number;
-  pct_inss: number;
-  pct_csll: number;
-  valor_bruto: number;
-  valor_liquido: number;
-  numero_os: string | null;
-  aplicar_juros_default: boolean;
 }
 
 type TabType = 'geral' | 'lista' | 'receber';
@@ -88,22 +78,10 @@ export default function NotasPage() {
   const [showFiltrosAvancados, setShowFiltrosAvancados]   = useState(false);
 
   const [selecionadas, setSelecionadas]   = useState<Set<number>>(new Set());
-  const [gerandoBoletos, setGerandoBoletos] = useState(false);
+  const [vinculando, setVinculando] = useState(false);
   const [revalidando, setRevalidando] = useState(false);
   const [revalidarMsg, setRevalidarMsg] = useState<string | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>('AUTORIZADA');
-
-  // Modal geração em massa
-  const [modalMassaAberto, setModalMassaAberto] = useState(false);
-  const [modalMassaStep, setModalMassaStep] = useState<1 | 2 | 3>(1);
-  const [configsNotas, setConfigsNotas] = useState<Record<number, ConfigImpostos>>({});
-  const [carregandoConfigs, setCarregandoConfigs] = useState(false);
-  const [massaMensagem, setMassaMensagem] = useState('');
-  const [massaDataVencimento, setMassaDataVencimento] = useState('');
-  const [massaAplicarJuros, setMassaAplicarJuros] = useState<boolean | null>(null);
-  const [massaTaxaJuros, setMassaTaxaJuros] = useState(1.0);
-  const [progressoMassa, setProgressoMassa] = useState<Record<number, 'pendente' | 'gerando' | 'ok' | 'erro'>>({});
-  const [resultadosMassa, setResultadosMassa] = useState<{ notaId: number; erro?: string }[]>([]);
 
   useEffect(() => { carregarDados(); }, []);
 
@@ -151,98 +129,42 @@ export default function NotasPage() {
     }
   };
 
-  const toggleSelecionada = (id: number) => {
-    setSelecionadas(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  };
+  // Notas elegíveis para vínculo: MANUT/ASSIST, sem vinculo atual
+  const elegivel = (n: NotaFiscal) =>
+    (n.tipo === 'ASSISTENCIA' || n.tipo === 'MANUTENCAO') && !n.nota_vinculada_id;
 
-  const toggleSelecionarTodas = (lista: NotaFiscal[]) => {
-    const semBoleto = lista.filter(n => !boletos[n.id]?.length);
-    const allSel = semBoleto.every(n => selecionadas.has(n.id));
+  const toggleSelecionada = (id: number) => {
     setSelecionadas(prev => {
       const next = new Set(prev);
-      if (allSel) semBoleto.forEach(n => next.delete(n.id));
-      else semBoleto.forEach(n => next.add(n.id));
+      if (next.has(id)) {
+        next.delete(id);
+      } else if (next.size < 2) {
+        next.add(id);
+      }
       return next;
     });
   };
 
-  const abrirModalMassa = async () => {
-    if (selecionadas.size === 0) return;
-    setModalMassaAberto(true);
-    setModalMassaStep(1);
-    setMassaMensagem('');
-    setMassaDataVencimento('');
-    setMassaAplicarJuros(null);
-    setMassaTaxaJuros(1.0);
-    setProgressoMassa({});
-    setResultadosMassa([]);
-    setCarregandoConfigs(true);
-    setConfigsNotas({});
-
-    const configs: Record<number, ConfigImpostos> = {};
-    for (const id of Array.from(selecionadas)) {
-      try {
-        const res = await api.get(`/boletos/config-impostos/${id}`);
-        configs[id] = res.data;
-      } catch {
-        const nota = notas.find(n => n.id === id);
-        configs[id] = {
-          pct_pis: 0.65, pct_cofins: 3, pct_inss: 11, pct_csll: 1,
-          valor_bruto: nota?.valor || 0,
-          valor_liquido: nota?.valor ? nota.valor * (1 - (0.65 + 3 + 11 + 1) / 100) : 0,
-          numero_os: null,
-          aplicar_juros_default: nota?.tipo !== 'OUTROS',
-        };
-      }
+  const handleVincularNotas = async () => {
+    if (selecionadas.size !== 2) return;
+    const [notaAId, notaBId] = Array.from(selecionadas);
+    const notaA = notas.find(n => n.id === notaAId);
+    const notaB = notas.find(n => n.id === notaBId);
+    if (!notaA || !notaB) return;
+    if (notaA.condominio_id !== notaB.condominio_id) {
+      alert('As duas notas precisam ser do mesmo condomínio.');
+      return;
     }
-    setConfigsNotas(configs);
-    setCarregandoConfigs(false);
-  };
-
-  const executarGeracaoMassa = async () => {
-    setModalMassaStep(3);
-    setGerandoBoletos(true);
-    const notaIds = Array.from(selecionadas);
-    const initProg: Record<number, 'pendente' | 'gerando' | 'ok' | 'erro'> = {};
-    notaIds.forEach(id => { initProg[id] = 'pendente'; });
-    setProgressoMassa(initProg);
-
-    const resultados: { notaId: number; erro?: string }[] = [];
-
-    for (const notaId of notaIds) {
-      setProgressoMassa(prev => ({ ...prev, [notaId]: 'gerando' }));
-      try {
-        const config = configsNotas[notaId];
-        const aplicarJuros = massaAplicarJuros !== null ? massaAplicarJuros : config?.aplicar_juros_default ?? true;
-        const payload: Record<string, unknown> = {
-          nota_ids: [notaId],
-          pct_pis: config?.pct_pis,
-          pct_cofins: config?.pct_cofins,
-          pct_inss: config?.pct_inss,
-          pct_csll: config?.pct_csll,
-          aplicar_juros: aplicarJuros,
-          taxa_juros: massaTaxaJuros,
-        };
-        if (massaDataVencimento) payload.data_vencimento_override = massaDataVencimento;
-        if (massaMensagem) payload.mensagem = massaMensagem;
-
-        const res = await api.post('/boletos/gerar', payload);
-        if (res.data.erros?.length > 0) {
-          throw new Error(res.data.erros[0]?.erro || 'Erro ao gerar');
-        }
-        setProgressoMassa(prev => ({ ...prev, [notaId]: 'ok' }));
-        resultados.push({ notaId });
-      } catch (err: unknown) {
-        setProgressoMassa(prev => ({ ...prev, [notaId]: 'erro' }));
-        const msg = err instanceof Error ? err.message : 'Erro desconhecido';
-        resultados.push({ notaId, erro: msg });
-      }
+    setVinculando(true);
+    try {
+      await api.post('/notas-fiscais/vincular-notas', { nota_a_id: notaAId, nota_b_id: notaBId });
+      setSelecionadas(new Set());
+      await carregarDados();
+    } catch {
+      alert('Erro ao vincular notas.');
+    } finally {
+      setVinculando(false);
     }
-
-    setResultadosMassa(resultados);
-    setGerandoBoletos(false);
-    await carregarDados();
-    setSelecionadas(new Set());
   };
 
   const revalidarXmls = async () => {
@@ -361,8 +283,11 @@ export default function NotasPage() {
   }
 
   const listaAtiva = activeTab === 'receber' ? notasAReceber : notasFiltradas;
-  const semBoletoVisiveis = listaAtiva.filter(n => !boletos[n.id]?.length);
   const selecionadasCount = Array.from(selecionadas).filter(id => listaAtiva.some(n => n.id === id)).length;
+  const selecionadasArr = Array.from(selecionadas);
+  const notaSel1 = selecionadasArr[0] ? notas.find(n => n.id === selecionadasArr[0]) : null;
+  const notaSel2 = selecionadasArr[1] ? notas.find(n => n.id === selecionadasArr[1]) : null;
+  const condominiosIguais = notaSel1 && notaSel2 && notaSel1.condominio_id === notaSel2.condominio_id && notaSel1.condominio_id !== null;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -601,12 +526,31 @@ export default function NotasPage() {
         {(activeTab === 'lista' || activeTab === 'receber') && (
           <div className="space-y-6">
             {selecionadasCount > 0 && (
-              <div className="bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-800 rounded-2xl px-6 py-4 flex items-center justify-between">
-                <p className="text-indigo-700 dark:text-indigo-400 font-bold">{selecionadasCount} nota(s) selecionada(s) sem boleto</p>
-                <button onClick={abrirModalMassa} disabled={gerandoBoletos}
-                  className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-black hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2">
-                  {gerandoBoletos ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando...</> : <><span>🏦</span> Gerar Boleto(s)</>}
-                </button>
+              <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-800 rounded-2xl px-6 py-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-violet-700 dark:text-violet-400 font-bold">
+                    {selecionadasCount}/2 nota(s) selecionada(s) para vínculo
+                  </p>
+                  {selecionadasCount === 2 && !condominiosIguais && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">As notas devem ser do mesmo condomínio</p>
+                  )}
+                  {selecionadasCount === 2 && condominiosIguais && (
+                    <p className="text-xs text-violet-600 dark:text-violet-400 mt-0.5">
+                      {notaSel1?.numero_nota} + {notaSel2?.numero_nota} · Total: R$ {((notaSel1?.valor || 0) + (notaSel2?.valor || 0)).toFixed(2)}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setSelecionadas(new Set())}
+                    className="px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 rounded-xl transition-all">
+                    Cancelar
+                  </button>
+                  <button onClick={handleVincularNotas}
+                    disabled={selecionadasCount !== 2 || !condominiosIguais || vinculando}
+                    className="bg-violet-600 text-white px-6 py-2.5 rounded-xl font-black hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2">
+                    {vinculando ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Vinculando...</> : <><span>🔗</span> Vincular Notas</>}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -615,14 +559,7 @@ export default function NotasPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                      <th className="px-4 py-4 w-10">
-                        {semBoletoVisiveis.length > 0 && (
-                          <input type="checkbox"
-                            checked={semBoletoVisiveis.every(n => selecionadas.has(n.id))}
-                            onChange={() => toggleSelecionarTodas(listaAtiva)}
-                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
-                        )}
-                      </th>
+                      <th className="px-4 py-4 w-10"></th>
                       {['Nota Fiscal', 'Tipo', 'Status', 'Cliente', 'Valor', 'Vencimento', 'Boleto', 'Acoes'].map(h => (
                         <th key={h} className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
                       ))}
@@ -636,9 +573,14 @@ export default function NotasPage() {
                       const pagas = notaBoletos.filter(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO').length;
                       const vencidas = notaBoletos.filter(b => b.situacao === 'VENCIDO').length;
                       return (
-                        <tr key={nota.id} className={`group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isSel ? 'bg-indigo-50/50 dark:bg-indigo-500/5' : ''}`}>
+                        <tr key={nota.id} className={`group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isSel ? 'bg-violet-50/50 dark:bg-violet-500/5' : ''}`}>
                           <td className="px-4 py-5">
-                            {!totalParcelas && <input type="checkbox" checked={isSel} onChange={() => toggleSelecionada(nota.id)} className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />}
+                            {elegivel(nota) && (
+                              <input type="checkbox" checked={isSel}
+                                onChange={() => toggleSelecionada(nota.id)}
+                                disabled={!isSel && selecionadas.size >= 2}
+                                className="w-4 h-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500 disabled:opacity-30" />
+                            )}
                           </td>
                           <td className="px-6 py-5">
                             <div className="flex items-center gap-3">
@@ -646,7 +588,12 @@ export default function NotasPage() {
                                 <span className="text-lg">{getTipoIcon(nota.tipo)}</span>
                               </div>
                               <div>
-                                <p className="font-bold text-slate-900 dark:text-white">{nota.numero_nota}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="font-bold text-slate-900 dark:text-white">{nota.numero_nota}</p>
+                                  {nota.nota_vinculada_id && (
+                                    <span className="text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-1.5 py-0.5 rounded-full">🔗</span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">{nota.parcelas > 1 ? `${nota.parcelas}x` : 'A vista'}</p>
                               </div>
                             </div>
@@ -733,244 +680,6 @@ export default function NotasPage() {
         )}
       </div>
 
-      {/* Modal Geração em Massa */}
-      {modalMassaAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">Geração em Massa de Boletos</h2>
-                <div className="flex items-center gap-2 mt-2">
-                  {[1, 2, 3].map(s => (
-                    <div key={s} className="flex items-center gap-1">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                        modalMassaStep === s ? 'bg-indigo-600 text-white' :
-                        modalMassaStep > s ? 'bg-green-500 text-white' :
-                        'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                      }`}>{modalMassaStep > s ? '✓' : s}</div>
-                      {s < 3 && <div className={`w-8 h-0.5 ${modalMassaStep > s ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700'}`} />}
-                    </div>
-                  ))}
-                  <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                    {modalMassaStep === 1 ? 'Revisar Notas' : modalMassaStep === 2 ? 'Configurações' : 'Progresso'}
-                  </span>
-                </div>
-              </div>
-              {modalMassaStep !== 3 && (
-                <button onClick={() => setModalMassaAberto(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none">&times;</button>
-              )}
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-8 py-6">
-              {/* Step 1: Revisar notas */}
-              {modalMassaStep === 1 && (
-                <div className="space-y-4">
-                  {carregandoConfigs ? (
-                    <div className="flex items-center justify-center py-12">
-                      <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                      <span className="ml-3 text-slate-600 dark:text-slate-400 font-semibold">Calculando valores líquidos...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        <span className="font-bold text-slate-900 dark:text-white">{selecionadas.size}</span> nota(s) selecionada(s). Revise os valores antes de prosseguir.
-                      </p>
-                      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="bg-slate-50 dark:bg-slate-800/50">
-                              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Nota</th>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Tipo</th>
-                              <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase">Valor Bruto</th>
-                              <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase">Impostos</th>
-                              <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase">Valor Líquido</th>
-                              <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase">Juros</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {Array.from(selecionadas).map(notaId => {
-                              const nota = notas.find(n => n.id === notaId);
-                              const cfg = configsNotas[notaId];
-                              const totalPct = cfg ? cfg.pct_pis + cfg.pct_cofins + cfg.pct_inss + cfg.pct_csll : 0;
-                              return (
-                                <tr key={notaId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                                  <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{nota?.numero_nota || `#${notaId}`}</td>
-                                  <td className="px-4 py-3">
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${getTipoColor(nota?.tipo || '')}`}>{nota?.tipo}</span>
-                                  </td>
-                                  <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{fmt(cfg?.valor_bruto ?? nota?.valor ?? 0)}</td>
-                                  <td className="px-4 py-3 text-right text-red-600 dark:text-red-400 text-xs">-{totalPct.toFixed(2)}%</td>
-                                  <td className="px-4 py-3 text-right font-bold text-green-600 dark:text-green-400">{fmt(cfg?.valor_liquido ?? 0)}</td>
-                                  <td className="px-4 py-3 text-center">
-                                    {cfg?.aplicar_juros_default
-                                      ? <span className="text-xs text-orange-600 dark:text-orange-400 font-bold">Sim</span>
-                                      : <span className="text-xs text-slate-400">Não</span>}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot>
-                            <tr className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800">
-                              <td colSpan={4} className="px-4 py-3 text-xs font-bold text-slate-500 uppercase">Total Líquido</td>
-                              <td className="px-4 py-3 text-right font-black text-green-600 dark:text-green-400">
-                                {fmt(Object.values(configsNotas).reduce((s, c) => s + c.valor_liquido, 0))}
-                              </td>
-                              <td />
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Step 2: Configurações globais */}
-              {modalMassaStep === 2 && (
-                <div className="space-y-6">
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Configurações aplicadas a todos os boletos desta geração. Campos em branco usam os padrões por tipo.
-                  </p>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Data de vencimento (opcional)</label>
-                    <input
-                      type="date"
-                      value={massaDataVencimento}
-                      onChange={e => setMassaDataVencimento(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Se não informada, usa vencimento original da nota (ou hoje +5 dias se já vencida).</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Mensagem padrão (opcional)</label>
-                    <input
-                      type="text"
-                      value={massaMensagem}
-                      onChange={e => setMassaMensagem(e.target.value)}
-                      placeholder="Ex: Ref. manutenção março/2026"
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Se vazio, cada boleto usará &quot;OS: {'{num}'} | NF: {'{numero}'}&quot;.</p>
-                  </div>
-
-                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="massaJuros"
-                        checked={massaAplicarJuros === null ? false : massaAplicarJuros}
-                        onChange={e => setMassaAplicarJuros(e.target.checked ? true : null)}
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <label htmlFor="massaJuros" className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                        Forçar aplicação de juros em todos
-                      </label>
-                    </div>
-                    {massaAplicarJuros === null && (
-                      <p className="text-xs text-slate-500">Cada nota usa seu padrão: MANUTENCAO/ASSISTENCIA aplicam juros, OUTROS não.</p>
-                    )}
-                    {massaAplicarJuros !== null && (
-                      <div className="flex items-center gap-3 pl-7">
-                        <label className="text-sm text-slate-600 dark:text-slate-400">Taxa % a.m.:</label>
-                        <input
-                          type="number"
-                          min="0" max="10" step="0.1"
-                          value={massaTaxaJuros}
-                          onChange={e => setMassaTaxaJuros(parseFloat(e.target.value) || 1.0)}
-                          className="w-24 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: Progresso */}
-              {modalMassaStep === 3 && (
-                <div className="space-y-3">
-                  {Array.from(selecionadas).map(notaId => {
-                    const nota = notas.find(n => n.id === notaId);
-                    const status = progressoMassa[notaId] || 'pendente';
-                    const resultado = resultadosMassa.find(r => r.notaId === notaId);
-                    return (
-                      <div key={notaId} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                        status === 'ok' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-800' :
-                        status === 'erro' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-800' :
-                        status === 'gerando' ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-800' :
-                        'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                      }`}>
-                        <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
-                          {status === 'pendente' && <div className="w-4 h-4 rounded-full border-2 border-slate-300" />}
-                          {status === 'gerando' && <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />}
-                          {status === 'ok' && <span className="text-green-500 text-xl">✓</span>}
-                          {status === 'erro' && <span className="text-red-500 text-xl">✕</span>}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-bold text-slate-900 dark:text-white text-sm">{nota?.numero_nota || `Nota #${notaId}`}</p>
-                          {resultado?.erro && <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{resultado.erro}</p>}
-                          {status === 'ok' && <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">Boleto gerado com sucesso</p>}
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-green-600 dark:text-green-400">
-                            {fmt(configsNotas[notaId]?.valor_liquido ?? 0)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {resultadosMassa.length > 0 && (
-                    <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-xl text-center">
-                      <p className="font-bold text-slate-900 dark:text-white">
-                        {resultadosMassa.filter(r => !r.erro).length} boleto(s) gerado(s) com sucesso
-                        {resultadosMassa.filter(r => r.erro).length > 0 && ` · ${resultadosMassa.filter(r => r.erro).length} erro(s)`}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-8 py-5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                {modalMassaStep === 1 && !carregandoConfigs && (
-                  <button onClick={() => setModalMassaAberto(false)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-                    Cancelar
-                  </button>
-                )}
-                {modalMassaStep === 2 && (
-                  <button onClick={() => setModalMassaStep(1)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-                    ← Voltar
-                  </button>
-                )}
-                {modalMassaStep === 3 && resultadosMassa.length > 0 && (
-                  <button onClick={() => setModalMassaAberto(false)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-                    Fechar
-                  </button>
-                )}
-              </div>
-              <div>
-                {modalMassaStep === 1 && !carregandoConfigs && (
-                  <button onClick={() => setModalMassaStep(2)} className="px-6 py-2.5 rounded-xl text-sm font-black bg-indigo-600 text-white hover:brightness-110 transition-all">
-                    Configurar →
-                  </button>
-                )}
-                {modalMassaStep === 2 && (
-                  <button onClick={executarGeracaoMassa} className="px-6 py-2.5 rounded-xl text-sm font-black bg-indigo-600 text-white hover:brightness-110 transition-all flex items-center gap-2">
-                    <span>🏦</span> Gerar {selecionadas.size} Boleto(s)
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

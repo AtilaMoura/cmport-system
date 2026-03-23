@@ -56,6 +56,9 @@ class GerarParcelasFaltantesRequest(BaseModel):
     taxa_juros:    Optional[float] = 1.0
     data_vencimento_override: Optional[date] = None
     parcelas_selecionadas: Optional[List[int]] = None  # Se informado, gera apenas essas parcelas
+    # Para notas vinculadas: persiste a decisão de onde aplicar imposto
+    # {"aplicar_imposto_em": "nota_a"|"nota_b"|"ambas"|"nenhuma", "nota_a_id": int, "nota_b_id": int}
+    imposto_config_vinculo: Optional[dict] = None
 
 
 class ConfigImpostosResponse(BaseModel):
@@ -69,6 +72,10 @@ class ConfigImpostosResponse(BaseModel):
     aplicar_juros_default: bool
     alerta_impostos: bool = False
     divergencia_impostos: Optional[dict] = None
+    # Campos extras para notas vinculadas
+    nota_vinculada_id:     Optional[int]   = None
+    nota_vinculada_numero: Optional[str]   = None
+    valor_nota_vinculada:  Optional[float] = None
 
 
 class GerarBoletosResponse(BaseModel):
