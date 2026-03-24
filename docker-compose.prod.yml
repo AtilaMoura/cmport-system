@@ -1,0 +1,75 @@
+services:
+
+  # ── Banco de Dados ───────────────────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: cmport_db
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - cmport_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend (FastAPI) ────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: cmport_api
+    restart: unless-stopped
+    env_file: .env.production
+    volumes:
+      # Certificados do Banco Inter (não commitados no git)
+      - ./backend/app/auth:/app/app/auth:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cmport_net
+
+  # ── Frontend (Next.js) ───────────────────────────────────────────────────────
+  frontend:
+    build: ./cmport-front
+    container_name: cmport_front
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:8000
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: production
+    depends_on:
+      - backend
+    networks:
+      - cmport_net
+
+  # ── Nginx (proxy reverso + SSL) ──────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: cmport_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Certificados SSL gerados pelo Certbot
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - frontend
+    networks:
+      - cmport_net
+
+networks:
+  cmport_net:
+    driver: bridge
+
+volumes:
+  db_data:
