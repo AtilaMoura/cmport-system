@@ -1,6 +1,6 @@
 """
-dev_router.py — Endpoints exclusivos para desenvolvimento/testes.
-Só funciona quando ENV=development no .env. Em produção retorna 403.
+dev_router.py — Endpoints exclusivos para o role DEV.
+Protegidos por require_dev — apenas usuários com role=DEV podem acessar.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -9,7 +9,6 @@ from datetime import date, timedelta
 from typing import Optional
 
 from app.core.database import SessionLocal
-from app.core.config import settings
 from app.core.dependencies import require_dev
 from app.models.usuario_model import Usuario
 
@@ -23,10 +22,6 @@ def get_db():
     finally:
         db.close()
 
-
-def _check_dev():
-    if getattr(settings, "ENV", "production") != "development":
-        raise HTTPException(status_code=403, detail="Endpoint disponível apenas em ENV=development.")
 
 
 # ─── Schemas ────────────────────────────────────────────────────────────────
@@ -80,8 +75,6 @@ def reset_dados_teste(request: ResetRequest, db: Session = Depends(get_db), _: U
     Condominios só são apagados se incluir_condominios_teste=True e nome começa com 'TESTE'.
     Requer confirmar=True.
     """
-    _check_dev()
-
     if not request.confirmar:
         raise HTTPException(status_code=400, detail="Envie confirmar=true para executar o reset.")
 
@@ -124,8 +117,6 @@ def reset_tudo(request: ResetTudoRequest, db: Session = Depends(get_db), _: Usua
     auditoria, contatos, endereços e condomínios.
     Requer confirmar=True e frase_confirmacao='LIMPAR TUDO'.
     """
-    _check_dev()
-
     if not request.confirmar or request.frase_confirmacao != "LIMPAR TUDO":
         raise HTTPException(
             status_code=400,
@@ -167,8 +158,6 @@ def limpar_dados(db: Session = Depends(get_db), _: Usuario = Depends(require_dev
     Apaga boletos, serviços e notas fiscais. NÃO apaga condominios.
     Sem confirmação — use apenas em desenvolvimento.
     """
-    _check_dev()
-
     from app.models.boleto_model import Boleto
     from app.models.nota_fiscal_model import NotaFiscal
     from app.models.servico_model import ManutencaoAssistencia
@@ -200,8 +189,6 @@ def seed_dados_teste(
     - Nota fiscal de teste (se gerar_nota=True)
     - Boleto via Inter (se gerar_boleto=True, requer Inter configurado)
     """
-    _check_dev()
-
     from app.models.condominio_model import Condominio
     from app.models.endereco_model import Endereco
     from app.models.contato_model import Contato
