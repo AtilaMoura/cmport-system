@@ -8,34 +8,101 @@ CMPort is a management system for condominios (residential condominiums) in Braz
 - **Backend**: FastAPI + SQLAlchemy + MySQL (PyMySQL)
 - **Frontend**: Next.js 16 (App Router) + TypeScript + Tailwind CSS v4
 
-## Running the Project
+## Fluxo de Trabalho
 
-### Prerequisites
-- MySQL running via Docker: `docker-compose up -d db`
-- Backend `.env` file at `backend/.env` (see variables below)
-- SSL certificates for Banco Inter at `backend/app/auth/certificado.crt` and `backend/app/auth/key.key`
+### 1. Desenvolver e testar localmente
+### 2. Commitar e subir para produção com `git push vps master`
 
-### Backend
+O deploy em produção é **automático** ao fazer push — o servidor rebuilda e reinicia os containers sozinho.
+
+---
+
+## Ambiente Local (desenvolvimento)
+
+### Pré-requisitos
+- Docker rodando (para o banco MySQL)
+- Venv Python criado em `backend/venv/`
+- Arquivo `backend/.env` com `ENV=development` e `DB_HOST=localhost`
+- Certificados do Banco Inter em `backend/app/auth/`
+
+### Passo 1 — Subir o banco
+```bash
+docker-compose up -d db
+# MySQL disponível em localhost:3306
+# Adminer (UI do banco) em http://localhost:8080
+```
+
+### Passo 2 — Subir o backend
 ```bash
 cd backend
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # Linux/Mac
+venv\Scripts\activate
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 API docs: `http://localhost:8000/docs`
 
-### Frontend
+### Passo 3 — Subir o frontend
 ```bash
 cd cmport-front
 npm run dev
 ```
+Acesse: `http://localhost:3000`
 
-### Lint (frontend)
+### Verificar qualidade antes de commitar
 ```bash
 cd cmport-front
 npm run lint
-npx tsc --noEmit   # TypeScript check — must stay at zero errors
+npx tsc --noEmit   # deve ficar em zero erros
 ```
+
+---
+
+## Deploy em Produção (VPS Hostinger)
+
+### Fluxo completo
+```bash
+# 1. Fazer as alterações localmente e testar
+# 2. Commitar
+git add <arquivos>
+git commit -m "feat/fix: descrição"
+
+# 3. Subir para produção — deploy automático
+git push vps master
+```
+
+O hook `post-receive` no servidor executa automaticamente:
+- Checkout do código novo em `/root/cmport-system`
+- `docker compose up -d --build` (rebuild dos containers)
+- Limpeza de imagens antigas
+
+Você acompanha o progresso em tempo real no terminal durante o `git push`.
+
+### Servidor
+- **IP**: `168.231.96.184`
+- **Usuário**: `root`
+- **Repositório bare**: `/root/cmport.git` (hook post-receive)
+- **Diretório de trabalho**: `/root/cmport-system`
+- **Acesso SSH**: chave em `~/.ssh/id_ed25519` (já instalada no servidor)
+
+### Containers em produção
+- `cmport_nginx` — proxy reverso porta 80
+- `cmport_front` — Next.js porta 3000 interna
+- `cmport_api` — FastAPI porta 8000 interna
+- `cmport_db` — MySQL 8.0 com volume persistente `db_data`
+
+Roteamento nginx: `/` → frontend, `/api/v1/` → backend direto.
+
+### Variáveis de produção
+Arquivo `.env.production` na raiz (não commitado). Contém `ENV=production`.
+
+### Acesso manual ao servidor (se necessário)
+```bash
+ssh root@168.231.96.184
+cd /root/cmport-system
+docker compose -f docker-compose.prod.yml logs --tail=50
+```
+
+### Proteção do `/api/v1/dev`
+Endpoints `/dev/*` protegidos por `require_dev` (role=DEV). Funcionam em produção para o usuário DEV.
 
 ## Environment Variables (`backend/.env`)
 ```
