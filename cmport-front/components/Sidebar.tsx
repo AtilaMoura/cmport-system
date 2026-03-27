@@ -43,7 +43,7 @@ export default function Sidebar() {
         </button>
 
         <div className="relative h-8 w-24">
-          <Image src="/logo02.png" alt="CMPort" fill className="object-contain" />
+          <Image src="/logo03.png" alt="CMPort" fill className="object-contain" unoptimized />
         </div>
       </div>
 
@@ -90,7 +90,7 @@ export default function Sidebar() {
         <div className="px-4 py-3 lg:p-6 border-b border-slate-200 dark:border-slate-800">
           <div className="relative rounded-xl shadow-lg overflow-hidden
                           w-32 h-16 md:w-28 md:h-14 lg:w-40 lg:h-20">
-            <Image src="/logo02.png" alt="CMPort Logo" fill className="object-contain p-1" />
+            <Image src="/logo03.png" alt="CMPort Logo" fill className="object-contain p-1" unoptimized />
           </div>
         </div>
 

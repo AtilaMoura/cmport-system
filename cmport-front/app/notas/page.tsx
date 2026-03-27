@@ -88,9 +88,9 @@ export default function NotasPage() {
   const carregarDados = async () => {
     try {
       const [notasRes, condosRes, boletosRes] = await Promise.all([
-        api.get('/notas-fiscais/'),
-        api.get('/condominios/'),
-        api.get('/boletos/'),
+        api.get('/notas-fiscais'),
+        api.get('/condominios'),
+        api.get('/boletos'),
       ]);
       setNotas(notasRes.data);
       setCondominios(condosRes.data);

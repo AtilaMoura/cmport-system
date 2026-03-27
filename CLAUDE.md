@@ -61,6 +61,69 @@ INTER_ENV=production            # "sandbox" or "production"
 ENV=development
 ```
 
+## Deploy em Produção (VPS Hostinger)
+
+### Servidor
+- **IP**: `168.231.96.184`
+- **Usuário**: `root`
+- **Caminho do projeto**: `/root/cmport-system`
+- **Acesso**: SSH com senha (usar `paramiko` via Python quando automatizar)
+
+### Infraestrutura
+Quatro containers Docker gerenciados pelo `docker-compose.prod.yml`:
+- `cmport_nginx` — Nginx proxy reverso (porta 80)
+- `cmport_front` — Next.js (porta 3000 interna)
+- `cmport_api` — FastAPI (porta 8000 interna)
+- `cmport_db` — MySQL 8.0 (volume persistente `db_data`)
+
+Roteamento do Nginx:
+- `/` → `frontend:3000` (Next.js)
+- `/api/v1/` → `backend:8000/api/v1/` (FastAPI direto, sem passar pelo Next.js)
+
+### Como fazer deploy
+
+O projeto **não está no GitHub**. O deploy é feito copiando arquivos diretamente via SFTP + restart do container.
+
+**Enviar arquivos alterados (Python/paramiko):**
+```python
+import paramiko
+from pathlib import Path
+
+client = paramiko.SSHClient()
+client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+client.connect("168.231.96.184", username="root", password="...", timeout=15)
+
+sftp = client.open_sftp()
+sftp.put("caminho/local/arquivo.py", "/root/cmport-system/caminho/remoto/arquivo.py")
+sftp.close()
+client.close()
+```
+
+**Reiniciar apenas o backend (sem rebuild):**
+```bash
+cd /root/cmport-system
+docker compose -f docker-compose.prod.yml restart backend
+```
+
+**Rebuild completo (quando Dockerfile ou dependências mudam):**
+```bash
+cd /root/cmport-system
+docker compose -f docker-compose.prod.yml up -d --build
+docker image prune -f
+```
+
+**Ver logs:**
+```bash
+docker logs cmport_api --tail=50
+docker logs cmport_front --tail=50
+```
+
+### Variáveis de produção
+Arquivo `.env.production` na raiz do projeto (não commitado no git). Contém `ENV=production`, credenciais do banco, Inter, Auvo e JWT.
+
+### Proteção do `/api/v1/dev`
+Os endpoints `/dev/*` são protegidos **apenas por role** (`require_dev` — role=DEV). A verificação de `ENV=development` foi removida — funciona em produção para o usuário DEV.
+
 ## Architecture
 
 ### Backend Structure (flat layered — NOT domains-based)

@@ -16,7 +16,7 @@ def get_db():
         db.close()
 
 
-@router.post("/", response_model=EnderecoResponse)
+@router.post("", response_model=EnderecoResponse)
 def create_or_update_endereco(endereco: EnderecoCreate, db: Session = Depends(get_db)):
     return EnderecoService.create_endereco(db, endereco)
 

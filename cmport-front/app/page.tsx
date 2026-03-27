@@ -97,10 +97,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/boletos/'),
-      api.get('/notas-fiscais/'),
-      api.get('/servicos/'),
-      api.get('/condominios/'),
+      api.get('/boletos'),
+      api.get('/notas-fiscais'),
+      api.get('/servicos'),
+      api.get('/condominios'),
     ]).then(([b, n, s, c]) => {
       setBoletos(b.data);
       setNotas(n.data);

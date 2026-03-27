@@ -3,10 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import axios from 'axios';
-
-// Upload de arquivos vai direto ao backend (Next.js proxy tem limite de body)
-const backendApi = axios.create({ baseURL: 'http://127.0.0.1:8000/api/v1' });
+import { api } from '@/lib/api';
 
 export default function ImportarNotasPage() {
   const router = useRouter();
@@ -39,7 +36,7 @@ export default function ImportarNotasPage() {
         formData.append('tipo', tipo);
       }
 
-      const response = await backendApi.post('/notas-fiscais/importar-xml', formData);
+      const response = await api.post('/notas-fiscais/importar-xml', formData);
 
       setResultado(response.data);
       

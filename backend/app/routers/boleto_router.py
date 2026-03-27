@@ -45,7 +45,7 @@ def gerar_boletos(request: GerarBoletosRequest, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/", response_model=List[BoletoResponse])
+@router.get("", response_model=List[BoletoResponse])
 def listar_boletos(db: Session = Depends(get_db)):
     """Lista todos os boletos."""
     return BoletoService.listar_boletos(db)

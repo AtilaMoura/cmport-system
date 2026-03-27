@@ -162,9 +162,9 @@ export default function ServicosPage() {
   const carregarDados = async () => {
     try {
       const [condosRes, servicosRes, notasRes] = await Promise.all([
-        api.get('/condominios/'),
-        api.get('/servicos/'),
-        api.get('/notas-fiscais/'),
+        api.get('/condominios'),
+        api.get('/servicos'),
+        api.get('/notas-fiscais'),
       ]);
 
       const condosMap: Record<number, Condominio> = {};
@@ -177,7 +177,7 @@ export default function ServicosPage() {
       setNotas(notasMap);
 
       try {
-        const boletosRes = await api.get('/boletos/');
+        const boletosRes = await api.get('/boletos');
         const map: Record<number, Boleto[]> = {};
         boletosRes.data.forEach((b: Boleto) => {
           if (!map[b.nota_fiscal_id]) map[b.nota_fiscal_id] = [];

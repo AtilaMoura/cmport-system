@@ -165,7 +165,7 @@ export default function BoletosPage() {
 
   const carregarBoletos = async () => {
     try {
-      const res = await api.get('/boletos/');
+      const res = await api.get('/boletos');
       setBoletos(res.data);
     } catch (error) {
       console.error('Erro ao carregar boletos:', error);
@@ -188,7 +188,7 @@ export default function BoletosPage() {
 
   const carregarNotasDisponiveis = async () => {
     try {
-      const res = await api.get('/notas-fiscais/');
+      const res = await api.get('/notas-fiscais');
       setNotasDisponiveis(res.data);
     } catch (error) {
       console.error('Erro ao carregar notas:', error);

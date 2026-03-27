@@ -147,7 +147,7 @@ function FormNovoCondominio() {
     
     try {
       // 1. Criar o condomínio
-      const condominioResponse = await api.post('/condominios/', {
+      const condominioResponse = await api.post('/condominios', {
         nome: formData.nome,
         razao_social: formData.razao_social,
         cnpj: formData.cnpj,
@@ -159,7 +159,7 @@ function FormNovoCondominio() {
 
       // 2. Criar endereço se CEP ou rua estiverem preenchidos
       if (formData.endereco.cep || formData.endereco.rua) {
-        await api.post('/enderecos/', {
+        await api.post('/enderecos', {
           condominio_id: condominioId,
           cep: formData.endereco.cep || null,
           rua: formData.endereco.rua || null,
@@ -176,7 +176,7 @@ function FormNovoCondominio() {
       // 3. Criar contatos
       for (const contato of formData.contatos) {
         if (contato.nome) {
-          await api.post('/contatos/', {
+          await api.post('/contatos', {
             condominio_id: condominioId,
             nome: contato.nome,
             telefone: contato.telefone || null,

@@ -17,7 +17,7 @@ def get_db():
         db.close()
 
 
-@router.post("/", response_model=ContatoResponse, status_code=201)
+@router.post("", response_model=ContatoResponse, status_code=201)
 def create_contato(contato: ContatoCreate, db: Session = Depends(get_db)):
     return ContatoService.create_contato(db, contato)
 

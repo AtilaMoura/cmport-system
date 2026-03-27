@@ -28,7 +28,7 @@ def get_db():
         db.close()
 
 
-@router.post("/", response_model=NotaFiscalResponse, status_code=201)
+@router.post("", response_model=NotaFiscalResponse, status_code=201)
 def create_nota(nota: NotaFiscalCreate, db: Session = Depends(get_db)):
     try:
         return NotaFiscalService.create_nota(db, nota)
@@ -36,7 +36,7 @@ def create_nota(nota: NotaFiscalCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"Erro ao criar nota: {str(e)}")
 
 
-@router.get("/", response_model=List[NotaFiscalResponse])
+@router.get("", response_model=List[NotaFiscalResponse])
 def list_notas(db: Session = Depends(get_db)):
     return NotaFiscalService.get_all_notas(db)
 

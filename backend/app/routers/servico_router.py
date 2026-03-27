@@ -17,12 +17,12 @@ def get_db():
         db.close()
 
 
-@router.post("/", response_model=ServicoResponse, status_code=201)
+@router.post("", response_model=ServicoResponse, status_code=201)
 def create_servico(servico: ServicoCreate, db: Session = Depends(get_db)):
     return ServicoService.create_servico(db, servico)
 
 
-@router.get("/", response_model=List[ServicoResponse])
+@router.get("", response_model=List[ServicoResponse])
 def list_all_servicos(condominio_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
     return ServicoService.list_all_servicos(db, condominio_id)
 
