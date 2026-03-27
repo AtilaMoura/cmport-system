@@ -161,76 +161,6 @@ def reset_tudo(request: ResetTudoRequest, db: Session = Depends(get_db), _: Usua
     )
 
 
-# ── Estado global do sync ────────────────────────────────────────────────────
-_sync_estado = {
-    "rodando": False,
-    "concluido": False,
-    "processados": 0,
-    "total": 0,
-    "novos": 0,
-    "atualizados": 0,
-    "erros": 0,
-    "mensagem": "",
-}
-
-
-@router.post("/sync-condominios/iniciar")
-def iniciar_sync_condominios():
-    """Inicia o sync do Auvo em background. Retorna imediatamente."""
-    _check_dev()
-
-    if _sync_estado["rodando"]:
-        return {"status": "ja_rodando", "mensagem": "Sync já está em andamento."}
-
-    import threading
-    from app.core.database import SessionLocal
-    from app.services.auvo_service import AuvoSyncService
-
-    _sync_estado.update({
-        "rodando": True, "concluido": False,
-        "processados": 0, "total": 0,
-        "novos": 0, "atualizados": 0, "erros": 0,
-        "mensagem": "Iniciando...",
-    })
-
-    def _run():
-        db = SessionLocal()
-        try:
-            def _progresso(processados, total, novos=0, atualizados=0, erros=0):
-                _sync_estado.update({
-                    "processados": processados,
-                    "total": total,
-                    "novos": novos,
-                    "atualizados": atualizados,
-                    "erros": erros,
-                    "mensagem": f"{processados}/{total} processados",
-                })
-
-            relatorio = AuvoSyncService.sync_all_customers(db, progress_callback=_progresso)
-            _sync_estado.update({
-                "rodando": False,
-                "concluido": True,
-                "novos": relatorio["novos"],
-                "atualizados": relatorio["atualizados"],
-                "erros": relatorio["erros"],
-                "mensagem": f"Concluído: {relatorio['novos']} novos, {relatorio['atualizados']} atualizados, {relatorio['erros']} erros.",
-            })
-        except Exception as e:
-            _sync_estado.update({"rodando": False, "concluido": True, "mensagem": f"Erro: {e}"})
-        finally:
-            db.close()
-
-    threading.Thread(target=_run, daemon=True).start()
-    return {"status": "iniciado"}
-
-
-@router.get("/sync-condominios/progresso")
-def progresso_sync_condominios():
-    """Retorna o estado atual do sync em andamento."""
-    _check_dev()
-    return dict(_sync_estado)
-
-
 @router.post("/limpar-dados")
 def limpar_dados(db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
     """
@@ -255,23 +185,6 @@ def limpar_dados(db: Session = Depends(get_db), _: Usuario = Depends(require_dev
         "mensagem": f"Limpeza concluída: {n_boletos} boletos, {n_servicos} serviços, {n_notas} notas deletados. Condominios mantidos.",
     }
 
-
-@router.post("/sync-condominios")
-def sync_condominios(db: Session = Depends(get_db)):
-    """
-    Sincroniza TODOS os condominios do Auvo (paginação automática).
-    FastAPI executa funções síncronas em thread pool automaticamente.
-    """
-    _check_dev()
-    from app.services.auvo_service import AuvoSyncService
-    relatorio = AuvoSyncService.sync_all_customers(db)
-    return {
-        "novos": relatorio["novos"],
-        "atualizados": relatorio["atualizados"],
-        "erros": relatorio["erros"],
-        "detalhes_erros": relatorio["detalhes_erros"][:20],
-        "mensagem": f"Sync concluído: {relatorio['novos']} novos, {relatorio['atualizados']} atualizados, {relatorio['erros']} erros.",
-    }
 
 
 @router.post("/seed", response_model=SeedResponse)

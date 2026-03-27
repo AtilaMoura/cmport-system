@@ -19,7 +19,7 @@ export default function CondominiosPage() {
 
   const carregar = async () => {
     try {
-      const res = await api.get('/condominios/')
+      const res = await api.get('/condominios')
       setCondominios(res.data)
     } catch (e) {
       console.error('Erro ao buscar condomínios:', e)
@@ -36,12 +36,12 @@ export default function CondominiosPage() {
     setSyncError(null)
     setSyncProgresso(null)
     try {
-      await api.post('/dev/sync-condominios/iniciar')
+      await api.post('/condominios/sync-auvo/iniciar')
 
       // Polling a cada 2s até concluir
       const poll = setInterval(async () => {
         try {
-          const res = await api.get('/dev/sync-condominios/progresso')
+          const res = await api.get('/condominios/sync-auvo/progresso')
           const estado = res.data
           setSyncProgresso({ processados: estado.processados, total: estado.total, mensagem: estado.mensagem })
 
