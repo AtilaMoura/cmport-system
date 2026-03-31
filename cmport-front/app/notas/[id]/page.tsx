@@ -599,7 +599,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   />
                 ) : (
                   <p className="px-4 py-3 bg-slate-50 dark:bg-slate-950 rounded-xl text-slate-900 dark:text-white font-medium">
-                    {new Date(nota.data_vencimento).toLocaleDateString('pt-BR')}
+                    {parseDateLocal(nota.data_vencimento)}
                   </p>
                 )}
               </div>
@@ -617,7 +617,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   />
                 ) : (
                   <p className="px-4 py-3 bg-slate-50 dark:bg-slate-950 rounded-xl text-slate-900 dark:text-white font-medium">
-                    {nota.data_pagamento ? new Date(nota.data_pagamento).toLocaleDateString('pt-BR') : 'Nao pago'}
+                    {nota.data_pagamento ? parseDateLocal(nota.data_pagamento) : 'Nao pago'}
                   </p>
                 )}
               </div>
@@ -1037,7 +1037,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
               <div className="flex justify-between text-sm">
                 <span className="text-slate-600 dark:text-slate-400">Criado em</span>
                 <span className="font-bold text-slate-900 dark:text-white">
-                  {new Date(nota.criado_em).toLocaleDateString('pt-BR')}
+                  {new Date(nota.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                 </span>
               </div>
             </div>
