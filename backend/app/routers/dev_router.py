@@ -89,7 +89,11 @@ def reset_dados_teste(request: ResetRequest, db: Session = Depends(get_db), _: U
     # 2. Serviços
     n_servicos = db.query(ManutencaoAssistencia).delete(synchronize_session=False)
 
-    # 3. Notas fiscais
+    # 3. Anula FK auto-referencial antes de deletar notas
+    from sqlalchemy import text
+    db.execute(text("UPDATE notas_fiscais SET nota_vinculada_id = NULL WHERE nota_vinculada_id IS NOT NULL"))
+
+    # 4. Notas fiscais
     n_notas = db.query(NotaFiscal).delete(synchronize_session=False)
 
     # 4. Condominios de teste (opcional)
@@ -133,6 +137,8 @@ def reset_tudo(request: ResetTudoRequest, db: Session = Depends(get_db), _: Usua
 
     n_boletos    = db.query(Boleto).delete(synchronize_session=False)
     n_servicos   = db.query(ManutencaoAssistencia).delete(synchronize_session=False)
+    from sqlalchemy import text as _text
+    db.execute(_text("UPDATE notas_fiscais SET nota_vinculada_id = NULL WHERE nota_vinculada_id IS NOT NULL"))
     n_notas      = db.query(NotaFiscal).delete(synchronize_session=False)
     n_exclusoes  = db.query(RegistroExclusao).delete(synchronize_session=False)
     n_contatos   = db.query(Contato).delete(synchronize_session=False)
@@ -164,6 +170,8 @@ def limpar_dados(db: Session = Depends(get_db), _: Usuario = Depends(require_dev
 
     n_boletos  = db.query(Boleto).delete(synchronize_session=False)
     n_servicos = db.query(ManutencaoAssistencia).delete(synchronize_session=False)
+    from sqlalchemy import text as _text2
+    db.execute(_text2("UPDATE notas_fiscais SET nota_vinculada_id = NULL WHERE nota_vinculada_id IS NOT NULL"))
     n_notas    = db.query(NotaFiscal).delete(synchronize_session=False)
     db.commit()
 
