@@ -22,15 +22,21 @@ interface Boleto {
   data_vencimento: string;
   data_pagamento: string | null;
   situacao: 'EMABERTO' | 'PAGO' | 'CANCELADO' | 'EXPIRADO' | 'VENCIDO' | 'BAIXADO';
+  numero_parcela: number;
+  total_parcelas: number;
 }
 
 interface Nota {
   id: number;
+  numero_nota: string;
   valor: number;
   tipo: string;
+  status: 'AUTORIZADA' | 'CANCELADA' | 'DESCONHECIDO';
   data_vencimento: string;
   condominio_id: number | null;
   cliente_nome: string | null;
+  parcelas: number;
+  nota_vinculada_id: number | null;
 }
 
 interface Servico {
@@ -94,6 +100,12 @@ export default function DashboardPage() {
   const [loading, setLoading]     = useState(true);
   const [periodo, setPeriodo]     = useState<Periodo>('6_meses');
   const [issRate, setIssRate]     = useState(3);
+
+  // Estados da lista de notas
+  const [notasBusca, setNotasBusca]       = useState('');
+  const [notasFiltroTipo, setNotasFiltroTipo] = useState('todos');
+  const [notasPagina, setNotasPagina]     = useState(1);
+  const NOTAS_POR_PAGINA = 10;
 
   useEffect(() => {
     Promise.all([
@@ -528,6 +540,251 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
+        {/* Lista de Notas Fiscais */}
+        {(() => {
+          const notasFiltradas = notas
+            .filter(n => {
+              if (notasFiltroTipo !== 'todos' && n.tipo !== notasFiltroTipo) return false;
+              if (notasBusca.trim()) {
+                const q = notasBusca.toLowerCase();
+                const nomeCondominio = condominios.find(c => c.id === n.condominio_id)?.nome || '';
+                return (
+                  n.numero_nota?.toLowerCase().includes(q) ||
+                  (n.cliente_nome || '').toLowerCase().includes(q) ||
+                  nomeCondominio.toLowerCase().includes(q)
+                );
+              }
+              return true;
+            })
+            .sort((a, b) => pd(b.data_vencimento).getTime() - pd(a.data_vencimento).getTime());
+
+          const totalPaginas = Math.max(1, Math.ceil(notasFiltradas.length / NOTAS_POR_PAGINA));
+          const paginaAtual  = Math.min(notasPagina, totalPaginas);
+          const notasPagina_ = notasFiltradas.slice((paginaAtual - 1) * NOTAS_POR_PAGINA, paginaAtual * NOTAS_POR_PAGINA);
+
+          const tipoCls: Record<string, string> = {
+            MANUTENCAO:  'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400',
+            ASSISTENCIA: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
+            OUTROS:      'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+          };
+          const tipoLabel: Record<string, string> = {
+            MANUTENCAO: 'Manut.', ASSISTENCIA: 'Assist.', OUTROS: 'Outros',
+          };
+          const tipoIcon: Record<string, string> = {
+            MANUTENCAO: '🛠️', ASSISTENCIA: '🔧', OUTROS: '📄',
+          };
+
+          const situacaoBoletoCls: Record<string, string> = {
+            EMABERTO:  'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
+            PAGO:      'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400',
+            CANCELADO: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
+            EXPIRADO:  'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400',
+            VENCIDO:   'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400',
+            BAIXADO:   'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400',
+          };
+          const situacaoLabel: Record<string, string> = {
+            EMABERTO: 'Em Aberto', PAGO: 'Pago', CANCELADO: 'Cancelado',
+            EXPIRADO: 'Expirado', VENCIDO: 'Vencido', BAIXADO: 'Baixado',
+          };
+
+          return (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              {/* Cabeçalho + filtros */}
+              <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                  <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-xl">📄</span> Notas Fiscais
+                    <span className="text-xs font-normal text-slate-400">({notasFiltradas.length})</span>
+                  </h3>
+                  <Link href="/notas" className="text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline">
+                    Ver todas →
+                  </Link>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {/* Busca */}
+                  <input
+                    type="text"
+                    placeholder="Buscar por número, cliente ou condomínio..."
+                    value={notasBusca}
+                    onChange={e => { setNotasBusca(e.target.value); setNotasPagina(1); }}
+                    className="flex-1 px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-orange-500 outline-none"
+                  />
+                  {/* Filtro tipo */}
+                  <select
+                    value={notasFiltroTipo}
+                    onChange={e => { setNotasFiltroTipo(e.target.value); setNotasPagina(1); }}
+                    className="px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                  >
+                    <option value="todos">Todos os tipos</option>
+                    <option value="MANUTENCAO">Manutenção</option>
+                    <option value="ASSISTENCIA">Assistência</option>
+                    <option value="OUTROS">Outros</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Tabela */}
+              {notasPagina_.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-sm">Nenhuma nota encontrada</div>
+              ) : (
+                <>
+                  {/* Desktop: tabela */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-800/50 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
+                          <th className="px-4 py-3 text-left">Nota</th>
+                          <th className="px-4 py-3 text-left">Tipo</th>
+                          <th className="px-4 py-3 text-left">Cliente / Condomínio</th>
+                          <th className="px-4 py-3 text-right">Valor</th>
+                          <th className="px-4 py-3 text-center">Vencimento</th>
+                          <th className="px-4 py-3 text-center">Parcelas</th>
+                          <th className="px-4 py-3 text-center">Boletos</th>
+                          <th className="px-4 py-3 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {notasPagina_.map(nota => {
+                          const boletosNota = boletos.filter(b => b.nota_fiscal_id === nota.id);
+                          const condominio  = condominios.find(c => c.id === nota.condominio_id);
+                          const nomeExibir  = condominio?.nome || nota.cliente_nome || '—';
+                          const hoje        = new Date(); hoje.setHours(0, 0, 0, 0);
+                          const venc        = pd(nota.data_vencimento);
+                          const vencida     = nota.status !== 'CANCELADA' && venc < hoje && boletosNota.every(b => b.situacao !== 'PAGO' && b.situacao !== 'BAIXADO');
+
+                          return (
+                            <tr key={nota.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                              <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">
+                                {nota.nota_vinculada_id && <span className="mr-1 text-violet-500 text-xs">🔗</span>}
+                                #{nota.numero_nota}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${tipoCls[nota.tipo] || tipoCls['OUTROS']}`}>
+                                  {tipoIcon[nota.tipo]} {tipoLabel[nota.tipo] || nota.tipo}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-700 dark:text-slate-300 max-w-[200px] truncate" title={nomeExibir}>
+                                {nomeExibir}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">
+                                {fmt(nota.valor)}
+                              </td>
+                              <td className={`px-4 py-3 text-center text-xs font-bold ${vencida ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                                {pd(nota.data_vencimento).toLocaleDateString('pt-BR')}
+                                {vencida && <span className="ml-1">⚠️</span>}
+                              </td>
+                              <td className="px-4 py-3 text-center text-slate-500 dark:text-slate-400">
+                                {nota.parcelas}x
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {boletosNota.length === 0 ? (
+                                  <span className="text-xs text-slate-400 italic">sem boleto</span>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1 justify-center">
+                                    {boletosNota.map(b => (
+                                      <span key={b.id} className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${situacaoBoletoCls[b.situacao] || ''}`}>
+                                        {b.numero_parcela}/{b.total_parcelas} {situacaoLabel[b.situacao]}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <Link href={`/notas/${nota.id}`} className="text-orange-600 dark:text-orange-400 hover:underline font-bold text-xs">
+                                  Ver →
+                                </Link>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile: cards */}
+                  <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                    {notasPagina_.map(nota => {
+                      const boletosNota = boletos.filter(b => b.nota_fiscal_id === nota.id);
+                      const condominio  = condominios.find(c => c.id === nota.condominio_id);
+                      const nomeExibir  = condominio?.nome || nota.cliente_nome || '—';
+                      const hoje        = new Date(); hoje.setHours(0, 0, 0, 0);
+                      const venc        = pd(nota.data_vencimento);
+                      const vencida     = nota.status !== 'CANCELADA' && venc < hoje && boletosNota.every(b => b.situacao !== 'PAGO' && b.situacao !== 'BAIXADO');
+
+                      return (
+                        <Link key={nota.id} href={`/notas/${nota.id}`} className="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${tipoCls[nota.tipo] || tipoCls['OUTROS']}`}>
+                                {tipoIcon[nota.tipo]} {tipoLabel[nota.tipo]}
+                              </span>
+                              <span className="font-bold text-slate-900 dark:text-white text-sm">#{nota.numero_nota}</span>
+                              {nota.nota_vinculada_id && <span className="text-violet-500 text-xs">🔗</span>}
+                            </div>
+                            <span className="font-black text-slate-900 dark:text-white text-sm">{fmt(nota.valor)}</span>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mb-1">{nomeExibir}</p>
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs font-bold ${vencida ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                              Venc. {pd(nota.data_vencimento).toLocaleDateString('pt-BR')}{vencida && ' ⚠️'}
+                            </span>
+                            <div className="flex gap-1 flex-wrap justify-end">
+                              {boletosNota.length === 0 ? (
+                                <span className="text-xs text-slate-400 italic">sem boleto</span>
+                              ) : boletosNota.map(b => (
+                                <span key={b.id} className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${situacaoBoletoCls[b.situacao] || ''}`}>
+                                  {situacaoLabel[b.situacao]}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Paginação */}
+              {totalPaginas > 1 && (
+                <div className="px-4 lg:px-6 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">
+                    {(paginaAtual - 1) * NOTAS_POR_PAGINA + 1}–{Math.min(paginaAtual * NOTAS_POR_PAGINA, notasFiltradas.length)} de {notasFiltradas.length}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setNotasPagina(p => Math.max(1, p - 1))}
+                      disabled={paginaAtual === 1}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-40 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      ← Ant
+                    </button>
+                    {Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => {
+                      const p = totalPaginas <= 5 ? i + 1 : Math.min(Math.max(paginaAtual - 2, 1) + i, totalPaginas);
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setNotasPagina(p)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${p === paginaAtual ? 'bg-orange-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setNotasPagina(p => Math.min(totalPaginas, p + 1))}
+                      disabled={paginaAtual === totalPaginas}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-40 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      Próx →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
       </div>
     </div>
