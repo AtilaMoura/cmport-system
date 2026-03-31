@@ -642,6 +642,107 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
             </div>
           </div>
 
+          {/* Dados da Nota Fiscal */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="text-xl">📋</span>
+                Dados da Nota Fiscal
+              </h3>
+            </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              {/* Status NF + tipo */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Status NF</p>
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-black ${
+                    nota.status === 'AUTORIZADA'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
+                      : nota.status === 'CANCELADA'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                      : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
+                  }`}>
+                    {nota.status === 'AUTORIZADA' ? '✅' : nota.status === 'CANCELADA' ? '❌' : '❓'} {nota.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Valor Bruto</p>
+                  <p className="text-lg font-black text-slate-900 dark:text-white">{fmt(nota.valor)}</p>
+                </div>
+              </div>
+
+              {/* Impostos retidos */}
+              {(nota.iss != null || nota.pis != null || nota.cofins != null || nota.inss != null || nota.csll != null || nota.icms != null || nota.prev != null) && (
+                <div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Impostos Retidos (do XML)</p>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl divide-y divide-slate-100 dark:divide-slate-700/50">
+                    {([
+                      ['ISS',    nota.iss],
+                      ['PIS',    nota.pis],
+                      ['COFINS', nota.cofins],
+                      ['INSS',   nota.inss],
+                      ['CSLL',   nota.csll],
+                      ['ICMS',   nota.icms],
+                      ['PREV',   nota.prev],
+                    ] as [string, number | null][]).filter(([, v]) => v != null).map(([label, valor]) => (
+                      <div key={label} className="flex justify-between items-center px-4 py-2 text-sm">
+                        <span className="font-bold text-slate-600 dark:text-slate-400">{label}</span>
+                        <span className="font-black text-red-600 dark:text-red-400">- {fmt(valor!)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center px-4 py-2 text-sm bg-slate-100 dark:bg-slate-800 rounded-b-xl">
+                      <span className="font-black text-slate-700 dark:text-slate-300">Total Impostos</span>
+                      <span className="font-black text-red-600 dark:text-red-400">
+                        - {fmt([nota.iss, nota.pis, nota.cofins, nota.inss, nota.csll, nota.icms, nota.prev].reduce<number>((s, v) => s + (v ?? 0), 0))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Alerta de divergência de impostos */}
+              {nota.alerta_impostos === 1 && nota.divergencia_impostos && (
+                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-800/50 rounded-xl p-4">
+                  <p className="text-sm font-black text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-1.5">
+                    ⚠️ Divergência de Impostos Detectada
+                  </p>
+                  <div className="space-y-1.5">
+                    {Object.entries(nota.divergencia_impostos).map(([campo, d]) => (
+                      <div key={campo} className="text-xs text-amber-700 dark:text-amber-300 flex justify-between">
+                        <span className="font-bold uppercase">{campo}</span>
+                        <span>XML: {d.xml.toFixed(2)}% · Config: {d.config.toFixed(2)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleDispensarAlerta}
+                    className="mt-3 w-full py-1.5 text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 rounded-lg hover:brightness-105 transition-all"
+                  >
+                    Dispensar alerta
+                  </button>
+                </div>
+              )}
+
+              {/* Parcelas JSON */}
+              {nota.parcelas_json && nota.parcelas_json.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Parcelas (da Nota Fiscal)</p>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl divide-y divide-slate-100 dark:divide-slate-700/50">
+                    {nota.parcelas_json.map((p) => (
+                      <div key={p.parcela} className="flex justify-between items-center px-4 py-2.5 text-sm">
+                        <span className="font-bold text-slate-600 dark:text-slate-400">
+                          Parcela {p.parcela}/{nota.parcelas_json!.length}
+                          {p.data && <span className="ml-2 font-normal text-xs text-slate-400">{parseDateLocal(p.data)}</span>}
+                        </span>
+                        <span className="font-black text-slate-900 dark:text-white">{fmt(p.valor)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Associated condominio */}
           {condominio && (
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -868,22 +969,36 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                 Status
               </h3>
             </div>
-            <div className="p-6">
-              <div className={`p-4 rounded-xl text-center ${
+            <div className="p-4 sm:p-6 space-y-3">
+              {/* Status da NF */}
+              <div className={`p-3 rounded-xl flex items-center gap-3 ${
+                nota.status === 'AUTORIZADA'
+                  ? 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800'
+                  : nota.status === 'CANCELADA'
+                  ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800'
+                  : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
+              }`}>
+                <span className="text-2xl">{nota.status === 'AUTORIZADA' ? '✅' : nota.status === 'CANCELADA' ? '❌' : '❓'}</span>
+                <div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nota Fiscal</p>
+                  <p className={`font-black ${nota.status === 'AUTORIZADA' ? 'text-green-700 dark:text-green-400' : nota.status === 'CANCELADA' ? 'text-red-700 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {nota.status}
+                  </p>
+                </div>
+              </div>
+              {/* Status de pagamento */}
+              <div className={`p-3 rounded-xl flex items-center gap-3 ${
                 nota.data_pagamento
                   ? 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800'
                   : 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-800'
               }`}>
-                <span className="text-3xl mb-2 block">
-                  {nota.data_pagamento ? '✅' : '⏳'}
-                </span>
-                <p className={`text-lg font-black ${
-                  nota.data_pagamento
-                    ? 'text-green-700 dark:text-green-400'
-                    : 'text-orange-700 dark:text-orange-400'
-                }`}>
-                  {nota.data_pagamento ? 'PAGO' : 'PENDENTE'}
-                </p>
+                <span className="text-2xl">{nota.data_pagamento ? '💰' : '⏳'}</span>
+                <div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Pagamento</p>
+                  <p className={`font-black ${nota.data_pagamento ? 'text-green-700 dark:text-green-400' : 'text-orange-700 dark:text-orange-400'}`}>
+                    {nota.data_pagamento ? `Pago em ${parseDateLocal(nota.data_pagamento)}` : 'Pendente'}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
