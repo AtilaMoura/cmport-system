@@ -161,7 +161,8 @@ def detectar_status_nfse(status_xml: Optional[str]) -> StatusNota:
 def detectar_status_nfe(c_stat: Optional[str]) -> StatusNota:
     if c_stat == "100":
         return StatusNota.AUTORIZADA
-    if c_stat == "101":
+    # 101 = cancelamento homologado; 135 = evento de cancelamento vinculado
+    if c_stat in ("101", "135"):
         return StatusNota.CANCELADA
     return StatusNota.DESCONHECIDO
 
@@ -824,15 +825,20 @@ class NotaFiscalService:
 
                 print(f"[IMPORT] Nota {dados_nota['numero_nota']} | tipo={dados_nota['tipo']} | status={dados_nota['status']} | condominio_id={dados_nota['condominio_id']}")
 
-                if dados_nota.get('status') == StatusNota.CANCELADA:
-                    canceladas += 1
-                    # Tenta atualizar nota existente no BD para CANCELADA
+                if dados_nota.get('status') in (StatusNota.CANCELADA, StatusNota.DESCONHECIDO):
+                    # Tenta atualizar nota existente no BD para o novo status
                     db_existente = NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota'])
-                    if db_existente and db_existente.status != StatusNota.CANCELADA:
-                        db_existente.status = StatusNota.CANCELADA
-                        db.commit()
-                        print(f"[IMPORT] Nota {dados_nota['numero_nota']} marcada como CANCELADA no BD")
-                    erros.append({"arquivo": filename, "numero": dados_nota['numero_nota'], "erro": "Nota cancelada - nao importada.", "tipo_erro": "cancelada"})
+                    if dados_nota['status'] == StatusNota.CANCELADA:
+                        canceladas += 1
+                        if db_existente and db_existente.status != StatusNota.CANCELADA:
+                            db_existente.status = StatusNota.CANCELADA
+                            db.commit()
+                            print(f"[IMPORT] Nota {dados_nota['numero_nota']} marcada como CANCELADA no BD")
+                        erros.append({"arquivo": filename, "numero": dados_nota['numero_nota'], "erro": "Nota cancelada - nao importada.", "tipo_erro": "cancelada"})
+                    else:
+                        # DESCONHECIDO: status nao reconhecido no XML, nao importar
+                        print(f"[IMPORT] Nota {dados_nota['numero_nota']} com status DESCONHECIDO - ignorada")
+                        erros.append({"arquivo": filename, "numero": dados_nota['numero_nota'], "erro": "Status da nota nao reconhecido no XML - nao importada.", "tipo_erro": "desconhecido"})
                     continue
 
                 if NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota']):

@@ -615,6 +615,7 @@ class BoletoService:
 
                 sucesso.append(BoletoResponse.model_validate(db_boleto))
             except Exception as e:
+                print(f"[BoletoService] ERRO parcela {numero_parcela} nota {nota_id}: {e}")
                 erros.append({"nota_id": nota_id, "parcela": numero_parcela, "erro": str(e)})
 
         return GerarParcelasFaltantesResponse(sucesso=sucesso, erros=erros)

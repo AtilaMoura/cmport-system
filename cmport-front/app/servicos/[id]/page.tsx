@@ -533,7 +533,12 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
           nota_b_id: configImpostos.nota_vinculada_id,
         };
       }
-      await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
+      const res = await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
+      const resErros: { erro: string }[] = res.data?.erros ?? [];
+      if (resErros.length > 0) {
+        alert(`Erro ao gerar boleto parcela ${item.numero}:\n${resErros[0].erro}`);
+        return;
+      }
       await carregarDados();
       setInterParcelasItens(prev => prev.map(p =>
         p.numero === item.numero ? { ...p, situacaoBoleto: 'EMABERTO' } : p
@@ -577,7 +582,12 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
             nota_b_id: configImpostos.nota_vinculada_id,
           };
         }
-        await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
+        const res = await api.post(`/boletos/gerar-parcelas-faltantes/${notaFiscal.id}`, body);
+        const resErros: { erro: string }[] = res.data?.erros ?? [];
+        if (resErros.length > 0) {
+          alert(`Erro ao gerar boleto parcela ${item.numero}:\n${resErros[0].erro}`);
+          break;
+        }
       }
       setModalInter(false);
       await carregarDados();
