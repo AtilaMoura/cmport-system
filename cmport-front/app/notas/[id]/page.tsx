@@ -22,6 +22,7 @@ interface NotaFiscal {
   cliente_nome: string | null;
   condominio_id: number | null;
   observacao: string | null;
+  descricao_servico: string | null;
   criado_em: string;
   parcelas_json: ParcelaDisplay[] | null;
   valor_boleto_parcela: number | null;
@@ -558,6 +559,23 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
               </div>
             </div>
           </div>
+
+          {/* Descrição do serviço */}
+          {nota.descricao_servico && (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-orange-200 dark:border-orange-800/40 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-orange-50 dark:bg-orange-500/10 border-b border-orange-200 dark:border-orange-800/40">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="text-xl">📃</span>
+                  Descrição
+                </h3>
+              </div>
+              <div className="p-4 sm:p-6">
+                <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed font-mono">
+                  {nota.descricao_servico}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Editable fields card */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
