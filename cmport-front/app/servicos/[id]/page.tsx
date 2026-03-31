@@ -1450,7 +1450,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         ['COFINS', interAplicarCofins, setInterAplicarCofins, interPctCofins, setInterPctCofins],
                         ['INSS',   interAplicarInss,   setInterAplicarInss,   interPctInss,   setInterPctInss],
                         ['CSLL',   interAplicarCsll,   setInterAplicarCsll,   interPctCsll,   setInterPctCsll],
-                      ] as [string, boolean, (v: boolean) => void, string, (v: string) => void][]).map(([label, aplicar, setAplicar, pct, setPct]) => (
+                      ] as [string, boolean, (v: boolean) => void, string, (v: string) => void][]).map(([label, aplicar, setAplicar, pct, setPct]) => {
+                        // Base para exibição individual: depende de onde os impostos são aplicados
+                        const valorB = configImpostos.valor_nota_vinculada || 0;
+                        const baseImposto = configImpostos.nota_vinculada_id
+                          ? vinculoAplicarImpostoEm === 'nota_a' ? configImpostos.valor_bruto - valorB
+                          : vinculoAplicarImpostoEm === 'nota_b' ? valorB
+                          : configImpostos.valor_bruto // ambas ou nenhuma
+                          : configImpostos.valor_bruto;
+                        return (
                         <div key={label} className="flex items-center gap-2">
                           <input type="checkbox" checked={aplicar} onChange={e => setAplicar(e.target.checked)} className="w-4 h-4 rounded accent-red-500" />
                           <span className={`w-16 font-bold text-xs ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400 line-through'}`}>{label}</span>
@@ -1461,10 +1469,11 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                             <span className="text-xs text-slate-400">%</span>
                           </div>
                           <span className={`text-xs w-24 text-right ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
-                            {aplicar ? `- ${fmt(configImpostos.valor_bruto * parseFloat(pct || '0') / 100)}` : '—'}
+                            {aplicar ? `- ${fmt(baseImposto * parseFloat(pct || '0') / 100)}` : '—'}
                           </span>
                         </div>
-                      ))}
+                        );
+                      })}
                       <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1 space-y-1.5">
                         <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
                           <span>Total Impostos</span>
