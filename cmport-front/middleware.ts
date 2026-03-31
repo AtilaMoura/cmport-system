@@ -16,13 +16,14 @@ export async function middleware(request: NextRequest) {
   }
 
   const token = request.cookies.get(COOKIE_NAME)?.value;
+  console.log('[middleware]', pathname, 'token:', token ? token.substring(0, 20) + '...' : 'AUSENTE');
 
   if (!token) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, SECRET, { algorithms: ['HS256'] });
     const role = payload.role as string;
 
     // Página /dev — apenas role DEV
@@ -31,8 +32,9 @@ export async function middleware(request: NextRequest) {
     }
 
     return NextResponse.next();
-  } catch {
+  } catch (err) {
     // Token inválido ou expirado
+    console.error('[middleware] jwtVerify falhou:', err);
     const response = NextResponse.redirect(new URL('/login', request.url));
     response.cookies.delete(COOKIE_NAME);
     return response;
