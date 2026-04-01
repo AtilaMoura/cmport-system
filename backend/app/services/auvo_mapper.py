@@ -34,19 +34,28 @@ def parse_auvo_address(address_str):
                 data["rua"] = first_part.strip()
 
         if len(parts) >= 2:
-            second_part = parts[1]
+            second = parts[1].strip()
             if not data["numero"]:
-                num_match = re.match(r'^(\d+|S/?N)\s*[-\s]+(.+)$', second_part)
-                if num_match:
-                    data["numero"] = num_match.group(1).strip()
-                    data["bairro"] = num_match.group(2).strip()
+                if re.match(r'^(\d+|S/?N)$', second, re.IGNORECASE):
+                    # Número isolado como 2º token (ex: "AV X, 123, BAIRRO") → desloca bairro e cidade
+                    data["numero"] = second
+                    if len(parts) >= 3:
+                        data["bairro"] = parts[2].strip().lstrip('-').strip()
+                    if len(parts) >= 4:
+                        data["cidade"] = parts[3].strip().lstrip('-').strip()
                 else:
-                    data["bairro"] = second_part.strip()
+                    num_match = re.match(r'^(\d+|S/?N)\s*[-\s]+(.+)$', second, re.IGNORECASE)
+                    if num_match:
+                        data["numero"] = num_match.group(1).strip()
+                        data["bairro"] = num_match.group(2).strip()
+                    else:
+                        data["bairro"] = second.lstrip('-').strip()
+                    if len(parts) >= 3:
+                        data["cidade"] = parts[2].strip().lstrip('-').strip()
             else:
-                data["bairro"] = second_part.strip().lstrip('-').strip()
-
-        if len(parts) >= 3:
-            data["cidade"] = parts[2].strip().lstrip('-').strip()
+                data["bairro"] = second.lstrip('-').strip()
+                if len(parts) >= 3:
+                    data["cidade"] = parts[2].strip().lstrip('-').strip()
 
     except Exception as e:
         print(f"Erro ao parsear endereço '{address_str}': {e}")
