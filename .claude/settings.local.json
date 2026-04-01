@@ -53,7 +53,48 @@
       "Bash(python -c \"from app.schemas.boleto_schema import GerarParcelasFaltantesRequest; r = GerarParcelasFaltantesRequest\\(parcelas_selecionadas=[1,2,3]\\); print\\(''parcelas_selecionadas:'', r.parcelas_selecionadas\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app/schemas/boleto_schema.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app/services/boleto_service.py''\\).read\\(\\)\\); ast.parse\\(open\\(''app/routers/boleto_router.py''\\).read\\(\\)\\); ast.parse\\(open\\(''app/schemas/nota_fiscal_schema.py''\\).read\\(\\)\\); print\\(''All OK''\\)\")",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(grep -n \"interParcelasItens\\\\|parcelas_json\\\\|valor_liquido\\\\|ConfigImpostos\\\\|configImpostos\\\\|openModal\\\\|setInterParcelas\" /c/Users/amand/OneDrive/Documentos/CMport/cmport-system/cmport-front/app/servicos/[id]/page.tsx)",
+      "Bash(grep:*)",
+      "Bash(head -1 /c/Users/amand/OneDrive/Documentos/CMport/cmport-system/cmport-front/app/condominios/[id]/page.tsx)",
+      "Bash(head -1 /c/Users/amand/OneDrive/Documentos/CMport/cmport-system/cmport-front/app/condominios/[id]/editar/page.tsx)",
+      "Bash(find C:UsersamandOneDriveDocumentosCMportcmport-systemcmport-frontapp -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
+      "Bash(\"C:\\\\Users\\\\amand\\\\OneDrive\\\\Documentos\\\\CMport\\\\cmport-system\\\\backend\\\\.env\")",
+      "Bash(npm install:*)",
+      "Bash(\"C:\\\\Users\\\\amand\\\\OneDrive\\\\Documentos\\\\CMport\\\\cmport-system\\\\cmport-front\\\\.env.local\")",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(.venv/Scripts/python -c \"from jose import jwt; from passlib.context import CryptContext; print\\(''OK''\\)\")",
+      "Bash(timeout 15 ../../.venv/Scripts/uvicorn app.main:app --host 0.0.0.0 --port 8000)",
+      "Skill(update-config)",
+      "Bash(claude mcp:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_wait_for",
+      "Bash(node -e \"const p = require\\(''./package.json''\\); console.log\\(''next:'', p.dependencies.next\\)\")",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_resize",
+      "Bash(sshpass:*)",
+      "Bash(ssh -V)",
+      "Bash(python3 -c \"import paramiko; print\\(''paramiko OK''\\)\")",
+      "Bash(python -c \"import paramiko; print\\(''paramiko OK''\\)\")",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(python -c \"print\\(''ok''\\)\")",
+      "Bash(timeout 10 python -c \"print\\(1+1\\)\")",
+      "Read(//c/Users/amand/.ssh/**)",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_type",
+      "Bash(ssh:*)",
+      "mcp__playwright__browser_install",
+      "Bash(taskkill /F /IM chrome.exe)",
+      "Bash(taskkill //F //IM chrome.exe)",
+      "mcp__mysql-cmport__mysql_query",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(x.get\\(''''cep''''\\), x.get\\(''''logradouro''''\\), x.get\\(''''bairro''''\\)\\) for x in \\(d if isinstance\\(d,list\\) else [d]\\)]\")",
+      "mcp__playwright__browser_handle_dialog"
     ]
   },
   "mcpServers": {
@@ -70,6 +111,12 @@
         "MYSQL_PASS": "cmport123",
         "MYSQL_DB": "cmport_gerenciamento"
       }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp"
+      ]
     }
   }
 }

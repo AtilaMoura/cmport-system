@@ -1,0 +1,229 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - button "Abrir menu" [ref=e4]:
+        - img [ref=e5]
+      - img "CMPort" [ref=e10]
+    - complementary [ref=e11]:
+      - button "Fechar menu" [ref=e13]:
+        - img [ref=e14]
+      - img "CMPort Logo" [ref=e18]
+      - navigation [ref=e19]:
+        - link "📊 Dashboard" [ref=e20] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e21]: 📊
+          - generic [ref=e22]: Dashboard
+        - link "🏢 Condomínios" [ref=e23] [cursor=pointer]:
+          - /url: /condominios
+          - generic [ref=e24]: 🏢
+          - generic [ref=e25]: Condomínios
+        - link "🛠️ Serviços" [ref=e26] [cursor=pointer]:
+          - /url: /servicos
+          - generic [ref=e28]: 🛠️
+          - generic [ref=e29]: Serviços
+        - link "📄 Notas Fiscais" [ref=e30] [cursor=pointer]:
+          - /url: /notas
+          - generic [ref=e31]: 📄
+          - generic [ref=e32]: Notas Fiscais
+        - link "🏦 Boletos" [ref=e33] [cursor=pointer]:
+          - /url: /boletos
+          - generic [ref=e34]: 🏦
+          - generic [ref=e35]: Boletos
+        - link "⚙️ Dev / Teste" [ref=e36] [cursor=pointer]:
+          - /url: /dev
+          - generic [ref=e37]: ⚙️
+          - generic [ref=e38]: Dev / Teste
+      - generic [ref=e40]:
+        - generic [ref=e42]: Tema
+        - button "Alternar tema" [ref=e45]:
+          - generic [ref=e47]: 💻
+          - generic:
+            - generic: ☀️
+            - generic: 🌙
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e54]:
+          - link "Voltar" [ref=e55] [cursor=pointer]:
+            - /url: /servicos
+            - img [ref=e56]
+            - generic [ref=e58]: Voltar
+          - generic [ref=e59]:
+            - button "Editar" [ref=e60]:
+              - img [ref=e61]
+              - text: Editar
+            - button "Excluir" [ref=e63]:
+              - img [ref=e64]
+              - text: Excluir
+        - generic [ref=e66]:
+          - generic [ref=e68]:
+            - generic [ref=e69]:
+              - generic [ref=e70]: 🛠️
+              - generic [ref=e71]:
+                - paragraph [ref=e72]: "Serviço #337"
+                - heading "Manutenção Preventiva" [level=1] [ref=e73]
+                - paragraph [ref=e74]: CONDOMINIO EDIFICIO ALVORADA · 31/03/2026
+            - generic [ref=e76]:
+              - paragraph [ref=e77]: Valor Nota
+              - paragraph [ref=e78]: R$ 750,00
+          - generic [ref=e79]:
+            - generic [ref=e80]:
+              - generic [ref=e81]:
+                - heading "📋 Dados do Serviço" [level=2] [ref=e83]:
+                  - generic [ref=e84]: 📋
+                  - text: Dados do Serviço
+                - generic [ref=e86]:
+                  - generic [ref=e87]:
+                    - generic [ref=e88]:
+                      - paragraph [ref=e89]: Tipo
+                      - paragraph [ref=e90]: 🛠️ Manutenção Preventiva
+                    - generic [ref=e91]:
+                      - paragraph [ref=e92]: Data do Serviço
+                      - paragraph [ref=e93]: 31/03/2026
+                    - generic [ref=e94]:
+                      - paragraph [ref=e95]: Ordem de Serviço (OS)
+                      - paragraph [ref=e96]: "#71694147"
+                  - generic [ref=e97]:
+                    - paragraph [ref=e98]: Descrição
+                    - paragraph [ref=e99]: "MANUTENCAO PREVENTIVA MENSAL Manutencao Preventiva Mensal referente ao mes de marco/2026 Data servico executado: 31.03.2026 Numero ordem servico: 71694147 Quantidade parcelas: 01 Valor: R$:750,00(setecentos e cinquenta reais) INSS: 11% R$: 82,50(oitenta dois reais e cinquenta centavos) COFINS: 3% R$: 22,50(vinte dois reais e cinquenta centavos) PIS: 0,65% R$: 4,88(quatro reais e oitenta oito centavos) CSLL: 1% R$: 7,50(sete reais e cinquenta centavos) Vencimento: 10.04.2026. Valor Boleto: R$:632,62(seiscentos trinta dois reais e sessenta dois centavos) Referente a lubrificacao e verificacao dos cabos de aco dois portoes basculantes garagem, dois portoes de pedestre, sistema CFTV e sistema interfone quando houver o problema."
+              - generic [ref=e100]:
+                - generic [ref=e101]:
+                  - heading "📄 Nota Fiscal Vinculada" [level=2] [ref=e102]:
+                    - generic [ref=e103]: 📄
+                    - text: Nota Fiscal Vinculada
+                  - generic [ref=e104]:
+                    - link "Abrir nota" [ref=e105] [cursor=pointer]:
+                      - /url: /notas/409
+                      - img [ref=e106]
+                      - text: Abrir nota
+                    - button "Desvincular do serviço" [ref=e108]:
+                      - img [ref=e109]
+                      - text: Desvincular do serviço
+                - generic [ref=e111]:
+                  - generic [ref=e112]:
+                    - generic [ref=e113]:
+                      - paragraph [ref=e114]: Número
+                      - paragraph [ref=e115]: "7663"
+                    - generic [ref=e116]:
+                      - paragraph [ref=e117]: Tipo
+                      - paragraph [ref=e118]: MANUTENCAO
+                    - generic [ref=e119]:
+                      - paragraph [ref=e120]: Parcelas
+                      - paragraph [ref=e121]: 1x
+                    - generic [ref=e122]:
+                      - paragraph [ref=e123]: Valor
+                      - paragraph [ref=e124]: R$ 750,00
+                    - generic [ref=e125]:
+                      - paragraph [ref=e126]: Vencimento
+                      - paragraph [ref=e127]: 10/04/2026
+                    - generic [ref=e128]:
+                      - paragraph [ref=e129]: Pagamento
+                      - paragraph [ref=e130]: Não pago
+                  - generic [ref=e131]:
+                    - generic [ref=e132]: ⏳
+                    - text: Nota Pendente
+                    - generic [ref=e133]: "status: AUTORIZADA"
+                  - generic [ref=e134]:
+                    - paragraph [ref=e135]: Descrição da nota
+                    - paragraph [ref=e136]: "MANUTENCAO PREVENTIVA MENSAL Manutencao Preventiva Mensal referente ao mes de marco/2026 Data servico executado: 31.03.2026 Numero ordem servico: 71694147 Quantidade parcelas: 01 Valor: R$:750,00(setecentos e cinquenta reais) INSS: 11% R$: 82,50(oitenta dois reais e cinquenta centavos) COFINS: 3% R$: 22,50(vinte dois reais e cinquenta centavos) PIS: 0,65% R$: 4,88(quatro reais e oitenta oito centavos) CSLL: 1% R$: 7,50(sete reais e cinquenta centavos) Vencimento: 10.04.2026. Valor Boleto: R$:632,62(seiscentos trinta dois reais e sessenta dois centavos) Referente a lubrificacao e verificacao dos cabos de aco dois portoes basculantes garagem, dois portoes de pedestre, sistema CFTV e sistema interfone quando houver o problema."
+              - generic [ref=e137]:
+                - generic [ref=e138]:
+                  - heading "🏦 Cobranças por Parcela" [level=2] [ref=e139]:
+                    - generic [ref=e140]: 🏦
+                    - text: Cobranças por Parcela
+                  - generic [ref=e141]:
+                    - generic [ref=e142]: 0/0 pago(s) · R$ 0,00 recebido
+                    - button "🏦Gerar Inter (faltantes)" [ref=e143]
+                - generic [ref=e145]:
+                  - generic [ref=e146]:
+                    - generic [ref=e147]:
+                      - generic [ref=e148]: "1"
+                      - generic [ref=e149]:
+                        - paragraph [ref=e150]: Parcela 1/1
+                        - paragraph [ref=e151]: R$ 750,00
+                    - generic [ref=e152]:
+                      - button "🏦Gerar Inter" [ref=e153]
+                      - button "+ Registrar" [ref=e154]
+                  - generic [ref=e155]: Nenhuma cobrança registrada para esta parcela
+            - generic [ref=e156]:
+              - generic [ref=e157]:
+                - heading "🏢 Condomínio" [level=3] [ref=e159]:
+                  - generic [ref=e160]: 🏢
+                  - text: Condomínio
+                - link "CO CONDOMINIO EDIFICIO ALVORADA 62580832000181" [ref=e162] [cursor=pointer]:
+                  - /url: /condominios/225
+                  - generic [ref=e163]: CO
+                  - generic [ref=e164]:
+                    - paragraph [ref=e165]: CONDOMINIO EDIFICIO ALVORADA
+                    - paragraph [ref=e166]: "62580832000181"
+                  - img [ref=e167]
+              - generic [ref=e169]:
+                - heading "📊 Status Financeiro" [level=3] [ref=e171]:
+                  - generic [ref=e172]: 📊
+                  - text: Status Financeiro
+                - generic [ref=e174]: Nota sem boleto emitido
+              - generic [ref=e175]:
+                - heading "ℹ️ Metadados" [level=3] [ref=e177]:
+                  - generic [ref=e178]: ℹ️
+                  - text: Metadados
+                - generic [ref=e179]:
+                  - generic [ref=e180]:
+                    - generic [ref=e181]: ID
+                    - generic [ref=e182]: "#337"
+                  - generic [ref=e183]:
+                    - generic [ref=e184]: Criado
+                    - generic [ref=e185]: 01/04/2026
+                  - generic [ref=e186]:
+                    - generic [ref=e187]: Atualizado
+                    - generic [ref=e188]: 01/04/2026
+                  - generic [ref=e189]:
+                    - generic [ref=e190]: Nota ID
+                    - generic [ref=e191]: "#409"
+        - generic [ref=e193]:
+          - generic [ref=e195]:
+            - generic [ref=e196]:
+              - generic [ref=e197]:
+                - generic [ref=e198]: Etapa 2 de 2
+                - generic [ref=e303]: ✅ Aprovado
+              - heading "Gerar Boletos" [level=2] [ref=e304]
+              - paragraph [ref=e200]: 7663 · R$ 750,00 · 1 parcela(s)
+            - button [ref=e201]:
+              - img [ref=e202]
+          - generic [ref=e204]:
+            - generic [ref=e305]:
+              - paragraph [ref=e306]: ✅ Configuração Aprovada — Valores Bloqueados
+              - generic [ref=e307]:
+                - generic [ref=e308]:
+                  - text: Nota
+                  - paragraph [ref=e309]: "7663"
+                - generic [ref=e310]:
+                  - text: Total
+                  - paragraph [ref=e311]: R$ 750,00
+                - generic [ref=e312]:
+                  - text: Impostos
+                  - paragraph [ref=e313]: PIS 0.65% + COFINS 3% + INSS 11% + CSLL 1%
+                - generic [ref=e314]:
+                  - text: Valor Líquido
+                  - paragraph [ref=e315]: R$ 632,63
+            - generic [ref=e316]:
+              - paragraph [ref=e317]: Parcelas
+              - generic [ref=e318]:
+                - generic [ref=e319]:
+                  - generic [ref=e320]: "1"
+                  - generic [ref=e321]:
+                    - generic [ref=e323]: Parcela 1/1
+                    - paragraph [ref=e324]: R$ 632,62
+                  - textbox [ref=e325]: 2026-04-10
+                - generic [ref=e326]:
+                  - button "👁 Preview payload" [ref=e327]
+                  - button "🏦 Gerar Inter" [ref=e328]
+            - generic [ref=e329]:
+              - button "📄 Descrição / Mensagem do Boleto ▼" [ref=e330]:
+                - paragraph [ref=e331]:
+                  - generic [ref=e332]: 📄
+                  - text: Descrição / Mensagem do Boleto
+                - generic [ref=e333]: ▼
+              - paragraph [ref=e334]: "MANUTENCAO PREVENTIVA MENSAL Manutencao Preventiva Mensal referente ao mes de marco/2026 Data servico executado: 31.03.2026 Numero ordem servico: 71694147 Quantidade parcelas: 01 Valor: R$:750,00(setecentos e cinquenta reais) INSS: 11% R$: 82,50(oitenta dois reais e cinquenta centavos) COFINS: 3% R$: 22,50(vinte dois reais e cinquenta centavos) PIS: 0,65% R$: 4,88(quatro reais e oitenta oito centavos) CSLL: 1% R$: 7,50(sete reais e cinquenta centavos) Vencimento: 10.04.2026. Valor Boleto: R$:632,62(seiscentos trinta dois reais e sessenta dois centavos) Referente a lubrificacao e verificacao dos cabos de aco dois portoes basculantes garagem, dois portoes de pedestre, sistema CFTV e sistema interfone quando houver o problema. | OS: 71694147"
+          - generic [ref=e300]:
+            - button "🔄 Reabrir Config" [ref=e335]
+            - button "🏦 Gerar Todos (1 faltantes)" [ref=e336]
+  - alert [ref=e53]

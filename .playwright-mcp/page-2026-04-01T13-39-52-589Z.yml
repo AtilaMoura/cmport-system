@@ -1,0 +1,103 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - button "Abrir menu" [ref=e4]:
+        - img [ref=e5]
+      - img "CMPort" [ref=e10]
+    - complementary [ref=e11]:
+      - button "Fechar menu" [ref=e13]:
+        - img [ref=e14]
+      - img "CMPort Logo" [ref=e18]
+      - navigation [ref=e19]:
+        - link "📊 Dashboard" [ref=e20] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e21]: 📊
+          - generic [ref=e22]: Dashboard
+        - link "🏢 Condomínios" [ref=e23] [cursor=pointer]:
+          - /url: /condominios
+          - generic [ref=e24]: 🏢
+          - generic [ref=e25]: Condomínios
+        - link "🛠️ Serviços" [ref=e26] [cursor=pointer]:
+          - /url: /servicos
+          - generic [ref=e27]: 🛠️
+          - generic [ref=e28]: Serviços
+        - link "📄 Notas Fiscais" [ref=e29] [cursor=pointer]:
+          - /url: /notas
+          - generic [ref=e30]: 📄
+          - generic [ref=e31]: Notas Fiscais
+        - link "🏦 Boletos" [ref=e32] [cursor=pointer]:
+          - /url: /boletos
+          - generic [ref=e33]: 🏦
+          - generic [ref=e34]: Boletos
+        - link "⚙️ Dev / Teste" [ref=e35] [cursor=pointer]:
+          - /url: /dev
+          - generic [ref=e37]: ⚙️
+          - generic [ref=e38]: Dev / Teste
+      - generic [ref=e40]:
+        - generic [ref=e42]: Tema
+        - button "Alternar tema" [ref=e45]:
+          - generic [ref=e47]: 💻
+          - generic:
+            - generic: ☀️
+            - generic: 🌙
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - link [ref=e53] [cursor=pointer]:
+              - /url: /
+              - img [ref=e54]
+            - heading "Dev / Ferramentas" [level=1] [ref=e57]
+          - paragraph [ref=e58]:
+            - text: Utilitários para desenvolvimento. Disponível apenas em
+            - code [ref=e59]: ENV=development
+            - text: .
+        - generic [ref=e60]:
+          - generic [ref=e62]:
+            - generic [ref=e63]:
+              - generic [ref=e64]: 🗑️
+              - generic [ref=e65]:
+                - heading "Limpar Dados" [level=2] [ref=e66]
+                - paragraph [ref=e67]:
+                  - text: Apaga todos os
+                  - strong [ref=e68]: boletos
+                  - text: ","
+                  - strong [ref=e69]: serviços
+                  - text: e
+                  - strong [ref=e70]: notas fiscais
+                  - text: . Condominios são mantidos.
+            - button "Limpar Dados" [ref=e71]
+          - generic [ref=e72]:
+            - generic [ref=e73]:
+              - generic [ref=e74]:
+                - generic [ref=e75]: 🔄
+                - generic [ref=e76]:
+                  - heading "Sincronizar Condominios" [level=2] [ref=e77]
+                  - paragraph [ref=e78]: Puxa todos os clientes do Auvo (com paginação automática) e cria/atualiza os condominios no banco.
+              - button "Sincronizando..." [disabled] [ref=e106]: Sincronizando...
+            - paragraph [ref=e109]: Conectando ao Auvo e buscando clientes...
+          - generic [ref=e81]:
+            - generic [ref=e82]:
+              - generic [ref=e83]: 🔍
+              - generic [ref=e84]:
+                - heading "Revalidar Status das Notas" [level=2] [ref=e85]
+                - paragraph [ref=e86]: Re-parseia o XML original de cada nota e corrige status incorretos (DESCONHECIDO → AUTORIZADA/CANCELADA).
+            - button "Revalidar XMLs" [ref=e87]
+          - generic [ref=e88]:
+            - generic [ref=e89]:
+              - generic [ref=e90]: 🌱
+              - generic [ref=e91]:
+                - heading "Seed de Teste" [level=2] [ref=e92]
+                - paragraph [ref=e93]: Cria condomínio + nota de teste para validar o fluxo de boletos.
+            - generic [ref=e94]:
+              - generic [ref=e95]:
+                - generic [ref=e96]:
+                  - paragraph [ref=e97]: Criar condomínio + nota teste
+                  - paragraph [ref=e98]: POST /dev/seed · R$ 100,00 · venc. +5 dias
+                - button "Criar" [ref=e99]
+              - generic [ref=e100]:
+                - generic [ref=e101]:
+                  - paragraph [ref=e102]: Gerar boleto para a nota teste
+                  - paragraph [ref=e103]: POST /boletos/gerar · requer Inter configurado
+                - button "Gerar Boleto" [disabled] [ref=e104]
+  - alert [ref=e105]

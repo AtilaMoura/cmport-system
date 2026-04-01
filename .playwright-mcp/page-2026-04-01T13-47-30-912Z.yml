@@ -1,0 +1,182 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - button "Abrir menu" [ref=e4]:
+        - img [ref=e5]
+      - img "CMPort" [ref=e10]
+    - complementary [ref=e11]:
+      - button "Fechar menu" [ref=e13]:
+        - img [ref=e14]
+      - img "CMPort Logo" [ref=e18]
+      - navigation [ref=e19]:
+        - link "📊 Dashboard" [ref=e20] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e21]: 📊
+          - generic [ref=e22]: Dashboard
+        - link "🏢 Condomínios" [ref=e23] [cursor=pointer]:
+          - /url: /condominios
+          - generic [ref=e25]: 🏢
+          - generic [ref=e26]: Condomínios
+        - link "🛠️ Serviços" [ref=e27] [cursor=pointer]:
+          - /url: /servicos
+          - generic [ref=e28]: 🛠️
+          - generic [ref=e29]: Serviços
+        - link "📄 Notas Fiscais" [ref=e30] [cursor=pointer]:
+          - /url: /notas
+          - generic [ref=e31]: 📄
+          - generic [ref=e32]: Notas Fiscais
+        - link "🏦 Boletos" [ref=e33] [cursor=pointer]:
+          - /url: /boletos
+          - generic [ref=e34]: 🏦
+          - generic [ref=e35]: Boletos
+        - link "⚙️ Dev / Teste" [ref=e36] [cursor=pointer]:
+          - /url: /dev
+          - generic [ref=e37]: ⚙️
+          - generic [ref=e38]: Dev / Teste
+      - generic [ref=e40]:
+        - generic [ref=e42]: Tema
+        - button "Alternar tema" [ref=e45]:
+          - generic [ref=e47]: 💻
+          - generic:
+            - generic: ☀️
+            - generic: 🌙
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - heading "Editar Condomínio" [level=1] [ref=e51]
+          - paragraph [ref=e52]: Atualize as informações cadastrais e contatos
+        - generic [ref=e54]:
+          - generic [ref=e55]:
+            - heading "Informações Gerais" [level=3] [ref=e56]
+            - generic [ref=e57]:
+              - generic [ref=e58]:
+                - text: Nome do Condomínio
+                - textbox [ref=e59]: CONDOMINIO EDIFICIO ALVORADA
+              - generic [ref=e60]:
+                - text: CNPJ
+                - textbox [ref=e61]: "62580832000181"
+          - generic [ref=e62]:
+            - heading "Localização" [level=3] [ref=e63]
+            - generic [ref=e64]:
+              - generic [ref=e65]:
+                - text: Rua / Logradouro
+                - textbox [ref=e66]: AV LINS DE VASCONCELOS
+              - generic [ref=e67]:
+                - text: Número
+                - textbox [ref=e68]: "2805"
+            - generic [ref=e69]:
+              - generic [ref=e70]:
+                - text: Bairro
+                - textbox [ref=e71]: VILA MARIANA
+              - generic [ref=e72]:
+                - text: Cidade
+                - textbox [ref=e73]: SAO PAULO
+              - generic [ref=e74]:
+                - generic [ref=e75]:
+                  - text: Estado
+                  - textbox "SP" [ref=e76]
+                - generic [ref=e77]:
+                  - text: CEP
+                  - textbox "00000-000" [ref=e78]: 04112-011
+          - generic [ref=e79]:
+            - generic [ref=e80]:
+              - heading "Gestão de Contatos" [level=3] [ref=e81]
+              - button "+ Adicionar Contato" [ref=e82]
+            - generic [ref=e83]:
+              - generic [ref=e84]:
+                - button "Remover" [ref=e85]
+                - generic [ref=e86]:
+                  - generic [ref=e87]:
+                    - text: Nome
+                    - textbox [ref=e88]: Ronaldo
+                  - generic [ref=e89]:
+                    - text: Função
+                    - combobox [ref=e90]:
+                      - option "Síndico" [selected]
+                      - option "Zelador"
+                      - option "Administradora"
+                      - option "Outro"
+                  - generic [ref=e91]:
+                    - text: Telefone
+                    - textbox [ref=e92]: "11947138004"
+                  - generic [ref=e93]:
+                    - text: E-mail
+                    - textbox [ref=e94]: ronaldosindicoprofissional@gmail.com
+              - generic [ref=e95]:
+                - button "Remover" [ref=e96]
+                - generic [ref=e97]:
+                  - generic [ref=e98]:
+                    - text: Nome
+                    - textbox [ref=e99]: Ronaldo
+                  - generic [ref=e100]:
+                    - text: Função
+                    - combobox [ref=e101]:
+                      - option "Síndico" [selected]
+                      - option "Zelador"
+                      - option "Administradora"
+                      - option "Outro"
+                  - generic [ref=e102]:
+                    - text: Telefone
+                    - textbox [ref=e103]: "11947138004"
+                  - generic [ref=e104]:
+                    - text: E-mail
+                    - textbox [ref=e105]: ronaldosindicoprofissional@gmail.com
+              - generic [ref=e106]:
+                - button "Remover" [ref=e107]
+                - generic [ref=e108]:
+                  - generic [ref=e109]:
+                    - text: Nome
+                    - textbox [ref=e110]: Ronaldo
+                  - generic [ref=e111]:
+                    - text: Função
+                    - combobox [ref=e112]:
+                      - option "Síndico" [selected]
+                      - option "Zelador"
+                      - option "Administradora"
+                      - option "Outro"
+                  - generic [ref=e113]:
+                    - text: Telefone
+                    - textbox [ref=e114]: "11947138004"
+                  - generic [ref=e115]:
+                    - text: E-mail
+                    - textbox [ref=e116]: ronaldosindicoprofissional@gmail.com
+              - generic [ref=e117]:
+                - button "Remover" [ref=e118]
+                - generic [ref=e119]:
+                  - generic [ref=e120]:
+                    - text: Nome
+                    - textbox [ref=e121]: Ronaldo
+                  - generic [ref=e122]:
+                    - text: Função
+                    - combobox [ref=e123]:
+                      - option "Síndico" [selected]
+                      - option "Zelador"
+                      - option "Administradora"
+                      - option "Outro"
+                  - generic [ref=e124]:
+                    - text: Telefone
+                    - textbox [ref=e125]: "11947138004"
+                  - generic [ref=e126]:
+                    - text: E-mail
+                    - textbox [ref=e127]: ronaldosindicoprofissional@gmail.com
+              - generic [ref=e128]:
+                - button "Remover" [ref=e129]
+                - generic [ref=e130]:
+                  - generic [ref=e131]:
+                    - text: Nome
+                    - textbox [ref=e132]: Ronaldo
+                  - generic [ref=e133]:
+                    - text: Função
+                    - combobox [ref=e134]:
+                      - option "Síndico" [selected]
+                      - option "Zelador"
+                      - option "Administradora"
+                      - option "Outro"
+                  - generic [ref=e135]:
+                    - text: Telefone
+                    - textbox [ref=e136]: "11947138004"
+                  - generic [ref=e137]:
+                    - text: E-mail
+                    - textbox [ref=e138]: ronaldosindicoprofissional@gmail.com
+          - button "SALVAR ALTERAÇÕES" [ref=e140]
+  - alert [ref=e141]
