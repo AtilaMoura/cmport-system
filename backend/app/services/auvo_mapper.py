@@ -12,10 +12,10 @@ def parse_auvo_address(address_str):
     try:
         remaining = address_str.strip()
 
-        cep_match = re.search(r'(\d{5}-?\d{3})', remaining)
+        cep_match = re.search(r'(\d{2}\.\d{3}-\d{3}|\d{5}-?\d{3})', remaining)
         if cep_match:
-            data["cep"] = cep_match.group(1)
-            remaining = remaining.replace(cep_match.group(0), "").strip()
+            data["cep"] = cep_match.group(1).replace('.', '')  # normaliza 05.015-000 → 05015-000
+            remaining = remaining.replace(cep_match.group(0), "").strip().rstrip(',').strip()
 
         uf_match = re.search(r'[,\-\s]+([A-Z]{2})\s*$', remaining)
         if uf_match:
