@@ -39,6 +39,20 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
     setLoading(true);
     try {
       await api.put(`/condominios/${initialData.id}`, formData);
+      if (formData.endereco) {
+        await api.post('/enderecos', {
+          condominio_id: initialData.id,
+          rua: formData.endereco.rua || null,
+          numero: formData.endereco.numero || null,
+          bairro: formData.endereco.bairro || null,
+          cidade: formData.endereco.cidade || null,
+          estado: formData.endereco.estado || null,
+          cep: formData.endereco.cep || null,
+          complemento: formData.endereco.complemento || null,
+          latitude: formData.endereco.latitude || null,
+          longitude: formData.endereco.longitude || null,
+        });
+      }
       router.push(`/condominios/${initialData.id}`);
       router.refresh();
     } catch (error) {
@@ -77,16 +91,62 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
       {/* SEÇÃO 2: ENDEREÇO */}
       <section className="space-y-6">
         <h3 className="text-lg font-bold text-brand dark:text-white border-b pb-2">Localização</h3>
-        <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase text-slate-400">Endereço Completo (Rua, Número, Bairro, CEP)</label>
-          <input 
-            className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800"
-            value={formData.endereco.rua}
-            onChange={(e) => setFormData({
-              ...formData, 
-              endereco: { ...formData.endereco, rua: e.target.value }
-            })}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400">Rua / Logradouro</label>
+            <input
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800"
+              value={formData.endereco?.rua || ''}
+              onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, rua: e.target.value } })}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400">Número</label>
+            <input
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800"
+              value={formData.endereco?.numero || ''}
+              onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, numero: e.target.value } })}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400">Bairro</label>
+            <input
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800"
+              value={formData.endereco?.bairro || ''}
+              onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, bairro: e.target.value } })}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400">Cidade</label>
+            <input
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800"
+              value={formData.endereco?.cidade || ''}
+              onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, cidade: e.target.value } })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400">Estado</label>
+              <input
+                maxLength={2}
+                placeholder="SP"
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 uppercase"
+                value={formData.endereco?.estado || ''}
+                onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, estado: e.target.value.toUpperCase() } })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400">CEP</label>
+              <input
+                placeholder="00000-000"
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono"
+                value={formData.endereco?.cep || ''}
+                onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, cep: e.target.value } })}
+              />
+            </div>
+          </div>
         </div>
       </section>
 
