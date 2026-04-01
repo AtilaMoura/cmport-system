@@ -85,11 +85,11 @@ export default function DevPage() {
     setSyncError(null);
     setSyncProgresso(null);
     try {
-      await api.post('/dev/sync-condominios/iniciar');
+      await api.post('/condominios/sync-auvo/iniciar');
 
       const poll = setInterval(async () => {
         try {
-          const res = await api.get('/dev/sync-condominios/progresso');
+          const res = await api.get('/condominios/sync-auvo/progresso');
           const estado = res.data;
           setSyncProgresso({ processados: estado.processados, total: estado.total, mensagem: estado.mensagem });
 
