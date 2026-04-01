@@ -40,7 +40,7 @@ class AuvoClient:
     def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Optional[Dict]:
         url = f"{self.BASE_URL}/{endpoint}"
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params, timeout=15)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
