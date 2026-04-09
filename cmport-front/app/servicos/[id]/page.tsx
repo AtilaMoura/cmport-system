@@ -1056,7 +1056,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                 {boleto.codigo_solicitacao && (
                                   <>
                                     <a
-                                      href={`http://localhost:8000/api/v1/boletos/${boleto.codigo_solicitacao}/pdf`}
+                                      href={`/api/v1/boletos/${boleto.codigo_solicitacao}/pdf`}
                                       target="_blank" rel="noopener noreferrer"
                                       className="px-3 py-1.5 text-xs font-bold bg-slate-700 text-white rounded-lg hover:brightness-110 transition-all"
                                       title="Visualizar PDF"
@@ -1064,7 +1064,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                       📄 PDF
                                     </a>
                                     <a
-                                      href={`http://localhost:8000/api/v1/boletos/${boleto.codigo_solicitacao}/pdf`}
+                                      href={`/api/v1/boletos/${boleto.codigo_solicitacao}/pdf`}
                                       download={`boleto_${boleto.codigo_solicitacao}.pdf`}
                                       className="px-3 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
                                       title="Baixar PDF"
