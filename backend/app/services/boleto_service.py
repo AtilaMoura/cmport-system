@@ -504,7 +504,9 @@ class BoletoService:
 
         existentes = BoletoRepository.get_all_by_nota_fiscal(db, nota_id)
         total_parcelas = nota.parcelas if nota.parcelas and nota.parcelas > 0 else 1
-        nums_existentes = {b.numero_parcela for b in existentes}
+        # Boletos cancelados/expirados não bloqueiam regeneração da parcela
+        SITUACOES_INATIVAS = {SituacaoBoleto.CANCELADO, SituacaoBoleto.EXPIRADO}
+        nums_existentes = {b.numero_parcela for b in existentes if b.situacao not in SITUACOES_INATIVAS}
         faltantes = [p for p in range(1, total_parcelas + 1) if p not in nums_existentes]
 
         # Filtra pelas parcelas selecionadas pelo usuário, se informado
