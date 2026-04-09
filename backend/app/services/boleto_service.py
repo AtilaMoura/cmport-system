@@ -46,8 +46,13 @@ def _calcular_valor_liquido(db: Session, nota, pcts_override: dict = None) -> fl
         impostos = sum(x for x in [nota.pis, nota.cofins, nota.inss, nota.csll] if x)
         return max(round(float(nota.valor) - impostos, 2), 0.01)
 
-    total_pct = (pct_pis + pct_cofins + pct_inss + pct_csll) / 100
-    return max(round(float(nota.valor) * (1 - total_pct), 2), 0.01)
+    v_bruto = float(nota.valor)
+    i_pis    = round(v_bruto * (pct_pis / 100), 2)
+    i_cofins = round(v_bruto * (pct_cofins / 100), 2)
+    i_inss   = round(v_bruto * (pct_inss / 100), 2)
+    i_csll   = round(v_bruto * (pct_csll / 100), 2)
+    total_impostos = i_pis + i_cofins + i_inss + i_csll
+    return max(round(v_bruto - total_impostos, 2), 0.01)
 
 
 def _montar_mensagem_payload(mensagem: str | None, numero_nota: str, numero_os: str | None) -> dict | None:

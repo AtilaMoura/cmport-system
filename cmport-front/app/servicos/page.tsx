@@ -251,8 +251,12 @@ export default function ServicosPage() {
     const cofins = mbAplicarCofins ? parseFloat(mbPctCofins || '0') : 0;
     const inss   = mbAplicarInss   ? parseFloat(mbPctInss   || '0') : 0;
     const csll   = mbAplicarCsll   ? parseFloat(mbPctCsll   || '0') : 0;
-    const totalPct = (pis + cofins + inss + csll) / 100;
-    return Math.max(Math.round(bruto * (1 - totalPct) * 100) / 100, 0.01);
+    const v_pis    = Math.round(bruto * (pis / 100) * 100) / 100;
+    const v_cofins = Math.round(bruto * (cofins / 100) * 100) / 100;
+    const v_inss   = Math.round(bruto * (inss / 100) * 100) / 100;
+    const v_csll   = Math.round(bruto * (csll / 100) * 100) / 100;
+    const liquido = bruto - (v_pis + v_cofins + v_inss + v_csll);
+    return Math.max(Math.round(liquido * 100) / 100, 0.01);
   };
 
   const handleConfirmarGerarBoleto = async () => {
@@ -300,7 +304,12 @@ export default function ServicosPage() {
     const cofins = item.aplicarCofins ? parseFloat(item.pctCofins || '0') : 0;
     const inss   = item.aplicarInss   ? parseFloat(item.pctInss   || '0') : 0;
     const csll   = item.aplicarCsll   ? parseFloat(item.pctCsll   || '0') : 0;
-    return Math.max(Math.round(bruto * (1 - (pis + cofins + inss + csll) / 100) * 100) / 100, 0.01);
+    const v_pis    = Math.round(bruto * (pis / 100) * 100) / 100;
+    const v_cofins = Math.round(bruto * (cofins / 100) * 100) / 100;
+    const v_inss   = Math.round(bruto * (inss / 100) * 100) / 100;
+    const v_csll   = Math.round(bruto * (csll / 100) * 100) / 100;
+    const liquido = bruto - (v_pis + v_cofins + v_inss + v_csll);
+    return Math.max(Math.round(liquido * 100) / 100, 0.01);
   };
 
   const abrirModalMassa = async () => {

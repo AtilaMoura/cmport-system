@@ -358,36 +358,45 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     const cofins = interAplicarCofins ? parseFloat(interPctCofins || '0') : 0;
     const inss   = interAplicarInss   ? parseFloat(interPctInss   || '0') : 0;
     const csll   = interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0;
-    const totalPct = (pis + cofins + inss + csll) / 100;
     if (configImpostos.nota_vinculada_id) {
       const valorB = configImpostos.valor_nota_vinculada || 0;
       const valorA = bruto - valorB;
-      const liquA = valorA * (1 - totalPct);
-      const liquB = valorB * (1 - totalPct);
-      if (vinculoAplicarImpostoEm === 'nota_a')  return Math.max(liquA + valorB, 0.01);
-      if (vinculoAplicarImpostoEm === 'nota_b')  return Math.max(valorA + liquB, 0.01);
-      if (vinculoAplicarImpostoEm === 'ambas')   return Math.max(bruto * (1 - totalPct), 0.01);
+      const impA = Math.round(valorA * (pis/100)*100)/100 + Math.round(valorA * (cofins/100)*100)/100 + Math.round(valorA * (inss/100)*100)/100 + Math.round(valorA * (csll/100)*100)/100;
+      const impB = Math.round(valorB * (pis/100)*100)/100 + Math.round(valorB * (cofins/100)*100)/100 + Math.round(valorB * (inss/100)*100)/100 + Math.round(valorB * (csll/100)*100)/100;
+      if (vinculoAplicarImpostoEm === 'nota_a')  return Math.max(Math.round(((valorA - impA) + valorB) * 100) / 100, 0.01);
+      if (vinculoAplicarImpostoEm === 'nota_b')  return Math.max(Math.round((valorA + (valorB - impB)) * 100) / 100, 0.01);
+      if (vinculoAplicarImpostoEm === 'ambas')   return Math.max(Math.round((bruto - impA - impB) * 100) / 100, 0.01);
       return bruto; // nenhuma
     }
-    return Math.max(bruto * (1 - totalPct), 0.01);
+    const v_pis    = Math.round(bruto * (pis / 100) * 100) / 100;
+    const v_cofins = Math.round(bruto * (cofins / 100) * 100) / 100;
+    const v_inss   = Math.round(bruto * (inss / 100) * 100) / 100;
+    const v_csll   = Math.round(bruto * (csll / 100) * 100) / 100;
+    return Math.max(Math.round((bruto - (v_pis + v_cofins + v_inss + v_csll)) * 100) / 100, 0.01);
   };
 
   const totalImpostosModal = () => {
     if (!configImpostos) return 0;
     const bruto = configImpostos.valor_bruto;
-    const pct = ((interAplicarPis ? parseFloat(interPctPis||'0') : 0) +
-      (interAplicarCofins ? parseFloat(interPctCofins||'0') : 0) +
-      (interAplicarInss ? parseFloat(interPctInss||'0') : 0) +
-      (interAplicarCsll ? parseFloat(interPctCsll||'0') : 0)) / 100;
+    const pis    = interAplicarPis    ? parseFloat(interPctPis    || '0') : 0;
+    const cofins = interAplicarCofins ? parseFloat(interPctCofins || '0') : 0;
+    const inss   = interAplicarInss   ? parseFloat(interPctInss   || '0') : 0;
+    const csll   = interAplicarCsll   ? parseFloat(interPctCsll   || '0') : 0;
     if (configImpostos.nota_vinculada_id) {
       const valorB = configImpostos.valor_nota_vinculada || 0;
       const valorA = bruto - valorB;
-      if (vinculoAplicarImpostoEm === 'nota_a')  return valorA * pct;
-      if (vinculoAplicarImpostoEm === 'nota_b')  return valorB * pct;
-      if (vinculoAplicarImpostoEm === 'ambas')   return bruto * pct;
+      const impA = Math.round(valorA*(pis/100)*100)/100 + Math.round(valorA*(cofins/100)*100)/100 + Math.round(valorA*(inss/100)*100)/100 + Math.round(valorA*(csll/100)*100)/100;
+      const impB = Math.round(valorB*(pis/100)*100)/100 + Math.round(valorB*(cofins/100)*100)/100 + Math.round(valorB*(inss/100)*100)/100 + Math.round(valorB*(csll/100)*100)/100;
+      if (vinculoAplicarImpostoEm === 'nota_a')  return Math.round(impA * 100) / 100;
+      if (vinculoAplicarImpostoEm === 'nota_b')  return Math.round(impB * 100) / 100;
+      if (vinculoAplicarImpostoEm === 'ambas')   return Math.round((impA + impB) * 100) / 100;
       return 0; // nenhuma
     }
-    return bruto * pct;
+    const v_pis    = Math.round(bruto * (pis / 100) * 100) / 100;
+    const v_cofins = Math.round(bruto * (cofins / 100) * 100) / 100;
+    const v_inss   = Math.round(bruto * (inss / 100) * 100) / 100;
+    const v_csll   = Math.round(bruto * (csll / 100) * 100) / 100;
+    return Math.round((v_pis + v_cofins + v_inss + v_csll) * 100) / 100;
   };
 
   const somaParcelasModal = () =>
