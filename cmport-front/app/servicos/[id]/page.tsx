@@ -323,17 +323,20 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const icon = servico.tipo === 'manutencao' ? '🛠️' : '🔧';
   const nome = servico.tipo === 'manutencao' ? 'Manutenção Preventiva' : 'Assistência Técnica';
 
+  // Boletos cancelados/expirados não contam para cálculos financeiros nem para inconsistências
+  const boletosAtivos = boletos.filter(b => b.situacao !== 'CANCELADO' && b.situacao !== 'EXPIRADO');
+
   const totalPago = boletos.filter(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO').length;
-  const valorBruto = boletos.reduce((s, b) => s + b.valor_nominal, 0);
+  const valorBruto = boletosAtivos.reduce((s, b) => s + b.valor_nominal, 0);
   const valorRecebido = boletos.reduce((s, b) => s + (b.valor_total_recebido || 0), 0);
 
-  // Detecção de inconsistências
+  // Detecção de inconsistências (ignora boletos cancelados/expirados)
   const totalEsperado = notaFiscal?.parcelas ?? 0;
   const tolerancia = notaFiscal ? notaFiscal.valor * 0.40 : 0;
   const valorEsperadoParcela = notaFiscal && totalEsperado > 0 ? notaFiscal.valor / totalEsperado : 0;
-  const boletosExcedentes = totalEsperado > 0 && boletos.length > totalEsperado;
+  const boletosExcedentes = totalEsperado > 0 && boletosAtivos.length > totalEsperado;
   const boletosValorErrado = notaFiscal
-    ? boletos.filter(b => Math.abs(b.valor_nominal - valorEsperadoParcela) > tolerancia)
+    ? boletosAtivos.filter(b => Math.abs(b.valor_nominal - valorEsperadoParcela) > tolerancia)
     : [];
   const temInconsistencia = boletosExcedentes || boletosValorErrado.length > 0;
 
@@ -1015,7 +1018,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                   </h2>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                      {totalPago}/{boletos.length} pago(s) · {fmt(valorRecebido)} recebido
+                      {totalPago}/{boletosAtivos.length} pago(s) · {fmt(valorRecebido)} recebido
                     </span>
                     <button
                       onClick={() => handleGerarParcelasFaltantes()}
@@ -1258,13 +1261,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 )}
                 {boletos.length > 0 && (
                   <div className={`px-3 py-2 rounded-lg text-xs font-bold ${
-                    totalPago === boletos.length
+                    totalPago === boletosAtivos.length && boletosAtivos.length > 0
                       ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
                       : totalPago > 0
                         ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'
                         : 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400'
                   }`}>
-                    {totalPago === boletos.length ? '✅ Totalmente pago' : totalPago > 0 ? `⏳ ${totalPago}/${boletos.length} parcelas pagas` : '⏳ Aguardando pagamento'}
+                    {totalPago === boletosAtivos.length && boletosAtivos.length > 0 ? '✅ Totalmente pago' : totalPago > 0 ? `⏳ ${totalPago}/${boletosAtivos.length} parcelas pagas` : '⏳ Aguardando pagamento'}
                   </div>
                 )}
               </div>
