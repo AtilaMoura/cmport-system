@@ -148,6 +148,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [desvinculandoNota, setDesvinculandoNota] = useState(false);
   const [deletandoBoletoId, setDeletandoBoletoId] = useState<number | null>(null);
   const [cancelandoBoletoId, setCancelandoBoletoId] = useState<number | null>(null);
+  const [baixandoPdf, setBaixandoPdf] = useState<string | null>(null);
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
 
   // Form
@@ -643,6 +644,38 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
   };
 
+  const baixarPdf = async (codigo: string) => {
+    setBaixandoPdf(codigo);
+    try {
+      const res = await api.get(`/boletos/${codigo}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `boleto_${codigo}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('Erro ao baixar PDF do boleto.');
+    } finally {
+      setBaixandoPdf(null);
+    }
+  };
+
+  const visualizarPdf = async (codigo: string) => {
+    setBaixandoPdf(codigo);
+    try {
+      const res = await api.get(`/boletos/${codigo}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    } catch {
+      alert('Erro ao visualizar PDF do boleto.');
+    } finally {
+      setBaixandoPdf(null);
+    }
+  };
+
   const handleCancelarBoleto = async (boleto: Boleto) => {
     if (!boleto.codigo_solicitacao) {
       alert('Este boleto não tem código Inter para cancelar.');
@@ -1055,22 +1088,22 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                               <>
                                 {boleto.codigo_solicitacao && (
                                   <>
-                                    <a
-                                      href={`/api/v1/boletos/${boleto.codigo_solicitacao}/pdf`}
-                                      target="_blank" rel="noopener noreferrer"
-                                      className="px-3 py-1.5 text-xs font-bold bg-slate-700 text-white rounded-lg hover:brightness-110 transition-all"
+                                    <button
+                                      onClick={() => visualizarPdf(boleto.codigo_solicitacao!)}
+                                      disabled={baixandoPdf === boleto.codigo_solicitacao}
+                                      className="px-3 py-1.5 text-xs font-bold bg-slate-700 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
                                       title="Visualizar PDF"
                                     >
-                                      📄 PDF
-                                    </a>
-                                    <a
-                                      href={`/api/v1/boletos/${boleto.codigo_solicitacao}/pdf`}
-                                      download={`boleto_${boleto.codigo_solicitacao}.pdf`}
-                                      className="px-3 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
+                                      {baixandoPdf === boleto.codigo_solicitacao ? '...' : '📄 PDF'}
+                                    </button>
+                                    <button
+                                      onClick={() => baixarPdf(boleto.codigo_solicitacao!)}
+                                      disabled={baixandoPdf === boleto.codigo_solicitacao}
+                                      className="px-3 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
                                       title="Baixar PDF"
                                     >
                                       ⬇️
-                                    </a>
+                                    </button>
                                   </>
                                 )}
                                 <button
