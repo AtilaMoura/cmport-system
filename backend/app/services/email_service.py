@@ -1,3 +1,5 @@
+import base64
+import os
 import smtplib
 import ssl
 from email.mime.multipart import MIMEMultipart
@@ -8,6 +10,16 @@ from typing import List, Optional
 from datetime import date
 
 from app.core.config import settings
+
+# Carrega a imagem de assinatura em base64 uma única vez ao importar o módulo
+_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
+_ASSINATURA_B64 = ""
+try:
+    _sig_path = os.path.join(_ASSETS_DIR, "assinatura.jpg")
+    with open(_sig_path, "rb") as _f:
+        _ASSINATURA_B64 = base64.b64encode(_f.read()).decode()
+except Exception:
+    pass  # Assinatura não encontrada — rodapé ficará sem imagem
 
 
 def gerar_html_boleto(
@@ -51,21 +63,26 @@ def _html_boleto(
     linha_digitavel: Optional[str],
 ) -> str:
     parcela_txt = f"Parcela {numero_parcela}/{total_parcelas}" if total_parcelas > 1 else "À vista"
+
     linha_bloco = ""
     if linha_digitavel:
-        linha_bloco = f"""
-        <tr>
-          <td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">
-            <span style="color:#64748b;font-size:13px;">Linha Digitável</span><br>
-            <span style="font-family:monospace;font-size:15px;font-weight:700;
-                         letter-spacing:1px;color:#1e293b;word-break:break-all;">
-              {linha_digitavel}
-            </span>
-          </td>
-        </tr>"""
+        linha_bloco = (
+            '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">'
+            '<span style="color:#64748b;font-size:13px;">Linha Digitável</span><br>'
+            '<span style="font-family:monospace;font-size:15px;font-weight:700;'
+            'letter-spacing:1px;color:#1e293b;word-break:break-all;">'
+            f'{linha_digitavel}</span></td></tr>'
+        )
 
-    return f"""
-<!DOCTYPE html>
+    assinatura_bloco = ""
+    if _ASSINATURA_B64:
+        assinatura_bloco = (
+            f'<img src="data:image/jpeg;base64,{_ASSINATURA_B64}" '
+            'alt="Assinatura CM Port" '
+            'style="max-width:480px;width:100%;height:auto;display:block;margin:0 auto;" />'
+        )
+
+    return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
@@ -90,8 +107,10 @@ def _html_boleto(
         <tr>
           <td style="padding:40px;">
             <p style="margin:0 0 24px;color:#374151;font-size:15px;">
-              Olá, <strong>{nome_condominio}</strong>.<br>
-              Segue o boleto referente à Nota Fiscal <strong>#{numero_nota}</strong>.
+              Prezados(as),<br><br>
+              Segue em anexo o boleto, nota fiscal e a ordem de serviço
+              referente à Nota Fiscal <strong>#{numero_nota}</strong> —
+              <strong>{nome_condominio}</strong>.
             </p>
 
             <!-- Tabela de dados -->
@@ -114,7 +133,7 @@ def _html_boleto(
               </tr>
               <tr>
                 <td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">
-                  <span style="color:#64748b;font-size:13px;">Valor</span><br>
+                  <span style="color:#64748b;font-size:13px;">Valor do Boleto</span><br>
                   <span style="font-size:22px;font-weight:800;color:#1e40af;">
                     {_fmt_valor(valor)}
                   </span>
@@ -132,20 +151,16 @@ def _html_boleto(
             </table>
 
             <p style="margin:0 0 8px;color:#64748b;font-size:13px;">
-              O boleto em PDF está anexado a este email.<br>
-              Em caso de dúvidas, entre em contato conosco.
+              O boleto em PDF e o XML da nota fiscal estão anexados a este email.<br>
+              <strong>Por gentileza, confirmar o recebimento deste e-mail.</strong>
             </p>
           </td>
         </tr>
 
-        <!-- Rodapé -->
+        <!-- Assinatura -->
         <tr>
-          <td style="background:#f8fafc;padding:24px 40px;text-align:center;
-                     border-top:1px solid #e2e8f0;">
-            <p style="margin:0;color:#94a3b8;font-size:12px;">
-              CMPort — Sistema de Gestão de Condomínios<br>
-              Este é um email automático, por favor não responda diretamente.
-            </p>
+          <td style="background:#f8fafc;padding:28px 40px;border-top:1px solid #e2e8f0;">
+            {assinatura_bloco}
           </td>
         </tr>
 
