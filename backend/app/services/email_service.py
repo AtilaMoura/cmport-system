@@ -10,6 +10,27 @@ from datetime import date
 from app.core.config import settings
 
 
+def gerar_html_boleto(
+    nome_condominio: str,
+    numero_nota: str,
+    valor: float,
+    vencimento,
+    numero_parcela: int = 1,
+    total_parcelas: int = 1,
+    linha_digitavel: Optional[str] = None,
+) -> str:
+    """Gera e retorna o HTML do email de boleto (usado no preview)."""
+    return _html_boleto(
+        nome_condominio=nome_condominio,
+        numero_nota=numero_nota,
+        valor=valor,
+        vencimento=vencimento,
+        numero_parcela=numero_parcela,
+        total_parcelas=total_parcelas,
+        linha_digitavel=linha_digitavel,
+    )
+
+
 def _fmt_valor(valor: float) -> str:
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 

@@ -1060,6 +1060,46 @@ class BoletoService:
         return BoletoStats(**data)
 
     @staticmethod
+    def preview_email_boleto(db: Session, boleto_id: int) -> str:
+        """Retorna o HTML do email que seria enviado para o boleto (para preview no frontend)."""
+        from app.services.email_service import gerar_html_boleto
+
+        boleto = BoletoRepository.get_by_id(db, boleto_id)
+        if not boleto:
+            raise Exception("Boleto não encontrado.")
+
+        nota = NotaFiscalRepository.get_by_id(db, boleto.nota_fiscal_id)
+        if not nota:
+            raise Exception("Nota fiscal não encontrada.")
+
+        condominio = nota.condominio
+        nome_condominio = (
+            (condominio.razao_social or condominio.nome) if condominio else "Condomínio"
+        )
+
+        # Tenta obter linha digitável do Inter (sem lançar erro se falhar)
+        linha_digitavel = None
+        if boleto.codigo_solicitacao:
+            try:
+                detalhe = inter_client.consultar_boleto(boleto.codigo_solicitacao)
+                linha_digitavel = (
+                    detalhe.get("linhaDigitavel")
+                    or detalhe.get("cobranca", {}).get("linhaDigitavel")
+                )
+            except Exception:
+                pass
+
+        return gerar_html_boleto(
+            nome_condominio=nome_condominio,
+            numero_nota=nota.numero_nota or str(nota.id),
+            valor=boleto.valor_nominal,
+            vencimento=boleto.data_vencimento,
+            numero_parcela=boleto.numero_parcela,
+            total_parcelas=boleto.total_parcelas,
+            linha_digitavel=linha_digitavel,
+        )
+
+    @staticmethod
     def enviar_email_boleto(db: Session, boleto_id: int, destinatarios: List[str]) -> dict:
         """
         Baixa o PDF do boleto no Inter, busca o XML da nota e envia por email

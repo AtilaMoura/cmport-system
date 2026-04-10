@@ -166,6 +166,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
   // Checkbox "enviar email automaticamente ao gerar boleto"
   const [autoEnviarEmail, setAutoEnviarEmail] = useState(false);
+  // Preview do email
+  const [previewEmailHtml, setPreviewEmailHtml] = useState<string | null>(null);
+  const [carregandoPreview, setCarregandoPreview] = useState(false);
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
 
   // Form
@@ -726,6 +729,19 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       } catch {
         setEmailContatos([]);
       }
+    }
+  };
+
+  const abrirPreviewEmail = async () => {
+    if (!modalEmail) return;
+    setCarregandoPreview(true);
+    try {
+      const res = await api.get(`/boletos/${modalEmail.id}/preview-email`);
+      setPreviewEmailHtml(res.data);
+    } catch {
+      alert('Erro ao carregar preview do email.');
+    } finally {
+      setCarregandoPreview(false);
     }
   };
 
@@ -2082,24 +2098,78 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               </>
             )}
 
-            <div className="flex gap-3 mt-2">
+            <div className="flex flex-col gap-2 mt-2">
+              {!emailEnviado && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={abrirPreviewEmail}
+                    disabled={carregandoPreview || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                    className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:brightness-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  >
+                    {carregandoPreview
+                      ? <><div className="w-3.5 h-3.5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" /> Carregando...</>
+                      : '👁️ Ver email'}
+                  </button>
+                  <button
+                    onClick={enviarEmail}
+                    disabled={enviandoEmail || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                    className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  >
+                    {enviandoEmail
+                      ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                      : `📧 Enviar direto (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
+                  </button>
+                </div>
+              )}
               <button
                 onClick={() => { setModalEmail(null); setEmailEnviado(null); }}
-                className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all"
+                className="w-full py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all text-sm"
               >
                 {emailEnviado ? 'Fechar' : 'Cancelar'}
               </button>
-              {!emailEnviado && (
-                <button
-                  onClick={enviarEmail}
-                  disabled={enviandoEmail || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {enviandoEmail
-                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
-                    : `📧 Enviar (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
-                </button>
-              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Preview do Email */}
+      {previewEmailHtml && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style={{maxHeight: '90vh'}}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 shrink-0">
+              <div>
+                <h2 className="text-base font-black text-slate-900 dark:text-white">👁️ Preview do Email</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Exatamente como o destinatário verá</p>
+              </div>
+              <button
+                onClick={() => setPreviewEmailHtml(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold"
+              >×</button>
+            </div>
+            <div className="flex-1 overflow-hidden rounded-b-xl">
+              <iframe
+                srcDoc={previewEmailHtml}
+                className="w-full h-full border-0"
+                style={{minHeight: '480px'}}
+                title="Preview do email"
+                sandbox="allow-same-origin"
+              />
+            </div>
+            <div className="flex gap-3 p-4 border-t border-slate-200 dark:border-slate-700 shrink-0">
+              <button
+                onClick={() => setPreviewEmailHtml(null)}
+                className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm transition-all"
+              >
+                ← Voltar
+              </button>
+              <button
+                onClick={() => { setPreviewEmailHtml(null); enviarEmail(); }}
+                disabled={enviandoEmail}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+              >
+                {enviandoEmail
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                  : '📧 Enviar agora'}
+              </button>
             </div>
           </div>
         </div>

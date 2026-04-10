@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.responses import Response, HTMLResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
@@ -152,6 +152,16 @@ def cancelar_boleto(codigo: str, db: Session = Depends(get_db)):
     """Cancela um boleto no Inter e atualiza o status no banco."""
     try:
         return BoletoService.cancelar_boleto(db, codigo)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{boleto_id}/preview-email", response_class=HTMLResponse)
+def preview_email_boleto(boleto_id: int, db: Session = Depends(get_db)):
+    """Retorna o HTML do email que seria enviado para o boleto (para preview)."""
+    try:
+        html = BoletoService.preview_email_boleto(db, boleto_id)
+        return HTMLResponse(content=html)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
