@@ -9,6 +9,7 @@ class ContatoBase(BaseModel):
     email: Optional[EmailStr] = Field(None)
     funcao: Optional[str] = Field(None, max_length=100)
     principal: bool = False
+    receber_boleto: bool = True
 
     @validator("email", pre=True)
     def empty_string_to_none(cls, v):
@@ -27,6 +28,7 @@ class ContatoUpdate(BaseModel):
     email: Optional[EmailStr] = None
     funcao: Optional[str] = Field(None, max_length=100)
     principal: Optional[bool] = None
+    receber_boleto: Optional[bool] = None
 
 
 class ContatoResponse(ContatoBase):

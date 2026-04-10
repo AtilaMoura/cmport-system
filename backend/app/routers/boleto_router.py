@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
 
 from app.core.database import SessionLocal
 from app.services.boleto_service import BoletoService
@@ -152,6 +152,19 @@ def cancelar_boleto(codigo: str, db: Session = Depends(get_db)):
     """Cancela um boleto no Inter e atualiza o status no banco."""
     try:
         return BoletoService.cancelar_boleto(db, codigo)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{boleto_id}/enviar-email", response_model=Dict[str, Any])
+def enviar_email_boleto(
+    boleto_id: int,
+    destinatarios: List[str] = Body(..., embed=True),
+    db: Session = Depends(get_db),
+):
+    """Envia o PDF do boleto por email para a lista de destinatários informada."""
+    try:
+        return BoletoService.enviar_email_boleto(db, boleto_id, destinatarios)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

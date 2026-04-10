@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     # JWT
     SECRET_KEY: str = "cmport-secret-dev-key-troque-em-producao"
 
+    # Email (Outlook SMTP)
+    OUTLOOK_EMAIL: Optional[str] = None
+    OUTLOOK_PASSWORD: Optional[str] = None
+    EMAIL_FROM_NAME: str = "CMPort"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True

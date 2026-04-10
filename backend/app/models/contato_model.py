@@ -17,6 +17,7 @@ class Contato(Base):
     funcao = Column(String(100), nullable=True)
 
     principal = Column(Boolean, default=False)
+    receber_boleto = Column(Boolean, default=True, nullable=False)
 
     criado_em = Column(DateTime, default=datetime.utcnow)
     atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

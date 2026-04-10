@@ -40,6 +40,13 @@ interface Condominio {
   cnpj: string;
 }
 
+interface ContatoEmail {
+  id: number;
+  nome: string;
+  email: string;
+  receber_boleto: boolean;
+}
+
 interface NotaFiscal {
   id: number;
   numero_nota: string;
@@ -149,6 +156,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [deletandoBoletoId, setDeletandoBoletoId] = useState<number | null>(null);
   const [cancelandoBoletoId, setCancelandoBoletoId] = useState<number | null>(null);
   const [baixandoPdf, setBaixandoPdf] = useState<string | null>(null);
+
+  // Modal envio de email
+  const [modalEmail, setModalEmail] = useState<Boleto | null>(null);
+  const [emailContatos, setEmailContatos] = useState<Array<{id: number; nome: string; email: string; receber_boleto: boolean; selecionado: boolean}>>([]);
+  const [emailAvulso, setEmailAvulso] = useState('');
+  const [emailsAvulsos, setEmailsAvulsos] = useState<string[]>([]);
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
+  // Checkbox "enviar email automaticamente ao gerar boleto"
+  const [autoEnviarEmail, setAutoEnviarEmail] = useState(false);
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
 
   // Form
@@ -552,6 +569,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         alert(`Erro ao gerar boleto parcela ${item.numero}:\n${resErros[0].erro}`);
         return;
       }
+      // Auto-envio de email após geração individual
+      if (autoEnviarEmail) {
+        const gerados: { id: number }[] = res.data?.sucesso ?? [];
+        for (const b of gerados) {
+          await autoEnviarParaContatos(b.id);
+        }
+      }
       await carregarDados();
       setInterParcelasItens(prev => prev.map(p =>
         p.numero === item.numero ? { ...p, situacaoBoleto: 'EMABERTO' } : p
@@ -600,6 +624,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         if (resErros.length > 0) {
           alert(`Erro ao gerar boleto parcela ${item.numero}:\n${resErros[0].erro}`);
           break;
+        }
+        // Auto-envio de email após cada parcela gerada
+        if (autoEnviarEmail) {
+          const gerados: { id: number }[] = res.data?.sucesso ?? [];
+          for (const b of gerados) {
+            await autoEnviarParaContatos(b.id);
+          }
         }
       }
       setModalInter(false);
@@ -676,6 +707,69 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       alert('Erro ao visualizar PDF do boleto.');
     } finally {
       setBaixandoPdf(null);
+    }
+  };
+
+  const abrirModalEmail = async (boleto: Boleto) => {
+    setEmailEnviado(null);
+    setEmailsAvulsos([]);
+    setEmailAvulso('');
+    setModalEmail(boleto);
+    // Busca contatos do condomínio com campo receber_boleto
+    if (condominio) {
+      try {
+        const { data } = await api.get(`/contatos/condominio/${condominio.id}`);
+        const contatos = (data as ContatoEmail[])
+          .filter(c => c.email)
+          .map(c => ({ ...c, selecionado: c.receber_boleto ?? true }));
+        setEmailContatos(contatos);
+      } catch {
+        setEmailContatos([]);
+      }
+    }
+  };
+
+  const adicionarEmailAvulso = () => {
+    const email = emailAvulso.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (emailsAvulsos.includes(email)) return;
+    setEmailsAvulsos(prev => [...prev, email]);
+    setEmailAvulso('');
+  };
+
+  const enviarEmail = async () => {
+    if (!modalEmail) return;
+    const destinatarios = [
+      ...emailContatos.filter(c => c.selecionado).map(c => c.email),
+      ...emailsAvulsos,
+    ];
+    if (destinatarios.length === 0) {
+      alert('Selecione pelo menos um destinatário.');
+      return;
+    }
+    setEnviandoEmail(true);
+    try {
+      await api.post(`/boletos/${modalEmail.id}/enviar-email`, { destinatarios });
+      setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
+    } catch {
+      alert('Erro ao enviar email. Verifique as configurações de SMTP.');
+    } finally {
+      setEnviandoEmail(false);
+    }
+  };
+
+  const autoEnviarParaContatos = async (boletoId: number) => {
+    if (!condominio) return;
+    try {
+      const { data } = await api.get(`/contatos/condominio/${condominio.id}`);
+      const destinatarios = (data as ContatoEmail[])
+        .filter(c => c.email && (c.receber_boleto ?? true))
+        .map(c => c.email);
+      if (destinatarios.length === 0) return;
+      await api.post(`/boletos/${boletoId}/enviar-email`, { destinatarios });
+    } catch {
+      // Falha silenciosa no auto-envio — o boleto já foi gerado com sucesso
+      console.warn('[auto-email] falha ao enviar email automaticamente');
     }
   };
 
@@ -1106,6 +1200,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                       title="Baixar PDF"
                                     >
                                       ⬇️
+                                    </button>
+                                    <button
+                                      onClick={() => abrirModalEmail(boleto)}
+                                      className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg hover:brightness-110 transition-all"
+                                      title="Enviar por Email"
+                                    >
+                                      📧 Enviar
                                     </button>
                                   </>
                                 )}
@@ -1812,6 +1913,18 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
             <div className="sticky bottom-0 bg-white dark:bg-slate-900 px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex gap-3 rounded-b-2xl">
               {interEtapa === 1 && (
                 <>
+                  {/* Checkbox auto-envio de email */}
+                  <label className="flex items-center gap-2 cursor-pointer select-none w-full">
+                    <input
+                      type="checkbox"
+                      checked={autoEnviarEmail}
+                      onChange={e => setAutoEnviarEmail(e.target.checked)}
+                      className="w-4 h-4 rounded accent-blue-600"
+                    />
+                    <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                      📧 Enviar email automaticamente ao gerar
+                    </span>
+                  </label>
                   <button onClick={() => setModalInter(false)}
                     className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all">
                     Cancelar
@@ -1890,6 +2003,103 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                 {pagoSaving ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</> : '✅ Confirmar'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Enviar Email */}
+      {modalEmail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-black text-slate-900 dark:text-white mb-1">📧 Enviar Boleto por Email</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
+              Boleto #{notaFiscal?.numero_nota} · Parcela {modalEmail.numero_parcela}/{modalEmail.total_parcelas} ·{' '}
+              R$ {modalEmail.valor_nominal.toFixed(2).replace('.', ',')}
+            </p>
+
+            {emailEnviado ? (
+              <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-700 rounded-xl p-4 mb-5 text-center">
+                <p className="text-green-700 dark:text-green-400 font-bold text-sm">✅ {emailEnviado}</p>
+              </div>
+            ) : (
+              <>
+                {/* Contatos do condomínio */}
+                {emailContatos.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-black text-slate-400 uppercase mb-2">Contatos do Condomínio</p>
+                    <div className="space-y-2">
+                      {emailContatos.map((c, i) => (
+                        <label key={c.id} className="flex items-center gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={c.selecionado}
+                            onChange={() => {
+                              setEmailContatos(prev => prev.map((x, idx) => idx === i ? { ...x, selecionado: !x.selecionado } : x));
+                            }}
+                            className="w-4 h-4 rounded accent-blue-600"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{c.nome}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{c.email}</p>
+                          </div>
+                          {c.receber_boleto && (
+                            <span className="ml-auto text-xs text-blue-600 dark:text-blue-400 font-bold shrink-0">padrão</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Emails avulsos */}
+                <div className="mb-4">
+                  <p className="text-xs font-black text-slate-400 uppercase mb-2">Adicionar Email Avulso</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={emailAvulso}
+                      onChange={e => setEmailAvulso(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), adicionarEmailAvulso())}
+                      placeholder="outro@email.com"
+                      className="flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={adicionarEmailAvulso}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:brightness-110"
+                    >+</button>
+                  </div>
+                  {emailsAvulsos.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {emailsAvulsos.map(e => (
+                        <span key={e} className="flex items-center gap-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs px-2.5 py-1 rounded-full font-medium">
+                          {e}
+                          <button onClick={() => setEmailsAvulsos(prev => prev.filter(x => x !== e))} className="hover:text-red-500 font-black">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-3 mt-2">
+              <button
+                onClick={() => { setModalEmail(null); setEmailEnviado(null); }}
+                className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all"
+              >
+                {emailEnviado ? 'Fechar' : 'Cancelar'}
+              </button>
+              {!emailEnviado && (
+                <button
+                  onClick={enviarEmail}
+                  disabled={enviandoEmail || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {enviandoEmail
+                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                    : `📧 Enviar (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
+                </button>
+              )}
             </div>
           </div>
         </div>

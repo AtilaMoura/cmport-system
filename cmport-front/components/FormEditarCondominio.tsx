@@ -19,7 +19,7 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
 
   // Funções para manipular Contatos
   const addContato = () => {
-    const novo = { nome: '', telefone: '', email: '', funcao: 'Outro', principal: false };
+    const novo = { nome: '', telefone: '', email: '', funcao: 'Outro', principal: false, receber_boleto: true };
     setFormData({ ...formData, contatos: [...formData.contatos, novo] });
   };
 
@@ -28,9 +28,11 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
     setFormData({ ...formData, contatos: novos });
   };
 
-  const updateContato = (index: number, field: string, value: string) => {
+  const updateContato = (index: number, field: string, value: string | boolean) => {
     const novos = [...formData.contatos];
-    novos[index] = { ...novos[index], [field]: value };
+    // Converte string "true"/"false" para boolean quando necessário
+    const parsed = value === 'true' ? true : value === 'false' ? false : value;
+    novos[index] = { ...novos[index], [field]: parsed };
     setFormData({ ...formData, contatos: novos });
   };
 
@@ -177,7 +179,7 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase">Nome</label>
-                  <input 
+                  <input
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
                     value={contato.nome}
                     onChange={(e) => updateContato(index, 'nome', e.target.value)}
@@ -185,7 +187,7 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase">Função</label>
-                  <select 
+                  <select
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
                     value={contato.funcao}
                     onChange={(e) => updateContato(index, 'funcao', e.target.value)}
@@ -198,7 +200,7 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase">Telefone</label>
-                  <input 
+                  <input
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
                     value={contato.telefone}
                     onChange={(e) => updateContato(index, 'telefone', e.target.value)}
@@ -206,12 +208,29 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase">E-mail</label>
-                  <input 
+                  <input
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
                     value={contato.email}
                     onChange={(e) => updateContato(index, 'email', e.target.value)}
                   />
                 </div>
+              </div>
+              {/* Toggle receber boleto */}
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => updateContato(index, 'receber_boleto', String(!(contato.receber_boleto ?? true)))}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    (contato.receber_boleto ?? true) ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
+                  }`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                    (contato.receber_boleto ?? true) ? 'translate-x-4' : 'translate-x-0.5'
+                  }`} />
+                </button>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  📧 Recebe boleto por email
+                </span>
               </div>
             </div>
           ))}

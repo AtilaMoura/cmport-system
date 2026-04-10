@@ -1058,3 +1058,64 @@ class BoletoService:
     def get_stats(db: Session) -> BoletoStats:
         data = BoletoRepository.get_stats(db)
         return BoletoStats(**data)
+
+    @staticmethod
+    def enviar_email_boleto(db: Session, boleto_id: int, destinatarios: List[str]) -> dict:
+        """
+        Baixa o PDF do boleto no Inter, busca o XML da nota e envia por email
+        para a lista de destinatários informada.
+        """
+        from app.services.email_service import EmailService
+
+        boleto = BoletoRepository.get_by_id(db, boleto_id)
+        if not boleto:
+            raise Exception("Boleto não encontrado.")
+        if not boleto.codigo_solicitacao:
+            raise Exception("Este boleto não possui código Inter para download de PDF.")
+
+        nota = NotaFiscalRepository.get_by_id(db, boleto.nota_fiscal_id)
+        if not nota:
+            raise Exception("Nota fiscal não encontrada.")
+
+        condominio = nota.condominio
+        nome_condominio = (
+            (condominio.razao_social or condominio.nome) if condominio else "Condomínio"
+        )
+
+        # Baixa PDF do boleto via Inter
+        pdf_bytes = inter_client.baixar_pdf(boleto.codigo_solicitacao)
+
+        # Tenta obter linha digitável consultando o Inter
+        linha_digitavel = None
+        try:
+            detalhe = inter_client.consultar_boleto(boleto.codigo_solicitacao)
+            linha_digitavel = (
+                detalhe.get("linhaDigitavel")
+                or detalhe.get("cobranca", {}).get("linhaDigitavel")
+            )
+        except Exception:
+            pass
+
+        # XML da nota como anexo (se disponível)
+        xml_bytes = None
+        xml_filename = None
+        if nota.xml_original:
+            xml_bytes = nota.xml_original.encode("utf-8") if isinstance(nota.xml_original, str) else nota.xml_original
+            xml_filename = f"nota_{nota.numero_nota or nota.id}.xml"
+
+        EmailService.enviar_boleto(
+            destinatarios=destinatarios,
+            boleto_pdf=pdf_bytes,
+            codigo_boleto=boleto.codigo_solicitacao,
+            numero_nota=nota.numero_nota or str(nota.id),
+            nome_condominio=nome_condominio,
+            valor=boleto.valor_nominal,
+            vencimento=boleto.data_vencimento,
+            numero_parcela=boleto.numero_parcela,
+            total_parcelas=boleto.total_parcelas,
+            linha_digitavel=linha_digitavel,
+            xml_bytes=xml_bytes,
+            xml_filename=xml_filename,
+        )
+
+        return {"enviado": True, "destinatarios": destinatarios, "boleto_id": boleto_id}
