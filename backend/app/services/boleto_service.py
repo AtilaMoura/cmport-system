@@ -1100,10 +1100,18 @@ class BoletoService:
         )
 
     @staticmethod
-    def enviar_email_boleto(db: Session, boleto_id: int, destinatarios: List[str]) -> dict:
+    def enviar_email_boleto(
+        db: Session,
+        boleto_id: int,
+        destinatarios: List[str],
+        assunto_override: str = None,
+        corpo_html_override: str = None,
+        anexos_extras: list = None,
+    ) -> dict:
         """
         Baixa o PDF do boleto no Inter, busca o XML da nota e envia por email
         para a lista de destinatários informada.
+        Aceita assunto/corpo customizados e anexos extras (filename, bytes, content_type).
         """
         from app.services.email_service import EmailService
 
@@ -1156,6 +1164,9 @@ class BoletoService:
             linha_digitavel=linha_digitavel,
             xml_bytes=xml_bytes,
             xml_filename=xml_filename,
+            assunto_override=assunto_override,
+            corpo_html_override=corpo_html_override,
+            anexos_extras=anexos_extras or [],
         )
 
         return {"enviado": True, "destinatarios": destinatarios, "boleto_id": boleto_id}

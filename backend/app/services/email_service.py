@@ -186,10 +186,14 @@ class EmailService:
         linha_digitavel: Optional[str] = None,
         xml_bytes: Optional[bytes] = None,
         xml_filename: Optional[str] = None,
+        assunto_override: Optional[str] = None,
+        corpo_html_override: Optional[str] = None,
+        anexos_extras: Optional[List[tuple]] = None,
     ) -> None:
         """
         Envia email com boleto em PDF + XML da nota para a lista de destinatários.
         Usa Outlook SMTP (smtp.office365.com:587 com STARTTLS).
+        anexos_extras: lista de (filename, bytes, content_type)
         """
         if not settings.OUTLOOK_EMAIL or not settings.OUTLOOK_PASSWORD:
             raise Exception("Configurações de email não definidas (OUTLOOK_EMAIL / OUTLOOK_PASSWORD).")
@@ -197,15 +201,15 @@ class EmailService:
         if not destinatarios:
             raise Exception("Nenhum destinatário informado.")
 
-        assunto = f"Boleto #{numero_nota} — {nome_condominio} — Venc. {_fmt_data(vencimento)}"
+        assunto = assunto_override or f"Boleto #{numero_nota} — {nome_condominio} — Venc. {_fmt_data(vencimento)}"
 
         msg = MIMEMultipart("mixed")
         msg["From"] = f"{settings.EMAIL_FROM_NAME} <{settings.OUTLOOK_EMAIL}>"
         msg["To"] = ", ".join(destinatarios)
         msg["Subject"] = assunto
 
-        # Corpo HTML
-        html = _html_boleto(
+        # Corpo HTML (customizado ou gerado automaticamente)
+        html = corpo_html_override or _html_boleto(
             nome_condominio=nome_condominio,
             numero_nota=numero_nota,
             valor=valor,
@@ -238,6 +242,15 @@ class EmailService:
                 filename=xml_filename,
             )
             msg.attach(xml_part)
+
+        # Anexos extras enviados pelo usuário
+        for (filename, conteudo, content_type) in (anexos_extras or []):
+            tipo_principal, subtipo = (content_type or "application/octet-stream").split("/", 1)
+            parte = MIMEBase(tipo_principal, subtipo)
+            parte.set_payload(conteudo)
+            encoders.encode_base64(parte)
+            parte.add_header("Content-Disposition", "attachment", filename=filename)
+            msg.attach(parte)
 
         # Envio via Outlook SMTP com STARTTLS
         context = ssl.create_default_context()

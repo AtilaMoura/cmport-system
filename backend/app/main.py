@@ -1,5 +1,6 @@
 import sys
 import io
+from contextlib import asynccontextmanager
 
 # Força UTF-8 no stdout/stderr (necessário no Windows com cp1252)
 if hasattr(sys.stdout, 'buffer'):
@@ -9,6 +10,7 @@ if hasattr(sys.stderr, 'buffer'):
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.core.database import engine, Base
 from app.core.dependencies import get_current_user
@@ -97,6 +99,40 @@ def _seed_usuarios():
 _seed_configuracao_impostos()
 _seed_usuarios()
 
+
+# ── Sincronização automática de boletos ──────────────────────────────────────
+
+def _sincronizar_boletos_auto():
+    """Consulta o Inter e atualiza status dos boletos em aberto (EMABERTO/VENCIDO)."""
+    from app.core.database import SessionLocal
+    from app.services.boleto_service import BoletoService
+    db = SessionLocal()
+    try:
+        resultado = BoletoService.sincronizar_status(db)
+        print(f"[AutoSync] Boletos sincronizados: atualizados={resultado.atualizados} erros={len(resultado.erros)}")
+    except Exception as e:
+        print(f"[AutoSync] Erro na sincronização automática: {e}")
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(app):
+    scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
+    # Executa de 1 em 1 hora das 8h às 19h (8,9,10,11,12,13,14,15,16,17,18,19)
+    scheduler.add_job(
+        _sincronizar_boletos_auto,
+        trigger="cron",
+        hour="8-19",
+        minute=0,
+    )
+    scheduler.start()
+    print("[AutoSync] Scheduler iniciado — sincronização a cada hora das 8h às 19h (Brasília)")
+    yield
+    scheduler.shutdown()
+    print("[AutoSync] Scheduler encerrado")
+
+
 # ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
@@ -106,6 +142,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     redirect_slashes=False,
+    lifespan=lifespan,
 )
 
 app.add_middleware(

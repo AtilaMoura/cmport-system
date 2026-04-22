@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Form, File, UploadFile
 from fastapi.responses import Response, HTMLResponse
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+import json
 
 from app.core.database import SessionLocal
 from app.services.boleto_service import BoletoService
@@ -167,14 +168,24 @@ def preview_email_boleto(boleto_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{boleto_id}/enviar-email", response_model=Dict[str, Any])
-def enviar_email_boleto(
+async def enviar_email_boleto(
     boleto_id: int,
-    destinatarios: List[str] = Body(..., embed=True),
+    destinatarios: str = Form(...),
+    assunto: Optional[str] = Form(None),
+    corpo_html: Optional[str] = Form(None),
+    arquivos: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
-    """Envia o PDF do boleto por email para a lista de destinatários informada."""
+    """Envia o PDF do boleto por email. Aceita assunto/corpo customizados e anexos extras."""
     try:
-        return BoletoService.enviar_email_boleto(db, boleto_id, destinatarios)
+        lista_dest = json.loads(destinatarios)
+        anexos_extras = []
+        for arq in arquivos:
+            conteudo = await arq.read()
+            anexos_extras.append((arq.filename, conteudo, arq.content_type or "application/octet-stream"))
+        return BoletoService.enviar_email_boleto(
+            db, boleto_id, lista_dest, assunto, corpo_html, anexos_extras
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

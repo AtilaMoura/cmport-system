@@ -166,9 +166,14 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
   // Checkbox "enviar email automaticamente ao gerar boleto"
   const [autoEnviarEmail, setAutoEnviarEmail] = useState(false);
-  // Preview do email
-  const [previewEmailHtml, setPreviewEmailHtml] = useState<string | null>(null);
-  const [carregandoPreview, setCarregandoPreview] = useState(false);
+  // Composer (Ver email)
+  const [composerAberto, setComposerAberto] = useState(false);
+  const [composerAssunto, setComposerAssunto] = useState('');
+  const [composerCorpoHtml, setComposerCorpoHtml] = useState('');
+  const [composerAba, setComposerAba] = useState<'preview' | 'editar'>('preview');
+  const [composerAnexos, setComposerAnexos] = useState<File[]>([]);
+  const [composerEnviando, setComposerEnviando] = useState(false);
+  const [composerCarregando, setComposerCarregando] = useState(false);
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
 
   // Form
@@ -732,17 +737,29 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
   };
 
-  const abrirPreviewEmail = async () => {
+  const abrirComposer = async () => {
     if (!modalEmail) return;
-    setCarregandoPreview(true);
+    setComposerCarregando(true);
     try {
       const res = await api.get(`/boletos/${modalEmail.id}/preview-email`);
-      setPreviewEmailHtml(res.data);
+      const assuntoPadrao = `Boleto #${notaFiscal?.numero_nota ?? ''} — ${condominio?.nome ?? ''} — Venc. ${modalEmail.data_vencimento ? pd(modalEmail.data_vencimento) : ''}`;
+      setComposerCorpoHtml(res.data);
+      setComposerAssunto(assuntoPadrao);
+      setComposerAba('preview');
+      setComposerAnexos([]);
+      setComposerAberto(true);
     } catch {
-      alert('Erro ao carregar preview do email.');
+      alert('Erro ao carregar o email.');
     } finally {
-      setCarregandoPreview(false);
+      setComposerCarregando(false);
     }
+  };
+
+  const fecharComposer = () => {
+    setComposerAberto(false);
+    setComposerCorpoHtml('');
+    setComposerAssunto('');
+    setComposerAnexos([]);
   };
 
   const adicionarEmailAvulso = () => {
@@ -751,6 +768,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     if (emailsAvulsos.includes(email)) return;
     setEmailsAvulsos(prev => [...prev, email]);
     setEmailAvulso('');
+  };
+
+  const _buildFormData = (boleto: Boleto, destinatarios: string[], assunto?: string, corpoHtml?: string, anexos?: File[]) => {
+    const fd = new FormData();
+    fd.append('destinatarios', JSON.stringify(destinatarios));
+    if (assunto) fd.append('assunto', assunto);
+    if (corpoHtml) fd.append('corpo_html', corpoHtml);
+    for (const arq of (anexos ?? [])) fd.append('arquivos', arq);
+    return fd;
   };
 
   const enviarEmail = async () => {
@@ -765,12 +791,36 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
     setEnviandoEmail(true);
     try {
-      await api.post(`/boletos/${modalEmail.id}/enviar-email`, { destinatarios });
+      const fd = _buildFormData(modalEmail, destinatarios);
+      await api.post(`/boletos/${modalEmail.id}/enviar-email`, fd);
       setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
     } catch {
       alert('Erro ao enviar email. Verifique as configurações de SMTP.');
     } finally {
       setEnviandoEmail(false);
+    }
+  };
+
+  const enviarDoComposer = async () => {
+    if (!modalEmail) return;
+    const destinatarios = [
+      ...emailContatos.filter(c => c.selecionado).map(c => c.email),
+      ...emailsAvulsos,
+    ];
+    if (destinatarios.length === 0) {
+      alert('Selecione pelo menos um destinatário.');
+      return;
+    }
+    setComposerEnviando(true);
+    try {
+      const fd = _buildFormData(modalEmail, destinatarios, composerAssunto, composerCorpoHtml, composerAnexos);
+      await api.post(`/boletos/${modalEmail.id}/enviar-email`, fd);
+      fecharComposer();
+      setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
+    } catch {
+      alert('Erro ao enviar email. Verifique as configurações de SMTP.');
+    } finally {
+      setComposerEnviando(false);
     }
   };
 
@@ -782,9 +832,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         .filter(c => c.email && (c.receber_boleto ?? true))
         .map(c => c.email);
       if (destinatarios.length === 0) return;
-      await api.post(`/boletos/${boletoId}/enviar-email`, { destinatarios });
+      const fd = new FormData();
+      fd.append('destinatarios', JSON.stringify(destinatarios));
+      await api.post(`/boletos/${boletoId}/enviar-email`, fd);
     } catch {
-      // Falha silenciosa no auto-envio — o boleto já foi gerado com sucesso
       console.warn('[auto-email] falha ao enviar email automaticamente');
     }
   };
@@ -2102,13 +2153,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               {!emailEnviado && (
                 <div className="flex gap-2">
                   <button
-                    onClick={abrirPreviewEmail}
-                    disabled={carregandoPreview || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                    onClick={abrirComposer}
+                    disabled={composerCarregando || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
                     className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:brightness-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                   >
-                    {carregandoPreview
+                    {composerCarregando
                       ? <><div className="w-3.5 h-3.5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" /> Carregando...</>
-                      : '👁️ Ver email'}
+                      : '✏️ Ver / Editar email'}
                   </button>
                   <button
                     onClick={enviarEmail}
@@ -2131,44 +2182,151 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
       )}
-      {/* Modal Preview do Email */}
-      {previewEmailHtml && (
+      {/* Composer de Email */}
+      {composerAberto && modalEmail && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style={{maxHeight: '90vh'}}>
-            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 shrink-0">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col" style={{maxHeight: '92vh'}}>
+
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
               <div>
-                <h2 className="text-base font-black text-slate-900 dark:text-white">👁️ Preview do Email</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Exatamente como o destinatário verá</p>
+                <h2 className="text-base font-black text-slate-900 dark:text-white">✏️ Compor Email</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Boleto #{notaFiscal?.numero_nota} · Parcela {modalEmail.numero_parcela}/{modalEmail.total_parcelas} · {fmt(modalEmail.valor_nominal)}
+                </p>
               </div>
-              <button
-                onClick={() => setPreviewEmailHtml(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold"
-              >×</button>
+              <button onClick={fecharComposer} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold">×</button>
             </div>
-            <div className="flex-1 overflow-hidden rounded-b-xl">
-              <iframe
-                srcDoc={previewEmailHtml}
-                className="w-full h-full border-0"
-                style={{minHeight: '480px'}}
-                title="Preview do email"
-                sandbox="allow-same-origin"
-              />
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
+
+              {/* Para */}
+              <div>
+                <p className="text-xs font-black text-slate-400 uppercase mb-2">Para</p>
+                <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 min-h-[42px]">
+                  {emailContatos.filter(c => c.selecionado).map(c => (
+                    <span key={c.id} className="flex items-center gap-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs px-2.5 py-1 rounded-full font-medium">
+                      {c.nome} &lt;{c.email}&gt;
+                      <button onClick={() => setEmailContatos(prev => prev.map(x => x.id === c.id ? {...x, selecionado: false} : x))} className="hover:text-red-500 font-black ml-0.5">×</button>
+                    </span>
+                  ))}
+                  {emailsAvulsos.map(e => (
+                    <span key={e} className="flex items-center gap-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs px-2.5 py-1 rounded-full font-medium">
+                      {e}
+                      <button onClick={() => setEmailsAvulsos(prev => prev.filter(x => x !== e))} className="hover:text-red-500 font-black ml-0.5">×</button>
+                    </span>
+                  ))}
+                  {(emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0 && (
+                    <span className="text-xs text-slate-400 italic">Nenhum destinatário selecionado</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Assunto */}
+              <div>
+                <p className="text-xs font-black text-slate-400 uppercase mb-2">Assunto</p>
+                <input
+                  type="text"
+                  value={composerAssunto}
+                  onChange={e => setComposerAssunto(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              {/* Corpo */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-black text-slate-400 uppercase">Corpo</p>
+                  <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                    <button
+                      onClick={() => setComposerAba('preview')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${composerAba === 'preview' ? 'bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-white' : 'text-slate-500'}`}
+                    >Preview</button>
+                    <button
+                      onClick={() => setComposerAba('editar')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${composerAba === 'editar' ? 'bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-white' : 'text-slate-500'}`}
+                    >Editar HTML</button>
+                  </div>
+                </div>
+                {composerAba === 'preview' ? (
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <iframe
+                      srcDoc={composerCorpoHtml}
+                      className="w-full border-0"
+                      style={{height: '320px'}}
+                      title="Preview do email"
+                      sandbox="allow-same-origin"
+                    />
+                  </div>
+                ) : (
+                  <textarea
+                    value={composerCorpoHtml}
+                    onChange={e => setComposerCorpoHtml(e.target.value)}
+                    className="w-full h-64 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
+                    spellCheck={false}
+                  />
+                )}
+              </div>
+
+              {/* Anexos */}
+              <div>
+                <p className="text-xs font-black text-slate-400 uppercase mb-2">Anexos</p>
+                <div className="space-y-2">
+                  {/* Automáticos */}
+                  <div className="flex flex-wrap gap-2">
+                    <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
+                      📄 boleto_{modalEmail.codigo_solicitacao}.pdf <span className="text-slate-400 dark:text-slate-500">(automático)</span>
+                    </span>
+                    {notaFiscal?.numero_nota && (
+                      <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
+                        📋 nota_{notaFiscal.numero_nota}.xml <span className="text-slate-400 dark:text-slate-500">(automático)</span>
+                      </span>
+                    )}
+                  </div>
+                  {/* Extras adicionados */}
+                  {composerAnexos.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {composerAnexos.map((f, i) => (
+                        <span key={i} className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-xs px-3 py-1.5 rounded-lg font-medium">
+                          📎 {f.name}
+                          <button onClick={() => setComposerAnexos(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-red-500 font-black ml-0.5">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {/* Upload */}
+                  <label className="flex items-center gap-2 cursor-pointer w-fit px-3 py-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors">
+                    <span>＋ Adicionar anexo</span>
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={e => {
+                        if (e.target.files) setComposerAnexos(prev => [...prev, ...Array.from(e.target.files!)]);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-3 p-4 border-t border-slate-200 dark:border-slate-700 shrink-0">
+
+            {/* Rodapé */}
+            <div className="flex gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 shrink-0">
               <button
-                onClick={() => setPreviewEmailHtml(null)}
+                onClick={fecharComposer}
                 className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm transition-all"
               >
                 ← Voltar
               </button>
               <button
-                onClick={() => { setPreviewEmailHtml(null); enviarEmail(); }}
-                disabled={enviandoEmail}
+                onClick={enviarDoComposer}
+                disabled={composerEnviando || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
                 className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
               >
-                {enviandoEmail
+                {composerEnviando
                   ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
-                  : '📧 Enviar agora'}
+                  : `📧 Enviar (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
               </button>
             </div>
           </div>
