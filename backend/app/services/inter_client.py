@@ -150,7 +150,7 @@ def listar_cobrancas(data_inicio: str, data_fim: str, situacao: str = "TODAS") -
         print(f"[Inter/listar] pagina={pagina} status={response.status_code}")
         print(f"[Inter/listar] chaves na resposta: {list(data.keys())}")
         itens = data.get("cobrancas", [])
-        total = data.get("total", 0)
+        total = data.get("totalElementos") or data.get("total", 0)
         print(f"[Inter/listar] total={total} itens_pagina={len(itens)}")
         if itens:
             print(f"[Inter/listar] primeiro item: {itens[0]}")
