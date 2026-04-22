@@ -1,0 +1,372 @@
+"use client"
+
+import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
+
+interface ContaEmail {
+  id: number;
+  nome: string;
+  email: string;
+  ativo: boolean;
+  criado_em: string;
+}
+
+interface Empresa {
+  nome: string;
+  email_from_name: string;
+  telefone: string | null;
+  site: string | null;
+}
+
+const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '' };
+
+export default function ConfiguracoesPage() {
+  // ── Email ──────────────────────────────────────────────────────────────────
+  const [contas, setContas] = useState<ContaEmail[]>([]);
+  const [loadingContas, setLoadingContas] = useState(true);
+  const [modalConta, setModalConta] = useState<'novo' | ContaEmail | null>(null);
+  const [contaForm, setContaForm] = useState({ nome: '', email: '', senha: '', ativo: false });
+  const [salvandoConta, setSalvandoConta] = useState(false);
+  const [testando, setTestando] = useState<number | null>(null);
+  const [testeResult, setTesteResult] = useState<Record<number, { ok: boolean; msg: string }>>({});
+  const [ativando, setAtivando] = useState<number | null>(null);
+  const [excluindo, setExcluindo] = useState<number | null>(null);
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+
+  // ── Empresa ────────────────────────────────────────────────────────────────
+  const [empresa, setEmpresa] = useState<Empresa>(EMPRESA_VAZIA);
+  const [loadingEmpresa, setLoadingEmpresa] = useState(true);
+  const [salvandoEmpresa, setSalvandoEmpresa] = useState(false);
+  const [empresaSalva, setEmpresaSalva] = useState(false);
+
+  // ── Carregar dados ─────────────────────────────────────────────────────────
+  const carregarContas = async () => {
+    try {
+      const { data } = await api.get('/configuracoes/emails');
+      setContas(data);
+    } catch { /* silencioso */ }
+    finally { setLoadingContas(false); }
+  };
+
+  const carregarEmpresa = async () => {
+    try {
+      const { data } = await api.get('/configuracoes/empresa');
+      setEmpresa({ ...data, telefone: data.telefone ?? '', site: data.site ?? '' });
+    } catch { /* silencioso */ }
+    finally { setLoadingEmpresa(false); }
+  };
+
+  useEffect(() => { carregarContas(); carregarEmpresa(); }, []);
+
+  // ── Conta Email ────────────────────────────────────────────────────────────
+  const abrirNovaConta = () => {
+    setContaForm({ nome: '', email: '', senha: '', ativo: false });
+    setMostrarSenha(false);
+    setModalConta('novo');
+  };
+
+  const abrirEditarConta = (c: ContaEmail) => {
+    setContaForm({ nome: c.nome, email: c.email, senha: '', ativo: c.ativo });
+    setMostrarSenha(false);
+    setModalConta(c);
+  };
+
+  const salvarConta = async () => {
+    if (!contaForm.nome || !contaForm.email) return;
+    if (modalConta === 'novo' && !contaForm.senha) { alert('Informe a senha.'); return; }
+    setSalvandoConta(true);
+    try {
+      if (modalConta === 'novo') {
+        await api.post('/configuracoes/emails', contaForm);
+      } else {
+        const payload: Record<string, unknown> = { nome: contaForm.nome, email: contaForm.email, ativo: contaForm.ativo };
+        if (contaForm.senha) payload.senha = contaForm.senha;
+        await api.put(`/configuracoes/emails/${(modalConta as ContaEmail).id}`, payload);
+      }
+      setModalConta(null);
+      await carregarContas();
+    } catch { alert('Erro ao salvar conta.'); }
+    finally { setSalvandoConta(false); }
+  };
+
+  const ativarConta = async (id: number) => {
+    setAtivando(id);
+    try {
+      await api.post(`/configuracoes/emails/${id}/ativar`);
+      await carregarContas();
+    } catch { alert('Erro ao ativar conta.'); }
+    finally { setAtivando(null); }
+  };
+
+  const excluirConta = async (id: number) => {
+    if (!confirm('Excluir esta conta de email?')) return;
+    setExcluindo(id);
+    try {
+      await api.delete(`/configuracoes/emails/${id}`);
+      await carregarContas();
+    } catch { alert('Erro ao excluir conta.'); }
+    finally { setExcluindo(null); }
+  };
+
+  const testarConta = async (id: number) => {
+    setTestando(id);
+    setTesteResult(prev => { const n = {...prev}; delete n[id]; return n; });
+    try {
+      const { data } = await api.post(`/configuracoes/emails/${id}/testar`);
+      setTesteResult(prev => ({ ...prev, [id]: { ok: data.ok, msg: data.mensagem } }));
+    } catch { setTesteResult(prev => ({ ...prev, [id]: { ok: false, msg: 'Erro ao testar.' } })); }
+    finally { setTestando(null); }
+  };
+
+  // ── Empresa ────────────────────────────────────────────────────────────────
+  const salvarEmpresa = async () => {
+    if (!empresa.nome) return;
+    setSalvandoEmpresa(true);
+    try {
+      await api.put('/configuracoes/empresa', {
+        ...empresa,
+        telefone: empresa.telefone || null,
+        site: empresa.site || null,
+      });
+      setEmpresaSalva(true);
+      setTimeout(() => setEmpresaSalva(false), 3000);
+    } catch { alert('Erro ao salvar dados da empresa.'); }
+    finally { setSalvandoEmpresa(false); }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-8 space-y-10">
+      <div>
+        <h1 className="text-2xl font-black text-slate-900 dark:text-white">Configurações</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Email para envio e dados da empresa</p>
+      </div>
+
+      {/* ── Contas de Email ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-black text-slate-800 dark:text-white">📧 Contas de Email</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Somente uma conta pode estar ativa por vez</p>
+          </div>
+          <button
+            onClick={abrirNovaConta}
+            className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all"
+          >
+            + Nova conta
+          </button>
+        </div>
+
+        {loadingContas ? (
+          <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : contas.length === 0 ? (
+          <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+            <p className="text-slate-400 text-sm">Nenhuma conta cadastrada.</p>
+            <p className="text-slate-400 text-xs mt-1">Clique em "+ Nova conta" para adicionar.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {contas.map(c => (
+              <div key={c.id} className={`rounded-2xl border p-4 transition-all ${c.ativo ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-500/5' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'}`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm">{c.nome}</p>
+                      {c.ativo && <span className="text-xs bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-bold">● Ativa</span>}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.email}</p>
+
+                    {/* Resultado do teste */}
+                    {testeResult[c.id] && (
+                      <div className={`mt-2 text-xs px-3 py-1.5 rounded-lg font-medium w-fit ${testeResult[c.id].ok ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400'}`}>
+                        {testeResult[c.id].ok ? '✅' : '❌'} {testeResult[c.id].msg}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex gap-1.5 flex-wrap justify-end shrink-0">
+                    <button
+                      onClick={() => testarConta(c.id)}
+                      disabled={testando === c.id}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:brightness-95 transition-all disabled:opacity-50"
+                    >
+                      {testando === c.id ? '...' : '🔌 Testar'}
+                    </button>
+                    {!c.ativo && (
+                      <button
+                        onClick={() => ativarConta(c.id)}
+                        disabled={ativando === c.id}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 hover:brightness-95 transition-all disabled:opacity-50"
+                      >
+                        {ativando === c.id ? '...' : '✓ Ativar'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => abrirEditarConta(c)}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:brightness-95 transition-all"
+                    >
+                      ✏️ Editar
+                    </button>
+                    <button
+                      onClick={() => excluirConta(c.id)}
+                      disabled={excluindo === c.id}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:brightness-95 transition-all disabled:opacity-50"
+                    >
+                      {excluindo === c.id ? '...' : '🗑️'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Dados da Empresa ── */}
+      <section>
+        <h2 className="text-lg font-black text-slate-800 dark:text-white mb-4">🏢 Dados da Empresa</h2>
+        {loadingEmpresa ? (
+          <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome da empresa</label>
+                <input
+                  type="text"
+                  value={empresa.nome}
+                  onChange={e => setEmpresa(p => ({ ...p, nome: e.target.value }))}
+                  placeholder="CMPort"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome exibido no email (remetente)</label>
+                <input
+                  type="text"
+                  value={empresa.email_from_name}
+                  onChange={e => setEmpresa(p => ({ ...p, email_from_name: e.target.value }))}
+                  placeholder="CMPort"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Telefone</label>
+                <input
+                  type="text"
+                  value={empresa.telefone ?? ''}
+                  onChange={e => setEmpresa(p => ({ ...p, telefone: e.target.value }))}
+                  placeholder="(11) 99999-9999"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Site</label>
+                <input
+                  type="text"
+                  value={empresa.site ?? ''}
+                  onChange={e => setEmpresa(p => ({ ...p, site: e.target.value }))}
+                  placeholder="www.cmport.com.br"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={salvarEmpresa}
+                disabled={salvandoEmpresa || !empresa.nome}
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {salvandoEmpresa
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
+                  : '💾 Salvar'}
+              </button>
+              {empresaSalva && <span className="text-green-600 dark:text-green-400 text-sm font-bold">✅ Salvo!</span>}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ── Modal Nova/Editar Conta ── */}
+      {modalConta !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-black text-slate-900 dark:text-white mb-5">
+              {modalConta === 'novo' ? '+ Nova Conta de Email' : '✏️ Editar Conta'}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome / Identificação</label>
+                <input
+                  type="text"
+                  value={contaForm.nome}
+                  onChange={e => setContaForm(p => ({ ...p, nome: e.target.value }))}
+                  placeholder="Email Principal"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Email</label>
+                <input
+                  type="email"
+                  value={contaForm.email}
+                  onChange={e => setContaForm(p => ({ ...p, email: e.target.value }))}
+                  placeholder="envio@empresa.com"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
+                  Senha {modalConta !== 'novo' && <span className="normal-case font-normal text-slate-400">(deixe em branco para não alterar)</span>}
+                </label>
+                <div className="relative">
+                  <input
+                    type={mostrarSenha ? 'text' : 'password'}
+                    value={contaForm.senha}
+                    onChange={e => setContaForm(p => ({ ...p, senha: e.target.value }))}
+                    placeholder={modalConta === 'novo' ? 'Senha do email' : '••••••••'}
+                    className="w-full px-3 py-2.5 pr-10 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarSenha(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    {mostrarSenha ? '🙈' : '👁️'}
+                  </button>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={contaForm.ativo}
+                  onChange={e => setContaForm(p => ({ ...p, ativo: e.target.checked }))}
+                  className="w-4 h-4 rounded accent-blue-600"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">Definir como conta ativa</span>
+              </label>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setModalConta(null)}
+                className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarConta}
+                disabled={salvandoConta || !contaForm.nome || !contaForm.email}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {salvandoConta
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
+                  : '💾 Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

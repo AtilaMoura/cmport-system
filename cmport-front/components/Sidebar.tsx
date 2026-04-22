@@ -19,8 +19,9 @@ export default function Sidebar() {
     { name: 'Condomínios',  icon: '🏢', href: '/condominios', roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Serviços',     icon: '🛠️', href: '/servicos',    roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Notas Fiscais',icon: '📄', href: '/notas',       roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Boletos',      icon: '🏦', href: '/boletos',     roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Dev / Teste',  icon: '⚙️', href: '/dev',         roles: ['DEV'] },
+    { name: 'Boletos',        icon: '🏦', href: '/boletos',        roles: ['DEV', 'ADMIN', 'USUARIO'] },
+    { name: 'Configurações', icon: '⚙️', href: '/configuracoes', roles: ['DEV', 'ADMIN'] },
+    { name: 'Dev / Teste',   icon: '🔧', href: '/dev',            roles: ['DEV'] },
   ].filter(item => !user || item.roles.includes(user.role));
 
   const fechar = () => setOpen(false);

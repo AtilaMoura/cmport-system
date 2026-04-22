@@ -172,11 +172,13 @@ async def enviar_email_boleto(
     boleto_id: int,
     destinatarios: str = Form(...),
     assunto: Optional[str] = Form(None),
-    corpo_html: Optional[str] = Form(None),
+    saudacao: Optional[str] = Form(None),
+    corpo: Optional[str] = Form(None),
+    rodape: Optional[str] = Form(None),
     arquivos: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
-    """Envia o PDF do boleto por email. Aceita assunto/corpo customizados e anexos extras."""
+    """Envia o PDF do boleto por email. Aceita assunto/saudação/corpo/rodapé customizados e anexos extras."""
     try:
         lista_dest = json.loads(destinatarios)
         anexos_extras = []
@@ -184,7 +186,7 @@ async def enviar_email_boleto(
             conteudo = await arq.read()
             anexos_extras.append((arq.filename, conteudo, arq.content_type or "application/octet-stream"))
         return BoletoService.enviar_email_boleto(
-            db, boleto_id, lista_dest, assunto, corpo_html, anexos_extras
+            db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

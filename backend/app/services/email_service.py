@@ -53,6 +53,11 @@ def _fmt_data(d) -> str:
     return str(d)
 
 
+_SAUDACAO_PADRAO = "Prezados(as),"
+_RODAPE_PADRAO   = ("O boleto em PDF e o XML da nota fiscal estão anexados a este email.\n"
+                    "Por gentileza, confirmar o recebimento deste e-mail.")
+
+
 def _html_boleto(
     nome_condominio: str,
     numero_nota: str,
@@ -61,8 +66,19 @@ def _html_boleto(
     numero_parcela: int,
     total_parcelas: int,
     linha_digitavel: Optional[str],
+    saudacao: Optional[str] = None,
+    corpo: Optional[str] = None,
+    rodape: Optional[str] = None,
 ) -> str:
     parcela_txt = f"Parcela {numero_parcela}/{total_parcelas}" if total_parcelas > 1 else "À vista"
+
+    _saudacao = (saudacao or _SAUDACAO_PADRAO).replace("\n", "<br>")
+    _corpo = (corpo or (
+        f"Segue em anexo o boleto, nota fiscal e a ordem de serviço "
+        f"referente à Nota Fiscal <strong>#{numero_nota}</strong> — "
+        f"<strong>{nome_condominio}</strong>."
+    )).replace("\n", "<br>")
+    _rodape = (rodape or _RODAPE_PADRAO).replace("\n", "<br>")
 
     linha_bloco = ""
     if linha_digitavel:
@@ -107,10 +123,7 @@ def _html_boleto(
         <tr>
           <td style="padding:40px;">
             <p style="margin:0 0 24px;color:#374151;font-size:15px;">
-              Prezados(as),<br><br>
-              Segue em anexo o boleto, nota fiscal e a ordem de serviço
-              referente à Nota Fiscal <strong>#{numero_nota}</strong> —
-              <strong>{nome_condominio}</strong>.
+              {_saudacao}<br><br>{_corpo}
             </p>
 
             <!-- Tabela de dados -->
@@ -151,8 +164,7 @@ def _html_boleto(
             </table>
 
             <p style="margin:0 0 8px;color:#64748b;font-size:13px;">
-              O boleto em PDF e o XML da nota fiscal estão anexados a este email.<br>
-              <strong>Por gentileza, confirmar o recebimento deste e-mail.</strong>
+              {_rodape}
             </p>
           </td>
         </tr>
@@ -187,16 +199,26 @@ class EmailService:
         xml_bytes: Optional[bytes] = None,
         xml_filename: Optional[str] = None,
         assunto_override: Optional[str] = None,
-        corpo_html_override: Optional[str] = None,
+        saudacao: Optional[str] = None,
+        corpo: Optional[str] = None,
+        rodape: Optional[str] = None,
         anexos_extras: Optional[List[tuple]] = None,
+        email_remetente: Optional[str] = None,
+        senha_remetente: Optional[str] = None,
+        from_name: Optional[str] = None,
     ) -> None:
         """
         Envia email com boleto em PDF + XML da nota para a lista de destinatários.
         Usa Outlook SMTP (smtp.office365.com:587 com STARTTLS).
+        Credenciais: usa email_remetente/senha_remetente se fornecidos, senão fallback do .env.
         anexos_extras: lista de (filename, bytes, content_type)
         """
-        if not settings.OUTLOOK_EMAIL or not settings.OUTLOOK_PASSWORD:
-            raise Exception("Configurações de email não definidas (OUTLOOK_EMAIL / OUTLOOK_PASSWORD).")
+        _email = email_remetente or settings.OUTLOOK_EMAIL
+        _senha = senha_remetente or settings.OUTLOOK_PASSWORD
+        _from  = from_name or settings.EMAIL_FROM_NAME
+
+        if not _email or not _senha:
+            raise Exception("Nenhuma conta de email configurada. Acesse Configurações → Email.")
 
         if not destinatarios:
             raise Exception("Nenhum destinatário informado.")
@@ -204,12 +226,12 @@ class EmailService:
         assunto = assunto_override or f"Boleto #{numero_nota} — {nome_condominio} — Venc. {_fmt_data(vencimento)}"
 
         msg = MIMEMultipart("mixed")
-        msg["From"] = f"{settings.EMAIL_FROM_NAME} <{settings.OUTLOOK_EMAIL}>"
+        msg["From"] = f"{_from} <{_email}>"
         msg["To"] = ", ".join(destinatarios)
         msg["Subject"] = assunto
 
-        # Corpo HTML (customizado ou gerado automaticamente)
-        html = corpo_html_override or _html_boleto(
+        # Corpo HTML gerado a partir dos campos de texto
+        html = _html_boleto(
             nome_condominio=nome_condominio,
             numero_nota=numero_nota,
             valor=valor,
@@ -217,6 +239,9 @@ class EmailService:
             numero_parcela=numero_parcela,
             total_parcelas=total_parcelas,
             linha_digitavel=linha_digitavel,
+            saudacao=saudacao,
+            corpo=corpo,
+            rodape=rodape,
         )
         msg.attach(MIMEText(html, "html", "utf-8"))
 
@@ -258,5 +283,5 @@ class EmailService:
             smtp.ehlo()
             smtp.starttls(context=context)
             smtp.ehlo()
-            smtp.login(settings.OUTLOOK_EMAIL, settings.OUTLOOK_PASSWORD)
-            smtp.sendmail(settings.OUTLOOK_EMAIL, destinatarios, msg.as_bytes())
+            smtp.login(_email, _senha)
+            smtp.sendmail(_email, destinatarios, msg.as_bytes())

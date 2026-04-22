@@ -24,7 +24,8 @@ import app.models.nota_fiscal_model
 import app.models.exclusao_model
 import app.models.boleto_model
 import app.models.configuracao_impostos_model
-import app.models.usuario_model  # tabela de usuários
+import app.models.usuario_model          # tabela de usuários
+import app.models.configuracao_model      # configurações de email e empresa
 
 # Importar todos os routers
 from app.routers.auth_router import router as auth_router
@@ -37,6 +38,7 @@ from app.routers.dashboard_router import router as dashboard_router
 from app.routers.auditoria_router import router as auditoria_router
 from app.routers.boleto_router import router as boletos_router
 from app.routers.dev_router import router as dev_router
+from app.routers.configuracao_router import router as configuracoes_router
 
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
@@ -167,7 +169,8 @@ app.include_router(notas_router,       prefix="/api/v1/notas-fiscais",tags=["Not
 app.include_router(dashboard_router,   prefix="/api/v1/dashboard",    tags=["Dashboard"],                      dependencies=_auth)
 app.include_router(auditoria_router,   prefix="/api/v1/auditoria",    tags=["Auditoria"],                      dependencies=_auth)
 app.include_router(boletos_router,     prefix="/api/v1/boletos",      tags=["Boletos"],                        dependencies=_auth)
-app.include_router(dev_router,         prefix="/api/v1/dev",          tags=["Dev/Test"],                       dependencies=_auth)
+app.include_router(dev_router,            prefix="/api/v1/dev",            tags=["Dev/Test"],         dependencies=_auth)
+app.include_router(configuracoes_router,  prefix="/api/v1/configuracoes",  tags=["Configurações"],    dependencies=_auth)
 
 
 @app.get("/", tags=["Root"])

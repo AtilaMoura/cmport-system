@@ -1105,7 +1105,9 @@ class BoletoService:
         boleto_id: int,
         destinatarios: List[str],
         assunto_override: str = None,
-        corpo_html_override: str = None,
+        saudacao: str = None,
+        corpo: str = None,
+        rodape: str = None,
         anexos_extras: list = None,
     ) -> dict:
         """
@@ -1151,6 +1153,9 @@ class BoletoService:
             xml_bytes = nota.xml_original.encode("utf-8") if isinstance(nota.xml_original, str) else nota.xml_original
             xml_filename = f"nota_{nota.numero_nota or nota.id}.xml"
 
+        from app.services.configuracao_service import get_credenciais_ativas
+        email_rem, senha_rem, from_name = get_credenciais_ativas(db)
+
         EmailService.enviar_boleto(
             destinatarios=destinatarios,
             boleto_pdf=pdf_bytes,
@@ -1165,8 +1170,13 @@ class BoletoService:
             xml_bytes=xml_bytes,
             xml_filename=xml_filename,
             assunto_override=assunto_override,
-            corpo_html_override=corpo_html_override,
+            saudacao=saudacao,
+            corpo=corpo,
+            rodape=rodape,
             anexos_extras=anexos_extras or [],
+            email_remetente=email_rem,
+            senha_remetente=senha_rem,
+            from_name=from_name,
         )
 
         return {"enviado": True, "destinatarios": destinatarios, "boleto_id": boleto_id}

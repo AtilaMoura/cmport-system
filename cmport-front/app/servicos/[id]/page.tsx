@@ -170,6 +170,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [composerAberto, setComposerAberto] = useState(false);
   const [composerAssunto, setComposerAssunto] = useState('');
   const [composerCorpoHtml, setComposerCorpoHtml] = useState('');
+  const [composerSaudacao, setComposerSaudacao] = useState('Prezados(as),');
+  const [composerCorpo, setComposerCorpo] = useState('');
+  const [composerRodape, setComposerRodape] = useState('O boleto em PDF e o XML da nota fiscal estão anexados a este email.\nPor gentileza, confirmar o recebimento deste e-mail.');
   const [composerAba, setComposerAba] = useState<'preview' | 'editar'>('preview');
   const [composerAnexos, setComposerAnexos] = useState<File[]>([]);
   const [composerEnviando, setComposerEnviando] = useState(false);
@@ -743,8 +746,12 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     try {
       const res = await api.get(`/boletos/${modalEmail.id}/preview-email`);
       const assuntoPadrao = `Boleto #${notaFiscal?.numero_nota ?? ''} — ${condominio?.nome ?? ''} — Venc. ${modalEmail.data_vencimento ? pd(modalEmail.data_vencimento) : ''}`;
+      const corpoPadrao = `Segue em anexo o boleto, nota fiscal e a ordem de serviço referente à Nota Fiscal #${notaFiscal?.numero_nota ?? ''} — ${condominio?.nome ?? ''}.`;
       setComposerCorpoHtml(res.data);
       setComposerAssunto(assuntoPadrao);
+      setComposerSaudacao('Prezados(as),');
+      setComposerCorpo(corpoPadrao);
+      setComposerRodape('O boleto em PDF e o XML da nota fiscal estão anexados a este email.\nPor gentileza, confirmar o recebimento deste e-mail.');
       setComposerAba('preview');
       setComposerAnexos([]);
       setComposerAberto(true);
@@ -813,7 +820,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
     setComposerEnviando(true);
     try {
-      const fd = _buildFormData(modalEmail, destinatarios, composerAssunto, composerCorpoHtml, composerAnexos);
+      const fd = new FormData();
+      fd.append('destinatarios', JSON.stringify(destinatarios));
+      if (composerAssunto) fd.append('assunto', composerAssunto);
+      if (composerSaudacao) fd.append('saudacao', composerSaudacao);
+      if (composerCorpo) fd.append('corpo', composerCorpo);
+      if (composerRodape) fd.append('rodape', composerRodape);
+      for (const arq of composerAnexos) fd.append('arquivos', arq);
       await api.post(`/boletos/${modalEmail.id}/enviar-email`, fd);
       fecharComposer();
       setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
@@ -2241,11 +2254,11 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     <button
                       onClick={() => setComposerAba('preview')}
                       className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${composerAba === 'preview' ? 'bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-white' : 'text-slate-500'}`}
-                    >Preview</button>
+                    >👁️ Preview</button>
                     <button
                       onClick={() => setComposerAba('editar')}
                       className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${composerAba === 'editar' ? 'bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-white' : 'text-slate-500'}`}
-                    >Editar HTML</button>
+                    >✏️ Editar Texto</button>
                   </div>
                 </div>
                 {composerAba === 'preview' ? (
@@ -2259,12 +2272,36 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     />
                   </div>
                 ) : (
-                  <textarea
-                    value={composerCorpoHtml}
-                    onChange={e => setComposerCorpoHtml(e.target.value)}
-                    className="w-full h-64 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
-                    spellCheck={false}
-                  />
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Saudação</label>
+                      <input
+                        type="text"
+                        value={composerSaudacao}
+                        onChange={e => setComposerSaudacao(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Corpo da mensagem</label>
+                      <textarea
+                        value={composerCorpo}
+                        onChange={e => setComposerCorpo(e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Rodapé / Observação</label>
+                      <textarea
+                        value={composerRodape}
+                        onChange={e => setComposerRodape(e.target.value)}
+                        rows={2}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
+                      />
+                    </div>
+                    <p className="text-xs text-slate-400 italic">O preview reflete o modelo padrão. As edições serão aplicadas no envio.</p>
+                  </div>
                 )}
               </div>
 
