@@ -713,7 +713,10 @@ class BoletoService:
             if not boleto.codigo_solicitacao:
                 continue
             try:
-                dados = inter_client.consultar_boleto(boleto.codigo_solicitacao)
+                dados_json = inter_client.consultar_boleto(boleto.codigo_solicitacao)
+                # v3 pode retornar a cobrança aninhada ou na raiz
+                dados = dados_json.get("cobranca", dados_json) if isinstance(dados_json, dict) else dados_json
+                
                 nova_situacao = _mapear_situacao(dados.get("situacao", "EMABERTO"))
 
                 # dataPagamento pode estar no nível raiz ou dentro de dados["pagamento"]
@@ -740,6 +743,8 @@ class BoletoService:
                 if nova_situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO) and boleto.nota_fiscal_id:
                     _atualizar_data_pagamento_nota(db, boleto.nota_fiscal_id)
             except Exception as e:
+                msg_erro = f"[SyncStatus] Erro boleto {boleto.codigo_solicitacao}: {e}"
+                print(msg_erro)
                 erros.append({"codigo": boleto.codigo_solicitacao, "erro": str(e)})
 
         return SincronizarResponse(atualizados=atualizados, erros=erros)
@@ -903,6 +908,7 @@ class BoletoService:
                     })
 
             except Exception as e:
+                print(f"[SyncInter] Erro ao processar item do Inter: {e}")
                 erros.append({"codigo": item.get("codigoSolicitacao") if isinstance(item, dict) else None, "erro": str(e)})
 
         # Resumo final no terminal

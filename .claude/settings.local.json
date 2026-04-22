@@ -94,7 +94,12 @@
       "Bash(taskkill //F //IM chrome.exe)",
       "mcp__mysql-cmport__mysql_query",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(x.get\\(''''cep''''\\), x.get\\(''''logradouro''''\\), x.get\\(''''bairro''''\\)\\) for x in \\(d if isinstance\\(d,list\\) else [d]\\)]\")",
-      "mcp__playwright__browser_handle_dialog"
+      "mcp__playwright__browser_handle_dialog",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(python3:*)",
+      "Bash(venv/Scripts/python check_boletos_divergentes.py)",
+      "Bash(docker-compose up *)",
+      "Bash(scp *)"
     ]
   },
   "mcpServers": {

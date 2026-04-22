@@ -11,6 +11,8 @@ TOKEN_DATA = {
     "expires_at": None
 }
 
+TIMEOUT = 20  # segundos
+
 # URLs por ambiente
 _BASE_URLS = {
     "sandbox":    "https://cdpj-sandbox.partners.uatinter.co",
@@ -48,7 +50,8 @@ def _obter_token() -> Optional[str]:
             f"{_base_url()}/oauth/v2/token",
             headers=headers,
             data=data,
-            cert=_cert()
+            cert=_cert(),
+            timeout=TIMEOUT
         )
         if response.status_code == 200:
             info = response.json()
@@ -86,7 +89,8 @@ def emitir_boleto(payload: dict) -> dict:
         f"{_base_url()}/cobranca/v3/cobrancas",
         headers=_headers_inter(),
         json=payload,
-        cert=_cert()
+        cert=_cert(),
+        timeout=TIMEOUT
     )
     if response.status_code in [200, 201]:
         return response.json()
@@ -97,7 +101,8 @@ def consultar_boleto(codigo_solicitacao: str) -> dict:
     response = requests.get(
         f"{_base_url()}/cobranca/v3/cobrancas/{codigo_solicitacao}",
         headers=_headers_inter(),
-        cert=_cert()
+        cert=_cert(),
+        timeout=TIMEOUT
     )
     if response.status_code == 200:
         return response.json()
@@ -109,7 +114,8 @@ def cancelar_boleto(codigo_solicitacao: str, motivo: str = "ACERTOS") -> bool:
         f"{_base_url()}/cobranca/v3/cobrancas/{codigo_solicitacao}/cancelar",
         headers=_headers_inter(),
         json={"motivoCancelamento": motivo},
-        cert=_cert()
+        cert=_cert(),
+        timeout=TIMEOUT
     )
     if response.status_code in [200, 201, 202, 204]:
         return True
@@ -134,7 +140,8 @@ def listar_cobrancas(data_inicio: str, data_fim: str, situacao: str = "TODAS") -
             f"{_base_url()}/cobranca/v3/cobrancas",
             headers=_headers_inter(),
             params=params,
-            cert=_cert()
+            cert=_cert(),
+            timeout=TIMEOUT
         )
         if response.status_code != 200:
             raise Exception(f"Erro ao listar cobrancas Inter [{settings.INTER_ENV}]: {response.status_code} — {response.text}")
@@ -159,7 +166,8 @@ def baixar_pdf(codigo_solicitacao: str) -> bytes:
     response = requests.get(
         f"{_base_url()}/cobranca/v3/cobrancas/{codigo_solicitacao}/pdf",
         headers=_headers_inter(),
-        cert=_cert()
+        cert=_cert(),
+        timeout=TIMEOUT
     )
     if response.status_code == 200:
         data = response.json()
