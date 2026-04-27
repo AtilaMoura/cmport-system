@@ -7,7 +7,10 @@ interface ContaEmail {
   id: number;
   nome: string;
   email: string;
+  tipo: string;
   ativo: boolean;
+  graph_client_id: string | null;
+  graph_tenant_id: string | null;
   criado_em: string;
 }
 
@@ -20,18 +23,25 @@ interface Empresa {
 
 const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '' };
 
+const FORM_VAZIO = {
+  nome: '', email: '', ativo: false, tipo: 'SMTP',
+  senha: '',
+  graph_client_id: '', graph_tenant_id: '', graph_client_secret: '',
+};
+
 export default function ConfiguracoesPage() {
   // ── Email ──────────────────────────────────────────────────────────────────
   const [contas, setContas] = useState<ContaEmail[]>([]);
   const [loadingContas, setLoadingContas] = useState(true);
   const [modalConta, setModalConta] = useState<'novo' | ContaEmail | null>(null);
-  const [contaForm, setContaForm] = useState({ nome: '', email: '', senha: '', ativo: false });
+  const [contaForm, setContaForm] = useState({ ...FORM_VAZIO });
   const [salvandoConta, setSalvandoConta] = useState(false);
   const [testando, setTestando] = useState<number | null>(null);
   const [testeResult, setTesteResult] = useState<Record<number, { ok: boolean; msg: string }>>({});
   const [ativando, setAtivando] = useState<number | null>(null);
   const [excluindo, setExcluindo] = useState<number | null>(null);
   const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [mostrarSecret, setMostrarSecret] = useState(false);
 
   // ── Empresa ────────────────────────────────────────────────────────────────
   const [empresa, setEmpresa] = useState<Empresa>(EMPRESA_VAZIA);
@@ -60,27 +70,55 @@ export default function ConfiguracoesPage() {
 
   // ── Conta Email ────────────────────────────────────────────────────────────
   const abrirNovaConta = () => {
-    setContaForm({ nome: '', email: '', senha: '', ativo: false });
+    setContaForm({ ...FORM_VAZIO });
     setMostrarSenha(false);
+    setMostrarSecret(false);
     setModalConta('novo');
   };
 
   const abrirEditarConta = (c: ContaEmail) => {
-    setContaForm({ nome: c.nome, email: c.email, senha: '', ativo: c.ativo });
+    setContaForm({
+      nome: c.nome, email: c.email, ativo: c.ativo, tipo: c.tipo || 'SMTP',
+      senha: '',
+      graph_client_id:     c.graph_client_id ?? '',
+      graph_tenant_id:     c.graph_tenant_id ?? '',
+      graph_client_secret: '',
+    });
     setMostrarSenha(false);
+    setMostrarSecret(false);
     setModalConta(c);
   };
 
   const salvarConta = async () => {
     if (!contaForm.nome || !contaForm.email) return;
-    if (modalConta === 'novo' && !contaForm.senha) { alert('Informe a senha.'); return; }
+
+    if (contaForm.tipo === 'SMTP') {
+      if (modalConta === 'novo' && !contaForm.senha) { alert('Informe a senha SMTP.'); return; }
+    } else {
+      if (modalConta === 'novo' && (!contaForm.graph_client_id || !contaForm.graph_tenant_id || !contaForm.graph_client_secret)) {
+        alert('Para Graph API informe Client ID, Tenant ID e Client Secret.'); return;
+      }
+    }
+
     setSalvandoConta(true);
     try {
       if (modalConta === 'novo') {
         await api.post('/configuracoes/emails', contaForm);
       } else {
-        const payload: Record<string, unknown> = { nome: contaForm.nome, email: contaForm.email, ativo: contaForm.ativo };
-        if (contaForm.senha) payload.senha = contaForm.senha;
+        const payload: Record<string, unknown> = {
+          nome:  contaForm.nome,
+          email: contaForm.email,
+          tipo:  contaForm.tipo,
+          ativo: contaForm.ativo,
+        };
+        if (contaForm.tipo === 'SMTP' && contaForm.senha) {
+          payload.senha = contaForm.senha;
+        }
+        if (contaForm.tipo === 'GRAPH_API') {
+          if (contaForm.graph_client_id)     payload.graph_client_id     = contaForm.graph_client_id;
+          if (contaForm.graph_tenant_id)     payload.graph_tenant_id     = contaForm.graph_tenant_id;
+          if (contaForm.graph_client_secret) payload.graph_client_secret = contaForm.graph_client_secret;
+        }
         await api.put(`/configuracoes/emails/${(modalConta as ContaEmail).id}`, payload);
       }
       setModalConta(null);
@@ -110,7 +148,7 @@ export default function ConfiguracoesPage() {
 
   const testarConta = async (id: number) => {
     setTestando(id);
-    setTesteResult(prev => { const n = {...prev}; delete n[id]; return n; });
+    setTesteResult(prev => { const n = { ...prev }; delete n[id]; return n; });
     try {
       const { data } = await api.post(`/configuracoes/emails/${id}/testar`);
       setTesteResult(prev => ({ ...prev, [id]: { ok: data.ok, msg: data.mensagem } }));
@@ -133,6 +171,15 @@ export default function ConfiguracoesPage() {
     } catch { alert('Erro ao salvar dados da empresa.'); }
     finally { setSalvandoEmpresa(false); }
   };
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const tipoBadge = (tipo: string) =>
+    tipo === 'GRAPH_API'
+      ? <span className="text-xs bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full font-bold">Graph API</span>
+      : <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">SMTP</span>;
+
+  const inputCls = "w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white";
+  const labelCls = "block text-xs font-bold text-slate-500 uppercase mb-1.5";
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -172,11 +219,14 @@ export default function ConfiguracoesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-bold text-slate-900 dark:text-white text-sm">{c.nome}</p>
+                      {tipoBadge(c.tipo)}
                       {c.ativo && <span className="text-xs bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-bold">● Ativa</span>}
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.email}</p>
+                    {c.tipo === 'GRAPH_API' && c.graph_tenant_id && (
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-mono">tenant: {c.graph_tenant_id.substring(0, 8)}…</p>
+                    )}
 
-                    {/* Resultado do teste */}
                     {testeResult[c.id] && (
                       <div className={`mt-2 text-xs px-3 py-1.5 rounded-lg font-medium w-fit ${testeResult[c.id].ok ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400'}`}>
                         {testeResult[c.id].ok ? '✅' : '❌'} {testeResult[c.id].msg}
@@ -184,7 +234,6 @@ export default function ConfiguracoesPage() {
                     )}
                   </div>
 
-                  {/* Ações */}
                   <div className="flex gap-1.5 flex-wrap justify-end shrink-0">
                     <button
                       onClick={() => testarConta(c.id)}
@@ -232,44 +281,20 @@ export default function ConfiguracoesPage() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome da empresa</label>
-                <input
-                  type="text"
-                  value={empresa.nome}
-                  onChange={e => setEmpresa(p => ({ ...p, nome: e.target.value }))}
-                  placeholder="CMPort"
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
-                />
+                <label className={labelCls}>Nome da empresa</label>
+                <input type="text" value={empresa.nome} onChange={e => setEmpresa(p => ({ ...p, nome: e.target.value }))} placeholder="CMPort" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome exibido no email (remetente)</label>
-                <input
-                  type="text"
-                  value={empresa.email_from_name}
-                  onChange={e => setEmpresa(p => ({ ...p, email_from_name: e.target.value }))}
-                  placeholder="CMPort"
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
-                />
+                <label className={labelCls}>Nome exibido no email (remetente)</label>
+                <input type="text" value={empresa.email_from_name} onChange={e => setEmpresa(p => ({ ...p, email_from_name: e.target.value }))} placeholder="CMPort" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Telefone</label>
-                <input
-                  type="text"
-                  value={empresa.telefone ?? ''}
-                  onChange={e => setEmpresa(p => ({ ...p, telefone: e.target.value }))}
-                  placeholder="(11) 99999-9999"
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
-                />
+                <label className={labelCls}>Telefone</label>
+                <input type="text" value={empresa.telefone ?? ''} onChange={e => setEmpresa(p => ({ ...p, telefone: e.target.value }))} placeholder="(11) 99999-9999" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Site</label>
-                <input
-                  type="text"
-                  value={empresa.site ?? ''}
-                  onChange={e => setEmpresa(p => ({ ...p, site: e.target.value }))}
-                  placeholder="www.cmport.com.br"
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
-                />
+                <label className={labelCls}>Site</label>
+                <input type="text" value={empresa.site ?? ''} onChange={e => setEmpresa(p => ({ ...p, site: e.target.value }))} placeholder="www.cmport.com.br" className={inputCls} />
               </div>
             </div>
             <div className="flex items-center gap-3 pt-2">
@@ -291,52 +316,123 @@ export default function ConfiguracoesPage() {
       {/* ── Modal Nova/Editar Conta ── */}
       {modalConta !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
             <h2 className="text-lg font-black text-slate-900 dark:text-white mb-5">
               {modalConta === 'novo' ? '+ Nova Conta de Email' : '✏️ Editar Conta'}
             </h2>
+
             <div className="space-y-4">
+              {/* Nome e email (comuns) */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome / Identificação</label>
+                <label className={labelCls}>Nome / Identificação</label>
                 <input
                   type="text"
                   value={contaForm.nome}
                   onChange={e => setContaForm(p => ({ ...p, nome: e.target.value }))}
                   placeholder="Email Principal"
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  className={inputCls}
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Email</label>
+                <label className={labelCls}>Email remetente</label>
                 <input
                   type="email"
                   value={contaForm.email}
                   onChange={e => setContaForm(p => ({ ...p, email: e.target.value }))}
                   placeholder="envio@empresa.com"
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  className={inputCls}
                 />
               </div>
+
+              {/* Seletor de tipo */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
-                  Senha {modalConta !== 'novo' && <span className="normal-case font-normal text-slate-400">(deixe em branco para não alterar)</span>}
-                </label>
-                <div className="relative">
-                  <input
-                    type={mostrarSenha ? 'text' : 'password'}
-                    value={contaForm.senha}
-                    onChange={e => setContaForm(p => ({ ...p, senha: e.target.value }))}
-                    placeholder={modalConta === 'novo' ? 'Senha do email' : '••••••••'}
-                    className="w-full px-3 py-2.5 pr-10 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setMostrarSenha(p => !p)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
-                  >
-                    {mostrarSenha ? '🙈' : '👁️'}
-                  </button>
+                <label className={labelCls}>Tipo de envio</label>
+                <div className="flex rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                  {(['SMTP', 'GRAPH_API'] as const).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setContaForm(p => ({ ...p, tipo: t }))}
+                      className={`flex-1 py-2 text-sm font-bold transition-all ${
+                        contaForm.tipo === t
+                          ? t === 'GRAPH_API'
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-blue-600 text-white'
+                          : 'bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 hover:brightness-95'
+                      }`}
+                    >
+                      {t === 'GRAPH_API' ? '☁️ Microsoft Graph API' : '📮 SMTP (Outlook)'}
+                    </button>
+                  ))}
                 </div>
               </div>
+
+              {/* Campos SMTP */}
+              {contaForm.tipo === 'SMTP' && (
+                <div>
+                  <label className={labelCls}>
+                    Senha {modalConta !== 'novo' && <span className="normal-case font-normal text-slate-400">(deixe em branco para não alterar)</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={mostrarSenha ? 'text' : 'password'}
+                      value={contaForm.senha}
+                      onChange={e => setContaForm(p => ({ ...p, senha: e.target.value }))}
+                      placeholder={modalConta === 'novo' ? 'Senha da conta Outlook' : '••••••••'}
+                      className={`${inputCls} pr-10`}
+                    />
+                    <button type="button" onClick={() => setMostrarSenha(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+                      {mostrarSenha ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Campos Graph API */}
+              {contaForm.tipo === 'GRAPH_API' && (
+                <div className="space-y-3 p-4 bg-purple-50 dark:bg-purple-500/5 rounded-xl border border-purple-200 dark:border-purple-500/20">
+                  <p className="text-xs text-purple-700 dark:text-purple-400 font-bold">Credenciais do Azure AD App Registration</p>
+                  <div>
+                    <label className={labelCls}>Client ID (Application ID)</label>
+                    <input
+                      type="text"
+                      value={contaForm.graph_client_id}
+                      onChange={e => setContaForm(p => ({ ...p, graph_client_id: e.target.value }))}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      className={`${inputCls} font-mono text-xs`}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Tenant ID (Directory ID)</label>
+                    <input
+                      type="text"
+                      value={contaForm.graph_tenant_id}
+                      onChange={e => setContaForm(p => ({ ...p, graph_tenant_id: e.target.value }))}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      className={`${inputCls} font-mono text-xs`}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>
+                      Client Secret (Value) {modalConta !== 'novo' && <span className="normal-case font-normal text-slate-400">(deixe em branco para não alterar)</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={mostrarSecret ? 'text' : 'password'}
+                        value={contaForm.graph_client_secret}
+                        onChange={e => setContaForm(p => ({ ...p, graph_client_secret: e.target.value }))}
+                        placeholder={modalConta === 'novo' ? 'wZT8Q~...' : '••••••••'}
+                        className={`${inputCls} pr-10 font-mono text-xs`}
+                      />
+                      <button type="button" onClick={() => setMostrarSecret(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+                        {mostrarSecret ? '🙈' : '👁️'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">Use o <strong>Value</strong>, não o ID do secret</p>
+                  </div>
+                </div>
+              )}
+
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -347,6 +443,7 @@ export default function ConfiguracoesPage() {
                 <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">Definir como conta ativa</span>
               </label>
             </div>
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setModalConta(null)}

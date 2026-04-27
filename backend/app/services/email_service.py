@@ -11,6 +11,9 @@ from datetime import date
 
 from app.core.config import settings
 
+# Importação lazy para evitar ciclo (graph_email_service → msal → requests)
+# O import real acontece dentro do método enviar_boleto quando necessário.
+
 # Carrega a imagem de assinatura em base64 uma única vez ao importar o módulo
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
 _ASSINATURA_B64 = ""
@@ -203,34 +206,32 @@ class EmailService:
         corpo: Optional[str] = None,
         rodape: Optional[str] = None,
         anexos_extras: Optional[List[tuple]] = None,
+        # Credenciais SMTP explícitas (legado — ignoradas quando db é fornecido)
         email_remetente: Optional[str] = None,
         senha_remetente: Optional[str] = None,
         from_name: Optional[str] = None,
+        # Sessão DB: quando presente, detecta automaticamente SMTP vs Graph
+        db=None,
     ) -> None:
         """
-        Envia email com boleto em PDF + XML da nota para a lista de destinatários.
-        Usa Outlook SMTP (smtp.office365.com:587 com STARTTLS).
-        Credenciais: usa email_remetente/senha_remetente se fornecidos, senão fallback do .env.
-        anexos_extras: lista de (filename, bytes, content_type)
+        Envia email com boleto (PDF + XML + anexos extras).
+        Quando `db` é fornecido, usa a conta ativa do banco (SMTP ou Graph API).
+        Sem `db`, usa SMTP com as credenciais explícitas ou o fallback do .env.
         """
-        _email = email_remetente or settings.OUTLOOK_EMAIL
-        _senha = senha_remetente or settings.OUTLOOK_PASSWORD
-        _from  = from_name or settings.EMAIL_FROM_NAME
-
-        if not _email or not _senha:
-            raise Exception("Nenhuma conta de email configurada. Acesse Configurações → Email.")
-
         if not destinatarios:
             raise Exception("Nenhum destinatário informado.")
 
         assunto = assunto_override or f"Boleto #{numero_nota} — {nome_condominio} — Venc. {_fmt_data(vencimento)}"
 
-        msg = MIMEMultipart("mixed")
-        msg["From"] = f"{_from} <{_email}>"
-        msg["To"] = ", ".join(destinatarios)
-        msg["Subject"] = assunto
+        # Monta lista de todos os anexos para ambos os fluxos
+        todos_anexos: List[tuple] = []
+        todos_anexos.append((f"boleto_{codigo_boleto}.pdf", boleto_pdf, "application/pdf"))
+        if xml_bytes and xml_filename:
+            todos_anexos.append((xml_filename, xml_bytes, "application/xml"))
+        for item in (anexos_extras or []):
+            todos_anexos.append(item)
 
-        # Corpo HTML gerado a partir dos campos de texto
+        # Gera HTML do email
         html = _html_boleto(
             nome_condominio=nome_condominio,
             numero_nota=numero_nota,
@@ -243,33 +244,46 @@ class EmailService:
             corpo=corpo,
             rodape=rodape,
         )
+
+        # ── Detecta conta ativa ───────────────────────────────────────────────
+        if db is not None:
+            from app.services.configuracao_service import get_config_ativa
+            cfg = get_config_ativa(db)
+
+            if cfg["tipo"] == "GRAPH_API":
+                EmailService._enviar_graph(
+                    sender_email=cfg["email"],
+                    destinatarios=destinatarios,
+                    assunto=assunto,
+                    corpo_html=html,
+                    from_name=cfg.get("from_name"),
+                    graph_client_id=cfg["graph_client_id"],
+                    graph_tenant_id=cfg["graph_tenant_id"],
+                    graph_client_secret=cfg["graph_client_secret"],
+                    todos_anexos=todos_anexos,
+                )
+                return
+
+            # SMTP via DB
+            email_remetente = cfg["email"]
+            senha_remetente = cfg["senha"]
+            from_name       = cfg.get("from_name") or from_name
+
+        # ── Fluxo SMTP ────────────────────────────────────────────────────────
+        _email = email_remetente or settings.OUTLOOK_EMAIL
+        _senha = senha_remetente or settings.OUTLOOK_PASSWORD
+        _from  = from_name or settings.EMAIL_FROM_NAME
+
+        if not _email or not _senha:
+            raise Exception("Nenhuma conta de email configurada. Acesse Configurações → Email.")
+
+        msg = MIMEMultipart("mixed")
+        msg["From"]    = f"{_from} <{_email}>"
+        msg["To"]      = ", ".join(destinatarios)
+        msg["Subject"] = assunto
         msg.attach(MIMEText(html, "html", "utf-8"))
 
-        # Anexo: PDF do boleto
-        pdf_part = MIMEBase("application", "pdf")
-        pdf_part.set_payload(boleto_pdf)
-        encoders.encode_base64(pdf_part)
-        pdf_part.add_header(
-            "Content-Disposition",
-            "attachment",
-            filename=f"boleto_{codigo_boleto}.pdf",
-        )
-        msg.attach(pdf_part)
-
-        # Anexo: XML da nota (se disponível)
-        if xml_bytes and xml_filename:
-            xml_part = MIMEBase("application", "xml")
-            xml_part.set_payload(xml_bytes)
-            encoders.encode_base64(xml_part)
-            xml_part.add_header(
-                "Content-Disposition",
-                "attachment",
-                filename=xml_filename,
-            )
-            msg.attach(xml_part)
-
-        # Anexos extras enviados pelo usuário
-        for (filename, conteudo, content_type) in (anexos_extras or []):
+        for (filename, conteudo, content_type) in todos_anexos:
             tipo_principal, subtipo = (content_type or "application/octet-stream").split("/", 1)
             parte = MIMEBase(tipo_principal, subtipo)
             parte.set_payload(conteudo)
@@ -277,7 +291,6 @@ class EmailService:
             parte.add_header("Content-Disposition", "attachment", filename=filename)
             msg.attach(parte)
 
-        # Envio via Outlook SMTP com STARTTLS
         context = ssl.create_default_context()
         with smtplib.SMTP("smtp.office365.com", 587, timeout=30) as smtp:
             smtp.ehlo()
@@ -285,3 +298,30 @@ class EmailService:
             smtp.ehlo()
             smtp.login(_email, _senha)
             smtp.sendmail(_email, destinatarios, msg.as_bytes())
+
+    @staticmethod
+    def _enviar_graph(
+        sender_email: str,
+        destinatarios: List[str],
+        assunto: str,
+        corpo_html: str,
+        from_name: Optional[str],
+        graph_client_id: str,
+        graph_tenant_id: str,
+        graph_client_secret: str,
+        todos_anexos: List[tuple],
+    ) -> None:
+        if not graph_client_id or not graph_tenant_id or not graph_client_secret:
+            raise Exception("Credenciais Graph API incompletas. Verifique Configurações → Email.")
+
+        from app.services.graph_email_service import GraphEmailService
+        token = GraphEmailService.obter_token(graph_client_id, graph_client_secret, graph_tenant_id)
+        GraphEmailService.enviar(
+            sender_email=sender_email,
+            destinatarios=destinatarios,
+            assunto=assunto,
+            corpo_html=corpo_html,
+            token=token,
+            from_name=from_name,
+            anexos_extras=todos_anexos,
+        )
