@@ -39,9 +39,10 @@ class AuvoClient:
         }
 
     def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Optional[Dict]:
+        # Auvo pode demorar até ~25s para retornar 100 registros — timeout generoso
         url = f"{self.BASE_URL}/{endpoint}"
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=120)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
