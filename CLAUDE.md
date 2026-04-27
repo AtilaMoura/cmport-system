@@ -196,31 +196,38 @@ Os endpoints `/dev/*` são protegidos **apenas por role** (`require_dev` — rol
 ### Backend Structure (flat layered — NOT domains-based)
 ```
 backend/app/
-  models/       — SQLAlchemy ORM models (8 models)
+  models/       — SQLAlchemy ORM models (11 models)
   repositories/ — DB access layer (queries, CRUD)
   services/     — Business logic (calls repositories, calls external APIs)
   routers/      — FastAPI route handlers (calls services)
   schemas/      — Pydantic request/response models
-  core/         — config.py (DB connection string), database.py (SessionLocal)
+  core/         — config.py (DB connection string), database.py (SessionLocal), security.py (JWT), dependencies.py
   auth/         — SSL certificates for Banco Inter (certificado.crt, key.key)
+  assets/       — assinatura.jpg (image embedded in base64 in email footer)
 ```
 
 Tables are auto-created on startup via `Base.metadata.create_all(bind=engine)` in `main.py`.
-`ConfiguracaoImpostosServico` is seeded on startup if empty (default tax rates).
+Seeds executados no startup:
+- `ConfiguracaoImpostosServico` — alíquotas padrão (se tabela vazia)
+- `Usuario` — 3 usuários iniciais: DEV (`atila.dev@cmport.com`), ADMIN (`admin@cmport.com`), USUARIO (`usuario@cmport.com`) (se tabela vazia)
 
 ### API Routes
 
 | Prefix | Router File | Purpose |
 |---|---|---|
+| `/api/v1/auth` | `auth_router.py` | Login JWT (`/login`, `/login-form`) + `/me` — **público** |
 | `/api/v1/condominios` | `condominio_router.py` | CRUD + Auvo sync + search |
 | `/api/v1/enderecos` | `endereco_router.py` | 1:1 address per condominio |
 | `/api/v1/contatos` | `contato_router.py` | N contacts per condominio |
 | `/api/v1/servicos` | `servico_router.py` | Maintenance/assistance records |
 | `/api/v1/notas-fiscais` | `nota_fiscal_router.py` | Import XML/ZIP, CRUD, Excel export, revalidation |
-| `/api/v1/boletos` | `boleto_router.py` | Generate/sync boletos, Inter API, PDF, payments |
+| `/api/v1/boletos` | `boleto_router.py` | Generate/sync boletos, Inter API, PDF, email, payments |
 | `/api/v1/dashboard` | `dashboard_router.py` | Aggregate stats and Excel export |
 | `/api/v1/auditoria` | `auditoria_router.py` | Deletion audit trail |
+| `/api/v1/configuracoes` | `configuracao_router.py` | Email accounts CRUD + empresa config |
 | `/api/v1/dev` | `dev_router.py` | Development/testing utilities |
+
+Todos os routers exceto `/auth` exigem JWT válido via `get_current_user` (injetado globalmente em `main.py`).
 
 ### Database Models & Relationships
 
@@ -236,6 +243,9 @@ NotaFiscal (1) ——— (N) Boleto                 [FK nota_fiscal_id, not null
 
 ConfiguracaoImpostosServico — standalone config table (seeded on startup)
 RegistroExclusao            — audit table (JSON snapshot of deleted records)
+Usuario                     — auth table (seeded on startup with 3 users)
+ConfiguracaoEmail           — Outlook email accounts (password encrypted)
+ConfiguracaoEmpresa         — company info used as email sender name
 ```
 
 ### All Models
@@ -250,6 +260,9 @@ RegistroExclusao            — audit table (JSON snapshot of deleted records)
 | `Boleto` | `boletos` | see section below |
 | `ConfiguracaoImpostosServico` | `configuracao_impostos_servico` | tipo_servico, pct_pis, pct_cofins, pct_inss, pct_csll, ativo |
 | `RegistroExclusao` | `registros_exclusoes` | entidade, entidade_id, dados_json, excluido_em |
+| `Usuario` | `usuarios` | nome, email (unique), senha_hash, role (DEV/ADMIN/USUARIO), ativo |
+| `ConfiguracaoEmail` | `configuracao_email` | nome, email, senha_enc (criptografada), ativo |
+| `ConfiguracaoEmpresa` | `configuracao_empresa` | nome, email_from_name, telefone, site |
 
 ### NotaFiscal Model Fields
 - `id`, `condominio_id` (nullable FK), `numero_nota` (unique)
@@ -333,8 +346,35 @@ OUTROS:      all 0.00%
 - **Functions**: `emitir_boleto(payload)`, `consultar_boleto(codigo)`, `cancelar_boleto(codigo, motivo)`, `listar_cobrancas(data_inicio, data_fim)`, `baixar_pdf(codigo)` → bytes
 - `seuNumero` format: `{numero_nota[:15-len(suffix)]}-{parcela}/{total}`, max 15 chars
 
+### Autenticação JWT
+- `POST /api/v1/auth/login` — recebe `{email, senha}`, retorna `{access_token, role, nome}`
+- `GET /api/v1/auth/me` — retorna dados do usuário autenticado
+- Token JWT gerado em `core/security.py` com `criar_token()` / verificado com `get_current_user()` em `core/dependencies.py`
+- Roles: `DEV` > `ADMIN` > `USUARIO` — `require_dev` exige role DEV
+- Frontend armazena token no `localStorage` e envia no header `Authorization: Bearer <token>`
+
+### Email de Boleto (`email_service.py`)
+- `EmailService.enviar_boleto(...)` — envia email HTML com PDF + XML da nota como anexos
+- SMTP: Outlook (`smtp.office365.com:587`, STARTTLS)
+- Credenciais: buscadas da conta ativa em `ConfiguracaoEmail` (DB), com fallback para `OUTLOOK_EMAIL`/`OUTLOOK_PASSWORD` do `.env`
+- HTML gerado dinamicamente com campos editáveis: `saudacao`, `corpo`, `rodape`
+- Assinatura de imagem carregada de `backend/app/assets/assinatura.jpg` em base64
+- Pré-visualização disponível via `gerar_html_boleto()` (usado no frontend antes de enviar)
+- `assunto_override` opcional; padrão: `"Boleto #{numero_nota} — {nome_condominio} — Venc. {data}"`
+- Suporta `anexos_extras: List[(filename, bytes, content_type)]` para arquivos adicionais
+
+### Configurações (`configuracao_router.py` + `configuracao_service.py`)
+- Contas de email: CRUD completo — apenas uma pode estar `ativo=True` por vez (`POST /configuracoes/emails/{id}/ativar`)
+- Testar conta: `POST /configuracoes/emails/{id}/testar` envia email de teste
+- Empresa: `GET/PUT /configuracoes/empresa` — nome e `email_from_name` usados como remetente
+
+### Sincronização Automática de Boletos (APScheduler)
+- Scheduler iniciado no lifespan do FastAPI (`main.py`)
+- Executa `_sincronizar_boletos_auto()` **a cada hora das 8h às 19h (horário de Brasília)**
+- Dois passos: (1) polling individual dos boletos EMABERTO/VENCIDO locais; (2) bulk sync dos últimos 7 dias via `listar_cobrancas` do Inter
+
 ### Auvo Integration
-`backend/app/domains/auvo/` syncs customer data from the Auvo field service API into local condominios/enderecos/contatos. Triggered via `/api/v1/condominios/sync-auvo`.
+`backend/app/services/auvo_client.py` e `auvo_service.py` sincronizam dados de clientes da API Auvo para condominios/enderecos/contatos locais. Triggered via `/api/v1/condominios/sync-auvo`.
 
 ### Auditoria (Audit Trail)
 Deletions call `registrar_exclusao()` from `auditoria/router.py`, storing a full JSON snapshot of the deleted record in `registros_exclusoes` before deletion.
@@ -347,6 +387,8 @@ Deletions call `registrar_exclusao()` from `auditoria/router.py`, storing a full
 app/
   page.tsx                — Dashboard (home)
   layout.tsx              — Root layout
+  login/
+    page.tsx              — Login (email + senha → JWT → localStorage)
   condominios/
     page.tsx              — List
     novo/page.tsx         — Create
@@ -354,13 +396,15 @@ app/
     [id]/editar/page.tsx  — Edit
   servicos/
     page.tsx              — List (includes bulk boleto generation "Gerar em Massa")
-    [id]/page.tsx         — Detail + "Cobranças por Parcela" + 2-step boleto modal
+    [id]/page.tsx         — Detail + "Cobranças por Parcela" + 2-step boleto modal + email sender
   notas/
     page.tsx              — List (includes single-nota boleto generation modal)
     [id]/page.tsx         — Detail
     importar/page.tsx     — Import XML/ZIP
   boletos/
     page.tsx              — List/manage all boletos
+  configuracoes/
+    page.tsx              — Email accounts management + empresa config + email preview/test
   dev/
     page.tsx              — Development utilities
 ```

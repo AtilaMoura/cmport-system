@@ -1,3 +1,4 @@
+import json
 import requests
 from typing import Optional, Dict, List
 from app.core.config import settings
@@ -16,7 +17,7 @@ class AuvoClient:
         url = f"{self.BASE_URL}/login/"
         params = {"apiKey": self.api_key, "apiToken": self.api_token}
         try:
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
             access_token = data.get("result", {}).get("accessToken")
@@ -55,6 +56,77 @@ class AuvoClient:
         if data and "result" in data:
             return data["result"].get("entityList", [])
         return []
+
+    def get_service_order(self, task_id: int) -> Optional[Dict]:
+        """Busca OS pelo ID (taskID no Auvo). Endpoint: GET /tasks/{id}"""
+        data = self._make_request(f"tasks/{task_id}")
+        if data and "result" in data:
+            return data["result"]
+        return None
+
+    def get_service_orders_by_date(
+        self,
+        customer_id: int,
+        date_start: str,
+        date_end: str,
+        page: int = 1,
+        page_size: int = 100,
+    ) -> List[Dict]:
+        """
+        Lista OS de um cliente por intervalo de data.
+        date_start / date_end: formato 'YYYY-MM-DD'
+        """
+        param_filter = json.dumps({
+            "customerId": customer_id,
+            "startDate": date_start,
+            "endDate": date_end,
+        })
+        params = {
+            "paramFilter": param_filter,
+            "page": page,
+            "pageSize": page_size,
+            "order": "desc",
+        }
+        data = self._make_request("tasks/", params=params)
+        if data and "result" in data:
+            return data["result"].get("entityList", [])
+        return []
+
+    def get_all_service_orders_by_period(
+        self,
+        date_start: str,
+        date_end: str,
+        page_size: int = 100,
+    ) -> List[Dict]:
+        """
+        Lista TODAS as OS de um período sem filtro de cliente, paginando automaticamente.
+        Confirmado: tasks/ com paramFilter JSON (startDate+endDate) retorna dados corretamente.
+        date_start / date_end: formato 'YYYY-MM-DD'
+        """
+        todos = []
+        page = 1
+        while True:
+            param_filter = json.dumps({
+                "startDate": date_start,
+                "endDate": date_end,
+            })
+            params = {
+                "paramFilter": param_filter,
+                "page": page,
+                "pageSize": page_size,
+                "order": "desc",
+            }
+            data = self._make_request("tasks/", params=params)
+            if not data or "result" not in data:
+                break
+            lista = data["result"].get("entityList", [])
+            todos.extend(lista)
+            total = data["result"].get("pagedSearchReturnData", {}).get("totalItems", 0)
+            print(f"[Auvo] Página {page}: {len(lista)} OSs (total acum: {len(todos)} / {total})")
+            if len(todos) >= total or len(lista) < page_size:
+                break
+            page += 1
+        return todos
 
     def get_all_customers(self, page_size: int = 100) -> List[Dict]:
         """Busca todos os clientes paginando até não ter mais resultados."""
