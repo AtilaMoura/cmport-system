@@ -22,5 +22,6 @@ class OrdemServico(Base):
     duration = Column(String(20), nullable=True)
     address = Column(String(500), nullable=True)
     signature_url = Column(String(500), nullable=True)
+    task_url = Column(String(500), nullable=True)
     sincronizado_em = Column(DateTime, default=datetime.utcnow)
     criado_em = Column(DateTime, default=datetime.utcnow)

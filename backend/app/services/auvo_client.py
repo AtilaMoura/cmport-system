@@ -1,4 +1,5 @@
 import json
+import re
 import requests
 from typing import Optional, Dict, List
 from app.core.config import settings
@@ -128,6 +129,28 @@ class AuvoClient:
                 break
             page += 1
         return todos
+
+    def baixar_pdf_os(self, task_url: str) -> Optional[bytes]:
+        """
+        Baixa o PDF da OS a partir do taskUrl retornado pela API.
+        Não requer autenticação — o GUID funciona como token público.
+        Retorna bytes do PDF ou None em caso de erro.
+        """
+        match = re.search(r'/tarefa/([a-f0-9\-]{36})', task_url or "")
+        if not match:
+            print(f"[Auvo] GUID não encontrado em taskUrl: {task_url}")
+            return None
+        guid = match.group(1)
+        pdf_url = f"https://app.auvo.com.br/informacoes/DownloadPdfOs/{guid}"
+        try:
+            resp = requests.get(pdf_url, timeout=60)
+            if resp.status_code == 200 and resp.content[:4] == b"%PDF":
+                return resp.content
+            print(f"[Auvo] PDF OS: status={resp.status_code} guid={guid}")
+            return None
+        except requests.exceptions.RequestException as exc:
+            print(f"[Auvo] Erro ao baixar PDF da OS: {exc}")
+            return None
 
     def get_all_customers(self, page_size: int = 100) -> List[Dict]:
         """Busca todos os clientes paginando até não ter mais resultados."""

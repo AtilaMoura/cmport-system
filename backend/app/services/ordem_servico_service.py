@@ -38,6 +38,7 @@ class OrdemServicoService:
                 "duration": (os_data.get("duration") or "")[:20] or None,
                 "address": (os_data.get("address") or "")[:500],
                 "signature_url": (os_data.get("signatureUrl") or "")[:500] or None,
+                "task_url": (os_data.get("taskUrl") or "")[:500] or None,
             }
 
             _, is_new = OrdemServicoRepository.upsert(db, task_id, dados)
@@ -103,6 +104,7 @@ class OrdemServicoService:
             "duration": ordem.duration,
             "address": ordem.address,
             "signature_url": ordem.signature_url,
+            "task_url": ordem.task_url,
             "sincronizado_em": ordem.sincronizado_em,
             "servico_id": servico.id if servico else None,
             "servico_tipo": servico.tipo.value if servico else None,

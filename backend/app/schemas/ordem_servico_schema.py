@@ -33,6 +33,7 @@ class OrdemServicoResponse(BaseModel):
     duration: Optional[str] = None
     address: Optional[str] = None
     signature_url: Optional[str] = None
+    task_url: Optional[str] = None
     sincronizado_em: Optional[datetime] = None
     # Vínculos com CMPort (nullable — OS existe independente de nota/serviço)
     servico_id: Optional[int] = None

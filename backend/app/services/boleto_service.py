@@ -1159,6 +1159,25 @@ class BoletoService:
             xml_bytes = nota.xml_original.encode("utf-8") if isinstance(nota.xml_original, str) else nota.xml_original
             xml_filename = f"nota_{nota.numero_nota or nota.id}.xml"
 
+        # PDF da OS Auvo vinculada (se existir)
+        from app.models.servico_model import ManutencaoAssistencia as _MA
+        from app.repositories.ordem_servico_repository import OrdemServicoRepository
+        from app.services.auvo_client import auvo_client
+
+        lista_anexos = list(anexos_extras or [])
+        servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota.id).first()
+        if servico_os and servico_os.numero_os:
+            try:
+                task_id = int(servico_os.numero_os)
+                os_obj = OrdemServicoRepository.get_by_task_id(db, task_id)
+                if os_obj and os_obj.task_url:
+                    pdf_os = auvo_client.baixar_pdf_os(os_obj.task_url)
+                    if pdf_os:
+                        lista_anexos.append((f"os_{task_id}.pdf", pdf_os, "application/pdf"))
+                        print(f"[Email] PDF da OS #{task_id} anexado.")
+            except Exception as e:
+                print(f"[Email] Aviso: não foi possível anexar PDF da OS: {e}")
+
         EmailService.enviar_boleto(
             destinatarios=destinatarios,
             boleto_pdf=pdf_bytes,
@@ -1176,7 +1195,7 @@ class BoletoService:
             saudacao=saudacao,
             corpo=corpo,
             rodape=rodape,
-            anexos_extras=anexos_extras or [],
+            anexos_extras=lista_anexos,
             db=db,
         )
 
