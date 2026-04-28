@@ -61,16 +61,20 @@ def limpar_descricao(descricao: str) -> str:
 def extrair_numero_os(texto: str) -> Optional[str]:
     """
     Extrai o número da Ordem de Serviço da discriminação/infCpl.
-    Retorna o primeiro número encontrado. Suporta singular e plural:
+    Retorna o primeiro número encontrado (remove pontos de formatação).
+    Suporta:
       'Numero ordem servico: 12345'
       'Numero da ordem servico: 12345'
+      'Numero ordem servico: 20.262.286'   ← pontilhado → '20262286'
       'Numero das ordens servicos: 12345, 67890 e 11111'
       'Numeros das ordens servicos: 12345 e 67890'
     """
     if not texto:
         return None
-    match = re.search(r'[Nn]umeros?\s+(?:d[ae]s?\s+)?ordens?\s+servi[cç]os?[:\s]+(\d+)', texto)
-    return match.group(1) if match else None
+    match = re.search(r'[Nn]umeros?\s+(?:d[ae]s?\s+)?ordens?\s+servi[cç]os?[:\s]+([\d.]+)', texto)
+    if not match:
+        return None
+    return match.group(1).replace('.', '')
 
 
 def extrair_data_servico(discriminacao: str) -> Optional[date]:
