@@ -114,6 +114,17 @@ interface OrdemServico {
   task_url: string | null;
 }
 
+interface TermoGarantia {
+  id: number;
+  servico_id: number;
+  produto_descricao: string;
+  prazo_meses: number;
+  data_inicio: string;
+  data_fim: string;
+  orcamento_id: number | null;
+  criado_em: string;
+}
+
 interface ParcelaDisplay {
   parcela: number;
   valor: number;
@@ -257,6 +268,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [pagoObs, setPagoObs] = useState('');
   const [pagoSaving, setPagoSaving] = useState(false);
 
+  // Termo de Garantia
+  const [termoGarantia, setTermoGarantia] = useState<TermoGarantia | null>(null);
+  const [modalTermo, setModalTermo] = useState(false);
+  const [termoEtapa, setTermoEtapa] = useState<1 | 2>(1);
+  const [termoProduto, setTermoProduto] = useState('');
+  const [termoPrazo, setTermoPrazo] = useState(12);
+  const [termoDataInicio, setTermoDataInicio] = useState('');
+  const [termoSalvando, setTermoSalvando] = useState(false);
+  const [termoBaixandoPdf, setTermoBaixandoPdf] = useState(false);
+
   useEffect(() => {
     params.then(p => setId(p.id));
   }, [params]);
@@ -310,6 +331,14 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         setNotaFiscal(null);
         setBoletos([]);
         setNotaVinculada(null);
+      }
+
+      // Carregar Termo de Garantia
+      try {
+        const { data: t } = await api.get(`/termos-garantia/servico/${id}`);
+        setTermoGarantia(t);
+      } catch {
+        setTermoGarantia(null);
       }
     } catch {
       alert('Serviço não encontrado');
@@ -760,6 +789,62 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
   };
 
+  const abrirModalTermo = () => {
+    if (!servico) return;
+    setTermoProduto(servico.descricao || '');
+    setTermoPrazo(12);
+    setTermoDataInicio(servico.data_servico);
+    setTermoEtapa(1);
+    setModalTermo(true);
+  };
+
+  const handleSalvarTermo = async () => {
+    if (!id || !servico) return;
+    setTermoSalvando(true);
+    try {
+      // Calcular data fim
+      const dInicio = new Date(termoDataInicio + 'T12:00:00');
+      const dFim = new Date(dInicio);
+      dFim.setMonth(dFim.getMonth() + termoPrazo);
+      
+      const payload = {
+        servico_id: parseInt(id),
+        produto_descricao: termoProduto,
+        prazo_meses: termoPrazo,
+        data_inicio: termoDataInicio,
+        data_fim: dFim.toISOString().split('T')[0],
+        orcamento_id: servico.nota_fiscal_id // Opcional, usando NF como ref se houver
+      };
+
+      const { data: novoTermo } = await api.post('/termos-garantia/', payload);
+      setTermoGarantia(novoTermo);
+      setTermoEtapa(2);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao salvar termo de garantia');
+    } finally {
+      setTermoSalvando(false);
+    }
+  };
+
+  const baixarPdfTermo = async (termoId: number) => {
+    setTermoBaixandoPdf(true);
+    try {
+      const res = await api.get(`/termos-garantia/${termoId}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `termo_garantia_${termoId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('Erro ao baixar PDF do termo.');
+    } finally {
+      setTermoBaixandoPdf(false);
+    }
+  };
+
   const visualizarPdf = async (codigo: string) => {
     setBaixandoPdf(codigo);
     try {
@@ -1161,56 +1246,66 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         <p className="font-bold text-slate-900 dark:text-white text-sm">{ordemServico.task_type_description}</p>
                       </div>
                     )}
-                    {ordemServico.check_in_date && (
-                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Check-in</p>
-                        <p className="font-bold text-slate-900 dark:text-white text-sm">
-                          {new Date(ordemServico.check_in_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    )}
-                    {ordemServico.check_out_date && (
-                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Check-out</p>
-                        <p className="font-bold text-slate-900 dark:text-white text-sm">
-                          {new Date(ordemServico.check_out_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    )}
-                    {ordemServico.duration && (
-                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Duração</p>
-                        <p className="font-bold text-slate-900 dark:text-white text-sm">{ordemServico.duration}</p>
-                      </div>
-                    )}
                   </div>
-                  {ordemServico.address && (
-                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Endereço</p>
-                      <p className="text-sm text-slate-900 dark:text-white">{ordemServico.address}</p>
-                    </div>
-                  )}
-                  {ordemServico.orientation && (
-                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Orientação</p>
-                      <p className="text-sm text-slate-900 dark:text-white leading-relaxed whitespace-pre-wrap">{ordemServico.orientation}</p>
-                    </div>
-                  )}
                   {ordemServico.report && (
                     <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
                       <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Relatório</p>
                       <p className="text-sm text-slate-900 dark:text-white leading-relaxed whitespace-pre-wrap">{ordemServico.report}</p>
                     </div>
                   )}
-                  {ordemServico.signature_url && (
-                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Assinatura</p>
-                      <img src={ordemServico.signature_url} alt="Assinatura" className="max-h-24 rounded border border-slate-200 dark:border-slate-700" />
-                    </div>
-                  )}
                 </div>
               </div>
             )}
+
+            {/* Termo de Garantia */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-teal-50 dark:bg-teal-500/10 border-b border-teal-200 dark:border-teal-800/30 flex items-center justify-between flex-wrap gap-2">
+                <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="text-xl">📜</span> Termo de Garantia
+                </h2>
+                {termoGarantia ? (
+                  <button onClick={() => baixarPdfTermo(termoGarantia.id)} disabled={termoBaixandoPdf}
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-all disabled:opacity-60 flex items-center gap-1">
+                    {termoBaixandoPdf
+                      ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+                    Baixar PDF
+                  </button>
+                ) : (
+                  <button onClick={abrirModalTermo}
+                    className="px-3 py-1.5 text-xs font-bold text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-500/20 rounded-lg hover:brightness-105 transition-all flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Gerar Termo
+                  </button>
+                )}
+              </div>
+              <div className="p-6">
+                {termoGarantia ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Produto / Serviço</p>
+                      <p className="font-bold text-slate-900 dark:text-white text-sm">{termoGarantia.produto_descricao}</p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Prazo</p>
+                      <p className="font-bold text-slate-900 dark:text-white text-sm">{termoGarantia.prazo_meses} meses</p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Data Início</p>
+                      <p className="font-bold text-slate-900 dark:text-white text-sm">{new Date(termoGarantia.data_inicio).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                    <div className="bg-teal-50 dark:bg-teal-500/10 rounded-xl p-3">
+                      <p className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase mb-1">Data Término</p>
+                      <p className="font-black text-teal-700 dark:text-teal-300 text-sm">{new Date(termoGarantia.data_fim).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm italic">Nenhum termo de garantia gerado para este serviço.</p>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Nota Fiscal Vinculada — detalhes completos */}
             {notaFiscal ? (
@@ -2525,6 +2620,92 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                   ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
                   : `📧 Enviar (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Termo de Garantia */}
+      {modalTermo && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 bg-teal-600 text-white flex items-center justify-between">
+              <h2 className="font-bold text-lg flex items-center gap-2">
+                <span>📜</span> Gerar Termo de Garantia
+              </h2>
+              <button onClick={() => setModalTermo(false)} className="text-white/80 hover:text-white text-xl">×</button>
+            </div>
+            
+            <div className="p-6">
+              {termoEtapa === 1 ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descrição do Produto/Serviço</label>
+                    <textarea
+                      value={termoProduto}
+                      onChange={(e) => setTermoProduto(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="Ex: Instalação de Motor de Portão PPA..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Prazo (Meses)</label>
+                      <select
+                        value={termoPrazo}
+                        onChange={(e) => setTermoPrazo(parseInt(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                      >
+                        <option value={3}>3 meses</option>
+                        <option value={6}>6 meses</option>
+                        <option value={12}>12 meses</option>
+                        <option value={24}>24 meses</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data Início</label>
+                      <input
+                        type="date"
+                        value={termoDataInicio}
+                        onChange={(e) => setTermoDataInicio(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={handleSalvarTermo}
+                    disabled={termoSalvando || !termoProduto}
+                    className="w-full py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {termoSalvando ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Confirmar e Gerar'}
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 rounded-full flex items-center justify-center mx-auto text-2xl">
+                    ✅
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 dark:text-white">Termo Gerado com Sucesso!</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">O documento já pode ser baixado em PDF.</p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => termoGarantia && baixarPdfTermo(termoGarantia.id)}
+                      className="w-full py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition-all flex items-center justify-center gap-2"
+                    >
+                      📥 Baixar Agora
+                    </button>
+                    <button
+                      onClick={() => setModalTermo(false)}
+                      className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:brightness-95 transition-all"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
