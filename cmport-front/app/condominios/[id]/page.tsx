@@ -10,12 +10,20 @@ export default function DetalhesCondominio() {
   const params = useParams();
   const id = params.id as string;
   const [condo, setCondo] = useState<any>(null);
+  const [orcamentos, setOrcamentos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
+  const [activeTab, setActiveTab] = useState<'contatos' | 'manutencoes' | 'notas' | 'orcamentos'>('contatos');
 
   useEffect(() => {
-    api.get(`/condominios/${id}`)
-      .then(r => setCondo(r.data))
+    Promise.all([
+      api.get(`/condominios/${id}`),
+      api.get(`/orcamentos/condominio/${id}`)
+    ])
+      .then(([rCondo, rOrc]) => {
+        setCondo(rCondo.data);
+        setOrcamentos(rOrc.data);
+      })
       .catch(() => setNotFoundState(true))
       .finally(() => setLoading(false));
   }, [id]);
@@ -165,71 +173,159 @@ export default function DetalhesCondominio() {
             {/* Tabs Section */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
               <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <button className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold border-b-2 border-blue-600 text-blue-600 bg-white dark:bg-slate-900 flex items-center gap-1.5 sm:gap-2 shrink-0">
-                  <span className="text-base sm:text-lg">📋</span>
+                <button 
+                  onClick={() => setActiveTab('contatos')}
+                  className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 ${
+                    activeTab === 'contatos' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <span className="text-base sm:text-lg">👥</span>
                   Contatos
                 </button>
-                <button className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <button 
+                  onClick={() => setActiveTab('orcamentos')}
+                  className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 ${
+                    activeTab === 'orcamentos' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <span className="text-base sm:text-lg">📋</span>
+                  Orçamentos
+                </button>
+                <button 
+                  onClick={() => setActiveTab('manutencoes')}
+                  className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 ${
+                    activeTab === 'manutencoes' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="text-base sm:text-lg">🛠️</span>
                   Manutenções
                 </button>
-                <button className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <button 
+                  onClick={() => setActiveTab('notas')}
+                  className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 ${
+                    activeTab === 'notas' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
                   <span className="text-base sm:text-lg">📄</span>
                   Notas Fiscais
                 </button>
               </div>
 
               <div className="p-4 sm:p-6">
-                {condo.contatos && condo.contatos.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {condo.contatos.map((contato: any) => (
-                      <div
-                        key={contato.id}
-                        className="p-4 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all bg-slate-50 dark:bg-slate-800/50"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-lg flex items-center justify-center">
-                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                                {contato.nome.substring(0, 2).toUpperCase()}
-                              </span>
+                {activeTab === 'contatos' && (
+                  condo.contatos && condo.contatos.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {condo.contatos.map((contato: any) => (
+                        <div
+                          key={contato.id}
+                          className="p-4 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all bg-slate-50 dark:bg-slate-800/50"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-lg flex items-center justify-center">
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                  {contato.nome.substring(0, 2).toUpperCase()}
+                                </span>
+                              </div>
+                              <p className="font-bold text-slate-900 dark:text-white">
+                                {contato.nome}
+                              </p>
                             </div>
-                            <p className="font-bold text-slate-900 dark:text-white">
-                              {contato.nome}
-                            </p>
+                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold rounded-md">
+                              {contato.funcao}
+                            </span>
                           </div>
-                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold rounded-md">
-                            {contato.funcao}
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                            <span>📞</span>
-                            <span className="font-medium">{contato.telefone || 'Sem telefone'}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                            <span>📧</span>
-                            <span className="font-medium truncate">{contato.email || 'Sem email'}</span>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                              <span>📞</span>
+                              <span className="font-medium">{contato.telefone || 'Sem telefone'}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                              <span>📧</span>
+                              <span className="font-medium truncate">{contato.email || 'Sem email'}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full">
-                      <span className="text-3xl">👥</span>
+                      ))}
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                      Nenhum contato cadastrado
-                    </h3>
-                    <p className="text-slate-500 dark:text-slate-400 mb-4">
-                      Adicione contatos para facilitar a comunicação
-                    </p>
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors">
-                      Adicionar Contato
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full">
+                        <span className="text-3xl">👥</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                        Nenhum contato cadastrado
+                      </h3>
+                      <p className="text-slate-500 dark:text-slate-400 mb-4">
+                        Adicione contatos para facilitar a comunicação
+                      </p>
+                      <button className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors">
+                        Adicionar Contato
+                      </button>
+                    </div>
+                  )
+                )}
+
+                {activeTab === 'orcamentos' && (
+                  orcamentos && orcamentos.length > 0 ? (
+                    <div className="space-y-3">
+                      {orcamentos.map((o: any) => (
+                        <Link
+                          key={o.id}
+                          href={`/orcamentos/${o.auvo_public_id}`}
+                          className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center text-blue-600">
+                              <span className="text-xl">📋</span>
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
+                                Orçamento #{o.auvo_public_id}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {o.request_date ? new Date(o.request_date).toLocaleDateString('pt-BR') : 'Sem data'} • {o.current_stage_description}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-black text-slate-900 dark:text-white">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(o.net_total_value)}
+                            </p>
+                            <span className="text-[10px] font-bold text-blue-600 uppercase">Ver detalhes →</span>
+                          </div>
+                        </Link>
+                      ))}
+                      <div className="pt-4 text-center">
+                        <Link href={`/orcamentos?search=${condo.nome}`} className="text-sm font-bold text-blue-600 hover:underline">
+                          Ver todos os orçamentos do condomínio
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full">
+                        <span className="text-3xl">📋</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                        Nenhum orçamento encontrado
+                      </h3>
+                      <p className="text-slate-500 dark:text-slate-400 mb-4">
+                        Sincronize os orçamentos do Auvo para visualizá-los aqui
+                      </p>
+                      <Link href="/orcamentos" className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors">
+                        Ir para Sincronização
+                      </Link>
+                    </div>
+                  )
+                )}
+
+                {activeTab === 'manutencoes' && (
+                  <div className="text-center py-12 text-slate-400 italic">Módulo de manutenções em desenvolvimento.</div>
+                )}
+
+                {activeTab === 'notas' && (
+                  <div className="text-center py-12 text-slate-400 italic">Módulo de notas fiscais integrado. Acesse a aba Notas no menu lateral.</div>
                 )}
               </div>
             </div>
