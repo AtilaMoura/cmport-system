@@ -1,0 +1,1427 @@
+FORMAT: 1A
+HOST: https://app.auvo.com.br/api/v1.0
+
+# Auvo API V1.0
+
+Auvo API provides a representation of the data found in your account at [Auvo](https://app.auvo.com.br).
+We follow **REST** principles, so the API is stateless and http methods and response codes are used whenever possible.
+
+The url for the requests is: `https://app.auvo.com.br/api/v1.0`
+
+## Authentication
+
+Every request **must** contain within it a data that provides `API key` and `Token`.
+For `GET` and `DELETE` requests the data must be send in the query string and for `POST` and `PUT` the data **must** be send within the request body. 
+`API key` and `Token` can be found by accesing [Menu > Integração](https://app.auvo.com.br/integracao/) in your Auvo's account
+
+## Media Types
+This API use JSON format to represent resources. When sending content on `PUT`/`POST` requests, you **must** specify the follow header:
+
+    Content-Type: application/json
+
+## Response Codes
+The common [HTTP Response Status Codes](https://github.com/for-GET/know-your-http-well/blob/master/status-codes.md) are used.
+
+You will often see:
+
+* 200 (OK) - GET and PUT methods
+* 201 (Created) - POST methods
+* 204 (No content) - DELETE methods.
+
+## Error States
+
+When something goes wrong, the response status code can be `4xx` if the error is related to your request structure or `5xx` if it's our server's fault.
+
+Example:
+
+* 400 (Bad request) - GET /tasks?appKey=1, when token must be informed
+* 404 (Not found) - GET /tasks/999?appKey=1&token=1, when the id 999 does not exist
+* 415 (Unsupported media type) - POST /tasks, when the Content-Type header is not defined
+* 500 (Internal server error) - When a request throws an unexpected error. If you see this status code, please contact us: help@auvo.com.br
+
+# Group Users
+
+## User [/users/{id}?appkey={appKey}&token={token}]
+    
+ A single `User` object.
+
++ Parameters
+
+    + id (number) ... `userId` attribute of the `User`.
+
++ Model
+
+    + Body
+    
+            {
+                "userId": 123,
+                "name": "Jason",
+                "smartphoneNumber": "555555555555",
+                "culture": "pt-BR",
+                "jobPosition": "Administrador",
+                "userType": { "userTypeId": 1, "description": "user" },
+                "workDaysOfWeek": [ 
+                    { "dayId": 1, "description": "sunday" },
+                    { "dayId": 2, "description": "monday" },
+                    { "dayId": 3, "description": "tuesday" },
+                    { "dayId": 4, "description": "wednesday" },
+                    { "dayId": 5, "description": "thursday" },
+                    { "dayId": 6, "description": "friday" },
+                    { "dayId": 7, "description": "saturday" }
+                ],
+                "startWorkHour": "08:00:00",
+                "endWorkHour": "18:00:00",
+                "startLunchHour": "12:00:00",
+                "endLunchHour": "14:00:00",
+                "hourValue": 0,
+                "pictureBase64": "",
+                "BasePoint": {
+                  "address": "Rua C-137",
+                  "latitude": -16.711903488917,
+                  "longitude": -49.2775752032046
+                },
+                "openTaskInPlace": true,
+                "grabGalleryPhotos": true,
+                "gpsFrequency": 300
+            }            
+
+### Retrieve a User [GET]
+
++ Parameters
+    + appKey (string) ... `appKey` of your Auvo's account
+    + token (string) ... `token` of your Auvo's account
+
++ Response 200
+
+    [User][]
+
++ Response 400
+
+    When making a request with invalid options, status code 400 will be returned. For example, passing an invalid `token` parameter.
+
+    + Body
+    
+            [
+              {
+                "errorCode": 4,
+                "message": "Invalid token."
+              }
+            ]
+
++ Response 404
+    
+    When the resource with the specified id does not exist.
+    
+    + Body
+
+### Add a new User [POST /users/]
+
+The body example describes the minimum required attributes to successfully add an user. See the **Atributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + appKey (required, string) - appKey of the account
+    + token (required, string) - token of the account
+    + name (required, string) - name of the user
+    + password (required, string) - password of the user
+    + smartPhoneNumber (required, string) - user phone number(used as login). Only numbers
+    + userType (required, number) - 1 - user | 2 - team manager | 3 - administrator
+    + jobPosition (required, string) - job position of the user
+    + culture (required, string) - culture name. For example `en-US`
+    + hourValue (number) - Monetary value of the worked hour
+    + endLunchHour (string) - "HH:mm:ss" 24 hours format
+    + endWorkHour (string) - "HH:mm:ss" 24 hours format
+    + startLunchHour (string) - "HH:mm:ss" 24 hours format
+    + startWorkHour (string) - "HH:mm:ss" 24 hours format
+    + workDaysOfWeek (array[number]) - 1 - Sunday | 2  -Monday | 3 - Tuesday | 4 - Wednesday | 5 - Thuersday | 6 - Friday | 7 - Sunday
+    + address (string) - base point address
+    + latitude (number) - base point latitude
+    + longitude (number) - base point longitude
+    + openTaskInPlace (boolean) - open in-place task by application
+    * grabGalleryPhotos (boolean) - allows you to take gallery photo in the app
+    + gpsFrequency (number) - 60 - 1 minute| 120 - 2 minutes |180 - 3 minutes | 240 - 4 minutes | 300 - 5 minutes
+
++ Request (application/json)
+
+    + Body 
+        
+            {
+                "appKey": "appKey of the account",
+                "token": "token of the account",
+                "name": "Jack",
+                "password": "MyPassword",
+                "smartPhoneNumber": "555555555555",
+                "userType": 1,
+                "culture": "pt-BR",
+            }
+
+    + Schema
+    
+            {
+                "appKey": string,
+                "token": string,
+                "name": string,
+                "password": string,
+                "smartPhoneNumber": string,
+                "userType": integer,
+                "jobPosition": [string],
+                "culture": string,
+                "hourValue": [integer],
+                "endLunchHour": ["HH:mm:ss"],
+                "endWorkHour": ["HH:mm:ss"],
+                "startLunchHour": ["HH:mm:ss"],
+                "startWorkHour": ["HH:mm:ss"],
+                "workDaysOfWeek": [1, 2, 3, 4, 5, 6, 7]
+            }
+
++ Response 201
+
+    + Header
+    
+            Location: https://auvo.com.com.br/v1.0/users/23
+
+    + Body
+    
+            {
+                "userId": 23,
+                "name": "Jack",
+                "smartphoneNumber": "555555555555",
+                "culture": "pt-BR",
+                "jobPosition": "",
+                "userType": { "userTypeId": 1, "description": "user" },
+                "workDaysOfWeek": [],
+                "startWorkHour": "",
+                "endWorkHour": "",
+                "startLunchHour": "",
+                "endLunchHour": ",
+                "hourValue": 0,
+                "pictureBase64": "",
+                "BasePoint": {
+                  "address": "",
+                  "latitude": 0,
+                  "longitude": 0
+                },
+                "openTaskInPlace": true,
+                "grabGalleryPhotos": true,
+                "gpsFrequency": 300
+            }
+
+### Edit a User [PUT /users/{id}]
+To update a `User`, send a JSON with updated value for one or more of the `User` attributes. All attributes values (states) from the previous version of this `User` are carried over by default if not included in the hash. See the **Atributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + appKey (required, string) - appKey of the account
+    + token (required, string) - token of the account
+    + name (string) - new name of the user
+    + password (string) - new password of the user
+    + userType (number) - 1 - user | 2 - manager | 3 - administrator
+    + jobPosition (string) - new job position of the user
+    + culture (string) - culture name. For example `en-US`
+    + hourValue (number) - Monetary value of the worked hour
+    + endLunchHour (string) - "HH:mm:ss" 24 hours format
+    + endWorkHour (string) - "HH:mm:ss" 24 hours format
+    + startLunchHour (string) - "HH:mm:ss" 24 hours format
+    + startWorkHour (string) - "HH:mm:ss" 24 hours format
+    + workDaysOfWeek (array[number]) - 1 - Sunday | 2  -Monday | 3 - Tuesday | 4 - Wednesday | 5 - Thuersday | 6 - Friday | 7 - Sunday
+    + address (string) - base point address
+    + latitude (number) - base point latitude
+    + longitude (number) - base point longitude
+    + openTaskPlace (boolean) - open in-place task by application
+    * grabGalleryPhotos (boolean) - allows you to take gallery photo in the app
+    + gpsFrequency (number) - 60 - 1 minute| 120 - 2 minutes |180 - 3 minutes | 240 - 4 minutes | 300 - 5 minutes
+
++ Request (application/json)
+
+
+    + Body
+
+            {
+                "appKey": "appKey of the account"
+                "token": "token of the account",
+                "name": "New person name"
+            }
+
+    + Schema
+
+            {
+                "appKey": string,
+                "token": string,
+                "name": [string],
+                "password": [string],
+                "userType": [integer],
+                "jobPosition": [string],
+                "culture": [string],
+                "hourValue": [integer],
+                "endLunchHour": ["HH:mm:ss"],
+                "endWorkHour": ["HH:mm:ss"],
+                "startLunchHour": ["HH:mm:ss"],
+                "startWorkHour": ["HH:mm:ss"],
+                "workDaysOfWeek": [1, 2, 3, 4, 5, 6, 7]
+            }
+
++ Response 200
+    
+    + Body
+    
+            {
+                "userId": 23,
+                "name": "New person name",
+                "smartphoneNumber": "555555555555",
+                "culture": "pt-BR",
+                "jobPosition": "Administrador",
+                "userType": { "userTypeId": 1, "description": "user" },
+                "workDaysOfWeek": [ 
+                    { "dayId": 1, "description": "sunday" },
+                    { "dayId": 2, "description": "monday" },
+                    { "dayId": 3, "description": "tuesday" },
+                    { "dayId": 4, "description": "wednesday" },
+                    { "dayId": 5, "description": "thursday" },
+                    { "dayId": 6, "description": "friday" },
+                    { "dayId": 7, "description": "saturday" }
+                ],
+                "startWorkHour": "08:00:00",
+                "endWorkHour": "18:00:00",
+                "startLunchHour": "12:00:00",
+                "endLunchHour": "14:00:00",
+                "hourValue": 0,
+                "pictureBase64": "",
+                "BasePoint": {
+                  "address": "Rua C-137",
+                  "latitude": -16.711903488917,
+                  "longitude": -16.711903488917
+                },
+                "openTaskInPlace": true,
+                "grabGalleryPhotos": true,
+                "gpsFrequency": 300
+            }    
+            
+
+
+### Delete a User [DELETE]
+
++ Parameters
+
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of the Auvo's account.
+
++ Response 204
+
+    When succeed, return 204 and an empty payload.
+
+    + Body
+
+## Users Collection [/users]
+Collection of all `Users`.
+
++ Model
+
+    JSON representation of Users Resource.
+
+    + Body
+
+            [{
+                "appKey": string,
+                "token": string,
+                "name": string,
+                "password": string,
+                "smartPhoneNumber": string,
+                "userType": integer,
+                "jobPosition": [string],
+                "culture": string,
+                "hourValue": [integer],
+                "endLunchHour": ["HH:mm:ss"],
+                "endWorkHour": ["HH:mm:ss"],
+                "startLunchHour": ["HH:mm:ss"],
+                "startWorkHour": ["HH:mm:ss"],
+                "workDaysOfWeek": [1, 2, 3, 4, 5, 6, 7]
+            }]
+
+### List All Users [GET]
+
++ Parameters
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of your Auvo's account.
+    + name (optional, string) ... user name.
+    + smartPhoneNumber (optional, string) ... user registered phone number.
+
++ Response 200
+    
+    + Body
+            
+            [
+                {
+                    "userId": 23,
+                    "name": "New person name",
+                    "smartphoneNumber": "555555555555",
+                    "culture": "pt-BR",
+                    "jobPosition": "Administrador",
+                    "userType": { "userTypeId": 1, "description": "user" },
+                    "workDaysOfWeek": [ 
+                        { "dayId": 1, "description": "sunday" },
+                        { "dayId": 2, "description": "monday" },
+                        { "dayId": 3, "description": "tuesday" },
+                        { "dayId": 4, "description": "wednesday" },
+                        { "dayId": 5, "description": "thursday" },
+                        { "dayId": 6, "description": "friday" },
+                        { "dayId": 7, "description": "saturday" }
+                    ],
+                    "startWorkHour": "08:00:00",
+                    "endWorkHour": "18:00:00",
+                    "startLunchHour": "12:00:00",
+                    "endLunchHour": "14:00:00",
+                    "hourValue": 0,
+                    "pictureBase64": "",
+                    "BasePoint": {
+                      "address": "Rua C-137",
+                      "latitude": -16.711903488917,
+                      "longitude": -49.2775752032046,
+                    },
+                    "openTaskInPlace": true,
+                    "grabGalleryPhotos": true,
+                    "gpsFrequency": 300
+                }   
+            ]
+
+            
+# Group Tasks
+
+## Task [/tasks/{id}?appkey={appKey}&token={token}]
+    
+ A single `Task` object.
+
++ Parameters
+
+    + id (number) ... `taskId` attribute of the `Task`.
+
++ Model
+
+    + Body
+    
+            {
+                "taskId": 23,
+                "idUserFrom": 123,
+                "idUserTo": 123,
+                "customerId": 456,
+                "creationDate": "2016-03-23T14:10:35",
+                "taskDate": "2016-03-23T18:00:00",
+                "latitude": -16.6872086111083,
+                "longitude": -49.2995542287827,
+                "address": "avenue X",
+                "orientation": "Go get a beer!",
+                "priority": 1,
+                "deliveredOnSmarthPhone": true,
+                "deliveredDate": "2016-03-23T14:11:31",
+                "finished": true,
+                "report": "ok",
+                "visualized": true,
+                "visualizedDate": "2016-03-23T14:12:00",
+                "checkIn": true,
+                "checkInDate": "2016-03-23T18:05:00",
+                "checkOut": true,
+                "checkOutDate": "2016-03-23T18:10:00",
+                "signatureBase64": "Base64 encoded string of the signature",
+                "checkinManual": false,
+                "attachmentsBase64": [
+                    "First attachment's Url",
+                    "Second attachment's Url"
+                ],
+                "checkList": [
+                    {
+                        "checkListId": "1",
+                        "questionId": "1",
+                        "question": "How many did you get?",
+                        "reply": "Got a six pack",
+                        "replyDate": ""
+                    },
+                    {
+                        "checkListId": "1",
+                        "questionId": "2",
+                        "question": "Got any snacks?",
+                        "reply": "Nop",
+                        "replyDate": ""
+                    }
+                ]
+            }
+
+### Retrieve a Task [GET]
+
++ Parameters
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of your Auvo's account.
+
++ Response 200
+
+    [Task][]
+
++ Response 400
+
+    When making a request with invalid options, status code 400 will be returned. For example, passing an invalid `appKey` parameter.
+
+    + Body
+    
+            [
+              {
+                "errorCode": 4,
+                "message": "Invalid appKey."
+              }
+            ]
+
++ Response 404
+    
+    When the resource with the specified id does not exist.
+    
+    + Body
+
+### Add a new Task [POST /tasks/]
+
+The body example describes the minimum required attributes to successfully add a task. See the **Atributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + appKey (required, string) - appKey of your Auvo's account
+    + token (required, string) - token of your Auvo's account
+    + idUserFrom (required, number) - userId of the User that is opening the task
+    + idUserTo (required, number) - userId of the User responsable for executing the task
+    + taskDate (required, string) - date and time for the execution of the task
+    + localDate (required, string) - local date and time of the creation of the task
+    + address (required, string) - address of the task
+    + orientation (required, string) - orientation of the task
+    + priority (required, number) - priority of the task. 1 - Low | 2 - Medium | 3 - High
+    + latitude (number) - latitude of the task
+    + longitude (number) - longitude of the task
+    + checkListId (number) - checkListId of the CheckList included in the task
+    + customerId (number) - customerId of the Customer chosen for the task
+    + checkinManual (boolean)
+    + taskType (number) - taskTypeId of the task type
+    + attachments (array) - list of attachment object, this object MUST have "name" and "file" attributes, the name MUST contain the file type (Ex. "my_file.pdf")
++ Request (application/json)
+
+    + Body 
+        
+            {
+                "appKey": "appKey of the account",
+                "token": "token of the account",
+                "idUserFrom": 99,
+                "idUserTo": 69,
+                "taskDate": "2016-04-23T18:00:00",
+                "localDate": "2016-04-23T08:00:00",
+                "latitude": -16.6872086111083,
+                "longitude": -49.2995542287827,
+                "address": "avenue Y",
+                "orientation": "Gotta Catch 'Em All",
+                "priority": 1,
+                "taskType": 3,
+                "attachments": [
+                    {
+                        "name": "my_file.pdf",
+                        "file": "base64 encoded file"
+                    }
+                ]
+            }
+
+    + Schema
+    
+            {
+                "appKey": string,
+                "token": string,
+                "idUserFrom": integer,
+                "idUserTo": integer,
+                "taskDate": "yyyy-MM-ddTHH:mm:ss",
+                "localDate": "yyyy-MM-ddTHH:mm:ss",
+                "latitude": integer,
+                "longitude": integer,
+                "address": string,
+                "orientation": string,
+                "priority": integer,
+                "checkListId": integer,
+                "customerId": integer
+                "checkinManual": boolean,
+                "attachments": array
+            }
+
++ Response 201
+
+    + Header
+    
+            Location: https://auvo.com.com.br/v1.0/tasks/100
+
+    + Body
+    
+            {
+                "taskId": 100,
+                "idUserFrom": 99,
+                "idUserTo": 69,
+                "creationDate": "2016-04-23T08:00:00",
+                "taskDate": "2016-04-23T18:00:00",
+                "latitude": -16.6872086111083,
+                "longitude": -49.2995542287827,
+                "address": "avenue Y",
+                "orientation": "Gotta Catch 'Em All",
+                "priority": 1,
+                "deliveredOnSmarthPhone": false,
+                "deliveredDate": "",
+                "finished": false,
+                "report": "",
+                "visualized": false,
+                "visualizedDate": "",
+                "checkIn": false,
+                "checkInDate": "",
+                "checkOut": false,
+                "checkOutDate": "",
+                "checkinManual": false,
+                "signatureBase64": "",
+                "attachmentsBase64": [],
+                "signatureUrl": "",
+                "attachmentsUrl": [],
+                "checkList": []
+            }
+
+### Edit a Task [PUT /tasks/{id}]
+To update a `Task`, send a JSON with updated value for one or more of the `Task` attributes. All attributes values (states) from the previous version of this `Task` are carried over by default if not included in the hash. See the **Atributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + appKey (required, string) - appKey of the account
+    + token (required, string) - token of the account
+    + taskDate (string) - new date for the task
+    + orientation (string) - new orientation for the task
+    + priority (number) - new priority for the task. 1 - Low | 2 - Medium | 3 - High
+    + checkListCode (number) - new checklist for the task 
+    + closeTask (boolean) - new status of the task. Send true to close the task
+    + checkinManual (boolean)
+    + idUserTo (number) - new user to for the task
+    + taskType (number) - taskTypeId of the task type
+    + attachments (array) - list of attachment object, this attribute will only insert new attachments to the task
+    + removeAllAttachmentsInsertedByMe (boolean) - this option will remove all the previous attachments inserted by the requester in the task
++ Request (application/json)
+
+    + Body
+
+            {
+                "appKey": "appKey of the account"
+                "token": "token of the account",
+                "closeTask": true,
+                "removeAllAttachmentsInsertedByMe": false
+            }
+
+    + Schema
+
+            {
+                "appKey": string,
+                "token": string,
+                "taskDate": ["yyyy-MM-ddTHH:mm:ss"],
+                "orientation": [string],
+                "priority": [number],
+                "checkListCode": [number],
+                "closeTask": [boolean]
+            }
+
++ Response 200
+    
+    + Body
+    
+            {
+                "taskId": 32,
+                "idUserFrom": 321,
+                "idUserTo": 321,
+                "creationDate": "2016-03-23T08:00:35",
+                "taskDate": "2016-03-23T14:00:00",
+                "latitude": -16.6872086111083,
+                "longitude": -49.2995542287827,
+                "address": "avenue X",
+                "orientation": "Work!",
+                "priority": "1",
+                "deliveredOnSmarthPhone": true,
+                "deliveredDate": "2016-03-23T08:11:31",
+                "finished": true,
+                "report": "",
+                "visualized": false,
+                "visualizedDate": "",
+                "checkIn": false,
+                "checkInDate": "",
+                "checkinManual": false,
+                "checkOut": false,
+                "checkOutDate": "",
+                "signatureBase64": "",
+                "attachmentsBase64": [],
+                "checkList": []
+            }
+
+
+### Delete a Task [DELETE]
+
++ Parameters
+
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of your Auvo's account.
+
++ Response 204
+
+    When succeed, return 204 and an empty payload.
+
+    + Body
+
+## Tasks Collection [/tasks]
+
+Collection of all `Tasks`.
+
+### List All Tasks [GET]
+
++ Parameters
+    + appKey (string) - `appKey` of your Auvo's account.
+    + token (string) - `token` of your Auvo's account.
+    + startDate (string) - Initial date of the searched tasks
+    + endDate (string) - Final date of the searched tasks
+    + idUserTo (optional, number) - `userId` of the `User` responsable for the task
+    + onlyFinishedAll (optional, boolean) - All finished tasks, including manually and automatically finished tasks
+    + onlyFinishedAutomatically (optional, boolean) - Automatically finished tasks
+    + onlyFinishedManually (optional, boolean) - Manually finished tasks
+    + onlyNotFinished (optional, boolean) - Not finished tasks
+    + customerId (optional, number) - `customerId` of the `Customer` related to the task
+    + teamId (optional, number) - `teamId` of the `Team` that is assigned for the task
+    + taskType (optional, number) - `typeId` of the `Task Type` related to the task
+    + flatTask (optional, boolean) - This attribute will force a flat response, the following fields will not be sent in the response: Images, Attachments and Questionnaires
+    + lastUpdated (optional, string) - Only tasks updated after this date will be listed, it includes updates in the task an the questionnaires inside the task, this field allows sincronization scripts to work with a lightweight response for general update tasks
+    + imagesAsUrl (optional, boolean) - The images and attachments will be sent as URL's, not in base64 format, it reduces the load in the response ant consequently the response time
+    
++ Response 200
+    
+    + Body
+            
+            [
+                {
+                    "taskId": "23",
+                    "idUserFrom": 123,
+                    "idUserTo": 123,
+                    "customerId": 456,
+                    "creationDate": "2016-03-23T14:10:35",
+                    "taskDate": "2016-03-23T18:00:00",
+                    "latitude": -16.6872086111083,
+                    "longitude": -49.2995542287827,
+                    "address": "avenue X",
+                    "orientation": "Go get a beer!",
+                    "priority": "1",
+                    "deliveredOnSmarthPhone": true,
+                    "deliveredDate": "2016-03-23T14:11:31",
+                    "finished": true,
+                    "report": "ok",
+                    "visualized": true,
+                    "visualizedDate": "2016-03-23T14:12:00",
+                    "checkIn": true,
+                    "checkInDate": "2016-03-23T18:05:00",
+                    "checkOut": true,
+                    "checkOutDate": "2016-03-23T18:10:00",
+                    "checkinManual": false,
+                    "signatureBase64": "Base64 encoded string of the signature",
+                    "attachmentsBase64": [
+                        "First attachment's Url",
+                        "Second attachment's Url",
+                    ],
+                    "checkList": [
+                        {
+                          "itemId": 0,
+                          "checkListId": 883,
+                          "checkListDescription": "Checklist1",
+                          "lastReplyDate": "2017-01-23T17:51:04",
+                          "questions": [
+                            {
+                              "questionId": 5232,
+                              "questionDescription": "What is the client age?",
+                              "reply": "20 to 30",
+                              "replyDate": "2017-01-23T17:51:04"
+                            },
+                            {
+                              "questionId": 5093,
+                              "questionDescription": "Table color?",
+                              "reply": "Red",
+                              "replyDate": "2017-01-23T17:51:11"
+                            },
+                            {
+                              "questionId": 5022,
+                              "questionDescription": "SO number",
+                              "reply": "15",
+                              "replyDate": "2017-01-23T17:51:16"
+                            }
+                          ]
+                        },
+                        {
+                          "itemId": 1,
+                          "checkListId": 973,
+                          "checkListDescription": "QT",
+                          "lastReplyDate": "2017-01-23T18:04:44",
+                          "questions": [
+                            {
+                              "questionId": 4904,
+                              "questionDescription": "Replacement?",
+                              "reply": "",
+                              "replyDate": ""
+                            },
+                            {
+                              "questionId": 5485,
+                              "questionDescription": "Age of the customer?",
+                              "reply": "20 to 30",
+                              "replyDate": "2017-01-23T18:04:44"
+                            },
+                            {
+                              "questionId": 5051,
+                              "questionDescription": "Test question",
+                              "reply": "S",
+                              "replyDate": "2017-01-23T18:04:45"
+                            },
+                            {
+                              "questionId": 4910,
+                              "questionDescription": "Payed amount?",
+                              "reply": "9,99",
+                              "replyDate": "2017-01-23T18:04:54"
+                            }
+                          ]
+                        }
+                    ]
+                }
+            ]
+
+# Group Task Type
+
+## Task Type [/taskTypes/{id}?appkey={appKey}&token={token}]
+    
+ A single `TaskType` object.
+
++ Parameters
+
+    + typeId (number) ... `typeId` attribute of the `TaskType`.
+
++ Model
+
+    + Body
+    
+            {
+                "typeId": 1,
+                "description": "Task type description",
+                "creatorId": 23,
+                "creationDate": "2017-11-10T10:01:30"
+            }
+
+### Retrieve a Task Type [GET]
+
++ Parameters
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of your Auvo's account.
+
++ Response 200
+
+    [Task Type][]
+
++ Response 400
+
+    When making a request with invalid options, status code 400 will be returned. For example, passing an invalid `appKey` parameter.
+
+    + Body
+    
+            [
+              {
+                "errorCode": 4,
+                "message": "Invalid appKey."
+              }
+            ]
+
++ Response 404
+    
+    When the resource with the specified id does not exist.
+    
+    + Body
+
+### Add a new Task Type [POST /taskTypes/]
+
+The body example describes the minimum required attributes to successfully add a task type. See the **Atributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + appKey (required, string) - appKey of your Auvo's account
+    + token (required, string) - token of your Auvo's account
+    + description (required, string) - description of the task type
+    + description (required, string) - description of the task type
+
++ Request (application/json)
+
+    + Body 
+        
+            {
+                "appKey": "appKey of the account",
+                "token": "token of the account",
+                "description": "Task type description"
+            }
+
+    + Schema
+    
+            {
+                "appKey": string,
+                "token": string,
+                "description": string
+            }
+
++ Response 201
+
+    + Header
+    
+            Location: https://auvo.com.com.br/v1.0/taskTypes/23
+
+    + Body
+    
+            {
+                "typeId": 23,
+                "description": "Task type description",
+                "creatorId": 1,
+                "creationDate": "2017-11-10T10:01:30"
+            }
+
+## Task Type Collection [/taskTypes]
+
+Collection of all `Tasks Types`.
+
+### List All Task Types [GET]
+
++ Parameters
+    + appKey (string) - `appKey` of your Auvo's account.
+    + token (string) - `token` of your Auvo's account.
+    + description (string) - description of task type
+
++ Response 200
+    
+    + Body
+            
+            [
+                {
+                    "typeId": 23,
+                    "description": "Task type description",
+                    "creatorId": 3,
+                    "creationDate": "2017-11-10T10:01:30"
+                },
+                {
+                    "typeId": 123,
+                    "description": "Task type",
+                    "creatorId": 1,
+                    "creationDate": "2017-11-13T13:00:00"
+                }
+            ]
+
+# Group Customers
+
+## Customer [/customers/{id}?appkey={appKey}&token={token}]
+    
+ A single `Customer` object.
+
++ Parameters
+
+    + id (number) ... `customerId` attribute of the `Customer`.
+
++ Model
+
+    + Body
+    
+            {
+                "customerId": 42,
+                "name": "Terêscio",
+                "cpfCnpj": "90614997000162",
+                "phoneNumber": "5566123123",
+                "email": "terenscio@customer.com",
+                "manager": "Oristides",
+                "managerJobPosition": "Manager",
+                "note": "nothing to say",
+                "address": "lake yululu",
+                "latitude": -16.6872086111083,
+                "longitude": -49.2995542287827,
+                "segmentId": 1
+            }
+
+### Retrieve a Customer [GET]
+
++ Parameters
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of your Auvo's account.
+
++ Response 200
+
+    [Customer][]
+
++ Response 400
+
+    When making a request with invalid options, status code 400 will be returned. For example, passing an invalid `appKey` parameter.
+
+    + Body
+    
+            [
+              {
+                "errorCode": 4,
+                "message": "Invalid appKey."
+              }
+            ]
+
++ Response 404
+    
+    When the resource with the specified id does not exist.
+    
+    + Body
+
+### Add a new Customer [POST /customers/]
+
+The body example describes the minimum required attributes to successfully add a customer. See the **Atributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + appKey (required, string) - appKey of your Auvo's account
+    + token (required, string) - token of your Auvo's account
+    + name (required, string) - customer name
+    + address (required, string) - customer address
+    + latitude (string) - latitude of the customer address
+    + longitude (string) - longitude of the customer address
+    + phoneNumber (string) - customer phone number
+    + email (string) - customer contect email
+    + manager (string) - customer manager
+    + managerJobPosition (string) - job position of the customer manager
+    + note (string) - note about the customer
+    + cpfCnpj (string) - customer CPF/CNPJ
+    + segmentId (number) - id of a registered segment
+
++ Request (application/json)
+
+    + Body 
+        
+            {
+                "appKey": "appKey of the account",
+                "token": "token of the account",
+                "name": "Acme",
+                "cpfCnpj": "90614997000162",
+                "address": "Bermuda triangle",
+                "latitude": 32.294388,
+                "longitude": -64.773502,
+                "phoneNumber": "5562123123123"
+            }
+
+    + Schema
+    
+            {
+                "appKey": string,
+                "token": string,
+                "name": string,
+                "cpfCnpj":string,
+                "address": string,
+                "latitude": number,
+                "longitude": number,
+                "phoneNumber": [string],
+                "email": [string],
+                "manager": [string],
+                "managerJobPosition": [string],
+                "note": [string],
+                "segmentId": [number]
+            }
+
++ Response 201
+
+    + Header
+    
+            Location: https://auvo.com.com.br/v1.0/customers/1024
+
+    + Body
+    
+            {
+                "customerId": 57,
+                "name": "Acme",
+                "cpfCnpj": "90614997000162",
+                "phoneNumber": "",
+                "email": "",
+                "manager": "",
+                "managerJobPosition": "",
+                "note": "",
+                "address": "Bermuda triangle",
+                "latitude": 32.294388,
+                "longitude": -64.773502,
+                "segmentId": 0
+            }
+
+### Edit a Customer [PUT /customers/{id}]
+To update a `Customer`, send a JSON with updated value for one or more of the `Customer` attributes. All attributes values (states) from the previous version of this `Customer` are carried over by default if not included in the hash. See the **Atributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + appKey (required, string) - appKey of the account
+    + token (required, string) - token of the account
+    + name (string) - new customer name
+    + address (string) - new customer address
+    + latitude (string) - new latitude of the customer address
+    + longitude (string) - new longitude of the customer address
+    + phoneNumber (string) - new customer phone number
+    + email (string) - new customer contect email
+    + manager (string) - new customer manager
+    + managerJobPosition (string) - new job position of the customer manager
+    + note (string) - new note about the customer
+    + cpfCnpj (string) - customer CPF/CNPJ
+    + segmentId (number) - id of a registered segment
+
++ Request (application/json)
+
+    + Body
+
+            {
+                "appKey": "appKey of the account"
+                "token": "token of the account",
+                "name": "new name"
+            }
+
+    + Schema
+
+            {
+                "appKey": string,
+                "token": string,
+                "name": [string],
+                "cpfCnpj": string,
+                "address": [string],
+                "latitude": [number],
+                "longitude": [number],
+                "phoneNumber": [string],
+                "email": [string],
+                "manager": [string],
+                "managerJobPosition": [string],
+                "note": [string],
+                "segmentId": [number]
+            }
+
++ Response 200
+    
+    + Body
+    
+            {
+                "customerId": 57,
+                "name": "new name",
+                "cpfCnpj": "90614997000162",
+                "phoneNumber": "",
+                "email": "",
+                "manager": "",
+                "managerJobPosition": "",
+                "note": "",
+                "address": "Bermuda triangle",
+                "latitude": 32.294388,
+                "longitude": -64.773502,
+                "segmentId": 0
+            }
+
+
+### Delete a Customer [DELETE]
+
++ Parameters
+
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of your Auvo's account.
+
++ Response 204
+
+    When succeed, return 204 and an empty payload.
+
+    + Body
+
+## Customers Collection [/customers]
+
+Collection of all `Customer`.
+
+### List All Customers [GET]
+
++ Parameters
+    + appKey (string) - `appKey` of your Auvo's account.
+    + token (string) - `token` of your Auvo's account.
+    + name (optional, string) - customer name
+
++ Response 200
+    
+    + Body
+            
+            [
+                {
+                    "customerId": 42,
+                    "name": "Terêscio",
+                    "cpfCnpj": "90614997000162",
+                    "phoneNumber": "5566123123",
+                    "email": "terenscio@customer.com",
+                    "manager": "Oristides",
+                    "managerJobPosition": "Manager",
+                    "note": "nothing to say",
+                    "address": "lake yululu",
+                    "latitude": -16.6872086111083,
+                    "longitude": -49.2995542287827,
+                    "segmentId": 1
+                }
+            ]
+
+# Group Segments
+
+## Segments [/segments/{id}?appkey={appKey}&token={token}]
+    
+ A single `Segment` object.
+
++ Parameters
+
+    + id (number) ... `segmentId` attribute of the `Segment`.
+
++ Model
+
+    + Body
+    
+            {
+                "segmentId": 13,
+                "description": "Segment"
+            }
+
+### Retrieve a Segment [GET]
+
++ Parameters
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of your Auvo's account.
+
++ Response 200
+
+    [Segments][]
+
++ Response 400
+
+    When making a request with invalid options, status code 400 will be returned. For example, passing an invalid `appKey` parameter.
+
+    + Body
+    
+            [
+              {
+                "errorCode": 4,
+                "message": "Invalid appKey."
+              }
+            ]
+
++ Response 404
+    
+    When the resource with the specified id does not exist.
+    
+    + Body
+
+## Segment Collection [/segments]
+
+Collection of all `Segments`.
+
+### List All Segments [GET]
+
++ Parameters
+    + appKey (required, string) - `appKey` of your Auvo's account
+    + token (required, string) - `token` of your Auvo's account
+    + description (optional, string) - `description` of the segment
+    
++ Response 200
+    
+    + Body
+            
+            [
+                {
+                    "segmentId": 13,
+                    "description": "Segment"
+                },
+                {
+                    "segmentId": 27,
+                    "description": "Another Segment"
+                },
+            ]
+
+# Group GPS
+
+## GPS Collection [/gps]
+
+Collection of all `Gps`.
+
+### List All Positions [GET]
+
++ Parameters
+    + appKey (string) - `appKey` of your Auvo's account
+    + token (string) - `token` of your Auvo's account
+    + date (string) - Date of the gps positions, 24 hour format "HH:mm:ss"
+    + userId (optional, string) - user id
+
++ Response 200
+    
+    + Body
+            
+            [
+                {
+                    "userId": 42,
+                    "positionDate": "2016-01-16T09:57:06",
+                    "latitude": "-16.6872086111083",
+                    "longitude": "-49.2995542287827",
+                    "accuracy": 40,
+                    "batteryLevel": 23,
+                    "networkOperatorName": "Tim"
+                }
+            ]
+
+# Group Questionnaires
+
+## Questionnaire [/questionnaires/{id}?appkey={appKey}&token={token}]
+    
+ A single `Questionnaire` object.
+
++ Parameters
+
+    + id (number) ... `questionnaireId` attribute of the `Questionnaire`.
+
++ Model
+
+    + Body
+    
+            {
+                "questionnaireId": 42,
+                "description": "Contact",
+                "questions": [
+                    {
+                        "questionId": 16,
+                        "description": "First contact?"
+                    },
+                    {
+                        "questionId": 18,
+                        "description": "Got lucky?"
+                    }
+                ]
+            }
+
+### Retrieve a Questionnaire [GET]
+
++ Parameters
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of your Auvo's account.
+
++ Response 200
+
+    [Questionnaire][]
+
++ Response 400
+
+    When making a request with invalid options, status code 400 will be returned. For example, passing an invalid `appKey` parameter.
+
+    + Body
+    
+            [
+              {
+                "errorCode": 4,
+                "message": "Invalid appKey."
+              }
+            ]
+
++ Response 404
+    
+    When the resource with the specified id does not exist.
+    
+    + Body
+
+## Questionnaire Collection [/questionnaires]
+
+Collection of all `Questionnaires`.
+
+### List All Questionnaires [GET]
+
++ Parameters
+    + appKey (string) - `appKey` of your Auvo's account
+    + token (string) - `token` of your Auvo's account
+
++ Response 200
+    
+    + Body
+            
+            [
+                {
+                    "questionnaireId": 42,
+                    "description": "Contact",
+                    "questions": [
+                        {
+                            "questionId": 16,
+                            "description": "First contact?"
+                        },
+                        {
+                            "questionId": 18,
+                            "description": "Got lucky?"
+                        }
+                    ]
+                }
+            ]
+
+# Group Teams
+
+## Team [/teams/{id}?appkey={appKey}&token={token}]
+    
+ A single `Team` object.
+
++ Parameters
+
+    + id (number) ... `teamId` attribute of the `Team`.
+
++ Model
+
+    + Body
+    
+            {
+                "teamId": 77,
+                "description": "Comercial",
+                "teamMembers": [
+                    {
+                        "userId": 16,
+                        "name": "Eli"
+                    },
+                    {
+                        "userId": 18,
+                        "name": "Irene"
+                    }
+                ]
+            }
+
+### Retrieve a Team [GET]
+
++ Parameters
+    + appKey (string) ... `appKey` of your Auvo's account.
+    + token (string) ... `token` of your Auvo's account.
+
++ Response 200
+
+    [Team][]
+
++ Response 400
+
+    When making a request with invalid options, status code 400 will be returned. For example, passing an invalid `appKey` parameter.
+
+    + Body
+    
+            [
+              {
+                "errorCode": 4,
+                "message": "Invalid appKey."
+              }
+            ]
+
++ Response 404
+    
+    When the resource with the specified id does not exist.
+    
+    + Body
+
+## Teams Collection [/teams]
+
+Collection of all `Teams`.
+
+### List All Teams [GET]
+
++ Parameters
+    + appKey (string) - `appKey` of your Auvo's account
+    + token (string) - `token` of your Auvo's account
+
++ Response 200
+    
+    + Body
+            
+            [
+                {
+                    "teamId": 77,
+                    "description": "Comercial",
+                    "teamMembers": [
+                        {
+                            "userId": 16,
+                            "name": "Eli"
+                        },
+                        {
+                            "userId": 18,
+                            "name": "Irene"
+                        }
+                    ]
+                }
+            ]            

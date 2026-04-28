@@ -218,9 +218,9 @@ CREATE TABLE orcamento_task_ids (
 - `_resolver_produto_local(db, auvo_product_id)` — busca em `produtos` para vincular FK
 - `listar_por_condominio_e_periodo(db, condominio_id, data_referencia, dias_antes=90)` — usado pelo termo
 
-**10B.6** `[ ]` `backend/app/schemas/orcamento_schema.py` — `OrcamentoResponse`, `OrcamentoItemResponse`, `OrcamentoListResponse`.
+**10B.6** `[x]` `backend/app/schemas/orcamento_schema.py` — `OrcamentoResponse`, `OrcamentoItemResponse`, `OrcamentoListResponse`.
 
-**10B.7** `[ ]` `backend/app/routers/orcamento_router.py`:
+**10B.7** `[x]` `backend/app/routers/orcamento_router.py`:
 | Verbo | Rota | Função |
 |---|---|---|
 | POST | `/orcamentos/sync` | Dispara sync por período |
@@ -230,16 +230,16 @@ CREATE TABLE orcamento_task_ids (
 
 ### Frontend
 
-**10B.8** `[ ]` `cmport-front/app/orcamentos/page.tsx` — lista com:
+**10B.8** `[x]` `cmport-front/app/orcamentos/page.tsx` — lista com:
 - Botão "🔄 Sincronizar (período)"
 - Filtros: condomínio, data, status (cancelado/ativo)
 - Tabela: publicId, cliente, data, valor, qtd itens, status
 
-**10B.9** `[ ]` `cmport-front/app/orcamentos/[id]/page.tsx` — detalhe com lista de itens (produtos + serviços + custos), totais, link público, observações.
+**10B.9** `[x]` `cmport-front/app/orcamentos/[id]/page.tsx` — detalhe com lista de itens (produtos + serviços + custos), totais, link público, observações.
 
-**10B.10** `[ ]` Sidebar: item "Orçamentos".
+**10B.10** `[x]` Sidebar: item "Orçamentos".
 
-**10B.11** `[ ]` Em `app/condominios/[id]/page.tsx` — adicionar seção "Orçamentos recentes" (últimos 10 do condomínio).
+**10B.11** `[x]` Em `app/condominios/[id]/page.tsx` — adicionar seção "Orçamentos recentes" (últimos 10 do condomínio).
 
 ### Verificação 10B
 - Sync de período retorna contagens; orçamentos aparecem na listagem.

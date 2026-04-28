@@ -206,12 +206,12 @@ class AuvoClient:
             return data["result"]
         return None
 
-    def get_budgets(self, date_start: str, date_end: str, customer_id: Optional[int] = None, page: int = 1, page_size: int = 50) -> List[Dict]:
-        """Lista orçamentos por período. Endpoint: GET /budgets/"""
+    def get_quotations(self, date_start: str, date_end: str, customer_id: Optional[int] = None, page: int = 1, page_size: int = 50) -> List[Dict]:
+        """Lista orçamentos (quotations) por período. Endpoint: GET /quotations/"""
         # Auvo API v2 usa paramFilter JSON
         filter_dict = {
-            "startDate": date_start,
-            "endDate": date_end
+            "requestStartDate": date_start,
+            "requestEndDate": date_end
         }
         if customer_id:
             filter_dict["customerId"] = customer_id
@@ -222,17 +222,17 @@ class AuvoClient:
             "pageSize": page_size,
             "order": "desc"
         }
-        data = self._make_request("budgets/", params=params)
+        data = self._make_request("quotations/", params=params)
         if data and "result" in data:
             return data["result"].get("entityList", [])
         return []
 
-    def get_all_budgets_by_period(self, date_start: str, date_end: str, page_size: int = 50) -> List[Dict]:
-        """Busca todos os orçamentos de um período paginando automaticamente."""
+    def get_all_quotations_by_period(self, date_start: str, date_end: str, page_size: int = 50) -> List[Dict]:
+        """Busca todos os orçamentos (quotations) de um período paginando automaticamente."""
         todos = []
         page = 1
         while True:
-            lista = self.get_budgets(date_start, date_end, page=page, page_size=page_size)
+            lista = self.get_quotations(date_start, date_end, page=page, page_size=page_size)
             if not lista:
                 break
             todos.extend(lista)
@@ -242,9 +242,9 @@ class AuvoClient:
             page += 1
         return todos
 
-    def get_budget(self, budget_id: int) -> Optional[Dict]:
-        """Busca detalhe completo de um orçamento (incluindo itens). Endpoint: GET /budgets/{id}"""
-        data = self._make_request(f"budgets/{budget_id}")
+    def get_quotation(self, quotation_id: int) -> Optional[Dict]:
+        """Busca detalhe completo de um orçamento (quotation). Endpoint: GET /quotations/{id}"""
+        data = self._make_request(f"quotations/{quotation_id}")
         if data and "result" in data:
             return data["result"]
         return None

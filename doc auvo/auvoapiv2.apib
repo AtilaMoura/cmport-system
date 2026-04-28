@@ -1,0 +1,5343 @@
+FORMAT: 1A
+HOST: https://api.auvo.com.br/v2
+
+# Auvo API V2.0
+
+Auvo API provides a representation of the data found in your account at [Auvo](https://auvo.com.br).
+We follow **REST** principles, so the API is stateless and http methods and response codes are used whenever possible.
+
+The url for the requests is: `https://api.auvo.com.br/v2`
+
+## Media Types
+This API use JSON format to represent resources. When sending content on `PUT`/`PATCH`/`POST` requests, you **must** specify the follow header:
+
+    Content-Type: application/json
+
+## Response Codes
+The common [HTTP Response Status Codes](https://github.com/for-GET/know-your-http-well/blob/master/status-codes.md) are used.
+
+You will often see:
+
+* 200 (OK) - GET and PATCH methods
+* 201 (Created) - POST methods
+* 204 (No content) - DELETE methods.
+
+## Error States
+
+When something goes wrong, the response status code can be `4xx` if the error is related to your request structure or `5xx` if it's our server's fault.
+
+Example:
+
+* 400 (Bad request) - Check your request.
+* 403 (Forbidden) - Rate limit temporarily exceeded.
+* 404 (Not found) - The requested resource could not be found.
+* 415 (Unsupported media type) - POST /tasks, when the Content-Type header is not defined
+* 500 (Internal server error) - When a request throws an unexpected error. If you see this status code, please contact us: help@auvo.com.br
+
+## Authentication
+
+Before having access to the API, the user **must** request the authorization token by making a POST to /login, containing the `API key` and `API Token` within the body, or a GET
+containing the `API key` and `API Token` within the query parameter.
+The authorization token lasts 30 minutes and must be renewed by making a new login request. Every request must have the authorization token in the header with the key `Authorization` followed by the value Bearer + ` authorization token`.
+`API key` and `API Token` can be found by accessing [Menu > Integração](https://app.auvo.com.br/integracao) in your Auvo's account
+
+
+## Rate-limiting
+
+The API has rate limits to ensure stable performance. A single IP address can make up to `400` requests per minute (60 seconds). Exceeding this limit may result in temporary restrictions or throttling.
+
+If the limit is reached, the user will receive an HTTP `status code 403` with the following message in the response body:
+
+{ "error": "Rate limit temporarily exceeded" }.
+
+This indicates that too many requests were made in a short period, and the user should wait before retrying.
+
+# Group Login
+
+## Login [/login/?apiKey={apiKey}&apiToken={apiToken}]
+
++ Parameters
+
+    + apiKey (string) ... `apiKey` of the user admin
+    + apiToken (string) ... `apiToken` of the user admin
+
++ Model
+
+    + Body
+
+            "result":{
+                "authenticated": true,
+                "created": "2019-05-08 16:15:59",
+                "expiration": "2019-05-08 16:45:59",
+                "accessToken": "abcdefciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+                "message": "OK"
+            }
+
+### Retrieve a authentication - GET [GET /login/?apiKey={apiKey}&apiToken={apiToken}]
+The query param example describes the minimum required attributes to successfully retrieve a authentication.
+The property `authenticated` will indicate whether the authentication was a success or not.
+
++ Request (application/json)
+
+
++ Response 200 (application/json)
+
+    [Login][]
+
++ Response 400 (application/json)
+
+    + Body
+
+            {
+                "apiKey": [
+                    "The value '\"\"' is not valid."
+                ]
+            }
+
++ Response 404 (application/json)
+
+### Retrieve a authentication - POST [POST /login/]
+
+The body example describes the minimum required attributes to successfully retrieve a authentication.
+The property `authenticated` will indicate whether the authentication was a success or not.
+See the **Attributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + apiKey (required, string) - The user admin apiKey
+    + apiToken (required, string) - The user admin apiToken
+
+
++ Request (application/json)
+
+
+    + Body
+
+            {
+              "apiKey": "as576a5da67s5da7s6d5d56a7",
+              "apiToken": "h89g8fg9h8fg9h8fg9h8f9"
+            }
+
+    + Schema
+
+            {
+              "apiKey": "string",
+              "apiToken": "string"
+            }
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "authenticated": true,
+                "created": "2019-05-08 16:15:59",
+                "expiration": "2019-05-08 16:45:59",
+                "accessToken": "abcDefGOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+                "message": "OK"
+            }
+
+
+# Group Users
+
+## User [/users/{id}]
+
++ Parameters
+
+    + id (number) ... `id` attribute of the `User`.
+
++ Model
+
+    + Body
+
+            "result":{
+                "userId": 123,
+                "externalId": "123",
+                "name": "Jason",
+                "smartPhoneNumber": "555555555555",
+                "login": "login.auvo",
+                "email": "login.auvo@email.com",
+                "culture": "pt-BR",
+                "jobPosition": "Administrador",
+                "userType": { "userTypeId": 1, "description": "User" },
+                "workDaysOfWeek": [1, 2, 3, 4, 5, 6, 7],
+                "startWorkHour": "08:00:00",
+                "endWorkHour": "18:00:00",
+                "startLunchHour": "12:00:00",
+                "endLunchHour": "14:00:00",
+                "workSchedule": [
+                    {
+                        "workDayOfWeek": 2,
+                        "startWorkHour": "08:00:00",
+                        "endWorkHour": "18:00:00",
+                        "startLunchHour": "12:00:00",
+                        "endLunchHour": "13:00:00"
+                    }
+                ],
+                "hourValue": 0,
+                "pictureUrl": "",
+                "basePoint": {
+                    "address": "Rua C-137",
+                    "latitude": -16.711903488917,
+                    "longitude": -49.2775752032046
+                },
+                "openTaskInPlace": true,
+                "grabGalleryPhotos": true,
+                "gpsFrequency": 300,
+                "checkInManual": true,
+                "unavailableForTasks": true,
+                "editTaskAfterCheckout": true,
+                "informStartTravel": true,
+                "changeBasePoint": true,
+                "registrationDate": "2019-01-01 00:00:00",
+                "valueKMTraveled": 0,
+                "monitoringNotification": {
+                    "gpsActivation": 1,
+                    "gpsDisabling": 2,
+                    "appLogin": 3,
+                    "appLogout": 1
+                },
+                "employeeNotification": {
+                    "basePointChange": 1
+                },
+                "clientNotification": {
+                    "adressChange": 1
+                },
+                "taskNotification": {
+                    "checkIn": 1,
+                    "checkout": 2,
+                    "rescheduling": 3,
+                    "travelStart": 1,
+                    "researchAnswer": 3,
+                    "delay": 3,
+                    "taskDelete": 3
+                }
+            }
+
+### Retrieve a User [GET /users/{id}]
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    [User][]
+
++ Response 400 (application/json)
+
+    + Body
+
+            {
+                "id": [
+                    "The value '\"\"' is not valid."
+                ]
+            }
+
++ Response 404 (application/json)
+
+### Add a new User [POST /users/]
+
+The body example describes the minimum required attributes to successfully add an user. See the **Attributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + externalId (string) - The user external id. Max 255 characters
+    + name (required, string) - Name of the user. Max 100 characters
+    + smartPhoneNumber (string) - User phone number. Only numbers. Max 45 characters
+    + culture (required, string) - Culture name. For example `pt-BR`. Max 10 characters
+    + jobPosition (string) - Job position of the user. Max 250 characters
+    + userType (required, number) - 1 - User | 2 - Team Manager | 3 - Administrator
+    + password (required, string) - Password of the user. Max 14 characters
+    + login (required, string) - Login in the application. Max 45 characters
+    + email (string) - User email. Max 100 characters
+    + workDaysOfWeek (array[number]) - 1 - Sunday | 2 - Monday | 3 - Tuesday | 4 - Wednesday | 5 - Thursday | 6 - Friday | 7 - Saturday
+    + workSchedule (array) - Per-day work schedule
+        + workDayOfWeek (number) - Day of week (1-7)
+        + startWorkHour (string) - "HH:mm:ss"
+        + endWorkHour (string) - "HH:mm:ss"
+        + startLunchHour (string) - "HH:mm:ss"
+        + endLunchHour (string) - "HH:mm:ss"
+    + startWorkHour (string) - "HH:mm:ss" 24 hours format
+    + endWorkHour (string) - "HH:mm:ss" 24 hours format
+    + startLunchHour (string) - "HH:mm:ss" 24 hours format
+    + endLunchHour (string) - "HH:mm:ss" 24 hours format
+    + hourValue (number) - Monetary value of the worked hour
+    + checkInManual (boolean) - If checkin is manual
+    + address (string) - Base point address
+    + latitude (number) - Base point latitude
+    + longitude (number) - Base point longitude
+    + openTaskInPlace (boolean) - Open in-place task by application
+    + galleryPhotos (boolean) - Allows you to take gallery photo in the app
+    + gpsFrequency (number) - 60 - 1 minute | 120 - 2 minutes | 180 - 3 minutes | 240 - 4 minutes | 300 - 5 minutes
+    + unavailableForTasks (boolean) - If user is available for tasks
+    + editTaskAfterCheckout (boolean) - If can edit task after checkout
+    + informStartTravel (boolean) - If user utilize start travel
+    + changeBasePoint (boolean) - If user can change base point
+    + monitoringNotification (object) - *0:None, 1:Email, 2:Push, 3:Both*
+        + gpsActivation (number)
+        + gpsDisabling (number)
+        + appLogin (number)
+        + appLogout (number)
+    + employeeNotification (object) - *0:None, 1:Email, 2:Push, 3:Both*
+        + basePointChange (number)
+    + clientNotification (object) - *0:None, 1:Email, 2:Push, 3:Both*
+        + adressChange (number)
+    + taskNotification (object) - *0:None, 1:Email, 2:Push, 3:Both*
+        + checkIn (number)
+        + checkout (number)
+        + rescheduling (number)
+        + travelStart (number)
+        + researchAnswer (number)
+        + delay (number)
+        + taskDelete (number)
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+              "externalId": "123",
+              "name": "john",
+              "smartPhoneNumber": "578123456789",
+              "culture": "pt-BR",
+              "jobPosition": "manager",
+              "userType": 1,
+              "password": "123mudar",
+              "workDaysOfWeek": [1,2,3],
+              "startWorkHour": "08:00:00",
+              "endWorkHour": "18:00:00",
+              "startLunchHour": "13:00:00",
+              "endLunchHour": "14:00:00",
+              "hourValue": 10.0,
+              "checkInManual": false,
+              "address": "Rua Example, 123",
+              "latitude": -16.687,
+              "longitude": -49.299,
+              "openTaskInPlace": false,
+              "galleryPhotos": false,
+              "gpsFrequency": 300,
+              "login": "john.wick",
+              "email": "johnwick@email.com",
+              "unavailableForTasks": false,
+              "editTaskAfterCheckout": false,
+              "informStartTravel": false,
+              "changeBasePoint": false,
+              "monitoringNotification":{
+                  "gpsActivation": 1,
+                  "gpsDisabling": 2,
+                  "appLogin": 3,
+                  "appLogout": 0
+              },
+              "employeeNotification":{
+                  "basePointChange": 0
+              },
+              "clientNotification":{
+                  "adressChange": 0
+              },
+              "taskNotification":{
+                  "checkIn": 1,
+                  "checkout": 2,
+                  "rescheduling": 3,
+                  "travelStart": 0,
+                  "researchAnswer": 1,
+                  "delay": 2,
+                  "taskDelete": 3
+              }
+            }
+
+    + Schema
+
+            {
+              "externalId": "string",
+              "name": "string",
+              "smartPhoneNumber": "string",
+              "culture": "string",
+              "jobPosition": "string",
+              "userType": "integer",
+              "password": "string",
+              "workDaysOfWeek": [1, 2, 3, 4, 5, 6, 7],
+              "startWorkHour": "HH:mm:ss",
+              "endWorkHour": "HH:mm:ss",
+              "startLunchHour": "HH:mm:ss",
+              "endLunchHour": "HH:mm:ss",
+              "hourValue": "number",
+              "checkInManual": "boolean",
+              "address": "string",
+              "latitude": "number",
+              "longitude": "number",
+              "openTaskInPlace": "boolean",
+              "galleryPhotos": "boolean",
+              "gpsFrequency": "integer",
+              "login": "string",
+              "email": "string",
+              "unavailableForTasks": "boolean",
+              "editTaskAfterCheckout": "boolean",
+              "informStartTravel": "boolean",
+              "changeBasePoint": "boolean",
+              "monitoringNotification":{
+                  "gpsActivation": "integer",
+                  "gpsDisabling": "integer",
+                  "appLogin": "integer",
+                  "appLogout": "integer"
+              },
+              "employeeNotification":{
+                  "basePointChange": "integer"
+              },
+              "clientNotification":{
+                  "adressChange": "integer"
+              },
+              "taskNotification":{
+                  "checkIn": "integer",
+                  "checkout": "integer",
+                  "rescheduling": "integer",
+                  "travelStart": "integer",
+                  "researchAnswer": "integer",
+                  "delay": "integer",
+                  "taskDelete": "integer"
+              }
+            }
+
++ Response 201 (application/json)
+
+    + Body
+
+            "result": {
+                "userId": 123,
+                "externalId": "123",
+                "name": "john",
+                "smartPhoneNumber": "578123456789",
+                "login": "john.wick",
+                "email": "johnwick@email.com",
+                "culture": "pt-BR",
+                "jobPosition": "manager",
+                "userType": {
+                    "userTypeId": 1,
+                    "description": "User"
+                },
+                "workDaysOfWeek": [1, 2, 3],
+                "startWorkHour": "08:00:00",
+                "endWorkHour": "18:00:00",
+                "startLunchHour": "13:00:00",
+                "endLunchHour": "14:00:00",
+                "hourValue": 10.0,
+                "pictureUrl": "",
+                "basePoint": {
+                    "address": "Rua Example, 123",
+                    "latitude": -16.687,
+                    "longitude": -49.299
+                },
+                "openTaskInPlace": false,
+                "grabGalleryPhotos": false,
+                "gpsFrequency": 300,
+                "checkInManual": false,
+                "unavailableForTasks": false,
+                "editTaskAfterCheckout": false,
+                "informStartTravel": false,
+                "changeBasePoint": false,
+                "monitoringNotification": {
+                    "gpsActivation": 1,
+                    "gpsDisabling": 2,
+                    "appLogin": 3,
+                    "appLogout": 0
+                },
+                "employeeNotification": {
+                    "basePointChange": 0
+                },
+                "clientNotification": {
+                    "adressChange": 0
+                },
+                "taskNotification": {
+                    "checkIn": 1,
+                    "checkout": 2,
+                    "rescheduling": 3,
+                    "travelStart": 0,
+                    "researchAnswer": 1,
+                    "delay": 2,
+                    "taskDelete": 3
+                }
+            }
+
+### Upsert - Add a new User or update an existing one [PUT /users/]
+Update or register a new user according to one of its identifier, `id` OR `externalId`. If there is no user with the provided identifier, create a new user, if it exists, update it. Returns HTTP status code 200 if the user was updated and 201 if it was created.
+
+The body example describes the minimum required attributes to successfully add/update an user. See the **Attributes** or **Json Schema** in the Example section for all allowed attributes.
+
++ Attributes
+    + id (number) - The user id (used as identifier for upsert)
+    + externalId (string) - The user external id (used as identifier for upsert). Max 255 characters
+    + name (required, string) - Name of the user. Max 100 characters
+    + smartPhoneNumber (string) - User phone number. Only numbers. Max 45 characters
+    + culture (required, string) - Culture name. For example `pt-BR`. Max 10 characters
+    + jobPosition (string) - Job position of the user. Max 250 characters
+    + userType (required, number) - 1 - User | 2 - Team Manager | 3 - Administrator
+    + password (required, string) - Password of the user. Max 14 characters
+    + login (required, string) - Login in the application. Max 45 characters
+    + email (string) - User email. Max 100 characters
+    + workDaysOfWeek (array[number]) - 1 - Sunday | 2 - Monday | 3 - Tuesday | 4 - Wednesday | 5 - Thursday | 6 - Friday | 7 - Saturday
+    + workSchedule (array) - Per-day work schedule
+    + startWorkHour (string) - "HH:mm:ss" 24 hours format
+    + endWorkHour (string) - "HH:mm:ss" 24 hours format
+    + startLunchHour (string) - "HH:mm:ss" 24 hours format
+    + endLunchHour (string) - "HH:mm:ss" 24 hours format
+    + hourValue (number) - Monetary value of the worked hour
+    + checkInManual (boolean) - If checkin is manual
+    + address (string) - Base point address
+    + latitude (number) - Base point latitude
+    + longitude (number) - Base point longitude
+    + openTaskInPlace (boolean) - Open in-place task by application
+    + galleryPhotos (boolean) - Allows you to take gallery photo in the app
+    + gpsFrequency (number) - 60 | 120 | 180 | 240 | 300
+    + unavailableForTasks (boolean) - If user is available for tasks
+    + editTaskAfterCheckout (boolean) - If can edit task after checkout
+    + informStartTravel (boolean) - If user utilize start travel
+    + changeBasePoint (boolean) - If user can change base point
+    + monitoringNotification (object) - *0:None, 1:Email, 2:Push, 3:Both*
+    + employeeNotification (object) - *0:None, 1:Email, 2:Push, 3:Both*
+    + clientNotification (object) - *0:None, 1:Email, 2:Push, 3:Both*
+    + taskNotification (object) - *0:None, 1:Email, 2:Push, 3:Both*
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+              "externalId": "123",
+              "name": "john",
+              "smartPhoneNumber": "578123456789",
+              "culture": "pt-BR",
+              "jobPosition": "manager",
+              "userType": 1,
+              "password": "123mudar",
+              "login": "john.wick",
+              "email": "johnwick@email.com"
+            }
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "userId": 123,
+                "externalId": "123",
+                "name": "john",
+                "smartPhoneNumber": "578123456789",
+                "login": "john.wick",
+                "email": "johnwick@email.com",
+                "culture": "pt-BR",
+                "jobPosition": "manager",
+                "userType": {
+                    "userTypeId": 1,
+                    "description": "User"
+                }
+            }
+
++ Response 201 (application/json)
+
+    + Body
+
+            "result": {
+                "userId": 456,
+                "externalId": "123",
+                "name": "john",
+                "smartPhoneNumber": "578123456789",
+                "login": "john.wick",
+                "email": "johnwick@email.com",
+                "culture": "pt-BR",
+                "jobPosition": "manager",
+                "userType": {
+                    "userTypeId": 1,
+                    "description": "User"
+                }
+            }
+
+### Edit a User [PATCH /users/{id}]
+To update a `User`, send a JSONPatchDocument with updated value for one or more of the `UserPatch` attributes. See the **Attributes** or **Json Schema** in the Example section for all allowed attributes.
+JsonPatch example: { "op": "replace", "path": "login", "value": "login.user" }
+For more information on JsonPatch, visit: `http://jsonpatch.com/`.
+
++ Attributes
+    + login (string) - Login in the application
+    + externalId (string) - The user external id
+    + name (string) - Name of the user
+    + smartPhoneNumber (string) - User phone number. Only numbers. If multiple numbers, separate by comma
+    + email (string) - User email. If multiple emails, separate by comma
+    + jobPosition (string) - Job position of the user
+    + enterprise (string) - Enterprise of the user
+    + culture (string) - Culture name. For example `pt-BR`
+    + hourValue (number) - Monetary value of the worked hour
+    + userType (number) - 1 - User | 2 - Team Manager | 3 - Administrator
+    + checkInManual (boolean) - If checkin is manual
+    + checkOutManual (boolean) - If checkout is manual
+    + address (string) - Base point address
+    + latitude (number) - Base point latitude
+    + longitude (number) - Base point longitude
+    + gpsFrequency (number) - 60 | 120 | 180 | 240 | 300
+    + openTaskInPlace (boolean) - Open in-place task by application
+    + galleryPhotos (boolean) - Allows you to take gallery photo in the app
+    + unavailableForTasks (boolean) - If user is available for tasks
+    + editTaskAfterCheckout (boolean) - If can edit task after checkout
+    + informStartTravel (boolean) - If user utilize start travel
+    + changeBasePoint (boolean) - If user can change base point
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "login", "value": "login.user" }
+            ]
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "userId": 123,
+                "externalId": "123",
+                "name": "Teste",
+                "smartPhoneNumber": "12345678969",
+                "login": "login.user",
+                "email": "test@email.com",
+                "culture": "pt-BR",
+                "jobPosition": "Dev",
+                "userType": {
+                    "userTypeId": 2,
+                    "description": "Team Manager"
+                },
+                "workDaysOfWeek": [],
+                "startWorkHour": "",
+                "endWorkHour": "",
+                "startLunchHour": "",
+                "endLunchHour": "",
+                "hourValue": 0,
+                "pictureUrl": "",
+                "basePoint": {
+                    "address": "",
+                    "latitude": 0,
+                    "longitude": 0
+                },
+                "openTaskInPlace": true,
+                "grabGalleryPhotos": true,
+                "gpsFrequency": 300,
+                "checkInManual": false,
+                "unavailableForTasks": false,
+                "editTaskAfterCheckout": true,
+                "informStartTravel": false,
+                "changeBasePoint": true,
+                "monitoringNotification": {
+                    "gpsActivation": 0,
+                    "gpsDisabling": 0,
+                    "appLogin": 0,
+                    "appLogout": 0
+                },
+                "employeeNotification": {
+                    "basePointChange": 0
+                },
+                "clientNotification": {
+                    "adressChange": 0
+                },
+                "taskNotification": {
+                    "checkIn": 0,
+                    "checkout": 0,
+                    "rescheduling": 0,
+                    "travelStart": 0,
+                    "researchAnswer": 0,
+                    "delay": 0,
+                    "taskDelete": 0
+                }
+            }
+
+### Delete a User [DELETE /users/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Parameters
+
+    + id (number) ... `id` of the user to delete.
+
++ Response 204
+
+
+### Retrieve a list of Users [GET /users/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}&selectfields={selectfields}]
+
++ Parameters
+    + paramFilter (optional, string) ... Must be a json encoded string.
+        + userId (number) - The user id
+        + name (string) - Name of the user
+        + smartPhoneNumber (string) - User phone number. Only numbers
+        + userType (number) - User:1, Manager:2, Administrator:3
+        + externalId (string) - User external ids. Allow multiples, separated by comma
+    + page (required, number) ... Page of the selection. Default 1.
+    + pageSize (required, number) ... Amount of records of the selection. Default 10.
+    + order (required, string) ... "asc"/0 for Ascending or "desc"/1 for Descending. Default "asc".
+    + selectfields (optional, string) ... For all fields, use empty string. To select fields, use the properties of the returned object separated by commas.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [
+                    {
+                        "userId": 123,
+                        "externalId": "123",
+                        "name": "Jason",
+                        "smartPhoneNumber": "555555555555",
+                        "login": "login.auvo",
+                        "email": "login.auvo@email.com",
+                        "culture": "pt-BR",
+                        "jobPosition": "Administrador",
+                        "userType": { "userTypeId": 1, "description": "User" },
+                        "workDaysOfWeek": [1, 2, 3, 4, 5, 6, 7],
+                        "startWorkHour": "08:00:00",
+                        "endWorkHour": "18:00:00",
+                        "startLunchHour": "12:00:00",
+                        "endLunchHour": "14:00:00",
+                        "hourValue": 0,
+                        "pictureUrl": "",
+                        "basePoint": {
+                            "address": "Rua C-137",
+                            "latitude": -16.711903488917,
+                            "longitude": -49.2775752032046
+                        },
+                        "openTaskInPlace": true,
+                        "grabGalleryPhotos": true,
+                        "gpsFrequency": 300,
+                        "checkInManual": true,
+                        "unavailableForTasks": true,
+                        "editTaskAfterCheckout": true,
+                        "informStartTravel": true,
+                        "changeBasePoint": true,
+                        "monitoringNotification": {
+                            "gpsActivation": 1,
+                            "gpsDisabling": 2,
+                            "appLogin": 3,
+                            "appLogout": 1
+                        },
+                        "employeeNotification": {
+                            "basePointChange": 1
+                        },
+                        "clientNotification": {
+                            "adressChange": 1
+                        },
+                        "taskNotification": {
+                            "checkIn": 1,
+                            "checkout": 2,
+                            "rescheduling": 3,
+                            "travelStart": 1,
+                            "researchAnswer": 3,
+                            "delay": 3,
+                            "taskDelete": 3
+                        }
+                    }
+                ],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 1,
+                    "page": 1,
+                    "totalItems": 2
+                },
+                "links": [
+                    {
+                        "href": "https://api.auvo.com.br/v2/Users?Page=1&PageSize=1&Order=Asc",
+                        "rel": "self",
+                        "method": "GET"
+                    },
+                    {
+                        "href": "https://api.auvo.com.br/v2/Users?Page=2&PageSize=1&Order=Asc",
+                        "rel": "nextPage",
+                        "method": "GET"
+                    }
+                ]
+            }
+        }
+
++ Response 400 (application/json)
+
+    + Body
+
+            {
+                "message": "The paramFilter is required as ParamUserFilter string json.",
+                "target": null,
+                "errorCode": 0,
+                "errors": null
+            }
+
+
+# Group Tasks
+
+## Task [/tasks/{id}]
+
++ Parameters
+
+    + id (number) ... `taskID` attribute of the `Task`.
+
++ Model
+
+    + Body
+
+            "result":{
+                "taskID": 23,
+                "externalId": "123",
+                "idUserFrom": 123,
+                "idUserTo": 123,
+                "userToName": "Colaborador",
+                "userFromName": "Paulo",
+                "customerId": 456,
+                "customerExternalId": "10",
+                "customerDescription": "Customer x",
+                "customerCpfCnpj": "12345678901",
+                "taskType": 23,
+                "taskTypeDescription": "Visita Técnica",
+                "creationDate": "2016-03-23T14:10:35",
+                "taskDate": "2016-03-23T18:00:00",
+                "latitude": -16.6872086111083,
+                "longitude": -49.2995542287827,
+                "address": "avenue X",
+                "orientation": "Task orientation",
+                "priority": 1,
+                "deliveredOnSmarthPhone": true,
+                "deliveredDate": "2016-03-23T14:11:31",
+                "finished": true,
+                "report": "ok",
+                "visualized": true,
+                "visualizedDate": "2016-03-23T14:12:00",
+                "checkIn": true,
+                "checkInDate": "2016-03-23T18:05:00",
+                "checkOut": true,
+                "checkOutDate": "2016-03-23T18:10:00",
+                "checkinType": 1,
+                "equipmentsId": [109638, 109753],
+                "keyWords": ["1"],
+                "keyWordsDescriptions": ["Keyword Description"],
+                "inputedKm": 10,
+                "adoptedKm": 11,
+                "attachments":[
+                    {
+                        "id": "1",
+                        "url": "",
+                        "attachmentType": 1,
+                        "subtitle": "",
+                        "description": "",
+                        "extension": ""
+                    }
+                ],
+                "questionnaires":[
+                    {
+                        "itemId": "1",
+                        "questionnaireId": "",
+                        "questionnaireDescription": "Checklist",
+                        "answers": [
+                            {
+                                "questionId": "1",
+                                "questionDescription": "",
+                                "replyId": 1,
+                                "reply": "Yes",
+                                "replyDate": "2016-03-23T18:10:00"
+                            }
+                        ]
+                    }
+                ],
+                "signatureUrl": "",
+                "checkInDistance": 0,
+                "checkOutDistance": 0,
+                "sendSatisfactionSurvey": true,
+                "sendDigitalOs": false,
+                "survey": "",
+                "taskUrl": "",
+                "pendency": "",
+                "dateLastUpdate":"2016-03-23T18:10:00",
+                "ticketId": 558,
+                "ticketTitle": "Ticket Title",
+                "signatureName": "Oliveira Silva",
+                "signatureDocument": "00008500100",
+                "expense": "2.500.000,00",
+                "duration": "",
+                "durationDecimal": "",
+                "displacementStart": "",
+                "products": [{
+                    "productId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                    "code": 456,
+                    "externalCode": "EXT-456",
+                    "name": "Product Name",
+                    "description": "Product Description",
+                    "quantity": 1.0,
+                    "unitaryValue": 10.0,
+                    "totalValue": 10.0,
+                    "userResponsible": "User Name",
+                    "userResponsibleCode": 123,
+                    "dateRegister": "2016-03-23T18:10:00",
+                    "dateEdit": null,
+                    "discount": {
+                        "value": 0.00,
+                        "type": "Valor"
+                    }
+                }],
+                "services": [{
+                    "id": "00000000-0000-0000-0000-000000000000",
+                    "externalCode": "EXT-SVC",
+                    "name": "Service Name",
+                    "quantity": 1.0,
+                    "unitaryValue": 50.0,
+                    "totalValue": 50.0,
+                    "userResponsible": "User Name",
+                    "userResponsibleCode": 123,
+                    "dateRegister": "2016-03-23T18:10:00",
+                    "dateEdit": null,
+                    "discount": {
+                        "value": 0.00,
+                        "type": "Valor"
+                    }
+                }],
+                "additionalCosts": [{
+                    "additionalCostId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                    "code": 456,
+                    "name": "Cost Name",
+                    "unitaryValue": 5.0,
+                    "userResponsible": "User Name",
+                    "userResponsibleCode": 123,
+                    "dateRegister": "2016-03-23T18:10:00",
+                    "dateEdit": null
+                }],
+                "summary": {
+                    "totalProducts": 10.0,
+                    "totalServices": 50.0,
+                    "totalAdditionalCosts": 5.0,
+                    "totalValue": 65.0,
+                    "discount": {
+                        "value": 0.00,
+                        "type": "Valor"
+                    }
+                },
+                "estimatedDuration": "00:00:00",
+                "financialCategory": "",
+                "openedOnLocation": false,
+                "taskStatus": 1,
+                "reasonForPause": ""
+            }
+
+### Retrieve a Task [GET /tasks/{id}]
+
+The "taskStatus" task return attribute has the following return values:
+
+* Opened = 1
+* InDisplacement = 2
+* CheckedIn = 3
+* CheckedOut = 4
+* Finished = 5
+* Paused = 6
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    [Task][]
+
++ Response 400 (application/json)
+
+    + Body
+
+            {
+                "id": [
+                    "The value 'x' is not valid."
+                ]
+            }
+
++ Response 404
+
+### Add a new Task [POST /tasks/]
+
+The body example describes the minimum required attributes to successfully add a task. See the **Attributes** or **Json Schema** in the Example section for all allowed attributes.
+
+The task address will preferably be obtained through the client's address.
+If the customer ID was not informed, the data will be captured by the parameters of the register itself.
+When the latitude and longitude are not informed, the Auvo API will attempt to obtain this information through the address you provided.
+
++ Attributes
+    + externalId (string) - External task id. Max 255 characters
+    + taskType (number) - taskTypeId of the task type
+    + idUserFrom (required, number) - userId of the User that is opening the task
+    + idUserTo (number) - userId of the User responsible for executing the task
+    + listIdUserTo (array[number]) - List of userIds to create multiple tasks
+    + teamId (number) - Existing team id at Auvo
+    + taskDate (string) - Date and time for the execution of the task. Format: "yyyy-MM-ddTHH:mm:ss"
+    + latitude (number) - Latitude of the task
+    + longitude (number) - Longitude of the task
+    + address (string) - Address of the task
+    + orientation (required, string) - Orientation of the task. Max 5000 characters
+    + priority (required, number) - Priority of the task. 1 - Low | 2 - Medium | 3 - High
+    + questionnaireId (number) - QuestionnaireId of the CheckList included in the task
+    + customerId (number) - CustomerId of the Customer chosen for the task
+    + checkinType (number) - Checkin type. 1 - Manual | 2 - Automatic | 3 - User
+    + attachments (array)
+        + name (required, string) - The name MUST contain the file type (Ex. "my_file.pdf")
+        + file (required, string) - Base 64 file
+    + keyWords (array[string]) - List of keywords id
+    + equipmentsId (array[number]) - List of equipment ids
+    + sendSatisfactionSurvey (boolean) - Send satisfaction survey for the task
+    + sendDigitalOs (boolean) - Send digital OS for the task
+    + taskProducts (array)
+        + productId (required, string) - ProductId (GUID) attribute of the Product
+        + code (number) - Product code
+        + discountType (number) - 0 - monetary value | 1 - percentage
+        + discountValue (number) - Discount value in decimal format
+        + quantity (required, number) - Quantity in decimal format
+        + value (required, number) - Unit value in decimal format
+    + taskServices (array)
+        + serviceId (required, string) - Service Id (GUID)
+        + discountType (number) - 0 - monetary value | 1 - percentage
+        + discountValue (number) - Discount value in decimal format
+        + quantity (required, number) - Quantity in decimal format
+        + value (required, number) - Unit value in decimal format
+    + taskAdditionalCosts (array)
+        + additionalCostId (required, string) - AdditionalCostId (GUID)
+        + value (required, number) - Unit value in decimal format
+    + taskDiscount (object)
+        + type (required, number) - 0 - monetary value | 1 - percentage
+        + value (required, number) - Discount value in decimal format
+    + financialCategory (string) - Name of the Financial Category
+    + financialCategoryId (string) - GUID of the Financial Category
+
++ Request (application/json)
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "123",
+                "taskType": 1,
+                "idUserFrom": 99,
+                "idUserTo": 69,
+                "teamId": 6,
+                "taskDate": "2016-04-23T18:00:00",
+                "latitude": -16.6872086111083,
+                "longitude": -49.2995542287827,
+                "address": "avenue Y",
+                "orientation": "Task orientation",
+                "priority": 1,
+                "questionnaireId": 3,
+                "customerId": 1,
+                "checkinType": 1,
+                "sendSatisfactionSurvey": false,
+                "sendDigitalOs": false,
+                "attachments": [
+                    {
+                        "name": "my_file.pdf",
+                        "file": "base64 encoded file"
+                    }
+                ],
+                "keyWords": ["1"],
+                "equipmentsId": [109638],
+                "taskProducts": [
+                    {
+                        "productId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                        "quantity": 2,
+                        "value": 10.50,
+                        "discountType": 0,
+                        "discountValue": 1.00
+                    }
+                ],
+                "taskServices": [
+                    {
+                        "serviceId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                        "quantity": 1,
+                        "value": 50.00
+                    }
+                ],
+                "taskAdditionalCosts": [
+                    {
+                        "additionalCostId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                        "value": 5.00
+                    }
+                ],
+                "taskDiscount": {
+                    "type": 0,
+                    "value": 2.00
+                },
+                "financialCategory": "Category Name"
+            }
+
++ Response 201 (application/json)
+
+    + Body
+
+            "result": {
+                "taskID": 123,
+                "externalId": "123",
+                "idUserFrom": 99,
+                "idUserTo": 69,
+                "customerId": 1,
+                "taskType": 1,
+                "creationDate": "2019-04-03T13:06:09",
+                "taskDate": "2016-04-23T18:00:00",
+                "latitude": -16.6872086111083,
+                "longitude": -49.2995542287827,
+                "address": "avenue Y",
+                "orientation": "Task orientation",
+                "priority": 1,
+                "deliveredOnSmarthPhone": false,
+                "finished": false,
+                "checkinType": 1,
+                "keyWords": ["1"],
+                "attachments": [],
+                "questionnaires": [],
+                "signatureUrl": "",
+                "checkInDistance": 0,
+                "checkOutDistance": 0,
+                "sendSatisfactionSurvey": false,
+                "taskStatus": 1
+            }
+
+### Upsert - Add a new Task or update an existing one [PUT /tasks/]
+Update or register a new task according to one of its identifier, `id` OR `externalId`. If there is no task with the provided identifier, create a new task, if it exists, update it. Returns HTTP status code 200 if the task was updated and 201 if it was created.
+
++ Attributes
+    + id (number) - The task id (used as identifier for upsert)
+    + externalId (string) - External task id (used as identifier for upsert)
+    + taskType (number) - taskTypeId of the task type
+    + idUserFrom (required, number) - userId of the User that is opening the task
+    + idUserTo (number) - userId of the User responsible for executing the task
+    + listIdUserTo (array[number]) - List of userIds to create multiple tasks
+    + teamId (number) - Existing team id at Auvo
+    + taskDate (string) - Date and time. Format: "yyyy-MM-ddTHH:mm:ss"
+    + latitude (number) - Latitude of the task
+    + longitude (number) - Longitude of the task
+    + address (string) - Address of the task
+    + orientation (required, string) - Orientation of the task. Max 5000 characters
+    + priority (required, number) - 1 - Low | 2 - Medium | 3 - High
+    + questionnaireId (number) - QuestionnaireId of the CheckList
+    + customerId (number) - CustomerId of the Customer
+    + checkinType (number) - 1 - Manual | 2 - Automatic | 3 - User
+    + sendSatisfactionSurvey (boolean)
+    + sendDigitalOs (boolean)
+    + financialCategory (string) - Financial Category name
+    + financialCategoryId (string) - Financial Category GUID
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "123",
+                "taskType": 1,
+                "idUserFrom": 99,
+                "idUserTo": 69,
+                "taskDate": "2016-04-23T18:00:00",
+                "address": "avenue Y",
+                "orientation": "Task orientation",
+                "priority": 1
+            }
+
++ Response 200 (application/json)
+
++ Response 201 (application/json)
+
+### Edit a Task [PATCH /tasks/{id}]
+To update a `Task`, send a JSONPatchDocument with updated value for one or more of the `TaskPatch` attributes.
+JsonPatch example: { "op": "replace", "path": "orientation", "value": "New orientation" }
+
++ Attributes
+    + taskType (number) - Task type id
+    + externalId (string) - External task id
+    + idUserFrom (number) - User id that opened the task
+    + idUserTo (number) - User id responsible for executing
+    + teamId (number) - Team id
+    + taskDate (string) - "yyyy-MM-ddTHH:mm:ss"
+    + latitude (number) - Task latitude
+    + longitude (number) - Task longitude
+    + address (string) - Task address
+    + orientation (string) - Task orientation
+    + priority (number) - 1 - Low | 2 - Medium | 3 - High
+    + questionnaireId (number) - Questionnaire id
+    + customerId (number) - Customer id
+    + checkinType (number) - 1 - Manual | 2 - Automatic | 3 - User
+    + keyWords (array[string]) - List of keywords id
+    + sendSatisfactionSurvey (boolean)
+    + sendDigitalOs (boolean)
+    + financialCategory (string) - Financial Category name
+    + financialCategoryId (string) - Financial Category GUID
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "orientation", "value": "New orientation" }
+            ]
+
++ Response 200 (application/json)
+
+    [Task][]
+
+### Upsert Task Attachments [PUT /tasks/{id}/attachments]
+Add or replace attachments on a task.
+
++ Attributes
+    + removeAllAttachmentsInsertedByMe (boolean) - Remove all attachments previously inserted by the API before adding new ones
+    + attachments (array)
+        + name (required, string) - File name with extension (Ex. "my_file.pdf")
+        + file (required, string) - Base 64 file
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "removeAllAttachmentsInsertedByMe": false,
+                "attachments": [
+                    {
+                        "name": "photo.jpg",
+                        "file": "base64 encoded file"
+                    }
+                ]
+            }
+
++ Response 200 (application/json)
+
+    [Task][]
+
+### Upsert Task Products [PUT /tasks/{id}/products]
+Add or update products on a task.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "taskProducts": [
+                    {
+                        "productId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                        "quantity": 2,
+                        "value": 10.50,
+                        "discountType": 0,
+                        "discountValue": 1.00
+                    }
+                ]
+            }
+
++ Response 200 (application/json)
+
+    [Task][]
+
+### Upsert Task Services [PUT /tasks/{id}/services]
+Add or update services on a task.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "taskServices": [
+                    {
+                        "serviceId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                        "quantity": 1,
+                        "value": 50.00
+                    }
+                ]
+            }
+
++ Response 200 (application/json)
+
+    [Task][]
+
+### Upsert Task Additional Costs [PUT /tasks/{id}/additional-costs]
+Add or update additional costs on a task.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "taskAdditionalCosts": [
+                    {
+                        "additionalCostId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                        "value": 5.00
+                    }
+                ]
+            }
+
++ Response 200 (application/json)
+
+    [Task][]
+
+### Delete Task Products [DELETE /tasks/{id}/products]
+Remove products from a task by providing a list of product GUIDs.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            ["63867f52-b262-410a-a409-cc25ba92ded1"]
+
++ Response 200 (application/json)
+
+    [Task][]
+
+### Delete Task Services [DELETE /tasks/{id}/services]
+Remove services from a task by providing a list of service GUIDs.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            ["63867f52-b262-410a-a409-cc25ba92ded1"]
+
++ Response 200 (application/json)
+
+    [Task][]
+
+### Delete Task Additional Costs [DELETE /tasks/{id}/additional-costs]
+Remove additional costs from a task by providing a list of additional cost GUIDs.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            ["63867f52-b262-410a-a409-cc25ba92ded1"]
+
++ Response 200 (application/json)
+
+    [Task][]
+
+### Delete a Task [DELETE /tasks/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Tasks [GET /tasks/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}&selectfields={selectfields}]
+
+Maximum page size is 100.
+
++ Parameters
+    + paramFilter (optional, string) ... Must be a json encoded string.
+        + taskID (string) - The task id
+        + externalId (string) - External task id
+        + idUserTo (number) - User id responsible for the task
+        + startDate (string) - Start date filter. Format: "yyyy-MM-dd"
+        + endDate (string) - End date filter. Format: "yyyy-MM-dd"
+        + type (number) - Task type id
+        + typeList (string) - Comma-separated list of task type ids
+        + customerId (number) - Customer id
+        + customerGroupId (number) - Customer group id
+        + teamId (number) - Team id
+        + status (number) - 0:NotFinished | 1:AutoFinished | 2:ManualFinished | 3:AutoOrManual | 4:All | 5:WithPendency | 6:StartedOrFinished | 7:InExecution
+        + orientation (string) - Orientation filter
+        + tags (string) - Tags filter
+        + priority (number) - 1:Low | 2:Medium | 3:High
+        + dateLastUpdate (string) - Filter by last update date
+        + showCustomerDocument (boolean) - Include customer CPF/CNPJ
+        + questionnairesId (string) - Comma-separated questionnaire ids
+    + page (required, number) ... Page of the selection. Default 1.
+    + pageSize (required, number) ... Amount of records. Default 10. Max 100.
+    + order (required, string) ... "asc"/0 for Ascending or "desc"/1 for Descending.
+    + selectfields (optional, string) ... Comma-separated field names for selective retrieval.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [
+                    {
+                        "taskID": 23,
+                        "externalId": "123",
+                        "idUserFrom": 123,
+                        "idUserTo": 123,
+                        "userToName": "Colaborador",
+                        "userFromName": "Paulo",
+                        "customerId": 456,
+                        "taskType": 23,
+                        "taskTypeDescription": "Visita Técnica",
+                        "creationDate": "2016-03-23T14:10:35",
+                        "taskDate": "2016-03-23T18:00:00",
+                        "address": "avenue X",
+                        "orientation": "Task orientation",
+                        "priority": 1,
+                        "finished": true,
+                        "taskStatus": 5
+                    }
+                ],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 50
+                },
+                "links": [
+                    {
+                        "href": "https://api.auvo.com.br/v2/Tasks?Page=1&PageSize=10&Order=Asc",
+                        "rel": "self",
+                        "method": "GET"
+                    }
+                ]
+            }
+        }
+
+### Retrieve a list of Deleted Tasks [GET /tasks/GetDeletedTasks?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}&selectfields={selectfields}]
+
+Returns deleted tasks. Maximum page size is 100. Same parameters and response format as the task listing endpoint above.
+
++ Parameters
+    + paramFilter (optional, string) ... Same filter options as task listing.
+    + page (required, number) ... Page of the selection. Default 1.
+    + pageSize (required, number) ... Amount of records. Default 10. Max 100.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+    + selectfields (optional, string) ... Comma-separated field names.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Customers
+
+## Customer [/customers/{id}]
+
++ Parameters
+
+    + id (number) ... `id` attribute of the `Customer`.
+
++ Model
+
+    + Body
+
+            "result":{
+                "customerId": 123,
+                "externalId": "EXT-123",
+                "name": "Customer Name",
+                "phoneNumber": ["11999999999"],
+                "email": ["customer@email.com"],
+                "manager": "Manager Name",
+                "note": "Some notes",
+                "address": "Rua Example, 123",
+                "adressComplement": "Apt 1",
+                "latitude": -16.687,
+                "longitude": -49.299,
+                "maximumVisitTime": 1,
+                "unitMaximumTime": 3,
+                "cpfCnpj": "12345678901",
+                "groupsId": [1, 2],
+                "managerTeamsId": [1],
+                "managersId": [1],
+                "segmentId": 1,
+                "active": true,
+                "legalName": "Legal Name Ltda",
+                "contacts": [
+                    {
+                        "id": 1,
+                        "name": "Contact Name",
+                        "jobPosition": "Manager",
+                        "email": "contact@email.com",
+                        "phone": "11999999999"
+                    }
+                ]
+            }
+
+### Retrieve a Customer [GET /customers/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    [Customer][]
+
++ Response 404 (application/json)
+
+### Add a new Customer [POST /customers/]
+
++ Attributes
+    + externalId (string) - External customer id. Max 255 characters
+    + name (string) - Customer name. Max 500 characters
+    + phoneNumber (array[string]) - List of phone numbers
+    + email (array[string]) - List of email addresses
+    + manager (string) - Manager name. Max 500 characters
+    + note (string) - Notes. Max 5000 characters
+    + address (string) - Customer address
+    + adressComplement (string) - Address complement. Max 1000 characters
+    + latitude (number) - Address latitude
+    + longitude (number) - Address longitude
+    + maximumVisitTime (number) - Maximum visit time
+    + unitMaximumTime (number) - Unit for maximum time
+    + cpfCnpj (string) - CPF or CNPJ
+    + groupsId (array[number]) - List of customer group ids
+    + managerTeamsId (array[number]) - List of manager team ids
+    + managersId (array[number]) - List of manager user ids
+    + segmentId (number) - Segment id
+    + active (boolean) - If customer is active
+    + legalName (string) - Legal name. Max 100 characters
+    + attachments (array)
+        + name (required, string) - File name with extension
+        + file (required, string) - Base 64 file
+    + contacts (array)
+        + name (string) - Contact name
+        + jobPosition (string) - Contact job position
+        + email (string) - Contact email
+        + phone (string) - Contact phone
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-123",
+                "name": "Customer Name",
+                "phoneNumber": ["11999999999"],
+                "email": ["customer@email.com"],
+                "manager": "Manager Name",
+                "note": "Notes",
+                "address": "Rua Example, 123",
+                "latitude": -16.687,
+                "longitude": -49.299,
+                "cpfCnpj": "12345678901",
+                "groupsId": [1],
+                "segmentId": 1,
+                "active": true,
+                "contacts": [
+                    {
+                        "name": "Contact",
+                        "email": "contact@email.com",
+                        "phone": "11999999999"
+                    }
+                ]
+            }
+
++ Response 201 (application/json)
+
+    [Customer][]
+
+### Add a new Customer - Complete [POST /customers/complete]
+
+Register a customer with complete data including billing information, observations, and team associations by name.
+
++ Attributes
+    + externalId (string) - External customer id. Max 255 characters
+    + name (string) - Customer name. Max 500 characters
+    + cpfCnpj (string) - CPF or CNPJ
+    + phoneNumber (array[string]) - List of phone numbers
+    + email (array[string]) - List of email addresses
+    + manager (string) - Manager name. Max 500 characters
+    + note (string) - Notes. Max 5000 characters
+    + address (string) - Customer address
+    + adressComplement (string) - Address complement. Max 1000 characters
+    + latitude (number) - Address latitude
+    + longitude (number) - Address longitude
+    + maximumVisitTime (number) - Maximum visit time
+    + unitMaximumTime (number) - Unit for maximum time
+    + groups (array[string]) - List of group names
+    + groupsId (array[number]) - List of group ids
+    + managerTeamsId (array[number]) - Manager team ids
+    + managerTeamsName (array[string]) - Manager team names
+    + managersId (array[number]) - Manager user ids
+    + managersName (array[string]) - Manager names
+    + teamsName (array[string]) - Associated teams names
+    + teamsId (array[number]) - Associated teams ids
+    + segmentId (array[number]) - Segment ids
+    + segmentName (string) - Segment name
+    + observation (string) - Observation
+    + internalObservation (string) - Internal observation
+    + active (boolean) - Active status
+    + talkTo (string) - Talk to
+    + icmsTaxpayer (number) - ICMS taxpayer
+    + stateRegistration (string) - State registration
+    + municipalRegistration (string) - Municipal registration
+    + billingEmail (string) - Billing email
+    + billingZipCode (string) - Billing zip code
+    + billingPublicArea (string) - Billing public area
+    + billingAddressNumber (string) - Billing address number
+    + billingAddressComplement (string) - Billing address complement
+    + billingDistrict (string) - Billing district
+    + billingCity (string) - Billing city
+    + billingState (string) - Billing state
+    + notifications (boolean) - Enable notifications
+    + legalName (string) - Legal name
+    + attachments (array)
+        + name (string) - File name
+        + file (string) - Base 64 file
+    + contacts (array)
+        + name (string) - Contact name
+        + jobPosition (string) - Job position
+        + email (string) - Contact email
+        + phone (string) - Contact phone
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-123",
+                "name": "Customer Name",
+                "cpfCnpj": "12345678901",
+                "phoneNumber": ["11999999999"],
+                "email": ["customer@email.com"],
+                "address": "Rua Example, 123",
+                "billingEmail": "billing@email.com",
+                "billingZipCode": "74000000",
+                "billingCity": "Goiânia",
+                "billingState": "GO",
+                "notifications": true
+            }
+
++ Response 201 (application/json)
+
+    [Customer][]
+
+### Upsert a Customer [PUT /customers/]
+Update or register a new customer according to one of its identifier, `id` OR `externalId`. If `identifierBycpfCnpj` is true, also uses `cpfCnpj` as identifier.
+
++ Attributes
+    + id (number) - Customer id
+    + identifierBycpfCnpj (boolean) - Use CPF/CNPJ as identifier
+    + replaceData (boolean) - Replace all data or merge. Default true
+    + allowLegalNameClear (boolean) - Allow clearing legal name. Default false
+    + externalId (string) - External customer id. Max 255 characters
+    + name (string) - Customer name. Max 500 characters
+    + phoneNumber (array[string]) - List of phone numbers
+    + email (array[string]) - List of email addresses
+    + manager (string) - Manager name. Max 500 characters
+    + note (string) - Notes. Max 5000 characters
+    + address (string) - Customer address
+    + adressComplement (string) - Address complement. Max 1000 characters
+    + latitude (number) - Address latitude
+    + longitude (number) - Address longitude
+    + cpfCnpj (string) - CPF or CNPJ
+    + groupsId (array[number]) - List of customer group ids
+    + managerTeamsId (array[number]) - List of manager team ids
+    + managersId (array[number]) - List of manager user ids
+    + segmentId (number) - Segment id
+    + active (boolean) - If customer is active
+    + legalName (string) - Legal name. Max 100 characters
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-123",
+                "name": "Customer Name Updated",
+                "phoneNumber": ["11999999999"],
+                "email": ["customer@email.com"]
+            }
+
++ Response 200 (application/json)
+
++ Response 201 (application/json)
+
+### Upsert a Customer - Complete [PUT /customers/complete]
+Same as Upsert but with complete data including billing information.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-123",
+                "name": "Customer Name",
+                "cpfCnpj": "12345678901",
+                "address": "Rua Example, 123"
+            }
+
++ Response 200 (application/json)
+
++ Response 201 (application/json)
+
+### Edit a Customer [PATCH /customers/{id}]
+To update a `Customer`, send a JSONPatchDocument with updated value for one or more of the `CustomerPatch` attributes.
+JsonPatch example: { "op": "replace", "path": "name", "value": "New Name" }
+
++ Attributes
+    + name (string) - Customer name
+    + externalId (string) - External customer id
+    + phoneNumber (array[string]) - Phone numbers
+    + email (array[string]) - Email addresses
+    + manager (string) - Manager name
+    + note (string) - Notes
+    + address (string) - Address
+    + latitude (number) - Latitude
+    + longitude (number) - Longitude
+    + maximumVisitTime (number) - Maximum visit time
+    + unitMaximumTime (number) - Unit for maximum time
+    + cpfCnpj (string) - CPF or CNPJ
+    + groupsId (array[number]) - Group ids
+    + managerTeamsId (array[number]) - Manager team ids
+    + managersId (array[number]) - Manager ids
+    + segmentId (number) - Segment id
+    + active (boolean) - Active status
+    + adressComplement (string) - Address complement
+    + legalName (string) - Legal name
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "name", "value": "New Customer Name" }
+            ]
+
++ Response 200 (application/json)
+
+    [Customer][]
+
+### Update Customer Attachments [PUT /customers/{id}/attachments]
+
++ Attributes
+    + removeAllAttachmentsInsertedByMe (boolean) - Remove all previous API-inserted attachments
+    + attachments (array)
+        + name (required, string) - File name with extension
+        + file (required, string) - Base 64 file
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "removeAllAttachmentsInsertedByMe": false,
+                "attachments": [
+                    {
+                        "name": "document.pdf",
+                        "file": "base64 encoded file"
+                    }
+                ]
+            }
+
++ Response 200 (application/json)
+
+### Delete a Customer [DELETE /customers/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Customers [GET /customers/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}&selectfields={selectfields}]
+
++ Parameters
+    + paramFilter (optional, string) ... Must be a json encoded string.
+        + id (number) - Customer id
+        + description (string) - Customer name filter
+        + externalId (string) - External id filter
+        + segmentId (number) - Segment id filter
+        + groupId (number) - Customer group id filter
+        + active (boolean) - Active status filter
+        + dateLastUpdate (string) - Filter by last update date
+        + creationDate (string) - Filter by creation date
+        + legalName (string) - Legal name filter
+        + cpfCnpj (string) - CPF/CNPJ filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1. Default "asc".
+    + selectfields (optional, string) ... Comma-separated field names.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Customer Groups
+
+## Customer Group [/customergroups]
+
+### Retrieve a list of Customer Groups [GET /customergroups/?paramFilter={paramFilter}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Customer group id
+        + description (string) - Group name filter
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": []
+        }
+
+### Retrieve clients of a Customer Group [GET /customergroups/{clientGroupId}/clients]
+
++ Parameters
+    + clientGroupId (number) ... Id of the customer group.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": []
+        }
+
+### Add a new Customer Group [POST /customergroups/]
+
++ Attributes
+    + description (string) - Group name. Max 255 characters
+    + clientsId (array[number]) - List of customer ids to add to the group
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "description": "VIP Customers",
+                "clientsId": [1, 2, 3]
+            }
+
++ Response 201 (application/json)
+
+### Delete a Customer Group [DELETE /customergroups/{id}]
+
++ Parameters
+    + id (number) ... Id of the customer group.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+
+# Group Products
+
+## Product [/products/{id}]
+
++ Parameters
+
+    + id (number) ... `id` attribute of the `Product`.
+
+### Retrieve a Product [GET /products/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "externalId": "EXT-1",
+                "name": "Product Name",
+                "description": "Product Description",
+                "categoryId": 1,
+                "associatedEquipmentId": 0,
+                "unitaryValue": 10.50,
+                "unitaryCost": 5.00,
+                "minimumStock": 10,
+                "totalStock": 100,
+                "active": true,
+                "productSpecifications": [
+                    {
+                        "name": "Color",
+                        "specification": "Blue"
+                    }
+                ],
+                "employeesStock": [
+                    {
+                        "id": 1,
+                        "userId": 123,
+                        "amount": 10
+                    }
+                ]
+            }
+
++ Response 404
+
+### Add a new Product [POST /products/]
+
++ Attributes
+    + externalId (string) - External product id
+    + name (required, string) - Product name. Max 255 characters
+    + description (string) - Product description. Max 1000 characters
+    + categoryId (number) - Product category id
+    + associatedEquipmentId (number) - Associated equipment id
+    + unitaryValue (string) - Unit value in decimal format
+    + unitaryCost (string) - Unit cost in decimal format
+    + minimumStock (number) - Minimum stock quantity
+    + totalStock (number) - Total stock quantity
+    + active (boolean) - Active status
+    + base64Image (string) - Product image in base 64
+    + productSpecifications (array)
+        + name (string) - Specification name
+        + specification (string) - Specification value
+    + employeesStock (array)
+        + userId (number) - User id
+        + amount (number) - Stock amount
+    + attachments (array)
+        + name (string) - File name with extension
+        + file (string) - Base 64 file
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "name": "New Product",
+                "description": "Product Description",
+                "categoryId": 1,
+                "unitaryValue": "10.50",
+                "unitaryCost": "5.00",
+                "minimumStock": 10,
+                "totalStock": 100,
+                "active": true
+            }
+
++ Response 201 (application/json)
+
+### Upsert a Product [PUT /products/]
+Update or register a new product. Uses `id` or `externalId` as identifier.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-1",
+                "name": "Product Name",
+                "unitaryValue": "10.50",
+                "active": true
+            }
+
++ Response 200 (application/json)
+
++ Response 201 (application/json)
+
+### Edit a Product [PATCH /products/{id}]
+To update a `Product`, send a JSONPatchDocument.
+
++ Attributes
+    + externalId (string) - External product id
+    + name (string) - Product name
+    + description (string) - Product description
+    + categoryId (number) - Category id
+    + associatedEquipmentId (number) - Associated equipment id
+    + unitaryValue (number) - Unit value
+    + unitaryCost (number) - Unit cost
+    + minimumStock (number) - Minimum stock
+    + totalStock (number) - Total stock
+    + active (boolean) - Active status
+    + base64Image (string) - Product image base 64
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "name", "value": "Updated Product Name" }
+            ]
+
++ Response 200 (application/json)
+
+### Update Product Attachments [PUT /products/{id}/attachments]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "removeAllAttachmentsInsertedByMe": false,
+                "attachments": [
+                    {
+                        "name": "image.jpg",
+                        "file": "base64 encoded file"
+                    }
+                ]
+            }
+
++ Response 200 (application/json)
+
+### Update Employee Product Stock [PUT /products/employee-product-stock]
+
++ Attributes
+    + userId (required, number) - User id
+    + productId (required, number) - Product id
+    + amount (required, number) - Stock amount
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "userId": 123,
+                "productId": 456,
+                "amount": 50
+            }
+
++ Response 200 (application/json)
+
+### Delete a Product [DELETE /products/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Products [GET /products/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Product id
+        + externalId (string) - External product id
+        + name (string) - Product name filter
+        + description (string) - Product description filter
+        + categoryId (number) - Product category id
+        + associatedEquipmentId (number) - Associated equipment id
+        + active (boolean) - Active status filter
+        + lowerThanMinimumStock (boolean) - Filter products below minimum stock
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Product Categories
+
+## Product Category [/productcategories/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the product category.
+
+### Retrieve a Product Category [GET /productcategories/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "externalId": "EXT-CAT-1",
+                "description": "Category Name"
+            }
+
+### Add a new Product Category [POST /productcategories/]
+
++ Attributes
+    + externalId (string) - External id. Max 255 characters
+    + description (required, string) - Category name. Max 100 characters
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-CAT-1",
+                "description": "New Category"
+            }
+
++ Response 201 (application/json)
+
+### Upsert a Product Category [PUT /productcategories/]
+Uses `id` or `externalId` as identifier.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-CAT-1",
+                "description": "Category Name"
+            }
+
++ Response 200 (application/json)
+
++ Response 201 (application/json)
+
+### Edit a Product Category [PATCH /productcategories/{id}]
+
++ Attributes
+    + description (string) - Category name
+    + externalId (string) - External id
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "description", "value": "Updated Category" }
+            ]
+
++ Response 200 (application/json)
+
+### Delete a Product Category [DELETE /productcategories/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Product Categories [GET /productcategories/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Category id
+        + description (string) - Category name filter
+        + externalId (string) - External id filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Services
+
+## Service [/services/{id}]
+
++ Parameters
+
+    + id (string) ... `id` (GUID) of the service.
+
+### Retrieve a Service [GET /services/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": "63867f52-b262-410a-a409-cc25ba92ded1",
+                "title": "Service Name",
+                "price": 50.00,
+                "active": true,
+                "description": "Service Description",
+                "externalCode": "EXT-SVC-1",
+                "fiscalServiceId": null
+            }
+
+### Add a new Service [POST /services/]
+
++ Attributes
+    + title (string) - Service title
+    + price (number) - Service price
+    + active (boolean) - Active status
+    + description (string) - Service description
+    + externalCode (string) - External code (must be unique)
+    + fiscalServiceId (string) - Fiscal service GUID
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "title": "New Service",
+                "price": 50.00,
+                "active": true,
+                "description": "Service Description",
+                "externalCode": "EXT-SVC-1"
+            }
+
++ Response 201 (application/json)
+
+### Upsert a Service [PUT /services/]
+Uses `id` or `externalCode` as identifier.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalCode": "EXT-SVC-1",
+                "title": "Service Name",
+                "price": 60.00,
+                "active": true
+            }
+
++ Response 200 (application/json)
+
++ Response 201 (application/json)
+
+### Edit a Service [PATCH /services/{id}]
+
++ Attributes
+    + title (string) - Service title
+    + price (number) - Service price
+    + active (boolean) - Active status
+    + description (string) - Service description
+    + externalCode (string) - External code
+    + fiscalServiceId (string) - Fiscal service GUID
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "price", "value": 75.00 }
+            ]
+
++ Response 200 (application/json)
+
+### Delete a Service [DELETE /services/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve all Services (legacy) [GET /services/obterListaServicos]
+
+Returns all services for the authenticated user without pagination.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+### Retrieve a list of Services [GET /services/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (string) - Service id (GUID)
+        + title (string) - Service title filter
+        + description (string) - Service description filter
+        + externalCode (string) - External code filter
+        + price (number) - Price filter
+        + active (boolean) - Active status filter
+        + fiscalServiceId (string) - Fiscal service GUID filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Additional Costs
+
+## Additional Cost [/additionalcosts]
+
+### Retrieve a list of Additional Costs [GET /additionalcosts/?page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+### Add a new Additional Cost [POST /additionalcosts/]
+
++ Attributes
+    + name (string) - Additional cost name
+    + value (number) - Additional cost value
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "name": "Transport Fee",
+                "value": 25.00
+            }
+
++ Response 201 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "name": "Transport Fee",
+                "value": 25.00,
+                "registerDate": "2024-01-15 10:00:00"
+            }
+
+### Update an Additional Cost [PUT /additionalcosts/{id}]
+
++ Parameters
+    + id (number) ... Id of the additional cost.
+
++ Attributes
+    + name (string) - Additional cost name
+    + value (number) - Additional cost value
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "name": "Transport Fee Updated",
+                "value": 30.00
+            }
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "name": "Transport Fee Updated",
+                "value": 30.00,
+                "registerDate": "2024-01-15 10:00:00"
+            }
+
+
+# Group Equipments
+
+## Equipment [/equipments/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the equipment.
+
+### Retrieve an Equipment [GET /equipments/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "externalId": "EXT-EQ-1",
+                "parentEquipmentId": 0,
+                "associatedCustomerId": 123,
+                "associatedUserId": 0,
+                "categoryId": 1,
+                "name": "Equipment Name",
+                "description": "Equipment Description",
+                "identifier": "EQ-001",
+                "expirationDate": "2025-12-31",
+                "warrantyStartDate": "2024-01-01",
+                "warrantyEndDate": "2025-01-01",
+                "active": true,
+                "equipmentSpecifications": [
+                    {
+                        "name": "Brand",
+                        "specification": "Brand X"
+                    }
+                ]
+            }
+
+### Add a new Equipment [POST /equipments/]
+
++ Attributes
+    + externalId (string) - External id. Max 255 characters
+    + parentEquipmentId (number) - Parent equipment id
+    + associatedCustomerId (number) - Associated customer id
+    + associatedUserId (number) - Associated user id
+    + categoryId (number) - Equipment category id
+    + name (required, string) - Equipment name. Max 500 characters
+    + description (string) - Description. Max 10000 characters
+    + identifier (string) - Equipment identifier. Max 100 characters
+    + base64Image (string) - Image in base 64
+    + expirationDate (string) - Expiration date string
+    + warrantyStartDate (string) - Warranty start date
+    + warrantyEndDate (string) - Warranty end date
+    + active (boolean) - Active status
+    + equipmentSpecifications (array)
+        + name (string) - Specification name
+        + specification (string) - Specification value
+    + attachments (array)
+        + name (string) - File name with extension
+        + file (string) - Base 64 file
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-EQ-1",
+                "name": "New Equipment",
+                "categoryId": 1,
+                "associatedCustomerId": 123,
+                "identifier": "EQ-001",
+                "active": true
+            }
+
++ Response 201 (application/json)
+
+### Upsert an Equipment [PUT /equipments/]
+Uses `id` or `externalId` as identifier.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-EQ-1",
+                "name": "Equipment Name",
+                "active": true
+            }
+
++ Response 200 (application/json)
+
++ Response 201 (application/json)
+
+### Edit an Equipment [PATCH /equipments/{id}]
+
++ Attributes
+    + externalId (string)
+    + parentEquipmentId (number)
+    + associatedCustomerId (number)
+    + associatedUserId (number)
+    + categoryId (number)
+    + name (string)
+    + description (string)
+    + identifier (string)
+    + base64Image (string)
+    + expirationDate (string)
+    + warrantyStartDate (string)
+    + warrantyEndDate (string)
+    + active (boolean)
+    + equipmentSpecifications (array)
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "name", "value": "Updated Equipment" }
+            ]
+
++ Response 200 (application/json)
+
+### Update Equipment Attachments [PUT /equipments/{id}/attachments]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "removeAllAttachmentsInsertedByMe": false,
+                "attachments": [
+                    {
+                        "name": "manual.pdf",
+                        "file": "base64 encoded file"
+                    }
+                ]
+            }
+
++ Response 200 (application/json)
+
+### Delete an Equipment [DELETE /equipments/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Equipments [GET /equipments/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + externalId (string) - External id filter
+        + name (string) - Equipment name filter
+        + identifier (string) - Equipment identifier filter
+        + associatedUserId (number) - Associated user id
+        + associatedCustomerId (number) - Associated customer id
+        + parentEquipmentId (number) - Parent equipment id
+        + categoryId (number) - Equipment category id
+        + active (boolean) - Active status filter
+        + warrantyStartDate (string) - Warranty start date filter
+        + warrantyEndDate (string) - Warranty end date filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Equipment Categories
+
+## Equipment Category [/equipmentcategories/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the equipment category.
+
+### Retrieve an Equipment Category [GET /equipmentcategories/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "externalId": "EXT-EQCAT-1",
+                "description": "Category Name"
+            }
+
+### Add a new Equipment Category [POST /equipmentcategories/]
+
++ Attributes
+    + externalId (string) - External id. Max 255 characters
+    + description (required, string) - Category name. Max 100 characters
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "externalId": "EXT-EQCAT-1",
+                "description": "New Equipment Category"
+            }
+
++ Response 201 (application/json)
+
+### Edit an Equipment Category [PATCH /equipmentcategories/{id}]
+
++ Attributes
+    + description (string) - Category name
+    + externalId (string) - External id
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "description", "value": "Updated Category" }
+            ]
+
++ Response 200 (application/json)
+
+### Delete an Equipment Category [DELETE /equipmentcategories/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Equipment Categories [GET /equipmentcategories/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Category id
+        + description (string) - Category name filter
+        + externalId (string) - External id filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Keywords
+
+## Keyword [/keywords/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the keyword.
+
+### Retrieve a Keyword [GET /keywords/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "description": "Keyword Description"
+            }
+
+### Add a new Keyword [POST /keywords/]
+
++ Attributes
+    + description (required, string) - Keyword description. Max 1000 characters
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "description": "New Keyword"
+            }
+
++ Response 201 (application/json)
+
+### Edit a Keyword [PATCH /keywords/{id}]
+
++ Attributes
+    + description (string) - Keyword description
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "description", "value": "Updated Keyword" }
+            ]
+
++ Response 200 (application/json)
+
+### Delete a Keyword [DELETE /keywords/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Keywords [GET /keywords/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Keyword id
+        + description (string) - Keyword description filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Task Types
+
+## Task Type [/tasktypes/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the task type.
+
+### Retrieve a Task Type [GET /tasktypes/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "description": "Task Type Name",
+                "standartQuestionnaireId": null,
+                "standartTime": "01:00:00",
+                "sendSatisfactionSurvey": false,
+                "sendDigitalOs": false,
+                "active": true,
+                "requirements": {
+                    "fillReport": false,
+                    "getSignature": false,
+                    "fillRolledKilometer": false,
+                    "emailTheTask": false,
+                    "minimumNumberOfPhotos": 0,
+                    "requiredQuestionnaires": []
+                }
+            }
+
+### Add a new Task Type [POST /tasktypes/]
+
++ Attributes
+    + description (required, string) - Task type description. Max 5000 characters
+    + standartQuestionnaireId (number) - Default questionnaire id
+    + standartTime (string) - Default time (processed as TimeSpan)
+    + sendSatisfactionSurvey (boolean) - Send satisfaction survey. Default false
+    + sendDigitalOs (boolean) - Send digital OS. Default false
+    + active (boolean) - Active status. Default true
+    + requirements (object) - Task type requirements
+        + fillReport (boolean) - Require report fill
+        + getSignature (boolean) - Require signature
+        + fillRolledKilometer (boolean) - Require km input
+        + emailTheTask (boolean) - Email the task
+        + minimumNumberOfPhotos (number) - Minimum photos required
+        + requiredQuestionnaires (array[number]) - Required questionnaire ids
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "description": "New Task Type",
+                "standartTime": "01:00:00",
+                "sendSatisfactionSurvey": false,
+                "active": true,
+                "requirements": {
+                    "fillReport": true,
+                    "getSignature": true,
+                    "minimumNumberOfPhotos": 2
+                }
+            }
+
++ Response 201 (application/json)
+
+### Edit a Task Type [PATCH /tasktypes/{id}]
+
++ Attributes
+    + description (string) - Task type description
+    + standartQuestionnaireId (number) - Default questionnaire id
+    + standartTime (string) - Default time
+    + sendSatisfactionSurvey (boolean)
+    + sendDigitalOs (boolean)
+    + active (boolean)
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "description", "value": "Updated Task Type" }
+            ]
+
++ Response 200 (application/json)
+
+### Delete a Task Type [DELETE /tasktypes/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Task Types [GET /tasktypes/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Task type id
+        + description (string) - Task type description filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Teams
+
+## Team [/teams/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the team.
+
+### Retrieve a Team [GET /teams/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "description": "Team Name"
+            }
+
+### Add a new Team [POST /teams/]
+
++ Attributes
+    + description (required, string) - Team name. Max 1000 characters
+    + participants (array[number]) - List of user ids as participants
+    + managers (array[number]) - List of user ids as managers
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "description": "New Team",
+                "participants": [1, 2, 3],
+                "managers": [4]
+            }
+
++ Response 201 (application/json)
+
+### Retrieve Team Participants [GET /teams/{teamId}/users?page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + teamId (number) ... Id of the team.
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+### Retrieve a list of Teams [GET /teams/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Team id
+        + description (string) - Team name filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Tickets
+
+## Ticket [/tickets/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the ticket.
+
+### Retrieve a Ticket [GET /tickets/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "title": "Ticket Title",
+                "description": "Ticket Description",
+                "requestTypeId": 1,
+                "statusId": 1,
+                "requesterEmail": "requester@email.com",
+                "requesterName": "Requester Name",
+                "customerId": 123,
+                "teamId": 1,
+                "userResponsableId": 456,
+                "equipmentId": 0,
+                "equipmentIds": [789],
+                "priority": 2,
+                "externalId": "EXT-TKT-1"
+            }
+
+### Add a new Ticket [POST /tickets/]
+
++ Attributes
+    + title (string) - Ticket title
+    + description (string) - Ticket description
+    + requestTypeId (number) - Request type id
+    + statusId (number) - Status id
+    + requesterEmail (string) - Requester email
+    + requesterName (string) - Requester name
+    + customerId (number) - Customer id
+    + teamId (number) - Team id
+    + userResponsableId (number) - Responsible user id
+    + equipmentId (number) - Equipment id (single)
+    + equipmentIds (array[number]) - Equipment ids (multiple)
+    + priority (number) - Priority level
+    + externalId (string) - External ticket id
+    + customFields (array) - Custom field answers. Each item contains: customFieldTicket.id (number), value (string), valueDescription (string)
+    + attachments (array)
+        + name (string) - File name with extension
+        + file (string) - Base 64 file
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "title": "New Ticket",
+                "description": "Ticket description",
+                "requestTypeId": 1,
+                "statusId": 1,
+                "requesterEmail": "requester@email.com",
+                "requesterName": "Requester",
+                "customerId": 123,
+                "teamId": 1,
+                "userResponsableId": 456,
+                "priority": 2,
+                "externalId": "EXT-TKT-1"
+            }
+
++ Response 201 (application/json)
+
+### Edit a Ticket [PATCH /tickets/{id}]
+
++ Attributes
+    + externalId (string) - External ticket id
+    + statusId (number) - New status id
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "statusId", "value": 2 }
+            ]
+
++ Response 200 (application/json)
+
+### Retrieve Ticket Request Types [GET /tickets/request-type]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": []
+        }
+
+### Retrieve a list of Tickets [GET /tickets/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded filter.
+        + ids (string) - Comma-separated ticket ids
+        + status (number) - Ticket status
+        + responsableUsersIds (string) - Comma-separated responsible user ids
+        + teamIds (string) - Comma-separated team ids
+        + customerGroupId (number) - Customer group id
+        + customerId (number) - Customer id
+        + priorities (string) - Comma-separated priorities
+        + openingResponsableUsersId (string) - Comma-separated opening user ids
+        + externalId (string) - External ticket id
+        + statusIds (string) - Comma-separated status ids
+        + startDate (string) - Start date filter
+        + endDate (string) - End date filter
+        + startDateLastUpdate (string) - Last update start date
+        + endDateLastUpdate (string) - Last update end date
+        + searchTasks (boolean) - Include associated tasks
+        + searchInteractions (boolean) - Include interactions
+        + searchModifications (boolean) - Include modifications
+        + searchCustomFields (boolean) - Include custom fields
+        + searchStatusChanges (boolean) - Include status changes
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Ticket Status
+
+## Ticket Status [/tickets/status]
+
+### Retrieve active Ticket Statuses [GET /tickets/status]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": []
+        }
+
+
+# Group Questionnaires
+
+## Questionnaire [/questionnaires/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the questionnaire.
+
+### Retrieve a Questionnaire [GET /questionnaires/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "description": "Questionnaire Name"
+            }
+
+### Retrieve a list of Questionnaires [GET /questionnaires/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Questionnaire id
+        + taskIds (array[number]) - Filter by associated task ids
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Segments
+
+## Segment [/segments/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the segment.
+
+### Retrieve a Segment [GET /segments/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "description": "Segment Name",
+                "registrationDate": "2024-01-01 00:00:00"
+            }
+
+### Add a new Segment [POST /segments/]
+
++ Attributes
+    + description (string) - Segment description. Max 1000 characters
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "description": "New Segment"
+            }
+
++ Response 201 (application/json)
+
+### Edit a Segment [PATCH /segments/{id}]
+
++ Attributes
+    + description (string) - Segment description
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "description", "value": "Updated Segment" }
+            ]
+
++ Response 200 (application/json)
+
+### Delete a Segment [DELETE /segments/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Segments [GET /segments/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Segment id
+        + description (string) - Segment description filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group GPS
+
+## GPS [/gps]
+
+### Retrieve a list of GPS positions [GET /gps/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded filter.
+        + userId (number) - User id to track
+        + getLastKnowPosition (boolean) - Get only the latest known position
+        + date (string) - Date filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [
+                    {
+                        "userId": 123,
+                        "positionDate": "2024-01-01 12:00:00",
+                        "latitude": -16.687,
+                        "longitude": -49.299,
+                        "accuracy": 10,
+                        "batteryLevel": 85,
+                        "networkOperatorName": "Operator"
+                    }
+                ],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 1
+                },
+                "links": []
+            }
+        }
+
+
+# Group Expenses
+
+## Expense [/expenses/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the expense.
+
+### Retrieve an Expense [GET /expenses/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "description": "Expense Description",
+                "userToId": 123,
+                "userToName": "User Name",
+                "typeId": 1,
+                "typeName": "Transport",
+                "date": "2024-01-15",
+                "attachmentUrl": "",
+                "creationDate": "2024-01-15 10:00:00",
+                "amount": 150.00
+            }
+
+### Add a new Expense [POST /expenses/]
+
++ Attributes
+    + userToId (number) - User id recipient
+    + typeId (number) - Expense type id
+    + date (string) - Expense date
+    + amount (number) - Amount value
+    + description (string) - Description. Max 1000 characters
+    + attachment (string) - Attachment data
+    + changeAttachment (boolean) - Flag to change attachment
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "userToId": 123,
+                "typeId": 1,
+                "date": "2024-01-15",
+                "amount": 150.00,
+                "description": "Transport expense"
+            }
+
++ Response 201 (application/json)
+
+### Edit an Expense [PATCH /expenses/{id}]
+
++ Attributes
+    + typeId (number) - Expense type id
+    + amount (number) - Amount value
+    + expenseDate (string) - Expense date
+    + description (string) - Description
+    + userToId (number) - User id recipient
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "amount", "value": 200.00 }
+            ]
+
++ Response 200 (application/json)
+
+### Update Expense Attachments [PUT /expenses/{id}/attachments]
+
++ Attributes
+    + deleteAttachment (boolean) - Delete existing attachment
+    + attachment (string) - New attachment data
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "deleteAttachment": false,
+                "attachment": "base64 encoded file"
+            }
+
++ Response 200 (application/json)
+
+### Delete an Expense [DELETE /expenses/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Expenses [GET /expenses/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded filter.
+        + startDate (string) - Start date filter
+        + endDate (string) - End date filter
+        + userToId (number) - User id filter
+        + type (number) - Expense type filter
+        + id (number) - Expense id
+        + description (string) - Description filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Expense Types
+
+## Expense Type [/expensetypes/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the expense type.
+
+### Retrieve an Expense Type [GET /expensetypes/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "description": "Transport",
+                "creatorId": 123,
+                "creationDate": "2024-01-01 00:00:00"
+            }
+
+### Add a new Expense Type [POST /expensetypes/]
+
++ Attributes
+    + description (required, string) - Expense type description. Max 1000 characters
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "description": "New Expense Type"
+            }
+
++ Response 201 (application/json)
+
+### Edit an Expense Type [PATCH /expensetypes/{id}]
+
++ Attributes
+    + description (string) - Expense type description
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "description", "value": "Updated Type" }
+            ]
+
++ Response 200 (application/json)
+
+### Delete an Expense Type [DELETE /expensetypes/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of Expense Types [GET /expensetypes/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Expense type id
+        + description (string) - Expense type description filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Satisfaction Surveys
+
+## Satisfaction Survey [/satisfactionsurveys]
+
+### Retrieve a list of Satisfaction Survey responses [GET /satisfactionsurveys/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded filter.
+        + taskId (array[number]) - Task ids filter
+        + email (string) - Email filter. Max 250 characters
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [
+                    {
+                        "id": 1,
+                        "taskId": 123,
+                        "answerDescription": "Very Good",
+                        "questionDescription": "How was the service?",
+                        "answerDate": "2024-01-15T10:00:00",
+                        "itemId": "1",
+                        "email": "customer@email.com",
+                        "answersItemQuantity": 5,
+                        "scoreSum": 4,
+                        "totalResponse": 1,
+                        "totalSubmitted": 1
+                    }
+                ],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 1
+                },
+                "links": []
+            }
+        }
+
+
+# Group Invoices
+
+## Invoice [/invoices/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the invoice.
+
+### Retrieve an Invoice [GET /invoices/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "publicId": 1,
+                "customerId": 123,
+                "customerName": "Customer Name",
+                "customerExternalId": "EXT-123",
+                "cpfCnpj": "12345678901",
+                "taskId": null,
+                "projectCode": null,
+                "quotationCode": null,
+                "subject": "Invoice Subject",
+                "registerDate": "2024-01-15",
+                "issueDate": "2024-01-15",
+                "observations": "Notes",
+                "privateNotes": "Internal notes",
+                "pageFooter": "Footer text",
+                "invoiceStatus": "Open",
+                "serviceAddress": "Service Address",
+                "billingAddress": "Billing Address",
+                "financialCategory": "Category Name",
+                "createdById": 456,
+                "dateLastUpdate": "2024-01-20",
+                "publicLink": "https://app.auvo.com.br/fatura/...",
+                "products": [
+                    {
+                        "productId": 1,
+                        "name": "Product Name",
+                        "externalCode": "PROD-001",
+                        "amount": 2.0,
+                        "unitaryValue": "10.50",
+                        "unitaryDiscount": {
+                            "type": "Monetary",
+                            "value": 0.00
+                        }
+                    }
+                ],
+                "services": [
+                    {
+                        "serviceId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                        "name": "Service Name",
+                        "description": "Service Description",
+                        "externalCode": "SVC-001",
+                        "amount": 1.0,
+                        "unitaryValue": "50.00",
+                        "unitaryDiscount": {
+                            "type": "Monetary",
+                            "value": 0.00
+                        }
+                    }
+                ],
+                "aditionalCosts": [
+                    {
+                        "costId": 1,
+                        "description": "Transport",
+                        "value": 25.00
+                    }
+                ],
+                "attachment": [
+                    {
+                        "name": "document.pdf",
+                        "url": "https://..."
+                    }
+                ],
+                "payment": {
+                    "installmentsCount": 1,
+                    "installments": [
+                        {
+                            "number": 1,
+                            "value": 96.00,
+                            "dueDate": "2024-02-15",
+                            "observations": null,
+                            "documentoCobrancaCriado": null,
+                            "paymentMethod": {
+                                "id": "00000000-0000-0000-0000-000000000000",
+                                "description": "Credit Card"
+                            },
+                            "documents": [
+                                {
+                                    "boleto": {
+                                        "barCode": "12345678901234567890",
+                                        "digitableLine": "12345.67890 12345.678901 12345.678901 1 12340000009600",
+                                        "externalUrl": "https://..."
+                                    },
+                                    "pix": {
+                                        "qrCodeBase64": "base64...",
+                                        "qrCodeValue": "00020126...",
+                                        "externalUrl": "https://..."
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "summary": {
+                    "totalProducts": 21.00,
+                    "totalServices": 50.00,
+                    "totalAdditionalCosts": 25.00,
+                    "grossTotalValue": 96.00,
+                    "discount": {
+                        "type": "Monetary",
+                        "value": 0.00
+                    },
+                    "netTotalValue": 96.00
+                },
+                "invoiceChangeHistory": [
+                    {
+                        "action": "Inclusão de Fatura",
+                        "date": "2024-01-15",
+                        "userName": "Admin",
+                        "userId": 456
+                    }
+                ]
+            }
+
+### Add a new Invoice [POST /invoices/]
+
++ Attributes
+    + customerId (required, number) - Customer id
+    + issueDate (required, string) - Issue date
+    + responsibleUserId (number) - Responsible user id
+    + subject (string) - Invoice subject
+    + observations (string) - Observations
+    + internalNote (string) - Internal note
+    + footer (string) - Footer text
+    + serviceAddress (string) - Service address
+    + billingAddress (string) - Billing address
+    + financialCategoryId (string) - Financial category GUID
+    + discountType (string) - Discount type
+    + discountValue (number) - Discount value
+    + products (array) - Each item: productId (number), amount (number), unitaryValue (string)
+    + services (array) - Each item: serviceId (string GUID), amount (number), unitaryValue (string)
+    + additionalCosts (array) - Each item: costId (number), value (number)
+    + attachments (array) - Each item: name (string), src (string)
+    + payment (required, object) - Contains paymentMethods array. Each paymentMethod: paymentMethodId (string GUID), installmentsCount (number), installments array with number (number), value (number), dueDate (string), observations (string)
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "customerId": 123,
+                "issueDate": "2024-01-15",
+                "responsibleUserId": 456,
+                "subject": "New Invoice",
+                "products": [
+                    {
+                        "productId": 1,
+                        "amount": 2,
+                        "unitaryValue": "10.50"
+                    }
+                ],
+                "payment": {
+                    "paymentMethods": [
+                        {
+                            "paymentMethodId": "00000000-0000-0000-0000-000000000000",
+                            "installmentsCount": 2,
+                            "installments": [
+                                {
+                                    "number": 1,
+                                    "value": 10.50,
+                                    "dueDate": "2024-02-15",
+                                    "observations": ""
+                                },
+                                {
+                                    "number": 2,
+                                    "value": 10.50,
+                                    "dueDate": "2024-03-15",
+                                    "observations": ""
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+
++ Response 201 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1
+            }
+
+### Update an Invoice [PUT /invoices/{id}]
+Some fields are blocked after the invoice is receipted (customerId, responsibleUserId, discountType, discountValue, products, services, additionalCosts, payment).
+
++ Attributes
+    + replaceData (boolean) - Replace all data or merge. Default true
+    + customerId (number) - Customer id
+    + responsibleUserId (number) - Responsible user id
+    + issueDate (string) - Issue date
+    + subject (string) - Invoice subject
+    + observations (string) - Observations
+    + internalNote (string) - Internal note
+    + footer (string) - Footer text
+    + serviceAddress (string) - Service address
+    + billingAddress (string) - Billing address
+    + financialCategoryId (string) - Financial category GUID
+    + discountType (string) - Discount type
+    + discountValue (number) - Discount value
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "subject": "Updated Invoice",
+                "observations": "Updated notes"
+            }
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "publicId": 1,
+                "customerId": 123,
+                "customerName": "Customer Name",
+                "customerExternalId": "EXT-123",
+                "cpfCnpj": "12345678901",
+                "taskId": null,
+                "projectCode": null,
+                "quotationCode": null,
+                "subject": "Updated Invoice",
+                "registerDate": "2024-01-15",
+                "issueDate": "2024-01-15",
+                "observations": "Updated notes",
+                "privateNotes": null,
+                "pageFooter": null,
+                "invoiceStatus": "Open",
+                "serviceAddress": "",
+                "billingAddress": "",
+                "financialCategory": null,
+                "createdById": 456,
+                "dateLastUpdate": "2024-01-20",
+                "publicLink": "",
+                "products": [],
+                "services": [],
+                "aditionalCosts": [],
+                "attachment": [],
+                "payment": null,
+                "summary": {
+                    "totalProducts": 0.00,
+                    "totalServices": 0.00,
+                    "totalAdditionalCosts": 0.00,
+                    "grossTotalValue": 0.00,
+                    "discount": {
+                        "type": "Monetary",
+                        "value": 0.00
+                    },
+                    "netTotalValue": 0.00
+                },
+                "invoiceChangeHistory": []
+            }
+
+### Retrieve a list of Invoices [GET /invoices/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
+Maximum page size is 100.
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded filter.
+        + customerId (number) - Customer id filter
+        + status (string) - Status filter
+        + startDate (string) - Issue start date
+        + endDate (string) - Issue end date
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10. Max 100.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Quotations
+
+## Quotation [/quotations/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the quotation.
+
+### Retrieve a Quotation [GET /quotations/{id}]
+
+**Notes:**
+- `taskIds`: returns an empty array `[]` when the quotation has no associated tasks.
+- `payment`: returns `null` when the quotation has no installments.
+- `leadName`: returns `null` when a customer is associated (customerId > 0).
+- `internalNote`: returns `null` when empty.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "publicId": 1,
+                "customerId": 123,
+                "customerName": "Customer Name",
+                "customerExternalId": "EXT-123",
+                "externalCode": "QT-001",
+                "taskId": 0,
+                "leadName": null,
+                "internalNote": "Internal notes",
+                "taskIds": [10, 20],
+                "requesterUserId": 456,
+                "responsibleEmployeeId": "00000000-0000-0000-0000-000000000000",
+                "registerDate": "2024-01-10",
+                "requestDate": "2024-01-15",
+                "expireDate": "2024-02-15",
+                "lastUpdateDate": "2024-01-20",
+                "observations": "Notes",
+                "descount": "0.00",
+                "publicLink": "https://app.auvo.com.br/orcamento/...",
+                "payment": {
+                    "installmentsCount": 2,
+                    "installments": [
+                        {
+                            "number": 1,
+                            "value": 50.00,
+                            "dueDate": "2024-02-15",
+                            "paymentMethod": {
+                                "id": "00000000-0000-0000-0000-000000000000",
+                                "description": "Credit Card"
+                            }
+                        },
+                        {
+                            "number": 2,
+                            "value": 50.00,
+                            "dueDate": "2024-03-15",
+                            "paymentMethod": {
+                                "id": "00000000-0000-0000-0000-000000000000",
+                                "description": "Credit Card"
+                            }
+                        }
+                    ]
+                },
+                "products": [
+                    {
+                        "productId": 1,
+                        "externalCode": "PROD-001",
+                        "amount": 2.0,
+                        "unitaryValue": "25.00",
+                        "unitaryDiscount": {
+                            "type": "Percentual",
+                            "value": 0.00
+                        }
+                    }
+                ],
+                "services": [
+                    {
+                        "serviceId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                        "externalCode": "SVC-001",
+                        "name": "Service Name",
+                        "description": "Service Description",
+                        "amount": 1.0,
+                        "unitaryValue": "50.00",
+                        "dateRegister": "2024-01-15T00:00:00",
+                        "unitaryDiscount": {
+                            "type": "Percentual",
+                            "value": 0.00
+                        }
+                    }
+                ],
+                "aditionalCosts": [
+                    {
+                        "id": 1,
+                        "costId": 10,
+                        "description": "Transport",
+                        "value": "25.00"
+                    }
+                ],
+                "contacts": [
+                    {
+                        "id": 1,
+                        "name": "Contact Name",
+                        "job": "Manager",
+                        "email": "contact@email.com",
+                        "phoneNumber": "11999999999"
+                    }
+                ],
+                "currentStage": {
+                    "id": 1,
+                    "description": "Open",
+                    "position": 1,
+                    "changeStock": false,
+                    "isCancelled": false,
+                    "editAllowed": true
+                },
+                "summary": {
+                    "totalProducts": 50.00,
+                    "totalServices": 50.00,
+                    "totalAdditionalCosts": 25.00,
+                    "grossTotalValue": 125.00,
+                    "netTotalValue": 125.00,
+                    "discount": {
+                        "type": "Percentual",
+                        "value": 0.00
+                    }
+                },
+                "alterations": []
+            }
+
+### Add a new Quotation [POST /quotations/]
+
++ Attributes
+    + statusId (number) - Status id
+    + customerId (number) - Customer id
+    + leadName (string) - Lead name (if no customer)
+    + responsibleUserId (number) - Responsible user id
+    + requestDate (string) - Request date
+    + expireDate (string) - Expiration date
+    + externalCode (string) - External code
+    + observations (string) - Observations
+    + internalNote (string) - Internal note
+    + discountType (string) - Discount type
+    + discountValue (number) - Discount value
+    + taskId (number) - Associated task id
+    + taskIds (array[number]) - Associated task ids
+    + products (array) - Each item: productId (number), amount (number), unitaryValue (string), unitaryDiscount with type (string) and value (number)
+    + services (array) - Each item: serviceId (string GUID), amount (number), unitaryValue (string), unitaryDiscount with type (string) and value (number)
+    + additionalCosts (array) - Each item: costId (number), value (number)
+    + attachments (array) - Each item: name (string), src (string), visibleToClient (boolean)
+    + payment (object) - Contains installments array. Each installment: number (number), value (number), dueDate (string), paymentMethod.id (string GUID)
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "statusId": 1,
+                "customerId": 123,
+                "responsibleUserId": 456,
+                "requestDate": "2024-01-15",
+                "expireDate": "2024-02-15",
+                "observations": "New quotation"
+            }
+
++ Response 201 (application/json)
+
+    + Body
+
+            "result": {
+                "publicId": 1,
+                "customerId": 123,
+                "customerName": "Customer Name",
+                "customerExternalId": "EXT-123",
+                "externalCode": "",
+                "taskId": 0,
+                "leadName": null,
+                "internalNote": null,
+                "taskIds": [],
+                "requesterUserId": 456,
+                "responsibleEmployeeId": "00000000-0000-0000-0000-000000000000",
+                "registerDate": "2024-01-15",
+                "requestDate": "2024-01-15",
+                "expireDate": "2024-02-15",
+                "lastUpdateDate": "2024-01-15",
+                "observations": "New quotation",
+                "descount": "0.00",
+                "publicLink": "",
+                "payment": null,
+                "products": [],
+                "services": [],
+                "aditionalCosts": [],
+                "contacts": [],
+                "currentStage": {
+                    "id": 1,
+                    "description": "Open",
+                    "position": 1,
+                    "changeStock": false,
+                    "isCancelled": false,
+                    "editAllowed": true
+                },
+                "summary": {
+                    "totalProducts": 0.00,
+                    "totalServices": 0.00,
+                    "totalAdditionalCosts": 0.00,
+                    "grossTotalValue": 0.00,
+                    "netTotalValue": 0.00,
+                    "discount": {
+                        "type": "Percentual",
+                        "value": 0.00
+                    }
+                },
+                "alterations": []
+            }
+
+### Edit a Quotation [PATCH /quotations/{id}]
+
++ Attributes
+    + statusId (number)
+    + customerId (number)
+    + leadName (string)
+    + responsibleUserId (number)
+    + requestDate (string)
+    + expireDate (string)
+    + externalCode (string)
+    + observations (string)
+    + internalNote (string)
+    + discountType (string)
+    + discountValue (number)
+    + taskIds (array[number])
+    + attachments (array)
+    + payment (object)
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "observations", "value": "Updated notes" }
+            ]
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "publicId": 1,
+                "customerId": 123,
+                "customerName": "Customer Name",
+                "customerExternalId": "EXT-123",
+                "externalCode": "QT-001",
+                "taskId": 0,
+                "leadName": null,
+                "internalNote": null,
+                "taskIds": [],
+                "requesterUserId": 456,
+                "responsibleEmployeeId": "00000000-0000-0000-0000-000000000000",
+                "registerDate": "2024-01-15",
+                "requestDate": "2024-01-15",
+                "expireDate": "2024-02-15",
+                "lastUpdateDate": "2024-01-20",
+                "observations": "Updated notes",
+                "descount": "0.00",
+                "publicLink": "",
+                "payment": null,
+                "products": [],
+                "services": [],
+                "aditionalCosts": [],
+                "contacts": [],
+                "currentStage": {
+                    "id": 1,
+                    "description": "Open",
+                    "position": 1,
+                    "changeStock": false,
+                    "isCancelled": false,
+                    "editAllowed": true
+                },
+                "summary": {
+                    "totalProducts": 0.00,
+                    "totalServices": 0.00,
+                    "totalAdditionalCosts": 0.00,
+                    "grossTotalValue": 0.00,
+                    "netTotalValue": 0.00,
+                    "discount": {
+                        "type": "Percentual",
+                        "value": 0.00
+                    }
+                },
+                "alterations": []
+            }
+
+### Add Service to Quotation [POST /quotations/{id}/services/{idService}]
+
++ Parameters
+    + id (number) ... Quotation id.
+    + idService (string) ... Service GUID.
+
++ Attributes
+    + serviceId (string) - Service GUID
+    + externalCode (string) - External code
+    + name (string) - Service name
+    + description (string) - Description
+    + amount (number) - Quantity
+    + unitaryValue (string) - Unit value
+    + unitaryDiscount (object)
+        + type (string) - Discount type
+        + value (number) - Discount value
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "serviceId": "63867f52-b262-410a-a409-cc25ba92ded1",
+                "amount": 1,
+                "unitaryValue": "50.00"
+            }
+
++ Response 201 (application/json)
+
+### Update Service in Quotation [PUT /quotations/{id}/services/{idService}]
+Uses JSONPatchDocument.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "unitaryCost", "value": 30.00 }
+            ]
+
++ Response 200 (application/json)
+
+### Delete Service from Quotation [DELETE /quotations/{id}/services/{idService}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Add Product to Quotation [POST /quotations/{id}/products/]
+
++ Attributes
+    + productId (number) - Product id
+    + externalCode (string) - External code
+    + amount (number) - Quantity
+    + unitaryValue (string) - Unit value
+    + unitaryDiscount (object)
+        + type (string) - Discount type
+        + value (number) - Discount value
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "productId": 1,
+                "amount": 2,
+                "unitaryValue": "10.50"
+            }
+
++ Response 201 (application/json)
+
+### Update Product in Quotation [PUT /quotations/{id}/products/{idProduct}]
+Uses JSONPatchDocument.
+
++ Parameters
+    + id (number) ... Quotation id.
+    + idProduct (number) ... Product id.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            [
+                { "op": "replace", "path": "unitaryCost", "value": 8.00 }
+            ]
+
++ Response 200 (application/json)
+
+### Delete Product from Quotation [DELETE /quotations/{id}/products/{idProduct}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Upsert Additional Cost in Quotation [PUT /quotations/{id}/adicost/]
+
++ Attributes
+    + id (number) - Additional cost record id (0 for new)
+    + costId (number) - Additional cost type id
+    + description (string) - Description
+    + value (string) - Value
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "id": 0,
+                "costId": 1,
+                "description": "Transport",
+                "value": "25.00"
+            }
+
++ Response 200 (application/json)
+
+### Delete Additional Cost from Quotation [DELETE /quotations/{id}/adicost/]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "id": 1,
+                "costId": 1
+            }
+
++ Response 204
+
+### Retrieve a list of Quotations [GET /quotations/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded filter.
+        + publicId (number) - Quotation public id
+        + usersId (array[number]) - Responsible user ids
+        + customersId (array[number]) - Customer ids
+        + productsId (array[number]) - Product ids
+        + requestStartDate (string) - Request start date
+        + requestEndDate (string) - Request end date
+        + lastUpdateStartDate (string) - Last update start date
+        + lastUpdateEndDate (string) - Last update end date
+        + currentStage (string) - Current stage filter (comma-separated)
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Receivables
+
+## Receivable [/receivables/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the receivable.
+
+### Retrieve a Receivable [GET /receivables/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "customerId": 123,
+                "bankAccountId": "00000000-0000-0000-0000-000000000000",
+                "value": 100.00,
+                "dueDate": "2024-02-15",
+                "competencyDate": "2024-01-15",
+                "description": "Service payment",
+                "observations": "Notes",
+                "discount": 0,
+                "surcharge": 0,
+                "financialCategoryId": null,
+                "paymentMethodId": null,
+                "paid": false,
+                "paidDate": null,
+                "paidValue": null
+            }
+
+### Add a new Receivable [POST /receivables/]
+
++ Attributes
+    + customerId (required, number) - Customer id
+    + bankAccountId (required, string) - Bank account GUID
+    + value (required, number) - Receivable value
+    + dueDate (required, string) - Due date
+    + competencyDate (string) - Competency date
+    + description (string) - Description. Max 500 characters
+    + observations (string) - Observations. Max 1000 characters
+    + discount (number) - Discount value
+    + surcharge (number) - Surcharge value
+    + financialCategoryId (string) - Financial category GUID
+    + paymentMethodId (string) - Payment method GUID
+    + paid (boolean) - Payment status
+    + paidDate (string) - Payment date
+    + paidValue (number) - Payment value
+    + isRecurrent (boolean) - Is recurrent
+    + recurrenceType (string) - "daily" | "weekly" | "biweekly" | "monthly" | "bimonthly" | "quarterly" | "yearly"
+    + recurrenceDueDate (string) - Recurrence due date
+    + recurrenceLimitDate (string) - Recurrence limit date
+    + considerWeekends (boolean) - Consider weekends
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "customerId": 123,
+                "bankAccountId": "00000000-0000-0000-0000-000000000000",
+                "value": 100.00,
+                "dueDate": "2024-02-15",
+                "description": "Service payment",
+                "paid": false
+            }
+
++ Response 201 (application/json)
+
+### Update a Receivable [PUT /receivables/{id}]
+
++ Attributes
+    + bankAccountId (string) - Bank account GUID
+    + value (number) - Value
+    + dueDate (string) - Due date
+    + competencyDate (string) - Competency date
+    + description (string) - Description. Max 500 characters
+    + observations (string) - Observations. Max 1000 characters
+    + discount (number) - Discount
+    + surcharge (number) - Surcharge
+    + financialCategoryId (string) - Financial category GUID
+    + paymentMethodId (string) - Payment method GUID
+    + paid (boolean) - Payment status
+    + paidDate (string) - Payment date
+    + paidValue (number) - Payment value
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "bankAccountId": "00000000-0000-0000-0000-000000000000",
+                "value": 150.00,
+                "dueDate": "2024-03-15",
+                "paid": true,
+                "paidDate": "2024-03-10",
+                "paidValue": 150.00
+            }
+
++ Response 200 (application/json)
+
+### Retrieve a list of Receivables [GET /receivables/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
+Maximum page size is 100.
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded filter.
+        + customerId (number) - Customer id
+        + bankAccountId (string) - Bank account GUID
+        + status (number) - Status (0, 1, 2, or 4)
+        + isRecurrent (boolean) - Is recurrent filter
+        + dueDateFrom (string) - Due date from
+        + dueDateTo (string) - Due date to
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 100. Max 100.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 100,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Financial Categories
+
+## Financial Category [/financialcategories]
+
+### Retrieve a list of Financial Categories [GET /financialcategories/?page={page}&pageSize={pageSize}&order={order}]
+
+Maximum page size is 100.
+
++ Parameters
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10. Max 100.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Payment Methods
+
+## Payment Method [/paymentmethods]
+
+### Retrieve a list of Payment Methods [GET /paymentmethods/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
+Maximum page size is 100.
+
++ Parameters
+    + paramFilter (optional, string) ... Must be a json encoded string.
+        + id (number) - Payment method id
+        + description (string) - Payment method description
+        + active (boolean) - Active status filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10. Max 100.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group Service Orders
+
+## Service Order [/serviceorders/{code}]
+
++ Parameters
+
+    + code (number) ... Project code of the service order.
+
+### Retrieve a Service Order [GET /serviceorders/{code}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "projectCode": 1,
+                "customerId": 123,
+                "customerName": "Customer Name",
+                "customerExternalId": "EXT-123",
+                "statusId": "00000000-0000-0000-0000-000000000000",
+                "externalCode": "OS-001",
+                "description": "Service Order Description",
+                "dateFirstVisit": "2024-01-15",
+                "dateLastVisit": "2024-02-15",
+                "dateLastUpdate": "2024-02-15",
+                "taskTypeId": 1,
+                "defaultQuestionnaireId": 0,
+                "defaultResponsibleId": 456,
+                "priority": 2,
+                "keywords": [],
+                "attachments": [],
+                "equipments": [],
+                "visits": [],
+                "products": [],
+                "services": [],
+                "additionalCosts": [],
+                "reportLink": "",
+                "detailedReportLink": "",
+                "summary": {
+                    "totalProductValue": 0.0,
+                    "totalServiceValue": 0.0,
+                    "totalAdditionalCostValue": 0.0,
+                    "visitsDiscount": 0.0,
+                    "projectDiscountValue": 0.0,
+                    "projectDiscountType": "",
+                    "totalProjectValue": 0.0
+                }
+            }
+
+### Add a new Service Order [POST /serviceorders/]
+
++ Attributes
+    + customerId (required, number) - Customer id
+    + statusId (required, string) - Status GUID
+    + description (required, string) - Order description
+    + externalCode (string) - External code
+    + dateFirstVisit (string) - First visit date
+    + dateLastVisit (string) - Last visit date
+    + startTime (string) - Start time "HH:mm"
+    + duration (number) - Duration in minutes
+    + taskTypeId (number) - Task type id
+    + defaultQuestionnaireId (number) - Default questionnaire id
+    + defaultResponsibleId (number) - Default responsible user id
+    + priority (number) - Priority (default 2)
+    + financialCategoryId (string) - Financial category GUID
+    + keywordsIds (array[number]) - Keyword ids
+    + attachments (array)
+        + name (string) - File name
+        + file (string) - Base 64 file
+    + recurrenceType (string) - "daily" | "weekly" | "monthly" | "yearly"
+    + recurrenceInterval (number) - Recurrence interval
+    + recurrenceDays (array[number]) - Days of week (1-7: 1=Sun...7=Sat)
+    + monthlyMode (string) - "dayOfMonth" | "dayOfWeek"
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "customerId": 123,
+                "statusId": "00000000-0000-0000-0000-000000000000",
+                "description": "New Service Order",
+                "priority": 2,
+                "taskTypeId": 1,
+                "keywordsIds": [1, 2]
+            }
+
++ Response 201 (application/json)
+
+### Edit a Service Order [PATCH /serviceorders/{code}]
+
++ Parameters
+    + code (number) ... Project code.
+
++ Attributes
+    + externalId (string) - External id (query parameter)
+    + descricao (string) - Description (query parameter)
+    + status (string) - Status GUID (query parameter)
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+### Retrieve a list of Service Orders [GET /serviceorders/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
+Maximum page size is 100.
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded filter.
+        + projectCodes (string) - Comma-separated project codes
+        + externalCodes (string) - Comma-separated external codes
+        + description (string) - Description filter
+        + startDateDuration (string) - Duration start date
+        + endDateDuration (string) - Duration end date
+        + startDateLastUpdate (string) - Last update start date
+        + endDateLastUpdate (string) - Last update end date
+        + keywordCode (string) - Keyword codes (comma-separated)
+        + clientCode (string) - Client codes (comma-separated)
+        + cpfCnpj (string) - CPF/CNPJ filter
+        + clientGroupCode (string) - Client group codes (comma-separated)
+        + statusId (string) - Status GUID
+        + equipmentCode (string) - Equipment codes (comma-separated)
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10. Max 100.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 0
+                },
+                "links": []
+            }
+        }
+
+
+# Group WebHooks
+
+## WebHook [/webhooks/{id}]
+
++ Parameters
+
+    + id (number) ... `id` of the webhook.
+
+### Retrieve a WebHook [GET /webhooks/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "entity": "User",
+                "action": "Inclusao",
+                "urlResponse": "https://your-url.com/webhook",
+                "creationDate": "2024-01-01 14:30:45",
+                "deleteDate": null,
+                "active": true
+            }
+
++ Response 400 (application/json)
+
+    + Body
+
+            {
+                "message": "The id is required",
+                "errors": ["The id is required"]
+            }
+
++ Response 404 (application/json)
+
+    + Body
+
+            {
+                "errorCode": 1027,
+                "message": "Webhook not found."
+            }
+
+### Add a new WebHook [POST /webhooks/]
+
+If the `id` is provided and a webhook with that id already exists, the webhook will be updated instead of created. Returns HTTP status code 200 if updated and 201 if created.
+
+**Entity values:**
+* 1 - User
+* 4 - Task
+* 7 - Customer
+* 27 - Equipment
+* 50 - Invoice
+* 62 - Ticket
+
+**Action values:**
+* 1 - Inclusao (Creation)
+* 2 - Alteracao (Modification)
+* 3 - Exclusao (Deletion)
+
++ Attributes
+    + id (number) - Webhook id. Use 0 for new, or existing id to update
+    + entity (required, number) - Entity type: 1-User | 4-Task | 7-Customer | 27-Equipment | 50-Invoice| 62-Ticket
+    + action (required, number) - Action type: 1-Inclusao | 2-Alteracao | 3-Exclusao
+    + targetUrl (required, string) - Target webhook URL. Max 250 characters
+    + active (boolean) - Active status
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
+    + Body
+
+            {
+                "id": 0,
+                "entity": 1,
+                "action": 1,
+                "targetUrl": "https://your-url.com/webhook",
+                "active": true
+            }
+
++ Response 201 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "entity": "User",
+                "action": "Inclusao",
+                "urlResponse": "https://your-url.com/webhook",
+                "creationDate": "2024-01-01 14:30:45",
+                "deleteDate": null,
+                "active": true
+            }
+
++ Response 200 (application/json)
+
+    + Body
+
+            "result": {
+                "id": 1,
+                "entity": "User",
+                "action": "Alteracao",
+                "urlResponse": "https://your-url.com/webhook-updated",
+                "creationDate": "2024-01-01 14:30:45",
+                "deleteDate": null,
+                "active": true
+            }
+
++ Response 400 (application/json)
+
+    + Body
+
+            {
+                "errorCode": 1026,
+                "message": "Webhook with the given entity already registered for this admin user."
+            }
+
+### Delete a WebHook [DELETE /webhooks/{id}]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 204
+
+### Retrieve a list of WebHooks [GET /webhooks/?paramFilter={paramFilter}&page={page}&pageSize={pageSize}&order={order}]
+
++ Parameters
+    + paramFilter (optional, string) ... JSON encoded string filter.
+        + id (number) - Webhook id
+        + entity (number) - Entity type: 1-User | 4-Task | 7-Customer | 27-Equipment | 50-Invoice| 62-Ticket
+        + action (number) - Action type: 1-Inclusao | 2-Alteracao | 3-Exclusao
+        + active (boolean) - Active status filter
+    + page (required, number) ... Page. Default 1.
+    + pageSize (required, number) ... Records per page. Default 10.
+    + order (required, string) ... "asc"/0 or "desc"/1.
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer token
+
++ Response 200 (application/json)
+
+        {
+            "result": {
+                "entityList": [
+                    {
+                        "id": 1,
+                        "entity": "User",
+                        "action": "Inclusao",
+                        "urlResponse": "https://your-url.com/webhook",
+                        "creationDate": "2024-01-01 14:30:45",
+                        "deleteDate": null,
+                        "active": true
+                    }
+                ],
+                "pagedSearchReturnData": {
+                    "order": 0,
+                    "pageSize": 10,
+                    "page": 1,
+                    "totalItems": 1
+                },
+                "links": []
+            }
+        }
+

@@ -99,7 +99,10 @@
       "Bash(python3:*)",
       "Bash(venv/Scripts/python check_boletos_divergentes.py)",
       "Bash(docker-compose up *)",
-      "Bash(scp *)"
+      "Bash(scp *)",
+      "Bash(venv/Scripts/python -c \"import msal; print\\('msal ok:', msal.__version__\\)\")",
+      "Bash(venv/Scripts/python test_graph_email.py)",
+      "Bash(venv/Scripts/python.exe -c ' *)"
     ]
   },
   "mcpServers": {

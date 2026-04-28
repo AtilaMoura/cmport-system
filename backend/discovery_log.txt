@@ -1,0 +1,22 @@
+RELATÓRIO DE DESCOBERTA AUVO
+==============================
+Endpoint: serviceOrders
+Status: 200
+Response: {"result":{"entityList":[],"pagedSearchReturnData":{"order":0,"pageSize":1,"page":1,"totalItems":0},"links":[{"href":"http://api.auvo.com.br/v2/ServiceOrders?Page=1&PageSize=1&Order=Asc","rel":"self","method":"GET"}]}}
+------------------------------
+Endpoint: serviceOrders/
+Status: 200
+Response: {"result":{"entityList":[],"pagedSearchReturnData":{"order":0,"pageSize":1,"page":1,"totalItems":0},"links":[{"href":"http://api.auvo.com.br/v2/ServiceOrders?Page=1&PageSize=1&Order=Asc","rel":"self","method":"GET"}]}}
+------------------------------
+Endpoint: tasks
+Status: 400
+Response: [{"message":"Bad request","target":"startDate","errorCode":168,"errors":["Start date and end date are required when customerId is not provided"]},{"message":"Bad request","target":"endDate","errorCode":168,"errors":["Start date and end date are required when customerId is not provided"]}]
+------------------------------
+Endpoint: tasks/
+Status: 400
+Response: [{"message":"Bad request","target":"startDate","errorCode":168,"errors":["Start date and end date are required when customerId is not provided"]},{"message":"Bad request","target":"endDate","errorCode":168,"errors":["Start date and end date are required when customerId is not provided"]}]
+------------------------------
+Endpoint: customers
+Status: 200
+Response: {"result":{"entityList":[{"cpfCnpj":"53983490000150","externalId":"","phoneNumber":[],"email":[],"manager":"","note":"","address":"Alameda Campinas, 834, Jardim Paulista, São Paulo-SP, 01404-200","latitude":-23.56789,"longitude":-46.655491,"maximumVisitTime":1,"unitMaximumTime":3,"groupsId":[],"managerTeamsId":[],"managersId":[92811],"uriAttachments":["https://auvo-producao.s3.amazonaws.com/anexos_clientes/a35d18f7-5338-4032-b0ad-1760ea5a1040.pdf"],"segmentId":0,"active":true,"adressComplement":
+------------------------------
