@@ -22,6 +22,7 @@ interface OrdemServico {
   duration: string | null
   address: string | null
   signature_url: string | null
+  task_url: string | null
   sincronizado_em: string | null
   servico_id: number | null
   servico_tipo: string | null
@@ -72,6 +73,7 @@ export default function OrdemServicoDetailPage() {
   const [os, setOs] = useState<OrdemServico | null>(null)
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   useEffect(() => {
     api.get<OrdemServico>(`/ordens-servico/${id}`)
@@ -79,6 +81,24 @@ export default function OrdemServicoDetailPage() {
       .catch(() => setErro('OS não encontrada.'))
       .finally(() => setLoading(false))
   }, [id])
+
+  const baixarPdf = async () => {
+    if (!os) return
+    setPdfLoading(true)
+    try {
+      const res = await api.get(`/ordens-servico/${os.task_id}/pdf`, { responseType: 'blob' })
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `os_${os.task_id}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('PDF não disponível. Sincronize as OSs para atualizar os links.')
+    } finally {
+      setPdfLoading(false)
+    }
+  }
 
   if (loading)
     return <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Carregando...</div>
@@ -104,9 +124,27 @@ export default function OrdemServicoDetailPage() {
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">{os.customer_description}</p>
         </div>
-        <span className={`px-3 py-1.5 rounded-full text-sm font-semibold shrink-0 ${statusColor(os)}`}>
-          {os.task_status_descricao ?? '—'}
-        </span>
+        <div className="flex items-center gap-3 shrink-0">
+          {os.task_url && (
+            <button
+              onClick={baixarPdf}
+              disabled={pdfLoading}
+              title="Baixar PDF da OS"
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-xl text-sm font-semibold transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="12" y1="18" x2="12" y2="12" />
+                <polyline points="9 15 12 18 15 15" />
+              </svg>
+              {pdfLoading ? 'Baixando...' : 'Baixar PDF'}
+            </button>
+          )}
+          <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${statusColor(os)}`}>
+            {os.task_status_descricao ?? '—'}
+          </span>
+        </div>
       </div>
 
       {/* Dados principais */}

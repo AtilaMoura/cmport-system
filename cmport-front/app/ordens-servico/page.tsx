@@ -15,6 +15,7 @@ interface OrdemServico {
   task_status: number | null
   task_status_descricao: string | null
   duration: string | null
+  task_url: string | null
   servico_id: number | null
   servico_tipo: string | null
   nota_fiscal_id: number | null
@@ -75,6 +76,7 @@ export default function OrdensServicoPage() {
   const [statusFiltro, setStatusFiltro] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
+  const [pdfLoadingId, setPdfLoadingId] = useState<number | null>(null)
 
   // modal de sincronização
   const [modalSync, setModalSync] = useState(false)
@@ -107,6 +109,23 @@ export default function OrdensServicoPage() {
   useEffect(() => { carregar(1) }, [dataInicio, dataFim, statusFiltro]) // eslint-disable-line
 
   const buscar = (e: React.FormEvent) => { e.preventDefault(); carregar(1) }
+
+  const baixarPdf = async (os: OrdemServico) => {
+    setPdfLoadingId(os.task_id)
+    try {
+      const res = await api.get(`/ordens-servico/${os.task_id}/pdf`, { responseType: 'blob' })
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `os_${os.task_id}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('PDF não disponível. Sincronize as OSs para atualizar os links.')
+    } finally {
+      setPdfLoadingId(null)
+    }
+  }
 
   const sincronizar = async () => {
     setSyncLoading(true)
@@ -237,12 +256,35 @@ export default function OrdensServicoPage() {
                 {ordens.map(os => (
                   <tr key={os.task_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="px-4 py-3">
-                      <Link
-                        href={`/ordens-servico/${os.task_id}`}
-                        className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-semibold"
-                      >
-                        #{os.task_id}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/ordens-servico/${os.task_id}`}
+                          className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                        >
+                          #{os.task_id}
+                        </Link>
+                        {os.task_url && (
+                          <button
+                            onClick={() => baixarPdf(os)}
+                            disabled={pdfLoadingId === os.task_id}
+                            title="Baixar PDF da OS"
+                            className="p-1 rounded text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-40 transition-colors"
+                          >
+                            {pdfLoadingId === os.task_id ? (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                              </svg>
+                            ) : (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <line x1="12" y1="18" x2="12" y2="12" />
+                                <polyline points="9 15 12 18 15 15" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 max-w-48">
                       <span className="truncate block text-slate-900 dark:text-white font-medium" title={os.customer_description ?? ''}>

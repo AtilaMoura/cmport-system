@@ -114,6 +114,18 @@ class OrdemServicoService:
         }
 
 
+    @staticmethod
+    def baixar_pdf(db: Session, task_id: int) -> Optional[bytes]:
+        """Busca a OS no banco e baixa o PDF do Auvo via task_url."""
+        from app.services.auvo_client import auvo_client
+        ordem = OrdemServicoRepository.get_by_task_id(db, task_id)
+        if not ordem:
+            return None
+        if not ordem.task_url:
+            return None
+        return auvo_client.baixar_pdf_os(ordem.task_url)
+
+
 def _parse_dt(value: Optional[str]):
     if not value:
         return None

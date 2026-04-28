@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -39,6 +40,18 @@ def listar_ordens(
 ):
     items, total = OrdemServicoService.listar(db, data_inicio, data_fim, status, search, page, page_size)
     return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/{task_id}/pdf")
+def baixar_pdf_ordem(task_id: int, db: Session = Depends(get_db)):
+    pdf = OrdemServicoService.baixar_pdf(db, task_id)
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF não disponível para esta OS")
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="os_{task_id}.pdf"'},
+    )
 
 
 @router.get("/{task_id}", response_model=OrdemServicoResponse)
