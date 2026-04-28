@@ -5,11 +5,27 @@ from app.repositories.servico_repository import ServicoRepository
 from app.schemas.servico_schema import ServicoCreate, ServicoUpdate, ServicoResponse
 
 
+def _vincular_os(db: Session, servico) -> None:
+    """Preenche ordem_servico_id buscando OrdemServico pelo numero_os."""
+    if not servico.numero_os:
+        return
+    try:
+        from app.repositories.ordem_servico_repository import OrdemServicoRepository
+        os_obj = OrdemServicoRepository.get_by_task_id(db, int(servico.numero_os))
+        if os_obj and servico.ordem_servico_id != os_obj.id:
+            servico.ordem_servico_id = os_obj.id
+            db.flush()
+    except Exception:
+        pass
+
+
 class ServicoService:
 
     @staticmethod
     def create_servico(db: Session, servico: ServicoCreate):
-        return ServicoRepository.create(db, servico.model_dump())
+        db_servico = ServicoRepository.create(db, servico.model_dump())
+        _vincular_os(db, db_servico)
+        return db_servico
 
     @staticmethod
     def list_servicos_condominio(db: Session, condominio_id: int):
@@ -29,7 +45,10 @@ class ServicoService:
         db_servico = ServicoRepository.get_by_id(db, servico_id)
         if not db_servico:
             return None
-        return ServicoRepository.update(db, db_servico, servico_update.model_dump(exclude_unset=True))
+        atualizado = ServicoRepository.update(db, db_servico, servico_update.model_dump(exclude_unset=True))
+        if 'numero_os' in servico_update.model_dump(exclude_unset=True):
+            _vincular_os(db, atualizado)
+        return atualizado
 
     @staticmethod
     def delete_servico(db: Session, servico_id: int) -> bool:

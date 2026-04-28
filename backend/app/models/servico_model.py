@@ -17,6 +17,7 @@ class ManutencaoAssistencia(Base):
     id = Column(Integer, primary_key=True, index=True)
     condominio_id = Column(Integer, ForeignKey("condominios.id"), nullable=False, index=True)
     nota_fiscal_id = Column(Integer, ForeignKey("notas_fiscais.id"), nullable=True, index=True)
+    ordem_servico_id = Column(Integer, ForeignKey("ordens_servico.id"), nullable=True, index=True)
 
     tipo = Column(SQLEnum(TipoServico), nullable=False, index=True)
     numero_os = Column(String(50), nullable=True)
@@ -28,3 +29,4 @@ class ManutencaoAssistencia(Base):
 
     condominio = relationship("Condominio", back_populates="servicos")
     nota_fiscal = relationship("NotaFiscal")
+    ordem_servico = relationship("OrdemServico")

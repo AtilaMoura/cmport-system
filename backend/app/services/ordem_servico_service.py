@@ -41,11 +41,17 @@ class OrdemServicoService:
                 "task_url": (os_data.get("taskUrl") or "")[:500] or None,
             }
 
-            _, is_new = OrdemServicoRepository.upsert(db, task_id, dados)
+            os_obj, is_new = OrdemServicoRepository.upsert(db, task_id, dados)
             if is_new:
                 novas += 1
             else:
                 atualizadas += 1
+
+            # Vincula serviços que referenciam este task_id mas ainda não têm ordem_servico_id
+            db.query(ManutencaoAssistencia).filter(
+                ManutencaoAssistencia.numero_os == str(task_id),
+                ManutencaoAssistencia.ordem_servico_id.is_(None),
+            ).update({"ordem_servico_id": os_obj.id}, synchronize_session=False)
 
         return {
             "sincronizadas": len(ordens_auvo),
