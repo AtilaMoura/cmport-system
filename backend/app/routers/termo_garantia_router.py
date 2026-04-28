@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from typing import List
-from app.core.database import get_db
+from app.core.dependencies import get_db
 from app.schemas.termo_garantia_schema import TermoGarantiaSchema, TermoGarantiaCreate, TermoGarantiaUpdate
 from app.repositories.termo_garantia_repository import TermoGarantiaRepository
 from app.services.termo_garantia_service import TermoGarantiaService
