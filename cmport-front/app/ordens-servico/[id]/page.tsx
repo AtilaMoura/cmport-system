@@ -215,10 +215,10 @@ export default function OrdemServicoDetailPage() {
                 </span>
               </div>
               <Link
-                href={`/servicos`}
+                href={`/servicos/${os.servico_id}`}
                 className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
               >
-                Ver serviços →
+                Ver serviço →
               </Link>
             </div>
           ) : (

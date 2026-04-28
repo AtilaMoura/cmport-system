@@ -95,6 +95,25 @@ interface Boleto {
   observacao: string | null;
 }
 
+interface OrdemServico {
+  task_id: number;
+  customer_description: string | null;
+  task_date: string | null;
+  task_type_description: string | null;
+  user_to_name: string | null;
+  orientation: string | null;
+  report: string | null;
+  finished: boolean;
+  task_status: number | null;
+  task_status_descricao: string | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  duration: string | null;
+  address: string | null;
+  signature_url: string | null;
+  task_url: string | null;
+}
+
 interface ParcelaDisplay {
   parcela: number;
   valor: number;
@@ -226,6 +245,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [notaVinculada, setNotaVinculada] = useState<NotaFiscal | null>(null);
   const [vinculoAplicarImpostoEm, setVinculoAplicarImpostoEm] = useState<'nota_a' | 'nota_b' | 'ambas' | 'nenhuma'>('nota_a');
 
+  // Ordem de Serviço vinculada
+  const [ordemServico, setOrdemServico] = useState<OrdemServico | null>(null);
+  const [pdfLoadingOs, setPdfLoadingOs] = useState(false);
+
   // Modal "Marcar Pago"
   const [modalPago, setModalPago] = useState<Boleto | null>(null);
   const [pagoForma, setPagoForma] = useState('PIX');
@@ -253,6 +276,17 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
 
       const condoRes = await api.get(`/condominios/${s.condominio_id}`);
       setCondominio(condoRes.data);
+
+      if (s.numero_os) {
+        try {
+          const { data: osData } = await api.get(`/ordens-servico/${s.numero_os}`);
+          setOrdemServico(osData);
+        } catch {
+          setOrdemServico(null);
+        }
+      } else {
+        setOrdemServico(null);
+      }
 
       if (s.nota_fiscal_id) {
         const [notaRes, boletosRes] = await Promise.all([
@@ -307,6 +341,24 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       alert('Erro ao desvincular nota.');
     } finally {
       setDesvinculandoNota(false);
+    }
+  };
+
+  const baixarPdfOs = async () => {
+    if (!ordemServico) return;
+    setPdfLoadingOs(true);
+    try {
+      const response = await api.get(`/ordens-servico/${ordemServico.task_id}/pdf`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `os_${ordemServico.task_id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('PDF não disponível para esta OS.');
+    } finally {
+      setPdfLoadingOs(false);
     }
   };
 
@@ -1035,9 +1087,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         <p className="font-bold text-slate-900 dark:text-white">{pd(servico.data_servico)}</p>
                       </div>
                       {servico.numero_os && (
-                        <div className="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-4 col-span-2">
-                          <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Ordem de Serviço (OS)</p>
-                          <p className="font-black text-purple-700 dark:text-purple-300 text-lg">#{servico.numero_os}</p>
+                        <div className="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-4 col-span-2 flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Ordem de Serviço (OS)</p>
+                            <p className="font-black text-purple-700 dark:text-purple-300 text-lg">#{servico.numero_os}</p>
+                          </div>
+                          <Link href={`/ordens-servico/${servico.numero_os}`}
+                            className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline shrink-0">
+                            Ver OS →
+                          </Link>
                         </div>
                       )}
                     </div>
@@ -1051,6 +1109,108 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 )}
               </div>
             </div>
+
+            {/* Ordem de Serviço — detalhes */}
+            {ordemServico && (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 bg-purple-50 dark:bg-purple-500/10 border-b border-purple-200 dark:border-purple-800/30 flex items-center justify-between flex-wrap gap-2">
+                  <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-xl">🔧</span> Ordem de Serviço #{ordemServico.task_id}
+                    {ordemServico.task_status_descricao && (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300">
+                        {ordemServico.task_status_descricao}
+                      </span>
+                    )}
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    {ordemServico.task_url && (
+                      <button onClick={baixarPdfOs} disabled={pdfLoadingOs}
+                        className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all disabled:opacity-60 flex items-center gap-1">
+                        {pdfLoadingOs
+                          ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+                        Baixar PDF
+                      </button>
+                    )}
+                    <Link href={`/ordens-servico/${ordemServico.task_id}`}
+                      className="px-3 py-1.5 text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-500/20 rounded-lg hover:brightness-105 transition-all flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                      Abrir OS
+                    </Link>
+                  </div>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {ordemServico.task_date && (
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Data</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">
+                          {new Date(ordemServico.task_date).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    )}
+                    {ordemServico.user_to_name && (
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Técnico</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">{ordemServico.user_to_name}</p>
+                      </div>
+                    )}
+                    {ordemServico.task_type_description && (
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Tipo</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">{ordemServico.task_type_description}</p>
+                      </div>
+                    )}
+                    {ordemServico.check_in_date && (
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Check-in</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">
+                          {new Date(ordemServico.check_in_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    )}
+                    {ordemServico.check_out_date && (
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Check-out</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">
+                          {new Date(ordemServico.check_out_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    )}
+                    {ordemServico.duration && (
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Duração</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">{ordemServico.duration}</p>
+                      </div>
+                    )}
+                  </div>
+                  {ordemServico.address && (
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Endereço</p>
+                      <p className="text-sm text-slate-900 dark:text-white">{ordemServico.address}</p>
+                    </div>
+                  )}
+                  {ordemServico.orientation && (
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Orientação</p>
+                      <p className="text-sm text-slate-900 dark:text-white leading-relaxed whitespace-pre-wrap">{ordemServico.orientation}</p>
+                    </div>
+                  )}
+                  {ordemServico.report && (
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Relatório</p>
+                      <p className="text-sm text-slate-900 dark:text-white leading-relaxed whitespace-pre-wrap">{ordemServico.report}</p>
+                    </div>
+                  )}
+                  {ordemServico.signature_url && (
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Assinatura</p>
+                      <img src={ordemServico.signature_url} alt="Assinatura" className="max-h-24 rounded border border-slate-200 dark:border-slate-700" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Nota Fiscal Vinculada — detalhes completos */}
             {notaFiscal ? (
