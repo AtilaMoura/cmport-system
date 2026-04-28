@@ -27,6 +27,8 @@ import app.models.configuracao_impostos_model
 import app.models.usuario_model          # tabela de usuários
 import app.models.configuracao_model      # configurações de email e empresa
 import app.models.ordem_servico_model     # ordens de serviço (cache Auvo)
+import app.models.produto_model           # produtos (cache Auvo)
+import app.models.orcamento_model         # orçamentos (cache Auvo)
 
 # Importar todos os routers
 from app.routers.auth_router import router as auth_router
@@ -41,6 +43,8 @@ from app.routers.boleto_router import router as boletos_router
 from app.routers.dev_router import router as dev_router
 from app.routers.configuracao_router import router as configuracoes_router
 from app.routers.ordem_servico_router import router as ordens_servico_router
+from app.routers.produto_router import router as produtos_router
+from app.routers.orcamento_router import router as orcamentos_router
 
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
@@ -185,6 +189,8 @@ app.include_router(boletos_router,     prefix="/api/v1/boletos",      tags=["Bol
 app.include_router(dev_router,            prefix="/api/v1/dev",            tags=["Dev/Test"],         dependencies=_auth)
 app.include_router(configuracoes_router,  prefix="/api/v1/configuracoes",  tags=["Configurações"],    dependencies=_auth)
 app.include_router(ordens_servico_router, prefix="/api/v1/ordens-servico", tags=["Ordens de Serviço"], dependencies=_auth)
+app.include_router(produtos_router,       prefix="/api/v1/produtos",       tags=["Produtos"],           dependencies=_auth)
+app.include_router(orcamentos_router,     prefix="/api/v1/orcamentos",     tags=["Orçamentos"],         dependencies=_auth)
 
 
 @app.get("/", tags=["Root"])

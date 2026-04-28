@@ -17,6 +17,8 @@ export default function Sidebar() {
   const menuItems = [
     { name: 'Dashboard',    icon: '📊', href: '/',            roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Condomínios',  icon: '🏢', href: '/condominios', roles: ['DEV', 'ADMIN', 'USUARIO'] },
+    { name: 'Produtos',     icon: '📦', href: '/produtos',    roles: ['DEV', 'ADMIN', 'USUARIO'] },
+    { name: 'Orçamentos',   icon: '📋', href: '/orcamentos',  roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Serviços',          icon: '🛠️', href: '/servicos',         roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Ordens de Serviço', icon: '📋', href: '/ordens-servico',   roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Notas Fiscais',     icon: '📄', href: '/notas',            roles: ['DEV', 'ADMIN', 'USUARIO'] },

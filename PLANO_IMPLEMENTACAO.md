@@ -1,283 +1,419 @@
-# Plano de Implementação — Boletos & Impostos CMPort
+# Plano de Implementação — CMPort
 
-**Data:** 2026-03-19
-**Status:** Em andamento — Backend Fases 1-4 concluídas
+**Última atualização:** 2026-04-28
+**Status atual:** Fases 0-9 concluídas. **Fase 10 em planejamento (sub-fases 10A → 10D).**
+
+Convenções: `[x]` concluído · `[~]` em andamento · `[ ]` a fazer.
 
 ---
 
-## Contexto
+## Histórico de Fases
 
-Refatoração do sistema de boletos e impostos para:
-- Não salvar valores de impostos fixos por nota — calcular dinamicamente via tabela de configuração
-- Criar tabela `configuracao_impostos_servico` centralizada por tipo de serviço
-- Validar impostos do XML contra a configuração (alerta não-bloqueante)
-- Modal de pré-visualização antes de gerar boleto (valores editáveis)
-- Checkbox de juros (default ON para serviço/manutenção, OFF para produto)
-- Tela de detalhe de serviço completa
-- Geração em massa de boletos
+### Fases 0–8 — Refatoração de Boletos & Impostos `[x]`
+
+Refactor completo do sistema de boletos:
+- Tabela `configuracao_impostos_servico` centralizada por tipo de serviço
+- Validação de impostos do XML contra config (alerta não-bloqueante)
+- Modal de pré-visualização em 2 etapas (configuração → emissão)
+- Geração em massa em `/servicos`
+- Tela de detalhe completa em `/servicos/[id]`
 - Suporte a notas canceladas
+- Integração Banco Inter para PDF e ciclo de vida do boleto
+
+### Fase 9 — Integração com Ordens de Serviço Auvo `[x]`
+
+Sincronização e exibição de Ordens de Serviço da plataforma Auvo:
+
+- `[x]` Modelo `OrdemServico` (`backend/app/models/ordem_servico_model.py`)
+- `[x]` FK `ordem_servico_id` em `ManutencaoAssistencia`
+- `[x]` Auto-vínculo em duas direções: ao sincronizar OSs e ao criar/atualizar serviços
+- `[x]` Parser robusto em `nota_fiscal_service.extrair_numero_os()` (singular/plural/dotted)
+- `[x]` Endpoint `GET /api/v1/ordens-servico/{task_id}/pdf`
+- `[x]` Auto-anexo do PDF da OS no email de boleto
+- `[x]` Frontend: `/ordens-servico` (lista), `/ordens-servico/[id]` (detalhe), painel completo de OS dentro de `/servicos/[id]`, link "Ver serviço →" corrigido
 
 ---
 
-## Fase 0 — SQL de Migração
+## Fase 10 — Sync Auvo Expandido + Termo de Garantia 🚧
 
+### Visão Geral e Motivação
+
+O cliente quer:
+1. **Remover XML do email** (sem relevância para o destinatário).
+2. **Anexar Termo de Garantia em PDF** quando gerado (3, 6 ou 12 meses).
+3. **Salvar orçamentos do Auvo no banco** — serão usados também para geração de nota fiscal no futuro.
+4. **Salvar produtos do Auvo no banco** — base para resolver nomes em orçamentos e para o termo de garantia.
+
+A implementação é dividida em sub-fases sequenciais. **Cada sub-fase entrega valor independente** e pode ir para produção isolada.
+
+### Decisões Técnicas Fixadas
+
+| Decisão | Escolha |
+|---|---|
+| Lib de PDF | **reportlab** (~5MB, sem deps binárias) |
+| Persistência do termo | Salva parâmetros; PDF gerado on-the-fly |
+| Sync de produtos | Tabela local + endpoint manual + agendamento futuro |
+| Sync de orçamentos | Tabela local com itens normalizados; usado para termo e (futuro) gerar nota |
+| Empresa no PDF | `ConfiguracaoEmpresa.nome` |
+| Responsável no PDF | "André Moreira Rosa — Diretor Comercial" hardcoded |
+| Cidade no PDF | "São Paulo" hardcoded |
+| Idempotência do termo | UNIQUE em `servico_id`; regerar substitui |
+
+---
+
+## Sub-fase 10A — Sync de Produtos Auvo `[x]`
+
+### Por que primeiro
+Tanto o orçamento quanto o termo de garantia precisam exibir nomes de produtos. Salvar localmente evita lookup live e permite exibir mesmo offline.
+
+### Backend
+
+**10A.1** `[x]` Migration SQL
 ```sql
--- Nova tabela de configuração de impostos
-CREATE TABLE configuracao_impostos_servico (
+CREATE TABLE produtos (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    tipo_servico ENUM('MANUTENCAO', 'ASSISTENCIA', 'OUTROS') NOT NULL UNIQUE,
-    pct_iss     DECIMAL(5,2) NOT NULL DEFAULT 0,
-    pct_pis     DECIMAL(5,2) NOT NULL DEFAULT 0,
-    pct_cofins  DECIMAL(5,2) NOT NULL DEFAULT 0,
-    pct_inss    DECIMAL(5,2) NOT NULL DEFAULT 0,
-    pct_csll    DECIMAL(5,2) NOT NULL DEFAULT 0,
-    ativo       BOOLEAN NOT NULL DEFAULT TRUE,
-    criado_em   DATETIME DEFAULT CURRENT_TIMESTAMP
+    auvo_id INT NOT NULL UNIQUE,                  -- "code"/"id" no Auvo
+    auvo_uuid VARCHAR(50) NULL,                   -- "productId" GUID
+    external_id VARCHAR(100) NULL,
+    nome VARCHAR(255) NOT NULL,
+    descricao TEXT NULL,
+    categoria_id INT NULL,
+    valor_unitario DECIMAL(10,2) NULL,
+    custo_unitario DECIMAL(10,2) NULL,
+    estoque_minimo DECIMAL(10,2) NULL,
+    estoque_total DECIMAL(10,2) NULL,
+    imagem_url VARCHAR(500) NULL,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    sincronizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_produto_auvo (auvo_id),
+    INDEX idx_produto_nome (nome)
+);
+```
+
+**10A.2** `[x]` `backend/app/models/produto_model.py` — modelo `Produto`. Registrar em `main.py`.
+
+**10A.3** `[x]` `backend/app/services/auvo_client.py` — adicionar:
+- `listar_produtos(page=1, page_size=100, ativo=True)` — paginação `GET /products/`
+- `get_all_products()` — itera todas as páginas (similar a `get_all_service_orders_by_period`)
+- `get_product(product_id)` — `GET /products/{id}`
+
+**10A.4** `[x]` `backend/app/repositories/produto_repository.py` — `upsert_by_auvo_id`, `list`, `get_by_auvo_id`, `search_by_nome`.
+
+**10A.5** `[x]` `backend/app/services/produto_service.py`:
+- `sincronizar(db) -> dict` — busca todos os produtos do Auvo, faz upsert local
+- `listar(db, search=None, ativo=None, page, page_size)` — listagem paginada
+- `get_by_auvo_id(db, auvo_id)` — usado por orçamento/termo
+
+**10A.6** `[x]` `backend/app/schemas/produto_schema.py` — `ProdutoResponse`, `ProdutoListResponse`.
+
+**10A.7** `[x]` `backend/app/routers/produto_router.py`:
+| Verbo | Rota | Função |
+|---|---|---|
+| POST | `/produtos/sync` | Dispara sincronização |
+| GET | `/produtos` | Lista (com `search`, `ativo`, paginação) |
+| GET | `/produtos/{auvo_id}` | Detalhe |
+
+Registrar em `main.py` com prefixo `/api/v1`.
+
+### Frontend
+
+**10A.8** `[x]` `cmport-front/app/produtos/page.tsx` — lista simples com:
+- Botão "🔄 Sincronizar com Auvo" no header
+- Busca por nome (input)
+- Tabela: imagem (thumbnail), código Auvo, nome, valor, estoque, status (ativo/inativo)
+- Paginação (50 por página)
+
+**10A.9** `[x]` Adicionar item "Produtos" no sidebar (`components/Sidebar.tsx`).
+
+### Verificação 10A
+- `POST /produtos/sync` responde com `{novos: N, atualizados: M}`.
+- Produtos aparecem em `/produtos` no frontend.
+- Busca por nome funciona.
+
+---
+
+## Sub-fase 10B — Sync de Orçamentos Auvo `[x]`
+
+### Por que segundo
+Depende de 10A para resolver nomes de produtos via FK local. Será usado pelo termo de garantia e (futuro) por geração de nota fiscal.
+
+### Backend
+
+**10B.1** `[x]` Migration SQL
+```sql
+CREATE TABLE orcamentos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    auvo_public_id INT NOT NULL UNIQUE,           -- publicId no Auvo
+    customer_id INT NULL,                         -- ID do cliente no Auvo
+    customer_name VARCHAR(255) NULL,
+    condominio_id INT NULL,                       -- vínculo local (FK opcional)
+    external_code VARCHAR(50) NULL,
+    register_date DATE NULL,
+    request_date DATE NULL,
+    expire_date DATE NULL,
+    last_update_date DATE NULL,
+    observations TEXT NULL,
+    internal_note TEXT NULL,
+    public_link VARCHAR(500) NULL,
+    current_stage_description VARCHAR(100) NULL,
+    is_cancelled BOOLEAN DEFAULT FALSE,
+    discount_value DECIMAL(10,2) DEFAULT 0,
+    total_products DECIMAL(12,2) DEFAULT 0,
+    total_services DECIMAL(12,2) DEFAULT 0,
+    total_additional_costs DECIMAL(12,2) DEFAULT 0,
+    gross_total_value DECIMAL(12,2) DEFAULT 0,
+    net_total_value DECIMAL(12,2) DEFAULT 0,
+    sincronizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_orcamento_condominio FOREIGN KEY (condominio_id)
+        REFERENCES condominios(id) ON DELETE SET NULL,
+    INDEX idx_orcamento_customer (customer_id),
+    INDEX idx_orcamento_condo (condominio_id),
+    INDEX idx_orcamento_request (request_date)
 );
 
--- Seed inicial
-INSERT INTO configuracao_impostos_servico (tipo_servico, pct_iss, pct_pis, pct_cofins, pct_inss, pct_csll) VALUES
-    ('MANUTENCAO', 5.00, 0.65, 3.00, 11.00, 1.00),
-    ('ASSISTENCIA', 5.00, 0.65, 3.00, 11.00, 1.00),
-    ('OUTROS',      0.00, 0.00, 0.00,  0.00, 0.00);
+CREATE TABLE orcamento_itens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    orcamento_id INT NOT NULL,
+    tipo ENUM('PRODUTO', 'SERVICO', 'CUSTO_ADICIONAL') NOT NULL,
+    produto_id INT NULL,                          -- FK local para produtos
+    auvo_product_id INT NULL,                     -- ID Auvo do produto (cópia)
+    auvo_service_id VARCHAR(50) NULL,             -- GUID do serviço Auvo
+    nome VARCHAR(255) NULL,                       -- snapshot do nome
+    descricao TEXT NULL,
+    quantidade DECIMAL(10,2) DEFAULT 1,
+    valor_unitario DECIMAL(10,2) NOT NULL,
+    desconto_tipo VARCHAR(20) NULL,               -- 'Percentual' ou 'Monetario'
+    desconto_valor DECIMAL(10,2) DEFAULT 0,
+    valor_total DECIMAL(12,2) NOT NULL,
+    CONSTRAINT fk_item_orcamento FOREIGN KEY (orcamento_id)
+        REFERENCES orcamentos(id) ON DELETE CASCADE,
+    CONSTRAINT fk_item_produto FOREIGN KEY (produto_id)
+        REFERENCES produtos(id) ON DELETE SET NULL,
+    INDEX idx_item_orcamento (orcamento_id)
+);
 
--- Adicionar numero_os em manutencoes_assistencias
-ALTER TABLE manutencoes_assistencias ADD COLUMN numero_os VARCHAR(50) NULL;
-
--- Adicionar campos de alerta em notas_fiscais
-ALTER TABLE notas_fiscais
-    ADD COLUMN alerta_impostos      BOOLEAN NOT NULL DEFAULT FALSE,
-    ADD COLUMN divergencia_impostos JSON NULL;
+CREATE TABLE orcamento_task_ids (
+    orcamento_id INT NOT NULL,
+    task_id BIGINT NOT NULL,
+    PRIMARY KEY (orcamento_id, task_id),
+    CONSTRAINT fk_taskid_orcamento FOREIGN KEY (orcamento_id)
+        REFERENCES orcamentos(id) ON DELETE CASCADE,
+    INDEX idx_taskid_task (task_id)
+);
 ```
 
----
+**10B.2** `[x]` `backend/app/models/orcamento_model.py` — `Orcamento`, `OrcamentoItem`, `OrcamentoTaskId`. Registrar em `main.py`.
 
-## Fase 1 — Backend: Modelos SQLAlchemy
+**10B.3** `[x]` `backend/app/services/auvo_client.py` — adicionar:
+- `listar_orcamentos(date_start, date_end, customer_id=None, page=1, page_size=50)`
+- `get_all_orcamentos_by_period(date_start, date_end)` — itera todas as páginas
+- `get_orcamento(orcamento_id)` — detalhe completo
 
-### [ ] 1.1 — Criar `backend/app/models/configuracao_impostos_model.py`
-- Model `ConfiguracaoImpostosServico`
-- Campos: `id, tipo_servico, pct_iss, pct_pis, pct_cofins, pct_inss, pct_csll, ativo, criado_em`
+**10B.4** `[x]` `backend/app/repositories/orcamento_repository.py` — `upsert`, `list`, `get_by_auvo_id`, `list_by_condominio`, `list_by_task_id`.
 
-### [ ] 1.2 — Adicionar `numero_os` em `ManutencaoAssistencia`
-- Arquivo: `backend/app/models/servico_model.py` (ou equivalente)
-- Campo: `numero_os = Column(String(50), nullable=True)`
+**10B.5** `[x]` `backend/app/services/orcamento_service.py`:
+- `sincronizar(db, date_start, date_end) -> dict` — itera lista, busca detalhe completo de cada um, salva orçamento + itens + taskIds. Vincula a `condominio_id` se `customer_id` bater.
+- `listar(db, condominio_id?, search?, page, page_size)`
+- `detalhe(db, orcamento_id)` — retorna com itens enriquecidos
+- `_resolver_produto_local(db, auvo_product_id)` — busca em `produtos` para vincular FK
+- `listar_por_condominio_e_periodo(db, condominio_id, data_referencia, dias_antes=90)` — usado pelo termo
 
-### [ ] 1.3 — Adicionar colunas em `NotaFiscal`
-- Arquivo: `backend/app/models/nota_fiscal_model.py`
-- Campos: `alerta_impostos = Column(Boolean, default=False)`, `divergencia_impostos = Column(JSON, nullable=True)`
-- **Manter** colunas `iss, pis, cofins, inss, csll` por enquanto
+**10B.6** `[ ]` `backend/app/schemas/orcamento_schema.py` — `OrcamentoResponse`, `OrcamentoItemResponse`, `OrcamentoListResponse`.
 
-### [ ] 1.4 — Registrar modelo em `main.py`
-- Import do modelo novo para `create_all` incluir a tabela
-- Seed automático: checar se tabela vazia → inserir os 3 registros padrão
+**10B.7** `[ ]` `backend/app/routers/orcamento_router.py`:
+| Verbo | Rota | Função |
+|---|---|---|
+| POST | `/orcamentos/sync` | Dispara sync por período |
+| GET | `/orcamentos` | Lista paginada |
+| GET | `/orcamentos/{auvo_public_id}` | Detalhe |
+| GET | `/orcamentos/condominio/{condo_id}` | Lista por condomínio |
 
----
+### Frontend
 
-## Fase 2 — Backend: Importação (Fixes + Validação)
+**10B.8** `[ ]` `cmport-front/app/orcamentos/page.tsx` — lista com:
+- Botão "🔄 Sincronizar (período)"
+- Filtros: condomínio, data, status (cancelado/ativo)
+- Tabela: publicId, cliente, data, valor, qtd itens, status
 
-### [ ] 2.1 — Fix regex OS para NFe
-- Arquivo: `backend/app/services/nota_fiscal_service.py`
-- De: `r'[Nn]umero\s+ordem\s+servi[cç]o[:\s]+(\d+)'`
-- Para: `r'[Nn]umero\s+(?:da\s+)?ordem\s+servi[cç]o[:\s]+(\d+)'`
+**10B.9** `[ ]` `cmport-front/app/orcamentos/[id]/page.tsx` — detalhe com lista de itens (produtos + serviços + custos), totais, link público, observações.
 
-### [ ] 2.2 — Salvar `numero_os` em `ManutencaoAssistencia`
-- Ao criar/atualizar registro de serviço após importação de XML
-- Extrair OS do XML e persistir em `servico.numero_os`
+**10B.10** `[ ]` Sidebar: item "Orçamentos".
 
-### [ ] 2.3 — Validação de impostos ao importar
-- Após salvar nota, consultar `ConfiguracaoImpostosServico` pelo `tipo`
-- Comparar `nota.valor * pct/100` vs `nota.iss/pis/cofins/inss/csll` (valores do XML)
-- Se `abs(calculado - xml) > 0.10`: setar `nota.alerta_impostos = True` e preencher `nota.divergencia_impostos` com JSON das divergências
-- **Não bloquear o fluxo** — apenas registrar alerta
+**10B.11** `[ ]` Em `app/condominios/[id]/page.tsx` — adicionar seção "Orçamentos recentes" (últimos 10 do condomínio).
 
-### [ ] 2.4 — Endpoint para dispensar alerta
-- `PATCH /api/v1/notas-fiscais/{id}/dispensar-alerta`
-- Seta `alerta_impostos = False`, `divergencia_impostos = None`
-
-### [ ] 2.5 — Atualizar schema `NotaFiscalResponse`
-- Incluir `alerta_impostos: bool`, `divergencia_impostos: Optional[dict]`
-- Incluir `numero_os: Optional[str]` (via join ou campo direto)
+### Verificação 10B
+- Sync de período retorna contagens; orçamentos aparecem na listagem.
+- Detalhe mostra itens com nomes corretos (FK para produto local quando disponível, snapshot quando não).
 
 ---
 
-## Fase 3 — Backend: Cálculo de Valor Líquido
+## Sub-fase 10C — Termo de Garantia `[ ]`
 
-### [ ] 3.1 — Helper `_calcular_valor_liquido(db, nota, pcts_override=None)`
-- Arquivo: `backend/app/services/boleto_service.py`
-- Consulta `ConfiguracaoImpostosServico` pelo `nota.tipo`
-- Se `pcts_override` fornecido, usa os overrides em vez da config
-- Retorna `max(round(valor * (1 - total_pct/100), 2), 0.01)`
-- Substitui `_calcular_valor_base` atual
+### Backend
 
-### [ ] 3.2 — Novo endpoint `GET /boletos/config-impostos/{nota_id}`
-- Retorna: `{ pct_iss, pct_pis, pct_cofins, pct_inss, pct_csll, valor_bruto, valor_liquido, numero_os, aplicar_juros_default }`
-- `aplicar_juros_default = True` para MANUTENCAO/ASSISTENCIA, `False` para OUTROS
-- Frontend usa esse endpoint para popular o modal de pré-visualização
-
----
-
-## Fase 4 — Backend: Schemas de Boleto Ampliados
-
-### [ ] 4.1 — Ampliar `GerarBoletosRequest`
-```python
-class GerarBoletosRequest(BaseModel):
-    nota_ids: List[int]
-    data_vencimento_override: Optional[date] = None
-    valor_total_override: Optional[float] = None
-    mensagem: Optional[str] = None
-    pct_iss:    Optional[float] = None
-    pct_pis:    Optional[float] = None
-    pct_cofins: Optional[float] = None
-    pct_inss:   Optional[float] = None
-    pct_csll:   Optional[float] = None
-    aplicar_juros: Optional[bool] = None   # None → default por tipo
-    taxa_juros:    Optional[float] = 1.0   # % ao mês
+**10C.1** `[ ]` Migration SQL
+```sql
+CREATE TABLE termos_garantia (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    servico_id INT NOT NULL UNIQUE,
+    produto_descricao TEXT NOT NULL,
+    prazo_meses INT NOT NULL,                     -- 3, 6 ou 12
+    data_inicio DATE NOT NULL,
+    data_fim DATE NOT NULL,
+    orcamento_id INT NULL,                        -- FK local para orcamentos
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_termo_servico FOREIGN KEY (servico_id)
+        REFERENCES manutencoes_assistencias(id) ON DELETE CASCADE,
+    CONSTRAINT fk_termo_orcamento FOREIGN KEY (orcamento_id)
+        REFERENCES orcamentos(id) ON DELETE SET NULL,
+    INDEX idx_termo_servico (servico_id)
+);
 ```
 
-### [ ] 4.2 — Ampliar `GerarParcelasFaltantesRequest`
-- Mesmos campos opcionais de porcentagem + juros
+**10C.2** `[ ]` `backend/app/models/termo_garantia_model.py` — modelo + relação com `ManutencaoAssistencia` e `Orcamento`. Registrar em `main.py`.
 
-### [ ] 4.3 — Atualizar `BoletoService.gerar_boletos` e `gerar_parcelas_faltantes`
-- Receber os novos campos
-- Passar `pcts_override` para `_calcular_valor_liquido`
-- Se `aplicar_juros=True`: incluir `mora` e `multa` no payload Inter
-- Se `aplicar_juros=False` (ou OUTROS por padrão): omitir `mora`/`multa`
+**10C.3** `[ ]` `backend/requirements.txt` — adicionar `reportlab==4.2.5` e `python-dateutil>=2.8.2`.
 
-### [ ] 4.4 — Schema `ConfigImpostosResponse`
-```python
-class ConfigImpostosResponse(BaseModel):
-    pct_iss: float
-    pct_pis: float
-    pct_cofins: float
-    pct_inss: float
-    pct_csll: float
-    valor_bruto: float
-    valor_liquido: float
-    numero_os: Optional[str]
-    aplicar_juros_default: bool
+**10C.4** `[ ]` `backend/app/repositories/termo_garantia_repository.py` — `get_by_servico_id`, `upsert`, `delete`.
+
+**10C.5** `[ ]` `backend/app/services/termo_garantia_service.py`:
+- `salvar(db, servico_id, produto, prazo_meses, orcamento_id=None)` — calcula `data_inicio = servico.data_servico`, `data_fim = data_inicio + relativedelta(months=prazo_meses)`, faz upsert
+- `obter(db, servico_id)`
+- `gerar_pdf(db, servico_id) -> bytes` — reportlab montando o template
+- `excluir(db, servico_id)`
+- `montar_descricao_de_orcamento(db, orcamento_id)` — formata `"3x PRODUTO_X · 1x SERVICO_Y"` a partir dos itens locais (sem chamar Auvo)
+
+**10C.6** `[ ]` Template do PDF (em `termo_garantia_service.py`):
 ```
+São Paulo, {DATA_GERACAO}
+
+TERMO DE GARANTIA DO PRODUTO / SERVIÇO
+
+Cliente: {CONDOMINIO_NOME}
+Endereço: {ENDERECO_COMPLETO}
+
+Pelo presente instrumento, formaliza-se o termo de garantia referente ao
+serviço prestado, consistente em {PRODUTO_DESCRICAO}, conforme abaixo descrito:
+
+Data da execução do serviço: {DATA_SERVICO}
+Nota Fiscal: nº {NUMERO_NOTA}
+Ordem de Serviço: nº {NUMERO_OS}
+
+Prazo de Garantia:
+A garantia concedida é de {PRAZO_NUM} ({PRAZO_EXTENSO}) meses, com início
+em {DATA_INICIO} e término em {DATA_FIM}.
+
+Condições da Garantia:
+A presente garantia cobre exclusivamente defeitos decorrentes de falha de
+instalação ou do equipamento fornecido, dentro do prazo estabelecido.
+
+A garantia será automaticamente cancelada nas seguintes hipóteses:
+  • Intervenção, manutenção ou reparo realizado por pessoas não autorizadas;
+  • Danos decorrentes de acidentes, quedas ou agentes externos;
+  • Variações de tensão elétrica, sobrecargas ou instalações elétricas inadequadas;
+  • Uso indevido ou em desacordo com as recomendações técnicas;
+  • Qualquer ocorrência imprevisível ou de força maior que comprometa o
+    funcionamento do equipamento.
+
+Sem mais, permanecemos à disposição para quaisquer esclarecimentos.
+
+Atenciosamente,
+{EMPRESA_NOME}
+André Moreira Rosa
+Diretor Comercial
+```
+- Empresa = `ConfiguracaoEmpresa.nome` (fallback "CMPORT Sistemas Eletrônicos de Segurança")
+- "André Moreira Rosa — Diretor Comercial" hardcoded
+
+**10C.7** `[ ]` `backend/app/schemas/termo_garantia_schema.py`:
+- `TermoGarantiaCreate` — `produto: str`, `prazo_meses: Literal[3, 6, 12]`, `orcamento_id: Optional[int]`
+- `TermoGarantiaResponse`
+
+**10C.8** `[ ]` `backend/app/routers/termo_garantia_router.py`:
+| Verbo | Rota | Função |
+|---|---|---|
+| GET | `/servicos/{servico_id}/orcamentos-candidatos` | Lista orçamentos do condomínio nos 90 dias antes da data do serviço |
+| POST | `/servicos/{servico_id}/termo-garantia` | Cria/regera termo |
+| GET | `/servicos/{servico_id}/termo-garantia` | Retorna dados (404 se não existe) |
+| GET | `/servicos/{servico_id}/termo-garantia/pdf` | Baixa PDF |
+| DELETE | `/servicos/{servico_id}/termo-garantia` | Remove |
+
+### Frontend
+
+**10C.9** `[ ]` `cmport-front/app/servicos/[id]/page.tsx` — novo painel entre OS e Nota Fiscal:
+- **Sem termo gerado**: card cinza com botão "🛡️ Gerar Termo de Garantia"
+- **Com termo gerado**: card verde com produto, prazo, validade + botões "Baixar PDF", "Regerar", "Remover"
+
+**10C.10** `[ ]` Modal de geração (2 etapas, padrão `modalInter`):
+- *Etapa 1*: lista orçamentos candidatos (carregada via `/orcamentos-candidatos`); botões "Usar este orçamento" e "Pular (digitar manualmente)"
+- *Etapa 2*: textarea "Produto/Serviço" (pré-preenchido), radio "Prazo: 3/6/12 meses", resumo das datas, botão "Gerar Termo"
+
+### Verificação 10C
+- POST cria; GET retorna; PDF baixa e abre; DELETE remove.
+- Modal carrega orçamentos do condomínio.
+- TS sem erros.
 
 ---
 
-## Fase 5 — Frontend: Modal de Pré-visualização
+## Sub-fase 10D — Email cleanup `[ ]`
 
-### [ ] 5.1 — Serviço de API `getConfigImpostos(notaId)`
-- `GET /boletos/config-impostos/{nota_id}`
+**10D.1** `[ ]` `backend/app/services/boleto_service.py` — `enviar_email_boleto`:
+- Remover anexo XML (linhas ~1156-1160)
+- Adicionar anexo do termo após bloco da OS: se `TermoGarantia` existir → gerar PDF e adicionar em `lista_anexos` como `termo_garantia_servico_<id>.pdf`
 
-### [ ] 5.2 — Modal em `app/servicos/[id]/page.tsx`
-- Ao clicar "Gerar boleto Inter": chamar `getConfigImpostos`, abrir modal
-- Modal exibe:
-  - Valor bruto
-  - Tabela: ISS / PIS / COFINS / INSS / CSLL com % editável e R$ calculado em tempo real
-  - Valor líquido (destaque, recalculado conforme % mudam)
-  - Checkbox "Aplicar juros" (default por tipo)
-  - Campo "Taxa de juros % a.m." (visível só se checkbox marcado, default 1%)
-  - Campo "Data de vencimento" (editável)
-  - Campo "Mensagem" (placeholder "OS: {num} | NF: {numero}")
-  - Botões: Cancelar | Confirmar e Gerar
+**10D.2** `[ ]` `backend/app/services/email_service.py`:
+- `_RODAPE_PADRAO` (linha 60): remover menção a "XML da nota fiscal"
+- `_corpo` default (linhas 79-83): remover menção a XML
 
-### [ ] 5.3 — Modal em `app/notas/[id]/page.tsx`
-- Mesma estrutura do 5.2 com tema laranja
+**10D.3** `[ ]` Frontend `cmport-front/app/servicos/[id]/page.tsx` (composer ~linhas 2470-2507):
+- Remover chip do XML (`nota_<numero>.xml`)
+- Adicionar chip "Termo de Garantia (automático)" condicional — só renderiza se `ordemServico` tem termo gerado
 
-### [ ] 5.4 — Exibir alerta de impostos na UI
-- Se `nota.alerta_impostos = true`: exibir banner amarelo com divergências
-- Botão "Dispensar" → `PATCH /notas-fiscais/{id}/dispensar-alerta`
+### Verificação 10D
+- Enviar email de teste para si mesmo; confirmar **sem XML**, **com termo**.
+- Boleto sem termo: email continua funcionando (boleto + OS).
 
 ---
 
-## Fase 6 — Frontend: Tela de Detalhe do Serviço
+## Sub-fase 10E — Futuro (não escopo desta entrega)
 
-### [ ] 6.1 — Redesign de `app/servicos/[id]/page.tsx`
-
-**Seção A — Nota Fiscal**
-- Número, tipo (badge), status (badge colorido), data emissão
-- Valor bruto
-- Breakdown impostos: ISS / PIS / COFINS / INSS / CSLL (% e R$)
-- Alerta divergência (badge amarelo se `alerta_impostos`)
-- Número OS
-- Observação
-
-**Seção B — Cliente / Condomínio**
-- Nome do condomínio
-- Endereço completo
-- Contato principal (telefone/email)
-
-**Seção C — Boletos**
-- Tabela: Parcela | Valor | Vencimento | Status | Forma | Ações
-- Ações por boleto: [PDF] [Download] [Cancelar] [Reg. Pagamento]
-- Status badge: PAGO (verde) / A_VENCER (azul) / VENCIDO (vermelho) / CANCELADO (cinza)
-- Se sem boleto: botões "Gerar no Inter" e "Registrar pagamento manual"
-
-### [ ] 6.2 — Ações de boleto
-- Visualizar PDF: abrir em nova aba (`/boletos/{codigo}/pdf` + `Content-Disposition: inline`)
-- Download PDF: link direto download
-- Cancelar: confirmar → `POST /boletos/{codigo}/cancelar`
-- Registrar pagamento: modal com forma, data, valor
+`[ ]` Geração de nota fiscal a partir de orçamento Auvo:
+- A partir do detalhe do orçamento local, criar registro em `notas_fiscais` com produtos/serviços
+- Permitir disparar emissão fiscal externa
+- Vincular automaticamente a `ManutencaoAssistencia` correspondente
 
 ---
 
-## Fase 7 — Frontend: Geração em Massa
+## Ordem de Execução Sugerida
 
-### [ ] 7.1 — Checkbox de seleção em `app/notas/page.tsx`
-- Checkbox por linha na tabela de notas
-- "Selecionar todos" no header
+| Bloco | Sub-fase | Razão |
+|---|---|---|
+| 1 | 10A — Produtos | Base para resolver nomes em orçamentos |
+| 2 | 10B — Orçamentos | Depende de 10A; entrega valor de visualização |
+| 3 | 10C — Termo de Garantia | Depende de 10B |
+| 4 | 10D — Email cleanup | Depende de 10C estar emitindo termos |
 
-### [ ] 7.2 — Barra de ação flutuante
-- Aparece quando ≥1 nota selecionada
-- Exibe: "X notas selecionadas" + botão "Gerar boletos"
-
-### [ ] 7.3 — Modal de geração em massa
-- Etapa 1: Lista das notas selecionadas, valor líquido por linha (editável)
-- Etapa 2: Configuração global (juros default, mensagem padrão)
-- Etapa 3: Progresso (chamadas sequenciais, ✓/✗ por nota)
+Cada bloco é deployável separadamente via `git push vps master`.
 
 ---
 
-## Fase 8 — Notas Canceladas
+## Verificação Geral End-to-End (após 10D)
 
-### [ ] 8.1 — UI para notas canceladas em `app/notas/[id]/page.tsx`
-- Badge "Cancelada" em vermelho
-- Seção boletos: mostrar boletos existentes (leitura)
-- Botões mesmo com status cancelada:
-  - "Gerar boleto mesmo assim" → aviso de confirmação extra → fluxo normal
-  - "Registrar pagamento manual" → modal já existente
-
-### [ ] 8.2 — Backend: remover bloqueio para notas canceladas
-- Verificar se `BoletoService.gerar_boletos` bloqueia notas canceladas
-- Se sim, tornar opcional via parâmetro `forcar=True`
-
----
-
-## Ordem de Implementação
-
-| # | Tarefa | Arquivo(s) Principal(is) |
-|---|--------|--------------------------|
-| 1 | Modelo `ConfiguracaoImpostosServico` + seed | `models/configuracao_impostos_model.py`, `main.py` |
-| 2 | `numero_os` em `ManutencaoAssistencia` | `models/servico_model.py` |
-| 3 | `alerta_impostos` + `divergencia_impostos` em `NotaFiscal` | `models/nota_fiscal_model.py` |
-| 4 | Fix regex OS NFe | `services/nota_fiscal_service.py` |
-| 5 | Validação impostos + salvar `numero_os` no import | `services/nota_fiscal_service.py` |
-| 6 | Helper `_calcular_valor_liquido` via config | `services/boleto_service.py` |
-| 7 | Endpoint `GET /boletos/config-impostos/{nota_id}` | `routers/boleto_router.py` |
-| 8 | Schemas Request ampliados + juros | `schemas/boleto_schema.py` |
-| 9 | `gerar_boletos` + `gerar_parcelas_faltantes` com juros | `services/boleto_service.py` |
-| 10 | Endpoint dispensar alerta | `routers/nota_fiscal_router.py` |
-| 11 | Modal pré-visualização (servicos + notas) | `app/servicos/[id]/page.tsx`, `app/notas/[id]/page.tsx` |
-| 12 | Tela detalhe serviço completa | `app/servicos/[id]/page.tsx` |
-| 13 | Geração em massa | `app/notas/page.tsx` |
-| 14 | Notas canceladas UI + backend | ambos |
-
----
-
-## Colunas Mantidas (não remover ainda)
-
-As colunas `iss, pis, cofins, inss, csll` em `notas_fiscais` são mantidas.
-Remover somente após validar que nenhuma lógica existente depende dos valores absolutos.
+1. **Sincronizar produtos**: `/produtos/sync` → ver lista no frontend.
+2. **Sincronizar orçamentos**: `/orcamentos/sync` → ver lista; abrir um detalhe → confirmar itens com nomes corretos.
+3. **Criar termo**: abrir um serviço com orçamento recente → modal carrega lista → selecionar → preencher prazo → gerar.
+4. **Baixar PDF do termo** → abrir e validar texto.
+5. **Email de boleto**: enviar teste → confirmar 3 anexos (boleto + OS + termo), **sem XML**.
+6. **TypeScript**: `npx tsc --noEmit` (zero erros).
+7. **Deploy**: `git push vps master`.
 
 ---
 
 ## Notas de Compatibilidade
 
-- Todos os endpoints existentes continuam funcionando
-- Novas funcionalidades são aditivas (novos campos opcionais nos requests)
-- Seed da tabela de configuração é idempotente (só insere se vazia)
+- Endpoints existentes continuam funcionando.
+- Remoção do XML é silent (não há flag).
+- Termo é opcional — serviços sem termo enviam email normalmente.
+- Sync de produtos/orçamentos é incremental (upsert por `auvo_id`/`auvo_public_id`).
+- Pode executar 10A e 10B sem ainda ter o termo — entregam valor sozinhos (visualização de catálogo + histórico de propostas).

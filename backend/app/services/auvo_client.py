@@ -167,5 +167,87 @@ class AuvoClient:
             page += 1
         return todos
 
+    def get_products(self, page: int = 1, page_size: int = 100, ativo: bool = True) -> List[Dict]:
+        """Busca produtos paginados. Endpoint: GET /products/"""
+        # Auvo API v2 usa paramFilter JSON para filtrar por ativo
+        param_filter = json.dumps({
+            "active": ativo
+        })
+        params = {
+            "paramFilter": param_filter,
+            "page": page,
+            "pageSize": page_size,
+            "order": "asc"
+        }
+        data = self._make_request("products/", params=params)
+        if data and "result" in data:
+            return data["result"].get("entityList", [])
+        return []
+
+    def get_all_products(self, page_size: int = 100) -> List[Dict]:
+        """Busca todos os produtos ativos paginando automaticamente."""
+        todos = []
+        page = 1
+        while True:
+            lista = self.get_products(page=page, page_size=page_size)
+            if not lista:
+                break
+            todos.extend(lista)
+            print(f"[Auvo] Página {page}: {len(lista)} produtos (total acum: {len(todos)})")
+            if len(lista) < page_size:
+                break
+            page += 1
+        return todos
+
+    def get_product(self, product_id: int) -> Optional[Dict]:
+        """Busca detalhe de um produto. Endpoint: GET /products/{id}"""
+        data = self._make_request(f"products/{product_id}")
+        if data and "result" in data:
+            return data["result"]
+        return None
+
+    def get_budgets(self, date_start: str, date_end: str, customer_id: Optional[int] = None, page: int = 1, page_size: int = 50) -> List[Dict]:
+        """Lista orçamentos por período. Endpoint: GET /budgets/"""
+        # Auvo API v2 usa paramFilter JSON
+        filter_dict = {
+            "startDate": date_start,
+            "endDate": date_end
+        }
+        if customer_id:
+            filter_dict["customerId"] = customer_id
+            
+        params = {
+            "paramFilter": json.dumps(filter_dict),
+            "page": page,
+            "pageSize": page_size,
+            "order": "desc"
+        }
+        data = self._make_request("budgets/", params=params)
+        if data and "result" in data:
+            return data["result"].get("entityList", [])
+        return []
+
+    def get_all_budgets_by_period(self, date_start: str, date_end: str, page_size: int = 50) -> List[Dict]:
+        """Busca todos os orçamentos de um período paginando automaticamente."""
+        todos = []
+        page = 1
+        while True:
+            lista = self.get_budgets(date_start, date_end, page=page, page_size=page_size)
+            if not lista:
+                break
+            todos.extend(lista)
+            print(f"[Auvo] Página {page}: {len(lista)} orçamentos (total acum: {len(todos)})")
+            if len(lista) < page_size:
+                break
+            page += 1
+        return todos
+
+    def get_budget(self, budget_id: int) -> Optional[Dict]:
+        """Busca detalhe completo de um orçamento (incluindo itens). Endpoint: GET /budgets/{id}"""
+        data = self._make_request(f"budgets/{budget_id}")
+        if data and "result" in data:
+            return data["result"]
+        return None
+
 
 auvo_client = AuvoClient()
