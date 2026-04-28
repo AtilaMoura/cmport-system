@@ -60,3 +60,7 @@ class OrcamentoFullResponse(OrcamentoResponse):
 class OrcamentoListResponse(BaseModel):
     total: int
     items: List[OrcamentoResponse]
+
+class SyncResult(BaseModel):
+    novos: int
+    atualizados: int
