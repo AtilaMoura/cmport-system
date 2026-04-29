@@ -152,6 +152,27 @@ class OrcamentoService:
         return OrcamentoRepository.list_by_condominio(db, condominio_id, limit)
 
     @staticmethod
+    def get_por_servico(db: Session, servico_id: int):
+        """Retorna o orçamento vinculado diretamente ao serviço via OrcamentoTaskId.task_id = numero_os."""
+        from app.models.servico_model import ManutencaoAssistencia
+        from app.models.orcamento_model import OrcamentoTaskId
+
+        servico = db.query(ManutencaoAssistencia).filter(ManutencaoAssistencia.id == servico_id).first()
+        if not servico or not servico.numero_os:
+            return None
+
+        try:
+            task_id = int(servico.numero_os)
+        except (ValueError, TypeError):
+            return None
+
+        link = db.query(OrcamentoTaskId).filter(OrcamentoTaskId.task_id == task_id).first()
+        if not link:
+            return None
+
+        return OrcamentoRepository.get_by_id(db, link.orcamento_id)
+
+    @staticmethod
     def listar_candidatos_para_servico(db: Session, servico_id: int):
         """Retorna orçamentos do condomínio nos 90 dias antes da data do serviço."""
         from app.models.servico_model import ManutencaoAssistencia

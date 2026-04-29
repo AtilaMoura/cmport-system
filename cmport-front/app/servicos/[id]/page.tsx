@@ -134,6 +134,26 @@ interface OrcamentoCandidato {
   current_stage_description: string | null;
 }
 
+interface OrcamentoItemDetalhe {
+  id: number;
+  tipo: string;
+  nome: string | null;
+  quantidade: number;
+  valor_unitario: number;
+  valor_total: number;
+}
+
+interface OrcamentoDetalhe {
+  id: number;
+  auvo_public_id: number;
+  customer_name: string | null;
+  request_date: string | null;
+  net_total_value: number;
+  current_stage_description: string | null;
+  is_cancelled: boolean;
+  itens: OrcamentoItemDetalhe[];
+}
+
 interface ParcelaDisplay {
   parcela: number;
   valor: number;
@@ -277,6 +297,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [pagoObs, setPagoObs] = useState('');
   const [pagoSaving, setPagoSaving] = useState(false);
 
+  // Orçamento vinculado ao serviço
+  const [orcamentoDoServico, setOrcamentoDoServico] = useState<OrcamentoDetalhe | null>(null);
+
   // Termo de Garantia
   const [termoGarantia, setTermoGarantia] = useState<TermoGarantia | null>(null);
   const [modalTermo, setModalTermo] = useState(false);
@@ -350,6 +373,14 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         setNotaFiscal(null);
         setBoletos([]);
         setNotaVinculada(null);
+      }
+
+      // Carregar Orçamento vinculado via task_id
+      try {
+        const { data: orc } = await api.get(`/orcamentos/por-servico/${id}`);
+        setOrcamentoDoServico(orc);
+      } catch {
+        setOrcamentoDoServico(null);
       }
 
       // Carregar Termo de Garantia
@@ -1328,6 +1359,65 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
                       <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Relatório</p>
                       <p className="text-sm text-slate-900 dark:text-white leading-relaxed whitespace-pre-wrap">{ordemServico.report}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Orçamento vinculado */}
+            {orcamentoDoServico && (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-800/30 flex items-center justify-between flex-wrap gap-2">
+                  <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-xl">📋</span> Orçamento Vinculado
+                  </h2>
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 px-2 py-1 rounded-lg">
+                    #{orcamentoDoServico.auvo_public_id}
+                  </span>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {orcamentoDoServico.request_date && (
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Data</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">
+                          {new Date(orcamentoDoServico.request_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    )}
+                    {orcamentoDoServico.current_stage_description && (
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Status</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">{orcamentoDoServico.current_stage_description}</p>
+                      </div>
+                    )}
+                    <div className="bg-amber-50 dark:bg-amber-500/10 rounded-xl p-3">
+                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase mb-1">Total</p>
+                      <p className="font-black text-amber-700 dark:text-amber-300 text-sm">
+                        {Number(orcamentoDoServico.net_total_value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {orcamentoDoServico.itens.filter(i => i.tipo === 'PRODUTO').length > 0 && (
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Produtos</p>
+                      <div className="space-y-2">
+                        {orcamentoDoServico.itens
+                          .filter(i => i.tipo === 'PRODUTO')
+                          .map(item => (
+                            <div key={item.id} className="flex items-center justify-between gap-2">
+                              <span className="text-sm text-slate-900 dark:text-white">
+                                <span className="font-bold text-amber-600 dark:text-amber-400 mr-1">{Number.isInteger(Number(item.quantidade)) ? Number(item.quantidade) : Number(item.quantidade).toFixed(1)}x</span>
+                                {item.nome || `Item #${item.id}`}
+                              </span>
+                              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                                {Number(item.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
                     </div>
                   )}
                 </div>

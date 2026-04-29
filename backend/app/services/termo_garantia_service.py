@@ -137,6 +137,21 @@ def _remove_para(para):
     p.getparent().remove(p)
 
 
+def _remover_quebras_pagina(doc):
+    """Remove pageBreakBefore e runs com w:br type='page' de todos os parágrafos."""
+    from docx.oxml.ns import qn
+    for para in doc.paragraphs:
+        ppr = para._element.find(qn('w:pPr'))
+        if ppr is not None:
+            pb = ppr.find(qn('w:pageBreakBefore'))
+            if pb is not None:
+                ppr.remove(pb)
+        for run in para.runs:
+            for br in run._r.findall(qn('w:br')):
+                if br.get(qn('w:type')) == 'page':
+                    run._r.remove(br)
+
+
 class TermoGarantiaService:
 
     @staticmethod
@@ -172,17 +187,12 @@ class TermoGarantiaService:
         prazo_extenso = _EXTENSO.get(termo.prazo_meses, str(termo.prazo_meses))
         prazo_fmt = f"{termo.prazo_meses:02d} ({prazo_extenso})"
 
-        # Descrição do produto (por prioridade):
-        # 1. Itens do orçamento vinculado
-        # 2. Report da Ordem de Serviço (o que o técnico fez)
-        # 3. O que foi digitado no modal ao criar o termo
-        if termo.orcamento_id:
-            produto_desc = TermoGarantiaService.montar_descricao_de_orcamento(db, termo.orcamento_id)
-        else:
-            os_report = ""
+        # Descrição do produto: usa produto_descricao (já formatado pelo checklist do frontend).
+        # Fallback para report da OS se campo estiver vazio.
+        produto_desc = termo.produto_descricao or ""
+        if not produto_desc:
             if getattr(servico, 'ordem_servico', None):
-                os_report = servico.ordem_servico.report or ""
-            produto_desc = os_report or termo.produto_descricao or ""
+                produto_desc = servico.ordem_servico.report or ""
 
         hoje_str = _fmt_data_extenso(datetime.now())
         data_servico_str = _fmt_date(servico.data_servico)
@@ -190,6 +200,7 @@ class TermoGarantiaService:
         data_fim_str = _fmt_date(termo.data_fim)
 
         doc = Document(_TEMPLATE_PATH)
+        _remover_quebras_pagina(doc)
 
         paras_remover = []
         for para in doc.paragraphs:
