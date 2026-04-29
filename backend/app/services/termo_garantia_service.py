@@ -1,10 +1,9 @@
 import io
+import os
+import shutil
+import subprocess
+import tempfile
 from datetime import datetime
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.units import cm
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from sqlalchemy.orm import Session
 
 from app.repositories.termo_garantia_repository import TermoGarantiaRepository
@@ -12,6 +11,7 @@ from app.models.configuracao_model import ConfiguracaoEmpresa
 
 _EXTENSO = {3: "três", 6: "seis", 12: "doze", 24: "vinte e quatro"}
 _EMPRESA_FALLBACK = "CMPORT Sistemas Eletrônicos de Segurança"
+_TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "termo_garantia_template.docx")
 
 
 def _fmt_date(d) -> str:
@@ -24,10 +24,107 @@ def _fmt_data_extenso(d) -> str:
     return f"{d.day} de {meses[d.month - 1]} de {d.year}"
 
 
+def _para_text(para) -> str:
+    return ''.join(r.text for r in para.runs)
+
+
+def _merge_all(para, new_text: str):
+    """Substitui todo o texto no primeiro run, limpa os demais."""
+    if not para.runs:
+        return
+    para.runs[0].text = new_text
+    for r in para.runs[1:]:
+        r.text = ''
+
+
+def _set_cliente_endereco(para, nome: str, endereco: str):
+    """
+    P5 tem estrutura:
+      runs 0-4: 'Cliente:', ' ', 'Condominio ...', 'NOME', '.'
+      run  5:   '\n' — apenas <w:br/> (quebra de linha)
+      runs 6-12: 'Endereço:', ' ', partes do endereço...
+    Preserva o <w:br/> intacto entre cliente e endereço.
+    """
+    from docx.oxml.ns import qn
+    runs = para.runs
+    br_idx = next((i for i, r in enumerate(runs) if r._r.find(qn('w:br')) is not None), -1)
+
+    if br_idx == -1:
+        _merge_all(para, f"Cliente: {nome}. Endereço: {endereco}.")
+        return
+
+    # Antes do break: cliente
+    runs[0].text = f"Cliente: {nome}."
+    for r in runs[1:br_idx]:
+        r.text = ''
+    # run[br_idx] não é tocado → mantém o <w:br/>
+
+    # Após o break: endereço
+    after = runs[br_idx + 1:]
+    if after:
+        after[0].text = f"Endereço: {endereco}."
+        for r in after[1:]:
+            r.text = ''
+
+
+def _set_normal_runs(para, new_value: str):
+    """Mantém runs bold intactos; substitui os runs não-bold pelo novo valor."""
+    normal_runs = [r for r in para.runs if r.bold is not True]
+    if not normal_runs:
+        return
+    normal_runs[0].text = f' {new_value}'
+    for r in normal_runs[1:]:
+        r.text = ''
+
+
+def _set_prazo(para, prazo_fmt: str, data_inicio: str, data_fim: str):
+    """
+    P10 tem estrutura:
+      run 0: B  'Prazo de Garantia:'          — label bold, não toca
+      run 1: N  '\nA garantia concedida é de ' — intro c/ <w:br/>, não toca
+      runs 2-6: B  '06', ' (', 'seis', ') ', 'meses' — bold prazo, mescla num só
+      run 7: N  ', com início em ... e término em ...' — datas, atualiza
+    """
+    runs = para.runs
+    in_label = True
+    intro_passed = False
+    bold_prazo = []
+    normal_datas = None
+
+    for run in runs:
+        if in_label:
+            if run.bold is True:
+                continue  # ainda no label bold
+            else:
+                in_label = False
+                intro_passed = True
+                continue  # intro com <w:br/> — não modifica
+        elif intro_passed and run.bold is True:
+            bold_prazo.append(run)
+        elif intro_passed and run.bold is not True:
+            normal_datas = run
+
+    if bold_prazo:
+        bold_prazo[0].text = f'{prazo_fmt} meses'
+        for r in bold_prazo[1:]:
+            r.text = ''
+
+    if normal_datas:
+        normal_datas.text = f', com início em {data_inicio} e término em {data_fim}.'
+
+
+def _remove_para(para):
+    """Remove o parágrafo do documento."""
+    p = para._element
+    p.getparent().remove(p)
+
+
 class TermoGarantiaService:
 
     @staticmethod
     def gerar_pdf(db: Session, termo_id: int) -> io.BytesIO:
+        from docx import Document
+
         termo = TermoGarantiaRepository.get_by_id(db, termo_id)
         if not termo:
             raise Exception("Termo de garantia não encontrado")
@@ -35,11 +132,9 @@ class TermoGarantiaService:
         servico = termo.servico
         condominio = servico.condominio
 
-        # Nome da empresa
         empresa_obj = db.query(ConfiguracaoEmpresa).first()
         empresa_nome = (empresa_obj.nome if empresa_obj and empresa_obj.nome else _EMPRESA_FALLBACK)
 
-        # Endereço completo
         end = getattr(condominio, 'endereco', None)
         if end:
             partes = [p for p in [end.rua, end.numero, end.bairro, end.cidade] if p]
@@ -47,124 +142,105 @@ class TermoGarantiaService:
         else:
             endereco_str = ""
 
-        # Número da nota fiscal
         numero_nota = ""
         if getattr(servico, 'nota_fiscal', None):
             numero_nota = servico.nota_fiscal.numero_nota or ""
 
         numero_os = servico.numero_os or ""
         prazo_extenso = _EXTENSO.get(termo.prazo_meses, str(termo.prazo_meses))
+        prazo_fmt = f"{termo.prazo_meses:02d} ({prazo_extenso})"
+
+        # Descrição do produto: orçamento vinculado ou descrição do serviço
+        if termo.orcamento_id:
+            produto_desc = TermoGarantiaService.montar_descricao_de_orcamento(db, termo.orcamento_id)
+        else:
+            produto_desc = servico.descricao or termo.produto_descricao or ""
 
         hoje_str = _fmt_data_extenso(datetime.now())
         data_servico_str = _fmt_date(servico.data_servico)
         data_inicio_str = _fmt_date(termo.data_inicio)
         data_fim_str = _fmt_date(termo.data_fim)
 
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(
-            buffer, pagesize=A4,
-            rightMargin=2.5 * cm, leftMargin=2.5 * cm,
-            topMargin=2 * cm, bottomMargin=2 * cm
-        )
+        doc = Document(_TEMPLATE_PATH)
 
-        normal = ParagraphStyle(
-            'Normal2', fontName='Helvetica', fontSize=11, leading=17, spaceAfter=6
-        )
-        bold_inline = ParagraphStyle(
-            'BoldInline', fontName='Helvetica-Bold', fontSize=11, leading=17, spaceAfter=6
-        )
-        titulo = ParagraphStyle(
-            'Titulo', fontName='Helvetica-Bold', fontSize=13, leading=20,
-            alignment=TA_CENTER, spaceAfter=14, spaceBefore=8
-        )
-        right_style = ParagraphStyle(
-            'Right2', fontName='Helvetica', fontSize=11, alignment=TA_RIGHT
-        )
-        center_style = ParagraphStyle(
-            'Center2', fontName='Helvetica', fontSize=11, alignment=TA_CENTER, spaceAfter=2
-        )
-        bullet_style = ParagraphStyle(
-            'Bullet', fontName='Helvetica', fontSize=11, leading=16,
-            leftIndent=20, spaceAfter=4
-        )
+        paras_remover = []
+        for para in doc.paragraphs:
+            text = _para_text(para)
+            if not text.strip():
+                continue
 
-        elems = []
+            if "Paulo," in text and len(text) < 60:
+                # "São Paulo, 27 de abril de 2026"
+                _merge_all(para, f"São Paulo, {hoje_str}")
 
-        # Cidade e data
-        elems.append(Paragraph(f"São Paulo, {hoje_str}", right_style))
-        elems.append(Spacer(1, 0.7 * cm))
+            elif "Cliente:" in text and "Endere" in text:
+                # "Cliente: NOME\nEndereço: ENDEREÇO"
+                _set_cliente_endereco(para, condominio.nome, endereco_str)
 
-        # Título
-        elems.append(Paragraph("TERMO DE GARANTIA DO PRODUTO / SERVIÇO", titulo))
+            elif "consistente na" in text:
+                # "...consistente na PRODUTO, conforme abaixo descrito:"
+                for run in para.runs:
+                    if run.bold is True:
+                        run.text = produto_desc or termo.produto_descricao or ""
+                        break
 
-        # Dados do cliente
-        elems.append(Paragraph(f"<b>Cliente:</b> {condominio.nome}", normal))
-        elems.append(Paragraph(f"<b>Endereço:</b> {endereco_str}", normal))
-        elems.append(Spacer(1, 0.5 * cm))
+            elif "execu" in text and "servi" in text and "/" in text:
+                # "Data da execução do serviço: DD/MM/AAAA"
+                _set_normal_runs(para, data_servico_str)
 
-        # Texto principal
-        elems.append(Paragraph(
-            f"Pelo presente instrumento, formaliza-se o termo de garantia referente ao "
-            f"serviço prestado, consistente em <b>{termo.produto_descricao}</b>, conforme abaixo descrito:",
-            normal
-        ))
-        elems.append(Spacer(1, 0.4 * cm))
+            elif "Nota Fiscal:" in text:
+                if numero_nota:
+                    _set_normal_runs(para, f"nº {numero_nota}")
+                else:
+                    paras_remover.append(para)
 
-        elems.append(Paragraph(f"<b>Data da execução do serviço:</b> {data_servico_str}", normal))
-        if numero_nota:
-            elems.append(Paragraph(f"<b>Nota Fiscal:</b> nº {numero_nota}", normal))
-        if numero_os:
-            elems.append(Paragraph(f"<b>Ordem de Serviço:</b> nº {numero_os}", normal))
-        elems.append(Spacer(1, 0.5 * cm))
+            elif "Ordem de Servi" in text:
+                if numero_os:
+                    _set_normal_runs(para, f"nº {numero_os}")
+                else:
+                    paras_remover.append(para)
 
-        # Prazo
-        elems.append(Paragraph("<b>Prazo de Garantia:</b>", bold_inline))
-        elems.append(Paragraph(
-            f"A garantia concedida é de {termo.prazo_meses} ({prazo_extenso}) meses, com início "
-            f"em {data_inicio_str} e término em {data_fim_str}.",
-            normal
-        ))
-        elems.append(Spacer(1, 0.5 * cm))
+            elif "Prazo de Garantia:" in text and "garantia concedida" in text:
+                _set_prazo(para, prazo_fmt, data_inicio_str, data_fim_str)
 
-        # Condições
-        elems.append(Paragraph("<b>Condições da Garantia:</b>", bold_inline))
-        elems.append(Paragraph(
-            "A presente garantia cobre exclusivamente defeitos decorrentes de falha de "
-            "instalação ou do equipamento fornecido, dentro do prazo estabelecido.",
-            normal
-        ))
-        elems.append(Spacer(1, 0.3 * cm))
+            elif "André Moreira Rosa" in text:
+                # Assinatura: substitui empresa preservando espaços de alinhamento
+                for run in para.runs:
+                    stripped = run.text.rstrip()
+                    if stripped and "André" not in stripped and "Diretor" not in stripped:
+                        trailing = run.text[len(stripped):]
+                        run.text = empresa_nome + trailing
+                        break
 
-        elems.append(Paragraph(
-            "A garantia será automaticamente cancelada nas seguintes hipóteses:", normal
-        ))
-        bullets = [
-            "Intervenção, manutenção ou reparo realizado por pessoas não autorizadas;",
-            "Danos decorrentes de acidentes, quedas ou agentes externos;",
-            "Variações de tensão elétrica, sobrecargas ou instalações elétricas inadequadas;",
-            "Uso indevido ou em desacordo com as recomendações técnicas;",
-            "Qualquer ocorrência imprevisível ou de força maior que comprometa o funcionamento do equipamento.",
-        ]
-        for b in bullets:
-            elems.append(Paragraph(f"• {b}", bullet_style))
+        for para in paras_remover:
+            _remove_para(para)
 
-        elems.append(Spacer(1, 0.5 * cm))
-        elems.append(Paragraph(
-            "Sem mais, permanecemos à disposição para quaisquer esclarecimentos.", normal
-        ))
-        elems.append(Spacer(1, 0.3 * cm))
-        elems.append(Paragraph("Atenciosamente,", normal))
-        elems.append(Spacer(1, 1.8 * cm))
+        # Salva .docx em diretório temporário e converte para PDF via LibreOffice
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            docx_path = os.path.join(tmp_dir, 'termo.docx')
+            doc.save(docx_path)
 
-        # Assinatura
-        elems.append(Paragraph("_" * 48, center_style))
-        elems.append(Paragraph(empresa_nome, center_style))
-        elems.append(Paragraph("André Moreira Rosa", center_style))
-        elems.append(Paragraph("Diretor Comercial", center_style))
+            subprocess.run(
+                [
+                    'libreoffice', '--headless',
+                    f'-env:UserInstallation=file://{tmp_dir}/lo_profile',
+                    '--convert-to', 'pdf',
+                    '--outdir', tmp_dir,
+                    docx_path,
+                ],
+                check=True,
+                capture_output=True,
+                timeout=60,
+            )
 
-        doc.build(elems)
-        buffer.seek(0)
-        return buffer
+            pdf_path = os.path.join(tmp_dir, 'termo.pdf')
+            with open(pdf_path, 'rb') as f:
+                pdf_bytes = f.read()
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        return io.BytesIO(pdf_bytes)
 
     @staticmethod
     def montar_descricao_de_orcamento(db: Session, orcamento_id: int) -> str:
