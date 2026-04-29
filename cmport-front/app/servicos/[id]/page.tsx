@@ -803,7 +803,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
 
   const abrirModalTermo = async () => {
     if (!servico || !id) return;
-    setTermoProduto(servico.descricao || '');
+    setTermoProduto(ordemServico?.report || '');
     setTermoPrazo(12);
     setTermoDataInicio(servico.data_servico);
     setTermoOrcamentoId(null);

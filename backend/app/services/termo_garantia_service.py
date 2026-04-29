@@ -18,6 +18,24 @@ def _fmt_date(d) -> str:
     return d.strftime('%d/%m/%Y') if d else ""
 
 
+def _fmt_numero_nota(numero_raw: str, tipo_servico) -> str:
+    """
+    Formata o número da nota para o padrão 000.000.094-A / 000.000.094-M.
+    Extrai apenas os dígitos iniciais (ignora sufixos como '-2', '-A', etc.)
+    e aplica sufixo baseado no tipo do serviço.
+    """
+    import re
+    clean = str(numero_raw).strip().replace('.', '')
+    m = re.match(r'^(\d+)', clean)
+    if not m:
+        return numero_raw
+    num = int(m.group(1))
+    digits = f"{num:09d}"
+    formatted = f"{digits[0:3]}.{digits[3:6]}.{digits[6:9]}"
+    sufixo = '-A' if str(tipo_servico).lower() == 'assistencia' else '-M'
+    return f"{formatted}{sufixo}"
+
+
 def _fmt_data_extenso(d) -> str:
     meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
              "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
@@ -143,18 +161,27 @@ class TermoGarantiaService:
             endereco_str = ""
 
         numero_nota = ""
+        numero_nota_fmt = ""
         if getattr(servico, 'nota_fiscal', None):
             numero_nota = servico.nota_fiscal.numero_nota or ""
+            if numero_nota:
+                numero_nota_fmt = _fmt_numero_nota(numero_nota, servico.tipo)
 
         numero_os = servico.numero_os or ""
         prazo_extenso = _EXTENSO.get(termo.prazo_meses, str(termo.prazo_meses))
         prazo_fmt = f"{termo.prazo_meses:02d} ({prazo_extenso})"
 
-        # Descrição do produto: orçamento vinculado ou descrição do serviço
+        # Descrição do produto (por prioridade):
+        # 1. Itens do orçamento vinculado
+        # 2. Report da Ordem de Serviço (o que o técnico fez)
+        # 3. O que foi digitado no modal ao criar o termo
         if termo.orcamento_id:
             produto_desc = TermoGarantiaService.montar_descricao_de_orcamento(db, termo.orcamento_id)
         else:
-            produto_desc = servico.descricao or termo.produto_descricao or ""
+            os_report = ""
+            if getattr(servico, 'ordem_servico', None):
+                os_report = servico.ordem_servico.report or ""
+            produto_desc = os_report or termo.produto_descricao or ""
 
         hoje_str = _fmt_data_extenso(datetime.now())
         data_servico_str = _fmt_date(servico.data_servico)
@@ -189,8 +216,8 @@ class TermoGarantiaService:
                 _set_normal_runs(para, data_servico_str)
 
             elif "Nota Fiscal:" in text:
-                if numero_nota:
-                    _set_normal_runs(para, f"nº {numero_nota}")
+                if numero_nota_fmt:
+                    _set_normal_runs(para, f"nº {numero_nota_fmt}")
                 else:
                     paras_remover.append(para)
 
