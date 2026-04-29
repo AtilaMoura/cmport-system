@@ -1,7 +1,7 @@
 # Plano de Implementação — CMPort
 
 **Última atualização:** 2026-04-28
-**Status atual:** Fases 0-9 concluídas. **Fase 10 em planejamento (sub-fases 10A → 10D).**
+**Status atual:** Fases 0-9 concluídas. **Sub-fases 10A, 10B, 10C e 10D concluídas.**
 
 Convenções: `[x]` concluído · `[~]` em andamento · `[ ]` a fazer.
 
@@ -247,11 +247,11 @@ CREATE TABLE orcamento_task_ids (
 
 ---
 
-## Sub-fase 10C — Termo de Garantia `[ ]`
+## Sub-fase 10C — Termo de Garantia `[x]`
 
 ### Backend
 
-**10C.1** `[ ]` Migration SQL
+**10C.1** `[x]` Migration SQL
 ```sql
 CREATE TABLE termos_garantia (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -271,20 +271,20 @@ CREATE TABLE termos_garantia (
 );
 ```
 
-**10C.2** `[ ]` `backend/app/models/termo_garantia_model.py` — modelo + relação com `ManutencaoAssistencia` e `Orcamento`. Registrar em `main.py`.
+**10C.2** `[x]` `backend/app/models/termo_garantia_model.py` — modelo + relação com `ManutencaoAssistencia` e `Orcamento`. Registrar em `main.py`.
 
-**10C.3** `[ ]` `backend/requirements.txt` — adicionar `reportlab==4.2.5` e `python-dateutil>=2.8.2`.
+**10C.3** `[x]` `backend/requirements.txt` — adicionar `reportlab==4.2.5` e `python-dateutil>=2.8.2`.
 
-**10C.4** `[ ]` `backend/app/repositories/termo_garantia_repository.py` — `get_by_servico_id`, `upsert`, `delete`.
+**10C.4** `[x]` `backend/app/repositories/termo_garantia_repository.py` — `get_by_servico_id`, `upsert`, `delete`.
 
-**10C.5** `[ ]` `backend/app/services/termo_garantia_service.py`:
+**10C.5** `[x]` `backend/app/services/termo_garantia_service.py`:
 - `salvar(db, servico_id, produto, prazo_meses, orcamento_id=None)` — calcula `data_inicio = servico.data_servico`, `data_fim = data_inicio + relativedelta(months=prazo_meses)`, faz upsert
 - `obter(db, servico_id)`
 - `gerar_pdf(db, servico_id) -> bytes` — reportlab montando o template
 - `excluir(db, servico_id)`
 - `montar_descricao_de_orcamento(db, orcamento_id)` — formata `"3x PRODUTO_X · 1x SERVICO_Y"` a partir dos itens locais (sem chamar Auvo)
 
-**10C.6** `[ ]` Template do PDF (em `termo_garantia_service.py`):
+**10C.6** `[x]` Template do PDF (em `termo_garantia_service.py`):
 ```
 São Paulo, {DATA_GERACAO}
 
@@ -326,11 +326,11 @@ Diretor Comercial
 - Empresa = `ConfiguracaoEmpresa.nome` (fallback "CMPORT Sistemas Eletrônicos de Segurança")
 - "André Moreira Rosa — Diretor Comercial" hardcoded
 
-**10C.7** `[ ]` `backend/app/schemas/termo_garantia_schema.py`:
+**10C.7** `[x]` `backend/app/schemas/termo_garantia_schema.py`:
 - `TermoGarantiaCreate` — `produto: str`, `prazo_meses: Literal[3, 6, 12]`, `orcamento_id: Optional[int]`
 - `TermoGarantiaResponse`
 
-**10C.8** `[ ]` `backend/app/routers/termo_garantia_router.py`:
+**10C.8** `[x]` `backend/app/routers/termo_garantia_router.py`:
 | Verbo | Rota | Função |
 |---|---|---|
 | GET | `/servicos/{servico_id}/orcamentos-candidatos` | Lista orçamentos do condomínio nos 90 dias antes da data do serviço |
@@ -341,11 +341,11 @@ Diretor Comercial
 
 ### Frontend
 
-**10C.9** `[ ]` `cmport-front/app/servicos/[id]/page.tsx` — novo painel entre OS e Nota Fiscal:
+**10C.9** `[x]` `cmport-front/app/servicos/[id]/page.tsx` — novo painel entre OS e Nota Fiscal:
 - **Sem termo gerado**: card cinza com botão "🛡️ Gerar Termo de Garantia"
 - **Com termo gerado**: card verde com produto, prazo, validade + botões "Baixar PDF", "Regerar", "Remover"
 
-**10C.10** `[ ]` Modal de geração (2 etapas, padrão `modalInter`):
+**10C.10** `[x]` Modal de geração (2 etapas, padrão `modalInter`):
 - *Etapa 1*: lista orçamentos candidatos (carregada via `/orcamentos-candidatos`); botões "Usar este orçamento" e "Pular (digitar manualmente)"
 - *Etapa 2*: textarea "Produto/Serviço" (pré-preenchido), radio "Prazo: 3/6/12 meses", resumo das datas, botão "Gerar Termo"
 
@@ -358,15 +358,15 @@ Diretor Comercial
 
 ## Sub-fase 10D — Email cleanup `[ ]`
 
-**10D.1** `[ ]` `backend/app/services/boleto_service.py` — `enviar_email_boleto`:
+**10D.1** `[x]` `backend/app/services/boleto_service.py` — `enviar_email_boleto`:
 - Remover anexo XML (linhas ~1156-1160)
 - Adicionar anexo do termo após bloco da OS: se `TermoGarantia` existir → gerar PDF e adicionar em `lista_anexos` como `termo_garantia_servico_<id>.pdf`
 
-**10D.2** `[ ]` `backend/app/services/email_service.py`:
+**10D.2** `[x]` `backend/app/services/email_service.py`:
 - `_RODAPE_PADRAO` (linha 60): remover menção a "XML da nota fiscal"
 - `_corpo` default (linhas 79-83): remover menção a XML
 
-**10D.3** `[ ]` Frontend `cmport-front/app/servicos/[id]/page.tsx` (composer ~linhas 2470-2507):
+**10D.3** `[x]` Frontend `cmport-front/app/servicos/[id]/page.tsx` (composer ~linhas 2470-2507):
 - Remover chip do XML (`nota_<numero>.xml`)
 - Adicionar chip "Termo de Garantia (automático)" condicional — só renderiza se `ordemServico` tem termo gerado
 
