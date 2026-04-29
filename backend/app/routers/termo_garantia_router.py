@@ -6,7 +6,7 @@ from app.schemas.termo_garantia_schema import TermoGarantiaSchema, TermoGarantia
 from app.repositories.termo_garantia_repository import TermoGarantiaRepository
 from app.services.termo_garantia_service import TermoGarantiaService
 
-router = APIRouter(prefix="/termos-garantia", tags=["Termos de Garantia"])
+router = APIRouter(tags=["Termos de Garantia"])
 
 
 @router.post("/", response_model=TermoGarantiaSchema)
