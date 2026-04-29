@@ -280,7 +280,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   // Termo de Garantia
   const [termoGarantia, setTermoGarantia] = useState<TermoGarantia | null>(null);
   const [modalTermo, setModalTermo] = useState(false);
-  const [termoEtapa, setTermoEtapa] = useState<1 | 2 | 3>(1);
+  const [termoEtapa, setTermoEtapa] = useState<1 | 2 | 3 | 4>(1);
   const [termoProduto, setTermoProduto] = useState('');
   const [termoPrazo, setTermoPrazo] = useState(12);
   const [termoDataInicio, setTermoDataInicio] = useState('');
@@ -289,6 +289,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [termoOrcamentoId, setTermoOrcamentoId] = useState<number | null>(null);
   const [orcamentosCandidatos, setOrcamentosCandidatos] = useState<OrcamentoCandidato[]>([]);
   const [termoCarregandoCandidatos, setTermoCarregandoCandidatos] = useState(false);
+  // Checklist de produtos do orçamento (Etapa 2)
+  interface ProdutoChecklist { nome: string; quantidade: number }
+  const [produtosChecklist, setProdutosChecklist] = useState<ProdutoChecklist[]>([]);
+  const [termoCarregandoItens, setTermoCarregandoItens] = useState(false);
+  const [novoItemNome, setNovoItemNome] = useState('');
+  const [novoItemQtd, setNovoItemQtd] = useState(1);
+  const [adicionandoItem, setAdicionandoItem] = useState(false);
 
   useEffect(() => {
     params.then(p => setId(p.id));
@@ -807,6 +814,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setTermoPrazo(12);
     setTermoDataInicio(servico.data_servico);
     setTermoOrcamentoId(null);
+    setProdutosChecklist([]);
+    setNovoItemNome('');
+    setNovoItemQtd(1);
+    setAdicionandoItem(false);
     setTermoEtapa(1);
     setModalTermo(true);
     setTermoCarregandoCandidatos(true);
@@ -822,21 +833,37 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
 
   const handleSelecionarOrcamentoCandidato = async (orc: OrcamentoCandidato) => {
     setTermoOrcamentoId(orc.id);
+    setTermoCarregandoItens(true);
+    setTermoEtapa(2);
     try {
       const { data } = await api.get(`/orcamentos/${orc.auvo_public_id}`);
       if (data.itens && data.itens.length > 0) {
-        const descricao = data.itens
-          .map((item: any) => {
-            const qtd = Number.isInteger(item.quantidade) ? item.quantidade : item.quantidade?.toFixed(1);
-            return `${qtd}x ${item.nome || 'Item'}`;
-          })
-          .join(' · ');
-        setTermoProduto(descricao);
+        const produtos = data.itens
+          .filter((item: any) => item.tipo === 'PRODUTO')
+          .map((item: any) => ({
+            nome: item.nome || 'Item',
+            quantidade: Number.isInteger(Number(item.quantidade)) ? Number(item.quantidade) : Number(item.quantidade),
+          }));
+        setProdutosChecklist(produtos);
+      } else {
+        setProdutosChecklist([]);
       }
     } catch {
-      // se falhar, mantém descrição atual
+      setProdutosChecklist([]);
+    } finally {
+      setTermoCarregandoItens(false);
     }
-    setTermoEtapa(2);
+  };
+
+  const handleAvancarChecklist = () => {
+    const desc = produtosChecklist
+      .map(p => {
+        const qtd = Number.isInteger(p.quantidade) ? p.quantidade : p.quantidade.toFixed(1);
+        return `${qtd}x ${p.nome}`;
+      })
+      .join(' · ');
+    setTermoProduto(desc);
+    setTermoEtapa(3);
   };
 
   const handleSalvarTermo = async () => {
@@ -858,7 +885,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
 
       const { data: novoTermo } = await api.post('/termos-garantia/', payload);
       setTermoGarantia(novoTermo);
-      setTermoEtapa(3);
+      setTermoEtapa(4);
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Erro ao salvar termo de garantia');
     } finally {
@@ -2698,7 +2725,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
             <div className="px-6 py-4 bg-teal-600 text-white flex items-center justify-between">
               <h2 className="font-bold text-lg flex items-center gap-2">
                 <span>📜</span>
-                {termoEtapa === 1 ? 'Orçamentos Relacionados' : termoEtapa === 2 ? 'Gerar Termo de Garantia' : 'Termo Gerado'}
+                {termoEtapa === 1 ? 'Orçamentos Relacionados' : termoEtapa === 2 ? 'Produtos do Orçamento' : termoEtapa === 3 ? 'Gerar Termo de Garantia' : 'Termo Gerado'}
               </h2>
               <button onClick={() => setModalTermo(false)} className="text-white/80 hover:text-white text-xl">×</button>
             </div>
@@ -2738,7 +2765,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     </div>
                   )}
                   <button
-                    onClick={() => setTermoEtapa(2)}
+                    onClick={() => setTermoEtapa(3)}
                     className="w-full py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                   >
                     Pular (digitar manualmente)
@@ -2746,8 +2773,102 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 </div>
               )}
 
-              {/* Etapa 2 — formulário */}
+              {/* Etapa 2 — checklist de produtos do orçamento */}
               {termoEtapa === 2 && (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Selecione os produtos que entrarão no termo. Remova os que não se aplicam ou adicione itens avulsos.
+                  </p>
+                  {termoCarregandoItens ? (
+                    <div className="flex justify-center py-6">
+                      <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                        {produtosChecklist.length === 0 ? (
+                          <p className="text-sm text-slate-400 italic text-center py-3">Nenhum produto encontrado no orçamento.</p>
+                        ) : (
+                          produtosChecklist.map((p, idx) => (
+                            <div key={idx} className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                              <span className="text-sm text-slate-800 dark:text-slate-200">
+                                <span className="font-bold text-teal-600 dark:text-teal-400 mr-1.5">{Number.isInteger(p.quantidade) ? p.quantidade : p.quantidade.toFixed(1)}x</span>
+                                {p.nome}
+                              </span>
+                              <button
+                                onClick={() => setProdutosChecklist(prev => prev.filter((_, i) => i !== idx))}
+                                className="text-slate-400 hover:text-red-500 transition-colors text-lg leading-none ml-2"
+                              >×</button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {adicionandoItem ? (
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="number"
+                            min={1}
+                            value={novoItemQtd}
+                            onChange={e => setNovoItemQtd(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-16 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500 text-center"
+                          />
+                          <input
+                            type="text"
+                            value={novoItemNome}
+                            onChange={e => setNovoItemNome(e.target.value)}
+                            placeholder="Nome do produto"
+                            className="flex-1 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && novoItemNome.trim()) {
+                                setProdutosChecklist(prev => [...prev, { nome: novoItemNome.trim(), quantidade: novoItemQtd }]);
+                                setNovoItemNome(''); setNovoItemQtd(1); setAdicionandoItem(false);
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              if (novoItemNome.trim()) {
+                                setProdutosChecklist(prev => [...prev, { nome: novoItemNome.trim(), quantidade: novoItemQtd }]);
+                                setNovoItemNome(''); setNovoItemQtd(1);
+                              }
+                              setAdicionandoItem(false);
+                            }}
+                            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-all"
+                          >OK</button>
+                          <button
+                            onClick={() => { setAdicionandoItem(false); setNovoItemNome(''); setNovoItemQtd(1); }}
+                            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-sm hover:brightness-95 transition-all"
+                          >✕</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAdicionandoItem(true)}
+                          className="w-full py-2 border border-dashed border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 rounded-xl text-sm hover:border-teal-400 hover:text-teal-600 dark:hover:text-teal-400 transition-all"
+                        >
+                          + Adicionar item
+                        </button>
+                      )}
+
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => setTermoEtapa(1)}
+                          className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-medium text-sm hover:brightness-95 transition-all">
+                          ← Voltar
+                        </button>
+                        <button
+                          onClick={handleAvancarChecklist}
+                          className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700 transition-all"
+                        >
+                          Avançar →
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Etapa 3 — formulário */}
+              {termoEtapa === 3 && (
                 <div className="space-y-4">
                   {termoOrcamentoId && (
                     <p className="text-xs text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10 rounded-lg px-3 py-2">
@@ -2799,7 +2920,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     </p>
                   )}
                   <div className="flex gap-2">
-                    <button onClick={() => setTermoEtapa(1)}
+                    <button onClick={() => termoOrcamentoId ? setTermoEtapa(2) : setTermoEtapa(1)}
                       className="px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-medium text-sm hover:brightness-95 transition-all">
                       ← Voltar
                     </button>
@@ -2814,8 +2935,8 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 </div>
               )}
 
-              {/* Etapa 3 — sucesso */}
-              {termoEtapa === 3 && (
+              {/* Etapa 4 — sucesso */}
+              {termoEtapa === 4 && (
                 <div className="text-center space-y-4">
                   <div className="w-16 h-16 bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 rounded-full flex items-center justify-center mx-auto text-2xl">
                     ✅

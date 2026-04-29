@@ -142,6 +142,7 @@ class TermoGarantiaService:
     @staticmethod
     def gerar_pdf(db: Session, termo_id: int) -> io.BytesIO:
         from docx import Document
+        from docx.shared import Pt
 
         termo = TermoGarantiaRepository.get_by_id(db, termo_id)
         if not termo:
@@ -205,10 +206,10 @@ class TermoGarantiaService:
                 _set_cliente_endereco(para, condominio.nome, endereco_str)
 
             elif "consistente na" in text:
-                # "...consistente na PRODUTO, conforme abaixo descrito:"
                 for run in para.runs:
                     if run.bold is True:
                         run.text = produto_desc or termo.produto_descricao or ""
+                        run.font.size = Pt(9)
                         break
 
             elif "execu" in text and "servi" in text and "/" in text:
@@ -271,13 +272,16 @@ class TermoGarantiaService:
 
     @staticmethod
     def montar_descricao_de_orcamento(db: Session, orcamento_id: int) -> str:
-        """Formata '3x PRODUTO_X · 1x SERVICO_Y' a partir dos itens do orçamento local."""
+        """Formata '3x PRODUTO_X · 1x PRODUTO_Y' — apenas itens do tipo PRODUTO."""
         from app.repositories.orcamento_repository import OrcamentoRepository
+        from app.models.orcamento_model import TipoItemOrcamento
         orc = OrcamentoRepository.get_by_id(db, orcamento_id)
         if not orc or not orc.itens:
             return ""
         partes = []
         for item in orc.itens:
+            if item.tipo != TipoItemOrcamento.PRODUTO:
+                continue
             nome = item.nome or f"Item #{item.id}"
             qtd = item.quantidade or 1
             qtd_fmt = int(qtd) if qtd == int(qtd) else qtd

@@ -1,7 +1,7 @@
 # Plano de Implementação — CMPort
 
-**Última atualização:** 2026-04-28
-**Status atual:** Fases 0-9 concluídas. **Sub-fases 10A, 10B, 10C e 10D concluídas.**
+**Última atualização:** 2026-04-29
+**Status atual:** Fases 0-9 concluídas. **Sub-fases 10A, 10B, 10C e 10D concluídas.** Sub-fase 10F planejada (checklist de produtos no termo).
 
 Convenções: `[x]` concluído · `[~]` em andamento · `[ ]` a fazer.
 
@@ -373,6 +373,67 @@ Diretor Comercial
 ### Verificação 10D
 - Enviar email de teste para si mesmo; confirmar **sem XML**, **com termo**.
 - Boleto sem termo: email continua funcionando (boleto + OS).
+
+---
+
+## Sub-fase 10F — Checklist de Produtos do Orçamento no Termo de Garantia `[ ]`
+
+### Objetivo
+Substituir a textarea pré-preenchida por um checklist interativo de produtos do orçamento, permitindo ao usuário selecionar, adicionar e remover itens antes de gerar o termo. PDF mantido em 1 página via redução de fonte.
+
+### Decisões Técnicas
+| Decisão | Escolha |
+|---|---|
+| Tipos de item no termo | Apenas `PRODUTO` (excluir `SERVICO` e `CUSTO_ADICIONAL`) |
+| Fluxo manual (sem orçamento) | Sem alteração — continua com textarea livre |
+| Fonte do produto no PDF | `Pt(9)` aplicado via python-docx ao preencher o run |
+| Novo endpoint | Nenhum — usa `GET /api/v1/orcamentos/{auvo_public_id}` já existente |
+
+### Backend
+
+**10F.1** `[ ]` `backend/app/services/termo_garantia_service.py` — `montar_descricao_de_orcamento`:
+- Filtrar apenas `item.tipo == 'PRODUTO'` (ignorar `SERVICO` e `CUSTO_ADICIONAL`)
+
+**10F.2** `[ ]` `backend/app/services/termo_garantia_service.py` — `gerar_pdf`:
+- Ao preencher o run bold do produto (`"consistente na"`), aplicar `run.font.size = Pt(9)` logo após `run.text = produto_desc`
+- Importar `from docx.shared import Pt` no topo do arquivo
+
+### Frontend
+
+**10F.3** `[ ]` `cmport-front/app/servicos/[id]/page.tsx` — nova Etapa 1.5 no modal do termo:
+
+**Fluxo atual:**
+`Etapa 1 (selecionar orçamento)` → `Etapa 2 (textarea + prazo + datas)`
+
+**Novo fluxo:**
+`Etapa 1 (selecionar orçamento)` → `Etapa 1.5 (checklist de produtos)` → `Etapa 2 (prazo + datas)`
+
+**Etapa 1.5 — detalhes:**
+- Ao clicar "Usar este orçamento" na Etapa 1: fetch `GET /api/v1/orcamentos/{auvo_public_id}` (endpoint existente, retorna `OrcamentoFullResponse` com `itens`)
+- Filtrar `itens.filter(i => i.tipo === 'PRODUTO')` → montar estado local `produtosSelecionados: {nome: string, quantidade: number}[]` (todos pré-checados)
+- Renderizar lista: cada linha tem checkbox + `{quantidade}x {nome}` + botão `×` para remover
+- Botão `+ Adicionar item` → abre inputs inline para `nome` (text) e `quantidade` (number), botão "OK" adiciona à lista
+- Botão "Avançar" → gera `produto_descricao` = itens checados formatados como `"2x Camera HiKVISION · 1x NVDS"` → avança para Etapa 2 (com `setTermoProduto`)
+- Botão "← Voltar" → retorna à Etapa 1
+- Caminho "Pular (digitar manualmente)" → continua indo direto para Etapa 2 sem passar pela 1.5
+
+**Novo estado necessário:**
+```typescript
+const [etapaTermo, setEtapaTermo] = useState<1 | 1.5 | 2>(1)
+interface ProdutoChecklist { nome: string; quantidade: number }
+const [produtosChecklist, setProdutosChecklist] = useState<ProdutoChecklist[]>([])
+const [novoItemNome, setNovoItemNome] = useState('')
+const [novoItemQtd, setNovoItemQtd] = useState(1)
+const [adicionandoItem, setAdicionandoItem] = useState(false)
+```
+
+### Verificação 10F
+- Selecionar orçamento → Etapa 1.5 aparece com produtos do orçamento pré-checados
+- Remover item → some da lista; adicionar item avulso → aparece na lista
+- Avançar → `produto_descricao` reflete exatamente os itens checados
+- PDF gerado cabe em 1 página mesmo com 5+ produtos
+- Caminho manual (Pular) → textarea livre como antes
+- `npx tsc --noEmit` — zero erros
 
 ---
 
