@@ -375,10 +375,20 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         setNotaVinculada(null);
       }
 
-      // Carregar Orçamento vinculado via task_id
+      // Carregar Orçamento vinculado: tenta task_id direto, fallback para mais recente candidato
       try {
         const { data: orc } = await api.get(`/orcamentos/por-servico/${id}`);
-        setOrcamentoDoServico(orc);
+        if (orc) {
+          setOrcamentoDoServico(orc);
+        } else {
+          const { data: cands } = await api.get(`/orcamentos/candidatos/${id}`);
+          if (cands && cands.length > 0) {
+            const { data: orcFull } = await api.get(`/orcamentos/${cands[0].auvo_public_id}`);
+            setOrcamentoDoServico(orcFull);
+          } else {
+            setOrcamentoDoServico(null);
+          }
+        }
       } catch {
         setOrcamentoDoServico(null);
       }
@@ -844,13 +854,34 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setTermoProduto(ordemServico?.report || '');
     setTermoPrazo(12);
     setTermoDataInicio(servico.data_servico);
-    setTermoOrcamentoId(null);
-    setProdutosChecklist([]);
     setNovoItemNome('');
     setNovoItemQtd(1);
     setAdicionandoItem(false);
-    setTermoEtapa(1);
     setModalTermo(true);
+
+    // Se orçamento já carregado na página, pré-preenche e vai direto para Etapa 2
+    if (orcamentoDoServico && orcamentoDoServico.itens.length > 0) {
+      setTermoOrcamentoId(orcamentoDoServico.id);
+      setOrcamentosCandidatos([{
+        id: orcamentoDoServico.id,
+        auvo_public_id: orcamentoDoServico.auvo_public_id,
+        customer_name: orcamentoDoServico.customer_name,
+        request_date: orcamentoDoServico.request_date,
+        net_total_value: Number(orcamentoDoServico.net_total_value),
+        current_stage_description: orcamentoDoServico.current_stage_description,
+      }]);
+      const produtos = orcamentoDoServico.itens
+        .filter(i => i.tipo === 'PRODUTO' || i.tipo === 'SERVICO')
+        .map(i => ({ nome: i.nome || 'Item', quantidade: Number(i.quantidade) }));
+      setProdutosChecklist(produtos);
+      setTermoEtapa(2);
+      return;
+    }
+
+    // Sem orçamento vinculado — carrega lista de candidatos (Etapa 1)
+    setTermoOrcamentoId(null);
+    setProdutosChecklist([]);
+    setTermoEtapa(1);
     setTermoCarregandoCandidatos(true);
     try {
       const { data } = await api.get(`/orcamentos/candidatos/${id}`);
@@ -870,10 +901,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       const { data } = await api.get(`/orcamentos/${orc.auvo_public_id}`);
       if (data.itens && data.itens.length > 0) {
         const produtos = data.itens
-          .filter((item: any) => item.tipo === 'PRODUTO')
+          .filter((item: any) => item.tipo === 'PRODUTO' || item.tipo === 'SERVICO')
           .map((item: any) => ({
             nome: item.nome || 'Item',
-            quantidade: Number.isInteger(Number(item.quantidade)) ? Number(item.quantidade) : Number(item.quantidade),
+            quantidade: Number(item.quantidade),
           }));
         setProdutosChecklist(produtos);
       } else {
@@ -1400,12 +1431,12 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     </div>
                   </div>
 
-                  {orcamentoDoServico.itens.filter(i => i.tipo === 'PRODUTO').length > 0 && (
+                  {orcamentoDoServico.itens.filter(i => i.tipo === 'PRODUTO' || i.tipo === 'SERVICO').length > 0 && (
                     <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Produtos</p>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Itens</p>
                       <div className="space-y-2">
                         {orcamentoDoServico.itens
-                          .filter(i => i.tipo === 'PRODUTO')
+                          .filter(i => i.tipo === 'PRODUTO' || i.tipo === 'SERVICO')
                           .map(item => (
                             <div key={item.id} className="flex items-center justify-between gap-2">
                               <span className="text-sm text-slate-900 dark:text-white">

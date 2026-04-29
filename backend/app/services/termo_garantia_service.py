@@ -219,7 +219,7 @@ class TermoGarantiaService:
             elif "consistente na" in text:
                 for run in para.runs:
                     if run.bold is True:
-                        run.text = produto_desc or termo.produto_descricao or ""
+                        run.text = produto_desc
                         run.font.size = Pt(9)
                         break
 
