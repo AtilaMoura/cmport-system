@@ -1152,17 +1152,12 @@ class BoletoService:
         except Exception:
             pass
 
-        # XML da nota como anexo (se disponível)
-        xml_bytes = None
-        xml_filename = None
-        if nota.xml_original:
-            xml_bytes = nota.xml_original.encode("utf-8") if isinstance(nota.xml_original, str) else nota.xml_original
-            xml_filename = f"nota_{nota.numero_nota or nota.id}.xml"
-
-        # PDF da OS Auvo vinculada (se existir)
+        # PDF da OS Auvo vinculada + termo de garantia (se existirem)
         from app.models.servico_model import ManutencaoAssistencia as _MA
         from app.repositories.ordem_servico_repository import OrdemServicoRepository
+        from app.repositories.termo_garantia_repository import TermoGarantiaRepository
         from app.services.auvo_client import auvo_client
+        from app.services.termo_garantia_service import TermoGarantiaService
 
         lista_anexos = list(anexos_extras or [])
         servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota.id).first()
@@ -1178,6 +1173,20 @@ class BoletoService:
             except Exception as e:
                 print(f"[Email] Aviso: não foi possível anexar PDF da OS: {e}")
 
+        if servico_os:
+            termo = TermoGarantiaRepository.get_by_servico_id(db, servico_os.id)
+            if termo:
+                try:
+                    pdf_termo = TermoGarantiaService.gerar_pdf(db, termo.id)
+                    lista_anexos.append((
+                        f"termo_garantia_servico_{servico_os.id}.pdf",
+                        pdf_termo.getvalue(),
+                        "application/pdf"
+                    ))
+                    print(f"[Email] Termo de garantia do serviço #{servico_os.id} anexado.")
+                except Exception as e:
+                    print(f"[Email] Aviso: não foi possível gerar PDF do termo: {e}")
+
         EmailService.enviar_boleto(
             destinatarios=destinatarios,
             boleto_pdf=pdf_bytes,
@@ -1189,8 +1198,6 @@ class BoletoService:
             numero_parcela=boleto.numero_parcela,
             total_parcelas=boleto.total_parcelas,
             linha_digitavel=linha_digitavel,
-            xml_bytes=xml_bytes,
-            xml_filename=xml_filename,
             assunto_override=assunto_override,
             saudacao=saudacao,
             corpo=corpo,

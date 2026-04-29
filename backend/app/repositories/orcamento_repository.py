@@ -83,3 +83,23 @@ class OrcamentoRepository:
             .limit(limit)
             .all()
         )
+
+    @staticmethod
+    def list_by_condominio_e_periodo(
+        db: Session,
+        condominio_id: int,
+        data_inicio,
+        data_fim,
+    ) -> List[Orcamento]:
+        """Retorna orçamentos não cancelados do condomínio dentro do período."""
+        return (
+            db.query(Orcamento)
+            .filter(
+                Orcamento.condominio_id == condominio_id,
+                Orcamento.request_date >= data_inicio,
+                Orcamento.request_date <= data_fim,
+                Orcamento.is_cancelled == False,
+            )
+            .order_by(Orcamento.request_date.desc())
+            .all()
+        )

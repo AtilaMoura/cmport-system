@@ -34,6 +34,12 @@ def list_orcamentos(
     items, total = OrcamentoService.listar(db, condominio_id=condominio_id, search=search, page=page, page_size=page_size)
     return {"total": total, "items": items}
 
+@router.get("/candidatos/{servico_id}", response_model=List[OrcamentoResponse])
+def get_orcamentos_candidatos(servico_id: int, db: Session = Depends(get_db)):
+    """Retorna orçamentos do condomínio nos 90 dias antes da data do serviço (para termo de garantia)."""
+    return OrcamentoService.listar_candidatos_para_servico(db, servico_id)
+
+
 @router.get("/condominio/{condo_id}", response_model=List[OrcamentoResponse])
 def list_orcamentos_by_condo(condo_id: int, db: Session = Depends(get_db)):
     """Lista últimos 10 orçamentos de um condomínio específico."""

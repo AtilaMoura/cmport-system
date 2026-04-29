@@ -150,3 +150,20 @@ class OrcamentoService:
     @staticmethod
     def listar_por_condominio(db: Session, condominio_id: int, limit: int = 10):
         return OrcamentoRepository.list_by_condominio(db, condominio_id, limit)
+
+    @staticmethod
+    def listar_candidatos_para_servico(db: Session, servico_id: int):
+        """Retorna orçamentos do condomínio nos 90 dias antes da data do serviço."""
+        from app.models.servico_model import ManutencaoAssistencia
+        from datetime import timedelta
+
+        servico = db.query(ManutencaoAssistencia).filter(ManutencaoAssistencia.id == servico_id).first()
+        if not servico or not servico.condominio_id:
+            return []
+
+        data_fim = servico.data_servico
+        data_inicio = data_fim - timedelta(days=90)
+
+        return OrcamentoRepository.list_by_condominio_e_periodo(
+            db, servico.condominio_id, data_inicio, data_fim
+        )

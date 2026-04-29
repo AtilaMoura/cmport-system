@@ -57,7 +57,7 @@ def _fmt_data(d) -> str:
 
 
 _SAUDACAO_PADRAO = "Prezados(as),"
-_RODAPE_PADRAO   = ("O boleto em PDF e o XML da nota fiscal estão anexados a este email.\n"
+_RODAPE_PADRAO   = ("O boleto em PDF e a ordem de serviço estão anexados a este email.\n"
                     "Por gentileza, confirmar o recebimento deste e-mail.")
 
 
@@ -77,7 +77,7 @@ def _html_boleto(
 
     _saudacao = (saudacao or _SAUDACAO_PADRAO).replace("\n", "<br>")
     _corpo = (corpo or (
-        f"Segue em anexo o boleto, nota fiscal e a ordem de serviço "
+        f"Segue em anexo o boleto e a ordem de serviço "
         f"referente à Nota Fiscal <strong>#{numero_nota}</strong> — "
         f"<strong>{nome_condominio}</strong>."
     )).replace("\n", "<br>")
