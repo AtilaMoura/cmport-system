@@ -217,6 +217,7 @@ Seeds executados no startup:
 |---|---|---|
 | `/api/v1/auth` | `auth_router.py` | Login JWT (`/login`, `/login-form`) + `/me` — **público** |
 | `/api/v1/condominios` | `condominio_router.py` | CRUD + Auvo sync + search |
+| `/api/v1/termos-garantia` | `termo_garantia_router.py` | CRUD termo + gerar PDF (LibreOffice) |
 | `/api/v1/enderecos` | `endereco_router.py` | 1:1 address per condominio |
 | `/api/v1/contatos` | `contato_router.py` | N contacts per condominio |
 | `/api/v1/servicos` | `servico_router.py` | Maintenance/assistance records |
@@ -226,6 +227,9 @@ Seeds executados no startup:
 | `/api/v1/auditoria` | `auditoria_router.py` | Deletion audit trail |
 | `/api/v1/configuracoes` | `configuracao_router.py` | Email accounts CRUD + empresa config |
 | `/api/v1/dev` | `dev_router.py` | Development/testing utilities |
+| `/api/v1/produtos` | `produto_router.py` | Sync + listagem produtos Auvo |
+| `/api/v1/orcamentos` | `orcamento_router.py` | Sync + listagem + candidatos + por-servico |
+| `/api/v1/termos-garantia` | `termo_garantia_router.py` | CRUD + PDF via LibreOffice |
 
 Todos os routers exceto `/auth` exigem JWT válido via `get_current_user` (injetado globalmente em `main.py`).
 
@@ -375,6 +379,24 @@ OUTROS:      all 0.00%
 
 ### Auvo Integration
 `backend/app/services/auvo_client.py` e `auvo_service.py` sincronizam dados de clientes da API Auvo para condominios/enderecos/contatos locais. Triggered via `/api/v1/condominios/sync-auvo`.
+
+### Produtos e Orçamentos Auvo
+- `POST /produtos/sync` — sincroniza catálogo de produtos do Auvo (`auvo_client.get_all_products()`)
+- `POST /orcamentos/sync?date_start=&date_end=` — sincroniza orçamentos do período; salva `orcamentos` + `orcamento_itens` + `orcamento_task_ids`
+- `GET /orcamentos/candidatos/{servico_id}` — orçamentos do mesmo condomínio nos 90 dias antes do serviço (usados no modal do termo)
+- `GET /orcamentos/por-servico/{servico_id}` — orçamento com `OrcamentoTaskId.task_id == int(servico.numero_os)` (vínculo direto); retorna `null` se não encontrado
+- Fallback no frontend: se `por-servico` retorna null, busca primeiro candidato dos 90 dias
+
+**Chave de vínculo Orçamento ↔ OS:**
+- `manutencoes_assistencias.numero_os` (String) = `ordens_servico.task_id` (Int) = `orcamento_task_ids.task_id` (BigInt) — todos são o Auvo task ID
+- Um orçamento pode ter N `task_ids` (linkedado a N OSs); uma OS normalmente liga a 1 orçamento
+
+### Termo de Garantia
+- Tabela `termos_garantia`: 1:1 com `ManutencaoAssistencia` (UNIQUE `servico_id`); armazena `produto_descricao`, `prazo_meses`, `data_inicio`, `data_fim`, `orcamento_id` (FK opcional)
+- `gerar_pdf(db, termo_id)` — carrega template Word (`assets/termo_garantia_template.docx`), substitui campos via `python-docx`, remove `w:pageBreakBefore` para manter 1 página, converte para PDF via LibreOffice (disponível no container)
+- `produto_descricao` é formatado no frontend pelo checklist (`"2x Câmera · 1x NVDS"`) e salvo na criação — o service usa diretamente sem re-consultar o orçamento
+- Sufixo nota fiscal: `-A` para assistencia, `-M` para manutencao
+- Frontend (`/servicos/[id]`): card "Orçamento Vinculado" (amber) + card "Termo de Garantia" (teal); ao abrir modal do termo, se orçamento já carregado → pula direto para checklist (Etapa 2) pré-preenchido com itens PRODUTO + SERVICO
 
 ### Auditoria (Audit Trail)
 Deletions call `registrar_exclusao()` from `auditoria/router.py`, storing a full JSON snapshot of the deleted record in `registros_exclusoes` before deletion.

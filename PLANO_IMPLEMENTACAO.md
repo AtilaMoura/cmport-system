@@ -1,7 +1,7 @@
 # Plano de Implementação — CMPort
 
-**Última atualização:** 2026-04-29
-**Status atual:** Fases 0-9 concluídas. **Sub-fases 10A, 10B, 10C e 10D concluídas.** Sub-fase 10F planejada (checklist de produtos no termo).
+**Última atualização:** 2026-04-30
+**Status atual:** Fases 0-9 concluídas. **Sub-fases 10A, 10B, 10C, 10D e 10F concluídas. Correções pós-10F aplicadas.**
 
 Convenções: `[x]` concluído · `[~]` em andamento · `[ ]` a fazer.
 
@@ -376,7 +376,7 @@ Diretor Comercial
 
 ---
 
-## Sub-fase 10F — Checklist de Produtos do Orçamento no Termo de Garantia `[ ]`
+## Sub-fase 10F — Checklist de Produtos do Orçamento no Termo de Garantia `[x]`
 
 ### Objetivo
 Substituir a textarea pré-preenchida por um checklist interativo de produtos do orçamento, permitindo ao usuário selecionar, adicionar e remover itens antes de gerar o termo. PDF mantido em 1 página via redução de fonte.
@@ -391,16 +391,16 @@ Substituir a textarea pré-preenchida por um checklist interativo de produtos do
 
 ### Backend
 
-**10F.1** `[ ]` `backend/app/services/termo_garantia_service.py` — `montar_descricao_de_orcamento`:
+**10F.1** `[x]` `backend/app/services/termo_garantia_service.py` — `montar_descricao_de_orcamento`:
 - Filtrar apenas `item.tipo == 'PRODUTO'` (ignorar `SERVICO` e `CUSTO_ADICIONAL`)
 
-**10F.2** `[ ]` `backend/app/services/termo_garantia_service.py` — `gerar_pdf`:
+**10F.2** `[x]` `backend/app/services/termo_garantia_service.py` — `gerar_pdf`:
 - Ao preencher o run bold do produto (`"consistente na"`), aplicar `run.font.size = Pt(9)` logo após `run.text = produto_desc`
 - Importar `from docx.shared import Pt` no topo do arquivo
 
 ### Frontend
 
-**10F.3** `[ ]` `cmport-front/app/servicos/[id]/page.tsx` — nova Etapa 1.5 no modal do termo:
+**10F.3** `[x]` `cmport-front/app/servicos/[id]/page.tsx` — nova Etapa 1.5 no modal do termo:
 
 **Fluxo atual:**
 `Etapa 1 (selecionar orçamento)` → `Etapa 2 (textarea + prazo + datas)`
@@ -434,6 +434,30 @@ const [adicionandoItem, setAdicionandoItem] = useState(false)
 - PDF gerado cabe em 1 página mesmo com 5+ produtos
 - Caminho manual (Pular) → textarea livre como antes
 - `npx tsc --noEmit` — zero erros
+
+---
+
+## Correções Pós-10F — 2026-04-30 `[x]`
+
+### Termo de Garantia — 1 página + produtos corretos
+- `[x]` `_remover_quebras_pagina(doc)` adicionado ao service e ao script de teste — elimina `w:pageBreakBefore` e `w:br type="page"` do template; PDF sai em 1 página
+- `[x]` `gerar_pdf` passou a usar `termo.produto_descricao` diretamente (checklist já formatado pelo frontend), em vez de re-consultar `montar_descricao_de_orcamento` — resolve produtos não aparecendo
+- `[x]` Sufixo A/M confirmado correto: `-A` = assistencia, `-M` = manutencao
+- `[x]` `backend/teste_gerador_termo_garantia.py` corrigido com encoding utf-8 e `remover_quebras_pagina`
+
+### Orçamento no detalhe do serviço
+- `[x]` Novo endpoint `GET /api/v1/orcamentos/por-servico/{servico_id}` — busca via `OrcamentoTaskId.task_id = int(servico.numero_os)`
+- `[x]` Frontend: card "Orçamento Vinculado" na página `/servicos/[id]` entre OS e Termo de Garantia — mostra número Auvo, data, status, total e itens
+- `[x]` Fallback: se `por-servico` retorna null, busca primeiro candidato dos últimos 90 dias (`/orcamentos/candidatos/{servico_id}`)
+
+### Checklist do termo — pré-preenchimento e itens SERVICO
+- `[x]` `abrirModalTermo`: se orçamento já carregado na página, pula direto para Etapa 2 com produtos pré-selecionados (sem precisar recarregar da API)
+- `[x]` Checklist agora inclui itens `PRODUTO` **e** `SERVICO` (antes só `PRODUTO`)
+- `[x]` Card do detalhe também mostra itens `PRODUTO` e `SERVICO`
+
+### Relacionamento orçamento ↔ OS
+- Chave comum: Auvo task ID guardado em `manutencoes_assistencias.numero_os` (String), `ordens_servico.task_id` (Int) e `orcamento_task_ids.task_id` (BigInt)
+- Um orçamento pode ter N task_ids (N OSs); cada OS normalmente liga a 1 orçamento
 
 ---
 
