@@ -42,8 +42,17 @@ def get_orcamentos_candidatos(servico_id: int, db: Session = Depends(get_db)):
 
 @router.get("/por-servico/{servico_id}", response_model=Optional[OrcamentoFullResponse])
 def get_orcamento_por_servico(servico_id: int, db: Session = Depends(get_db)):
-    """Retorna o orçamento vinculado ao serviço via OrcamentoTaskId (task_id = numero_os)."""
+    """Retorna o orçamento vinculado ao serviço (orcamento_id manual primeiro, depois task_id)."""
     return OrcamentoService.get_por_servico(db, servico_id)
+
+
+@router.get("/{orcamento_id}/servicos", response_model=List)
+def get_servicos_do_orcamento(orcamento_id: int, db: Session = Depends(get_db)):
+    """Lista serviços manualmente vinculados a este orçamento."""
+    from app.services.servico_service import ServicoService
+    from app.schemas.servico_schema import ServicoResponse
+    servicos = ServicoService.list_by_orcamento(db, orcamento_id)
+    return [ServicoResponse.model_validate(s) for s in servicos]
 
 
 @router.get("/condominio/{condo_id}", response_model=List[OrcamentoResponse])

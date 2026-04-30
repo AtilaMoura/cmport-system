@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -13,6 +13,7 @@ interface Servico {
   descricao: string | null;
   nota_fiscal_id: number | null;
   numero_os: string | null;
+  orcamento_id: number | null;
   criado_em: string;
   atualizado_em: string;
 }
@@ -299,6 +300,11 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
 
   // Orçamento vinculado ao serviço
   const [orcamentoDoServico, setOrcamentoDoServico] = useState<OrcamentoDetalhe | null>(null);
+  // Modal vincular orçamento
+  const [modalVincularOrc, setModalVincularOrc] = useState(false);
+  const [orcamentosCondominio, setOrcamentosCondominio] = useState<OrcamentoCandidato[]>([]);
+  const [carregandoOrcsCondominio, setCarregandoOrcsCondominio] = useState(false);
+  const [vinculandoOrc, setVinculandoOrc] = useState(false);
 
   // Termo de Garantia
   const [termoGarantia, setTermoGarantia] = useState<TermoGarantia | null>(null);
@@ -319,6 +325,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [novoItemNome, setNovoItemNome] = useState('');
   const [novoItemQtd, setNovoItemQtd] = useState(1);
   const [adicionandoItem, setAdicionandoItem] = useState(false);
+  const [produtoSugestoes, setProdutoSugestoes] = useState<string[]>([]);
+  const [mostraSugestoes, setMostraSugestoes] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     params.then(p => setId(p.id));
@@ -917,6 +926,22 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
   };
 
+  const buscarProdutosSugestoes = (q: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (q.length < 2) { setProdutoSugestoes([]); setMostraSugestoes(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/produtos?search=${encodeURIComponent(q)}&page_size=8`);
+        const nomes: string[] = (data.items || []).map((p: { nome: string }) => p.nome);
+        setProdutoSugestoes(nomes);
+        setMostraSugestoes(nomes.length > 0);
+      } catch {
+        setProdutoSugestoes([]);
+        setMostraSugestoes(false);
+      }
+    }, 300);
+  };
+
   const handleAvancarChecklist = () => {
     const desc = produtosChecklist
       .map(p => {
@@ -1143,6 +1168,47 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       alert('Erro ao cancelar boleto no Inter.');
     } finally {
       setCancelandoBoletoId(null);
+    }
+  };
+
+  const abrirModalVincularOrc = async () => {
+    if (!condominio) return;
+    setModalVincularOrc(true);
+    setCarregandoOrcsCondominio(true);
+    try {
+      const { data } = await api.get(`/orcamentos/condominio/${condominio.id}`);
+      setOrcamentosCondominio(data);
+    } catch {
+      setOrcamentosCondominio([]);
+    } finally {
+      setCarregandoOrcsCondominio(false);
+    }
+  };
+
+  const handleVincularOrcamento = async (orcId: number, orcAuvoId: number) => {
+    if (!id) return;
+    setVinculandoOrc(true);
+    try {
+      await api.put(`/servicos/${id}/orcamento`, { orcamento_id: orcId });
+      setModalVincularOrc(false);
+      await carregarDados();
+    } catch {
+      alert('Erro ao vincular orçamento.');
+    } finally {
+      setVinculandoOrc(false);
+    }
+  };
+
+  const handleDesvinculartOrcamento = async () => {
+    if (!id || !confirm('Desvincular orçamento deste serviço?')) return;
+    setVinculandoOrc(true);
+    try {
+      await api.put(`/servicos/${id}/orcamento`, { orcamento_id: null });
+      await carregarDados();
+    } catch {
+      alert('Erro ao desvincular orçamento.');
+    } finally {
+      setVinculandoOrc(false);
     }
   };
 
@@ -1397,63 +1463,97 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
             )}
 
             {/* Orçamento vinculado */}
-            {orcamentoDoServico && (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                <div className="px-6 py-4 bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-800/30 flex items-center justify-between flex-wrap gap-2">
-                  <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                    <span className="text-xl">📋</span> Orçamento Vinculado
-                  </h2>
-                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 px-2 py-1 rounded-lg">
-                    #{orcamentoDoServico.auvo_public_id}
-                  </span>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {orcamentoDoServico.request_date && (
-                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Data</p>
-                        <p className="font-bold text-slate-900 dark:text-white text-sm">
-                          {new Date(orcamentoDoServico.request_date + 'T12:00:00').toLocaleDateString('pt-BR')}
-                        </p>
-                      </div>
-                    )}
-                    {orcamentoDoServico.current_stage_description && (
-                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Status</p>
-                        <p className="font-bold text-slate-900 dark:text-white text-sm">{orcamentoDoServico.current_stage_description}</p>
-                      </div>
-                    )}
-                    <div className="bg-amber-50 dark:bg-amber-500/10 rounded-xl p-3">
-                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase mb-1">Total</p>
-                      <p className="font-black text-amber-700 dark:text-amber-300 text-sm">
-                        {Number(orcamentoDoServico.net_total_value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </p>
-                    </div>
-                  </div>
-
-                  {orcamentoDoServico.itens.filter(i => i.tipo === 'PRODUTO' || i.tipo === 'SERVICO').length > 0 && (
-                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Itens</p>
-                      <div className="space-y-2">
-                        {orcamentoDoServico.itens
-                          .filter(i => i.tipo === 'PRODUTO' || i.tipo === 'SERVICO')
-                          .map(item => (
-                            <div key={item.id} className="flex items-center justify-between gap-2">
-                              <span className="text-sm text-slate-900 dark:text-white">
-                                <span className="font-bold text-amber-600 dark:text-amber-400 mr-1">{Number.isInteger(Number(item.quantidade)) ? Number(item.quantidade) : Number(item.quantidade).toFixed(1)}x</span>
-                                {item.nome || `Item #${item.id}`}
-                              </span>
-                              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">
-                                {Number(item.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                              </span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-800/30 flex items-center justify-between flex-wrap gap-2">
+                <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="text-xl">📋</span> Orçamento Vinculado
+                  {servico.orcamento_id && (
+                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-500/30 text-amber-800 dark:text-amber-300">
+                      Manual
+                    </span>
                   )}
+                </h2>
+                <div className="flex items-center gap-2">
+                  {orcamentoDoServico && (
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 px-2 py-1 rounded-lg">
+                      #{orcamentoDoServico.auvo_public_id}
+                    </span>
+                  )}
+                  {servico.orcamento_id ? (
+                    <button
+                      onClick={handleDesvinculartOrcamento}
+                      disabled={vinculandoOrc}
+                      className="px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-lg hover:brightness-105 transition-all disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {vinculandoOrc
+                        ? <div className="w-3 h-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                        : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.1-1.1m1.415-8.328a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.1-1.1" /></svg>}
+                      Desvincular
+                    </button>
+                  ) : null}
+                  <button
+                    onClick={abrirModalVincularOrc}
+                    className="px-3 py-1.5 text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 rounded-lg hover:brightness-105 transition-all flex items-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.1-1.1M10.172 13.828a4 4 0 01-5.656 0l-4-4a4 4 0 015.656-5.656l1.1 1.1" /></svg>
+                    {servico.orcamento_id ? 'Alterar' : 'Vincular'}
+                  </button>
                 </div>
               </div>
-            )}
+              <div className="p-6">
+                {orcamentoDoServico ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {orcamentoDoServico.request_date && (
+                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Data</p>
+                          <p className="font-bold text-slate-900 dark:text-white text-sm">
+                            {new Date(orcamentoDoServico.request_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
+                      )}
+                      {orcamentoDoServico.current_stage_description && (
+                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Status</p>
+                          <p className="font-bold text-slate-900 dark:text-white text-sm">{orcamentoDoServico.current_stage_description}</p>
+                        </div>
+                      )}
+                      <div className="bg-amber-50 dark:bg-amber-500/10 rounded-xl p-3">
+                        <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase mb-1">Total</p>
+                        <p className="font-black text-amber-700 dark:text-amber-300 text-sm">
+                          {Number(orcamentoDoServico.net_total_value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </p>
+                      </div>
+                    </div>
+
+                    {orcamentoDoServico.itens.filter(i => i.tipo === 'PRODUTO' || i.tipo === 'SERVICO').length > 0 && (
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Itens</p>
+                        <div className="space-y-2">
+                          {orcamentoDoServico.itens
+                            .filter(i => i.tipo === 'PRODUTO' || i.tipo === 'SERVICO')
+                            .map(item => (
+                              <div key={item.id} className="flex items-center justify-between gap-2">
+                                <span className="text-sm text-slate-900 dark:text-white">
+                                  <span className="font-bold text-amber-600 dark:text-amber-400 mr-1">{Number.isInteger(Number(item.quantidade)) ? Number(item.quantidade) : Number(item.quantidade).toFixed(1)}x</span>
+                                  {item.nome || `Item #${item.id}`}
+                                </span>
+                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                                  {Number(item.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm italic">Nenhum orçamento vinculado a este serviço.</p>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Termo de Garantia */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -2926,27 +3026,52 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                       </div>
 
                       {adicionandoItem ? (
-                        <div className="flex gap-2 items-center">
+                        <div className="flex gap-2 items-start">
                           <input
                             type="number"
                             min={1}
                             value={novoItemQtd}
                             onChange={e => setNovoItemQtd(Math.max(1, parseInt(e.target.value) || 1))}
-                            className="w-16 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500 text-center"
+                            className="w-16 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500 text-center mt-0.5"
                           />
-                          <input
-                            type="text"
-                            value={novoItemNome}
-                            onChange={e => setNovoItemNome(e.target.value)}
-                            placeholder="Nome do produto"
-                            className="flex-1 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500"
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' && novoItemNome.trim()) {
-                                setProdutosChecklist(prev => [...prev, { nome: novoItemNome.trim(), quantidade: novoItemQtd }]);
-                                setNovoItemNome(''); setNovoItemQtd(1); setAdicionandoItem(false);
-                              }
-                            }}
-                          />
+                          <div className="relative flex-1">
+                            <input
+                              type="text"
+                              value={novoItemNome}
+                              onChange={e => {
+                                setNovoItemNome(e.target.value);
+                                buscarProdutosSugestoes(e.target.value);
+                              }}
+                              placeholder="Nome do produto"
+                              className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                              onKeyDown={e => {
+                                if (e.key === 'Escape') { setMostraSugestoes(false); }
+                                if (e.key === 'Enter' && novoItemNome.trim()) {
+                                  setProdutosChecklist(prev => [...prev, { nome: novoItemNome.trim(), quantidade: novoItemQtd }]);
+                                  setNovoItemNome(''); setNovoItemQtd(1); setAdicionandoItem(false);
+                                  setMostraSugestoes(false);
+                                }
+                              }}
+                              onBlur={() => setTimeout(() => setMostraSugestoes(false), 150)}
+                            />
+                            {mostraSugestoes && produtoSugestoes.length > 0 && (
+                              <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                {produtoSugestoes.map((nome, i) => (
+                                  <li
+                                    key={i}
+                                    onMouseDown={() => {
+                                      setNovoItemNome(nome);
+                                      setMostraSugestoes(false);
+                                      setProdutoSugestoes([]);
+                                    }}
+                                    className="px-3 py-2 text-sm cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-500/10 text-slate-800 dark:text-slate-200 first:rounded-t-xl last:rounded-b-xl transition-colors"
+                                  >
+                                    {nome}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                           <button
                             onClick={() => {
                               if (novoItemNome.trim()) {
@@ -2954,12 +3079,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                 setNovoItemNome(''); setNovoItemQtd(1);
                               }
                               setAdicionandoItem(false);
+                              setMostraSugestoes(false);
                             }}
-                            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-all"
+                            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-all mt-0.5"
                           >OK</button>
                           <button
-                            onClick={() => { setAdicionandoItem(false); setNovoItemNome(''); setNovoItemQtd(1); }}
-                            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-sm hover:brightness-95 transition-all"
+                            onClick={() => { setAdicionandoItem(false); setNovoItemNome(''); setNovoItemQtd(1); setMostraSugestoes(false); }}
+                            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-sm hover:brightness-95 transition-all mt-0.5"
                           >✕</button>
                         </div>
                       ) : (
@@ -2995,6 +3121,12 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     <p className="text-xs text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10 rounded-lg px-3 py-2">
                       Orçamento #{orcamentosCandidatos.find(o => o.id === termoOrcamentoId)?.auvo_public_id} selecionado
                     </p>
+                  )}
+                  {notaFiscal?.descricao_servico && (
+                    <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-3">
+                      <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase mb-1">Descrição da Nota Fiscal (consulta)</p>
+                      <p className="text-xs text-amber-900 dark:text-amber-200 whitespace-pre-wrap leading-relaxed">{notaFiscal.descricao_servico}</p>
+                    </div>
                   )}
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descrição do Produto/Serviço</label>
@@ -3082,6 +3214,59 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal vincular orçamento */}
+      {modalVincularOrc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg" style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <h3 className="font-black text-slate-900 dark:text-white text-lg">Vincular Orçamento</h3>
+              <button onClick={() => setModalVincularOrc(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none">×</button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {carregandoOrcsCondominio ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : orcamentosCondominio.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6 italic">
+                  Nenhum orçamento encontrado para {condominio?.nome ?? 'este condomínio'}.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                    Orçamentos de <strong>{condominio?.nome}</strong>:
+                  </p>
+                  {orcamentosCondominio.map(orc => (
+                    <button
+                      key={orc.id}
+                      onClick={() => handleVincularOrcamento(orc.id, orc.auvo_public_id)}
+                      disabled={vinculandoOrc}
+                      className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all disabled:opacity-50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-600 dark:text-amber-400">#{orc.auvo_public_id}</span>
+                        <span className="text-xs text-slate-500">{orc.request_date ? new Date(orc.request_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</span>
+                      </div>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5 truncate">{orc.customer_name || '—'}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {Number(orc.net_total_value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {orc.current_stage_description ? ` · ${orc.current_stage_description}` : ''}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <button onClick={() => setModalVincularOrc(false)}
+                className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all text-sm hover:brightness-95">
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

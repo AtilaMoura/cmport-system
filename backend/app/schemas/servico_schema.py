@@ -35,6 +35,7 @@ class ServicoResponse(ServicoBase):
     id: int
     condominio_id: int
     numero_os: Optional[str] = None
+    orcamento_id: Optional[int] = None
     criado_em: datetime
     atualizado_em: datetime
 

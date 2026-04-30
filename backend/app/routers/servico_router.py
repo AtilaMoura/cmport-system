@@ -1,10 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from pydantic import BaseModel
 
 from app.core.database import SessionLocal
 from app.services.servico_service import ServicoService
 from app.schemas.servico_schema import ServicoCreate, ServicoUpdate, ServicoResponse
+
+
+class VincularOrcamentoBody(BaseModel):
+    orcamento_id: Optional[int] = None
 
 router = APIRouter()
 
@@ -46,6 +51,15 @@ def update_servico(servico_id: int, servico_update: ServicoUpdate, db: Session =
     if not updated:
         raise HTTPException(status_code=404, detail="Serviço não encontrado")
     return updated
+
+
+@router.put("/{servico_id}/orcamento", response_model=ServicoResponse)
+def vincular_orcamento(servico_id: int, body: VincularOrcamentoBody, db: Session = Depends(get_db)):
+    """Vincula ou desvincula um orçamento ao serviço (orcamento_id=null para desvincular)."""
+    servico = ServicoService.vincular_orcamento(db, servico_id, body.orcamento_id)
+    if not servico:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+    return servico
 
 
 @router.delete("/{servico_id}", status_code=204)

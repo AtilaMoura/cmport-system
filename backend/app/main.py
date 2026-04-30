@@ -52,6 +52,30 @@ from app.routers.termo_garantia_router import router as termo_garantia_router
 Base.metadata.create_all(bind=engine)
 
 
+def _run_migrations():
+    """Aplica ALTER TABLE incrementais para colunas que não existem ainda."""
+    from sqlalchemy import text
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    stmts = [
+        "ALTER TABLE manutencoes_assistencias ADD COLUMN orcamento_id INT NULL",
+        "ALTER TABLE manutencoes_assistencias ADD INDEX idx_servico_orcamento (orcamento_id)",
+        "ALTER TABLE manutencoes_assistencias ADD CONSTRAINT fk_servico_orcamento FOREIGN KEY (orcamento_id) REFERENCES orcamentos(id) ON DELETE SET NULL",
+    ]
+    try:
+        for stmt in stmts:
+            try:
+                db.execute(text(stmt))
+                db.commit()
+            except Exception:
+                db.rollback()
+    finally:
+        db.close()
+
+
+_run_migrations()
+
+
 # ── Seeds de startup ─────────────────────────────────────────────────────────
 
 def _seed_configuracao_impostos():

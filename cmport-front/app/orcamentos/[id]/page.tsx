@@ -37,19 +37,91 @@ interface Orcamento {
   task_ids: { task_id: number }[]
 }
 
+interface ServicoVinculado {
+  id: number
+  tipo: 'manutencao' | 'assistencia'
+  data_servico: string
+  descricao: string | null
+  numero_os: string | null
+  orcamento_id: number | null
+}
+
+interface ServicoCondominio {
+  id: number
+  tipo: 'manutencao' | 'assistencia'
+  data_servico: string
+  descricao: string | null
+  numero_os: string | null
+  orcamento_id: number | null
+}
+
 export default function OrcamentoDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null)
   const [loading, setLoading] = useState(true)
+  const [servicosVinculados, setServicosVinculados] = useState<ServicoVinculado[]>([])
+  const [modalVincularServico, setModalVincularServico] = useState(false)
+  const [servicosCondominio, setServicosCondominio] = useState<ServicoCondominio[]>([])
+  const [carregandoServicos, setCarregandoServicos] = useState(false)
+  const [vinculandoServico, setVinculandoServico] = useState(false)
+  const [desvinculandoServicoId, setDesvinculandoServicoId] = useState<number | null>(null)
 
   const carregar = async () => {
     try {
       const res = await api.get(`/orcamentos/${id}`)
       setOrcamento(res.data)
+      // Carrega serviços vinculados via orcamento_id FK
+      try {
+        const { data: svs } = await api.get(`/orcamentos/${res.data.id}/servicos`)
+        setServicosVinculados(svs)
+      } catch {
+        setServicosVinculados([])
+      }
     } catch (e) {
       console.error('Erro ao carregar orçamento:', e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const abrirModalVincularServico = async () => {
+    if (!orcamento?.condominio_id) return
+    setModalVincularServico(true)
+    setCarregandoServicos(true)
+    try {
+      const { data } = await api.get(`/servicos/condominio/${orcamento.condominio_id}`)
+      setServicosCondominio(data)
+    } catch {
+      setServicosCondominio([])
+    } finally {
+      setCarregandoServicos(false)
+    }
+  }
+
+  const handleVincularServico = async (servicoId: number) => {
+    if (!orcamento) return
+    setVinculandoServico(true)
+    try {
+      await api.put(`/servicos/${servicoId}/orcamento`, { orcamento_id: orcamento.id })
+      setModalVincularServico(false)
+      await carregar()
+    } catch {
+      alert('Erro ao vincular serviço.')
+    } finally {
+      setVinculandoServico(false)
+    }
+  }
+
+  const handleDesvinculartServico = async (servicoId: number) => {
+    if (!confirm('Desvincular este serviço do orçamento?')) return
+    setDesvinculandoServicoId(servicoId)
+    try {
+      await api.put(`/servicos/${servicoId}/orcamento`, { orcamento_id: null })
+      await carregar()
+    } catch {
+      alert('Erro ao desvincular serviço.')
+    } finally {
+      setDesvinculandoServicoId(null)
     }
   }
 
@@ -218,8 +290,8 @@ export default function OrcamentoDetalhePage({ params }: { params: Promise<{ id:
             {orcamento.task_ids.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {orcamento.task_ids.map(t => (
-                  <Link 
-                    key={t.task_id} 
+                  <Link
+                    key={t.task_id}
                     href={`/ordens-servico/${t.task_id}`}
                     className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-black hover:bg-blue-600 hover:text-white transition-all uppercase tracking-tight"
                   >
@@ -231,8 +303,111 @@ export default function OrcamentoDetalhePage({ params }: { params: Promise<{ id:
               <p className="text-xs text-slate-500 font-medium">Nenhuma OS vinculada a este orçamento.</p>
             )}
           </div>
+
+          {/* Serviços Vinculados (vínculo manual por orcamento_id) */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Serviços Vinculados</h3>
+              {orcamento.condominio_id && (
+                <button
+                  onClick={abrirModalVincularServico}
+                  className="text-[10px] font-black text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-500/20 px-2 py-1 rounded-lg hover:brightness-105 transition-all uppercase tracking-tight"
+                >
+                  + Vincular
+                </button>
+              )}
+            </div>
+            {servicosVinculados.length > 0 ? (
+              <div className="space-y-2">
+                {servicosVinculados.map(sv => (
+                  <div key={sv.id} className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                    <Link href={`/servicos/${sv.id}`} className="flex-1 min-w-0 hover:text-purple-600 dark:hover:text-purple-400 transition-colors">
+                      <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                        {sv.tipo === 'manutencao' ? '🛠️ Manutenção' : '🔧 Assistência'} #{sv.id}
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        {new Date(sv.data_servico + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        {sv.numero_os ? ` · OS #${sv.numero_os}` : ''}
+                      </p>
+                    </Link>
+                    <button
+                      onClick={() => handleDesvinculartServico(sv.id)}
+                      disabled={desvinculandoServicoId === sv.id}
+                      className="text-[10px] font-bold text-red-500 dark:text-red-400 hover:text-red-700 transition-colors disabled:opacity-50 shrink-0"
+                      title="Desvincular"
+                    >
+                      {desvinculandoServicoId === sv.id
+                        ? <div className="w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin" />
+                        : '✕'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 font-medium">Nenhum serviço vinculado manualmente.</p>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Modal vincular serviço */}
+      {modalVincularServico && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg" style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <h3 className="font-black text-slate-900 dark:text-white text-lg">Vincular Serviço</h3>
+              <button onClick={() => setModalVincularServico(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none">×</button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {carregandoServicos ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : servicosCondominio.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6 italic">
+                  Nenhum serviço encontrado para este condomínio.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                    Serviços de <strong>{orcamento?.customer_name}</strong>:
+                  </p>
+                  {servicosCondominio.map(sv => (
+                    <button
+                      key={sv.id}
+                      onClick={() => handleVincularServico(sv.id)}
+                      disabled={vinculandoServico || !!sv.orcamento_id}
+                      className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-all disabled:opacity-50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-purple-600 dark:text-purple-400">
+                          {sv.tipo === 'manutencao' ? '🛠️ Manutenção' : '🔧 Assistência'} #{sv.id}
+                        </span>
+                        {sv.orcamento_id && (
+                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">já vinculado</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-700 dark:text-slate-300 mt-0.5">
+                        {new Date(sv.data_servico + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        {sv.numero_os ? ` · OS #${sv.numero_os}` : ''}
+                      </p>
+                      {sv.descricao && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{sv.descricao}</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <button onClick={() => setModalVincularServico(false)}
+                className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all text-sm hover:brightness-95">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

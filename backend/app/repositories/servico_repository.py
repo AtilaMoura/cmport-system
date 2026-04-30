@@ -43,6 +43,15 @@ class ServicoRepository:
         return db_servico
 
     @staticmethod
+    def list_by_orcamento_id(db: Session, orcamento_id: int) -> List[ManutencaoAssistencia]:
+        return (
+            db.query(ManutencaoAssistencia)
+            .filter(ManutencaoAssistencia.orcamento_id == orcamento_id)
+            .order_by(ManutencaoAssistencia.data_servico.desc())
+            .all()
+        )
+
+    @staticmethod
     def delete(db: Session, db_servico: ManutencaoAssistencia) -> None:
         db.delete(db_servico)
         db.commit()

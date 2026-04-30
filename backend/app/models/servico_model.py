@@ -27,6 +27,9 @@ class ManutencaoAssistencia(Base):
     criado_em = Column(DateTime, default=datetime.utcnow)
     atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    orcamento_id = Column(Integer, ForeignKey("orcamentos.id", ondelete="SET NULL"), nullable=True, index=True)
+
     condominio = relationship("Condominio", back_populates="servicos")
     nota_fiscal = relationship("NotaFiscal")
     ordem_servico = relationship("OrdemServico")
+    orcamento = relationship("Orcamento")

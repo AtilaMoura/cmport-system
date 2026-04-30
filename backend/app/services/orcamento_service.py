@@ -153,12 +153,18 @@ class OrcamentoService:
 
     @staticmethod
     def get_por_servico(db: Session, servico_id: int):
-        """Retorna o orçamento vinculado diretamente ao serviço via OrcamentoTaskId.task_id = numero_os."""
+        """Retorna o orçamento vinculado ao serviço: manual (orcamento_id) tem prioridade, depois task_id."""
         from app.models.servico_model import ManutencaoAssistencia
         from app.models.orcamento_model import OrcamentoTaskId
 
         servico = db.query(ManutencaoAssistencia).filter(ManutencaoAssistencia.id == servico_id).first()
-        if not servico or not servico.numero_os:
+        if not servico:
+            return None
+
+        if servico.orcamento_id:
+            return OrcamentoRepository.get_by_id(db, servico.orcamento_id)
+
+        if not servico.numero_os:
             return None
 
         try:

@@ -152,6 +152,27 @@ def _remover_quebras_pagina(doc):
                     run._r.remove(br)
 
 
+def _ajustar_para_uma_pagina(doc):
+    """Reduz margens, espaçamento entre parágrafos e tamanho de fonte para caber em uma página."""
+    from docx.shared import Cm, Pt
+    # Reduz margens da página
+    for section in doc.sections:
+        section.top_margin = Cm(1.2)
+        section.bottom_margin = Cm(1.2)
+        section.left_margin = Cm(1.5)
+        section.right_margin = Cm(1.5)
+    # Reduz espaçamento e fonte parágrafo a parágrafo
+    for para in doc.paragraphs:
+        fmt = para.paragraph_format
+        if fmt.space_before and fmt.space_before > Pt(3):
+            fmt.space_before = Pt(2)
+        if fmt.space_after and fmt.space_after > Pt(3):
+            fmt.space_after = Pt(2)
+        for run in para.runs:
+            if run.font.size and run.font.size > Pt(10):
+                run.font.size = run.font.size - Pt(1)
+
+
 class TermoGarantiaService:
 
     @staticmethod
@@ -201,6 +222,7 @@ class TermoGarantiaService:
 
         doc = Document(_TEMPLATE_PATH)
         _remover_quebras_pagina(doc)
+        _ajustar_para_uma_pagina(doc)
 
         paras_remover = []
         for para in doc.paragraphs:

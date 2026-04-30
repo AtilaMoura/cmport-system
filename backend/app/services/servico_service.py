@@ -51,6 +51,20 @@ class ServicoService:
         return atualizado
 
     @staticmethod
+    def vincular_orcamento(db: Session, servico_id: int, orcamento_id: Optional[int]):
+        servico = ServicoRepository.get_by_id(db, servico_id)
+        if not servico:
+            return None
+        servico.orcamento_id = orcamento_id
+        db.commit()
+        db.refresh(servico)
+        return servico
+
+    @staticmethod
+    def list_by_orcamento(db: Session, orcamento_id: int):
+        return ServicoRepository.list_by_orcamento_id(db, orcamento_id)
+
+    @staticmethod
     def delete_servico(db: Session, servico_id: int) -> bool:
         from app.routers.auditoria_router import registrar_exclusao
 
