@@ -32,7 +32,8 @@ def _fmt_numero_nota(numero_raw: str, tipo_servico) -> str:
     num = int(m.group(1))
     digits = f"{num:09d}"
     formatted = f"{digits[0:3]}.{digits[3:6]}.{digits[6:9]}"
-    sufixo = '-A' if str(tipo_servico).lower() == 'assistencia' else '-M'
+    valor_tipo = getattr(tipo_servico, 'value', str(tipo_servico)).lower()
+    sufixo = '-A' if valor_tipo == 'assistencia' else '-M'
     return f"{formatted}{sufixo}"
 
 
