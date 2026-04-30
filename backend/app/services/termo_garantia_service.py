@@ -153,15 +153,14 @@ def _remover_quebras_pagina(doc):
 
 
 def _ajustar_para_uma_pagina(doc):
-    """Reduz margens, espaçamento entre parágrafos e tamanho de fonte para caber em uma página."""
+    """Reduz margens laterais/inferior e espaçamento entre parágrafos para caber em uma página.
+    A margem superior não é alterada para não sobrepor o logo do cabeçalho."""
     from docx.shared import Cm, Pt
-    # Reduz margens da página
     for section in doc.sections:
-        section.top_margin = Cm(1.2)
+        # Não altera top_margin — o header com logo precisa do espaço original
         section.bottom_margin = Cm(1.2)
         section.left_margin = Cm(1.5)
         section.right_margin = Cm(1.5)
-    # Reduz espaçamento e fonte parágrafo a parágrafo
     for para in doc.paragraphs:
         fmt = para.paragraph_format
         if fmt.space_before and fmt.space_before > Pt(3):
