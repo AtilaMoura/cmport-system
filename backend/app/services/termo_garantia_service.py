@@ -184,9 +184,9 @@ def _ajustar_para_uma_pagina(doc):
     from docx.shared import Cm, Pt
     for section in doc.sections:
         # top_margin calibrado para começar logo abaixo do logo do header
-        section.top_margin = Cm(3.0)
+        section.top_margin = Cm(4.0)
         section.bottom_margin = Cm(1.5)
-        section.footer_distance = Cm(0.75)
+        section.footer_distance = Cm(1.25)
         section.left_margin = Cm(1.5)
         section.right_margin = Cm(1.5)
     for para in doc.paragraphs:
