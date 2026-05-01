@@ -63,6 +63,7 @@ def _set_cliente_endereco(para, nome: str, endereco: str):
       run  5:   '\n' — apenas <w:br/> (quebra de linha)
       runs 6-12: 'Endereço:', ' ', partes do endereço...
     Preserva o <w:br/> intacto entre cliente e endereço.
+    Label em texto normal; valor (nome/endereço) em negrito.
     """
     from docx.oxml.ns import qn
     runs = para.runs
@@ -72,18 +73,28 @@ def _set_cliente_endereco(para, nome: str, endereco: str):
         _merge_all(para, f"Cliente: {nome}. Endereço: {endereco}.")
         return
 
-    # Antes do break: cliente
-    runs[0].text = f"Cliente: {nome}."
-    for r in runs[1:br_idx]:
-        r.text = ''
+    # Antes do break: "Cliente: " normal + nome bold
+    before = runs[:br_idx]
+    if len(before) >= 2:
+        before[0].text = 'Cliente: '
+        before[1].text = nome
+        before[1].bold = True
+        for r in before[2:]:
+            r.text = ''
+    elif len(before) == 1:
+        before[0].text = f'Cliente: {nome}'
     # run[br_idx] não é tocado → mantém o <w:br/>
 
-    # Após o break: endereço
+    # Após o break: "Endereço: " normal + endereço bold
     after = runs[br_idx + 1:]
-    if after:
-        after[0].text = f"Endereço: {endereco}."
-        for r in after[1:]:
+    if len(after) >= 2:
+        after[0].text = 'Endereço: '
+        after[1].text = endereco
+        after[1].bold = True
+        for r in after[2:]:
             r.text = ''
+    elif len(after) == 1:
+        after[0].text = f'Endereço: {endereco}'
 
 
 def _set_normal_runs(para, new_value: str):
@@ -157,9 +168,9 @@ def _ajustar_para_uma_pagina(doc):
     """Ajusta margens e espaçamento para caber em uma página sem sobrepor o logo do cabeçalho."""
     from docx.shared import Cm, Pt
     for section in doc.sections:
-        # Aumenta margem superior para o corpo não sobrepor o logo do header
-        section.top_margin = Cm(3.8)
-        section.bottom_margin = Cm(1.2)
+        # Margem superior suficiente para não sobrepor o logo do header
+        section.top_margin = Cm(3.0)
+        section.bottom_margin = Cm(0.8)
         section.left_margin = Cm(1.5)
         section.right_margin = Cm(1.5)
     for para in doc.paragraphs:
