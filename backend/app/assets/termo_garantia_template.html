@@ -7,6 +7,9 @@
 
   body { background: #fff; }
 
+  /* WeasyPrint: página A4 sem margens, conteúdo posicionado manualmente */
+  @page { size: 794px 1123px; margin: 0; }
+
   .doc {
     width: 794px;
     height: 1123px;
@@ -33,23 +36,13 @@
     z-index: 1;
   }
 
-  .doc-cmport {
-    position: absolute;
-    top: 157px;
-    left: 32px;
-    font-family: Calibri, 'Segoe UI', sans-serif;
-    font-size: 9.5pt;
-    font-weight: 900;
-    color: #111;
-    letter-spacing: 0.02em;
-  }
-
+  /* Liberation Sans = substituto de Calibri disponível no Linux via fonts-liberation */
   .doc-body {
     position: absolute;
     top: 205px;
     left: 64px;
     right: 64px;
-    font-family: Calibri, 'Segoe UI', sans-serif;
+    font-family: 'Liberation Sans', Arial, Helvetica, sans-serif;
     font-size: 10.5pt;
     color: #111;
     line-height: 1.52;
@@ -86,10 +79,10 @@
     margin-bottom: 2px;
   }
 
+  /* Bloco de assinatura: sem tricks de z-index (WeasyPrint não suporta igual ao browser) */
   .doc-sigs {
-    position: relative;
     text-align: center;
-    font-family: Calibri, 'Segoe UI', sans-serif;
+    font-family: 'Liberation Sans', Arial, Helvetica, sans-serif;
     font-style: italic;
     font-size: 10.5pt;
     line-height: 1.6;
@@ -97,14 +90,10 @@
   }
   .doc-sigs img {
     display: block;
-    margin: 0 auto -42px;
+    margin: 0 auto 6px;
     width: 110px;
     opacity: 0.9;
-    position: relative;
-    z-index: 2;
   }
-
-  @page { size: A4; margin: 0; }
 </style>
 </head>
 <body>
@@ -113,8 +102,6 @@
   <img class="doc-bg" src="data:image/png;base64,{{ timbrado_b64 }}">
 
   <div class="doc-layer">
-    <div class="doc-cmport">CM PORT</div>
-
     <div class="doc-body">
       <div class="doc-date"><em>{{ data_hoje }}</em></div>
       <div class="doc-title">TERMO DE GARANTIA DO PRODUTO / SERVIÇO</div>

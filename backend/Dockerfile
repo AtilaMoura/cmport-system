@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdk-pixbuf-xlib-2.0-0 \
     shared-mime-info \
     fonts-liberation \
+    fontconfig \
+    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala dependências Python
