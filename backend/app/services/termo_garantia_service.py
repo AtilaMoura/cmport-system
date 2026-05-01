@@ -164,27 +164,32 @@ def _remover_quebras_pagina(doc):
                     run._r.remove(br)
 
 
+def _remover_paragrafos_vazios_iniciais(doc):
+    """Remove os parágrafos vazios do início do body.
+    No Word eles empurram o conteúdo para baixo do logo, mas no LibreOffice
+    criam a faixa branca porque o top_margin já posiciona o corpo corretamente.
+    """
+    para_remover = []
+    for para in doc.paragraphs:
+        if not _para_text(para).strip():
+            para_remover.append(para)
+        else:
+            break
+    for para in para_remover:
+        _remove_para(para)
+
+
 def _ajustar_para_uma_pagina(doc):
-    """Ajusta margens e espaçamento para caber em uma página sem sobrepor o logo do cabeçalho."""
+    """Ajusta margens para caber em uma página sem sobrepor o logo do cabeçalho."""
     from docx.shared import Cm, Pt
     for section in doc.sections:
-        # Margem superior suficiente para não sobrepor o logo do header
-        section.top_margin = Cm(2.7)
+        # top_margin calibrado para começar logo abaixo do logo do header
+        section.top_margin = Cm(3.0)
         section.bottom_margin = Cm(1.5)
         section.footer_distance = Cm(0.75)
         section.left_margin = Cm(1.5)
         section.right_margin = Cm(1.5)
-    primeiro_para = True
     for para in doc.paragraphs:
-        fmt = para.paragraph_format
-        if primeiro_para and para.text.strip():
-            # Zera o space_before herdado do estilo no 1º parágrafo — esse era
-            # o responsável pela faixa branca entre o logo e o corpo do texto.
-            fmt.space_before = Pt(0)
-            primeiro_para = False
-        else:
-            fmt.space_before = Pt(4)
-            fmt.space_after = Pt(4)
         for run in para.runs:
             if run.font.size and run.font.size > Pt(10):
                 run.font.size = run.font.size - Pt(1)
@@ -239,6 +244,7 @@ class TermoGarantiaService:
 
         doc = Document(_TEMPLATE_PATH)
         _remover_quebras_pagina(doc)
+        _remover_paragrafos_vazios_iniciais(doc)
         _ajustar_para_uma_pagina(doc)
 
         paras_remover = []
