@@ -1,7 +1,7 @@
 # Plano de Implementação — CMPort
 
-**Última atualização:** 2026-04-30
-**Status atual:** Fases 0-9 concluídas. **Sub-fases 10A, 10B, 10C, 10D e 10F concluídas. Correções pós-10F aplicadas.**
+**Última atualização:** 2026-05-01
+**Status atual:** Fases 0-9 concluídas. **Sub-fases 10A, 10B, 10C, 10D e 10F concluídas. Correções pós-10F aplicadas. Sub-fase 10G (HTML+WeasyPrint+Preview) planejada.**
 
 Convenções: `[x]` concluído · `[~]` em andamento · `[ ]` a fazer.
 
@@ -458,6 +458,233 @@ const [adicionandoItem, setAdicionandoItem] = useState(false)
 ### Relacionamento orçamento ↔ OS
 - Chave comum: Auvo task ID guardado em `manutencoes_assistencias.numero_os` (String), `ordens_servico.task_id` (Int) e `orcamento_task_ids.task_id` (BigInt)
 - Um orçamento pode ter N task_ids (N OSs); cada OS normalmente liga a 1 orçamento
+
+---
+
+## Sub-fase 10G — Geração de Termo via HTML + Preview no Frontend `[ ]`
+
+### Visão Geral e Motivação
+
+O PDF atual é gerado manipulando um template DOCX com `python-docx` e convertendo via **LibreOffice headless** (subprocess externo, ~60s de timeout, imagem Docker +400MB). O resultado tem problemas de layout difíceis de ajustar porque dependem de como o LibreOffice interpreta o DOCX.
+
+O arquivo `gerador_termo_garantia.html` já foi refinado para produzir um PDF idêntico ao oficial (timbrado, assinatura, layout A4). A ideia é usar essa estrutura HTML como template no backend, substituindo todo o fluxo DOCX+LibreOffice por **HTML + WeasyPrint** (biblioteca Python pura, processo interno, mais rápido e leve).
+
+Além disso, o usuário ganha um botão **"👁️ Visualizar"** que abre um preview do termo antes de baixar o PDF.
+
+### Decisões Técnicas
+
+| Decisão | Escolha |
+|---|---|
+| Motor de PDF | **WeasyPrint** (Python, in-process, substitui LibreOffice) |
+| Templating | **Jinja2** (já no ecossistema FastAPI/Starlette) |
+| Template fonte | `backend/app/assets/termo_garantia_template.html` (derivado do `gerador_termo_garantia.html`) |
+| Imagens no template | Timbrado + assinatura lidos do disco e embutidos como base64 em runtime |
+| Preview | Novo endpoint `GET /termos-garantia/{id}/preview-html` retorna `text/html` |
+| Modal de preview | `<iframe>` no frontend, escalado para caber na tela |
+| Dockerfile | Trocar `libreoffice` por deps do WeasyPrint (imagem ~200MB menor) |
+
+---
+
+### Backend
+
+**10G.1** `[ ]` Criar template HTML Jinja2 em `backend/app/assets/termo_garantia_template.html`
+
+Baseado na estrutura do `gerador_termo_garantia.html`, mas sem sidebar e sem JavaScript. Apenas o `.doc` container com `.doc-bg`, `.doc-layer` e `.doc-body`. Variáveis Jinja2 em todos os campos dinâmicos:
+
+```html
+<!-- Campos dinâmicos via Jinja2 -->
+{{ data_hoje }}               <!-- "27 de abril de 2026" -->
+{{ cliente_nome }}            <!-- "Condominio Edifício Araucárias" -->
+{{ cliente_endereco }}        <!-- "Av: Dr. Francisco Ranieri1, 700..." -->
+{{ produto_descricao }}       <!-- "1x REFLETOR LED 100W SLIM EMPALUX" -->
+{{ data_servico }}            <!-- "22/04/2026" -->
+{{ numero_nota }}             <!-- "000.000.079-A" ou vazio -->
+{{ numero_os }}               <!-- "72179837" ou vazio -->
+{{ prazo_fmt }}               <!-- "06 (seis)" -->
+{{ data_inicio }}             <!-- "17/04/2026" -->
+{{ data_fim }}                <!-- "17/04/2027" -->
+{{ empresa_nome }}            <!-- "CMPORT Sistemas de Eletrônicos de Segurança" -->
+{{ timbrado_b64 }}            <!-- base64 do PNG do timbrado — injetado pelo service -->
+{{ assinatura_b64 }}          <!-- base64 do PNG da assinatura — injetado pelo service -->
+```
+
+Blocos condicionais:
+```html
+{% if numero_nota %}
+  <li><em><strong>Nota Fiscal:</strong> nº {{ numero_nota }}</em></li>
+{% endif %}
+{% if numero_os %}
+  <li><em><strong>Ordem de Serviço:</strong> nº {{ numero_os }}</em></li>
+{% endif %}
+```
+
+**10G.2** `[ ]` Atualizar `backend/requirements.txt`:
+```
+weasyprint>=62.0
+jinja2>=3.1.0
+```
+
+**10G.3** `[ ]` Atualizar `backend/Dockerfile`:
+```dockerfile
+# REMOVER:
+#   libreoffice
+
+# ADICIONAR (deps do WeasyPrint):
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    shared-mime-info \
+    fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+**10G.4** `[ ]` Refatorar `backend/app/services/termo_garantia_service.py`:
+
+**Remover** (específico de DOCX):
+- `_TEMPLATE_PATH` (caminho do `.docx`)
+- Funções: `_para_text`, `_merge_all`, `_set_cliente_endereco`, `_set_normal_runs`, `_set_prazo`, `_remove_para`, `_remover_quebras_pagina`, `_remover_paragrafos_vazios_iniciais`, `_ajustar_para_uma_pagina`
+- Import `from docx import Document`
+- Bloco `subprocess.run(['libreoffice', ...])`
+
+**Adicionar**:
+```python
+import base64
+from jinja2 import Environment, FileSystemLoader
+
+_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
+_HTML_TEMPLATE = "termo_garantia_template.html"
+_TIMBRADO_PATH = os.path.join(_ASSETS_DIR, "timbrado.png")
+_ASSINATURA_PATH = os.path.join(_ASSETS_DIR, "assinatura_andre.png")
+
+def _b64(path: str) -> str:
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+def _render_html(context: dict) -> str:
+    env = Environment(loader=FileSystemLoader(_ASSETS_DIR))
+    tpl = env.get_template(_HTML_TEMPLATE)
+    return tpl.render(**context)
+```
+
+**Modificar** `gerar_pdf(db, termo_id)`:
+```python
+@staticmethod
+def gerar_pdf(db: Session, termo_id: int) -> io.BytesIO:
+    from weasyprint import HTML
+
+    # ... (mesmo código de coleta de dados — sem alteração) ...
+
+    html_str = _render_html({
+        'data_hoje':        hoje_str,
+        'cliente_nome':     condominio.nome,
+        'cliente_endereco': endereco_str,
+        'produto_descricao': produto_desc,
+        'numero_nota':      numero_nota_fmt,   # vazio se sem nota
+        'numero_os':        numero_os,          # vazio se sem OS
+        'prazo_fmt':        prazo_fmt,
+        'data_servico':     data_servico_str,
+        'data_inicio':      data_inicio_str,
+        'data_fim':         data_fim_str,
+        'empresa_nome':     empresa_nome,
+        'timbrado_b64':     _b64(_TIMBRADO_PATH),
+        'assinatura_b64':   _b64(_ASSINATURA_PATH),
+    })
+
+    pdf_bytes = HTML(string=html_str).write_pdf()
+    return io.BytesIO(pdf_bytes)
+```
+
+**Adicionar** método `gerar_html_preview(db, termo_id) -> str`:
+- Mesmo fluxo de coleta de dados + `_render_html(context)`, mas retorna string HTML em vez de converter para PDF.
+
+**10G.5** `[ ]` Adicionar endpoint de preview em `backend/app/routers/termo_garantia_router.py`:
+
+```python
+@router.get("/{termo_id}/preview-html", response_class=HTMLResponse)
+def get_termo_preview_html(termo_id: int, db: Session = Depends(get_db)):
+    html_str = TermoGarantiaService.gerar_html_preview(db, termo_id)
+    return HTMLResponse(content=html_str)
+```
+
+| Verbo | Rota | Resposta |
+|---|---|---|
+| GET | `/termos-garantia/{id}/preview-html` | `text/html` — HTML do termo com dados reais |
+
+---
+
+### Frontend
+
+**10G.6** `[ ]` Adicionar botão "👁️ Visualizar" no card do termo em `cmport-front/app/servicos/[id]/page.tsx`:
+
+- Aparece ao lado de "Baixar PDF" quando `termoGarantia` existe
+- Ao clicar: `setModalPreviewTermo(true)` + fetch `GET /termos-garantia/{termoGarantia.id}/preview-html` → armazena HTML em estado
+
+**Novo estado necessário:**
+```typescript
+const [modalPreviewTermo, setModalPreviewTermo] = useState(false)
+const [previewTermoHtml, setPreviewTermoHtml] = useState<string | null>(null)
+const [carregandoPreview, setCarregandoPreview] = useState(false)
+```
+
+**10G.7** `[ ]` Criar modal de preview em `cmport-front/app/servicos/[id]/page.tsx`:
+
+```tsx
+{modalPreviewTermo && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div className="bg-white rounded-xl shadow-2xl flex flex-col" style={{width: 860, maxHeight: '95vh'}}>
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b">
+        <span className="font-semibold text-gray-800">Preview — Termo de Garantia</span>
+        <div className="flex gap-2">
+          <button onClick={baixarPdfTermo} className="btn-primary">⬇️ Baixar PDF</button>
+          <button onClick={() => setModalPreviewTermo(false)} className="btn-ghost">✕ Fechar</button>
+        </div>
+      </div>
+      {/* Iframe com o HTML */}
+      <div className="overflow-auto flex-1 flex justify-center p-4 bg-gray-100">
+        <iframe
+          srcDoc={previewTermoHtml ?? ''}
+          style={{ width: 794, height: 1123, border: 'none', flexShrink: 0 }}
+          title="Preview Termo de Garantia"
+        />
+      </div>
+    </div>
+  </div>
+)}
+```
+
+- `srcDoc` recebe o HTML retornado pelo endpoint (não usa `src` com URL para evitar auth issues)
+- Dimensões do iframe: 794×1123px (A4 exato)
+- Modal scrollável se a tela for menor que A4
+
+---
+
+### Arquivos a Salvar
+
+| Arquivo | Ação |
+|---|---|
+| `backend/app/assets/termo_garantia_template.html` | **Criar** — template Jinja2 derivado do `gerador_termo_garantia.html` |
+| `backend/app/assets/timbrado.png` | **Criar** — extrair do DOCX (`word/media/image2.jpeg` ou PNG do HTML) |
+| `backend/app/assets/assinatura_andre.png` | **Criar** — já extraído em `extracted_media/word/media/image1.png` |
+| `backend/app/services/termo_garantia_service.py` | **Refatorar** — remover DOCX/LibreOffice, adicionar Jinja2+WeasyPrint |
+| `backend/app/routers/termo_garantia_router.py` | **Adicionar** endpoint `preview-html` |
+| `backend/requirements.txt` | **Atualizar** — add `weasyprint`, `jinja2` |
+| `backend/Dockerfile` | **Atualizar** — trocar LibreOffice por deps WeasyPrint |
+| `cmport-front/app/servicos/[id]/page.tsx` | **Adicionar** botão + modal de preview |
+
+---
+
+### Verificação 10G
+
+- `GET /termos-garantia/{id}/preview-html` retorna HTML renderizado com dados reais do banco
+- `GET /termos-garantia/{id}/pdf` retorna PDF gerado pelo WeasyPrint (sem LibreOffice)
+- PDF gerado é visualmente idêntico ao gerado pelo `gerador_termo_garantia.html` no browser
+- Botão "👁️ Visualizar" abre modal com iframe mostrando o termo corretamente
+- Botão "⬇️ Baixar PDF" dentro do modal faz download do PDF
+- `npx tsc --noEmit` — zero erros
+- Imagem Docker ~200MB menor (sem LibreOffice)
 
 ---
 

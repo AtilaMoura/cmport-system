@@ -315,6 +315,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [termoDataInicio, setTermoDataInicio] = useState('');
   const [termoSalvando, setTermoSalvando] = useState(false);
   const [termoBaixandoPdf, setTermoBaixandoPdf] = useState(false);
+  const [modalPreviewTermo, setModalPreviewTermo] = useState(false);
+  const [previewTermoHtml, setPreviewTermoHtml] = useState<string | null>(null);
+  const [carregandoPreviewTermo, setCarregandoPreviewTermo] = useState(false);
   const [termoOrcamentoId, setTermoOrcamentoId] = useState<number | null>(null);
   const [orcamentosCandidatos, setOrcamentosCandidatos] = useState<OrcamentoCandidato[]>([]);
   const [termoCarregandoCandidatos, setTermoCarregandoCandidatos] = useState(false);
@@ -1009,6 +1012,21 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
   };
 
+  const abrirPreviewTermo = async (termoId: number) => {
+    setCarregandoPreviewTermo(true);
+    setModalPreviewTermo(true);
+    setPreviewTermoHtml(null);
+    try {
+      const res = await api.get(`/termos-garantia/${termoId}/preview-html`, { responseType: 'text' });
+      setPreviewTermoHtml(res.data);
+    } catch {
+      alert('Erro ao carregar preview do termo.');
+      setModalPreviewTermo(false);
+    } finally {
+      setCarregandoPreviewTermo(false);
+    }
+  };
+
   const visualizarPdf = async (codigo: string) => {
     setBaixandoPdf(codigo);
     try {
@@ -1564,6 +1582,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 <div className="flex items-center gap-2">
                   {termoGarantia ? (
                     <>
+                      <button onClick={() => abrirPreviewTermo(termoGarantia.id)} disabled={carregandoPreviewTermo}
+                        className="px-3 py-1.5 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-500/10 border border-teal-200 dark:border-teal-700 rounded-lg hover:brightness-95 transition-all disabled:opacity-60 flex items-center gap-1">
+                        {carregandoPreviewTermo
+                          ? <div className="w-3 h-3 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+                          : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>}
+                        Visualizar
+                      </button>
                       <button onClick={() => baixarPdfTermo(termoGarantia.id)} disabled={termoBaixandoPdf}
                         className="px-3 py-1.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-all disabled:opacity-60 flex items-center gap-1">
                         {termoBaixandoPdf
@@ -2935,6 +2960,47 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                   ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
                   : `📧 Enviar (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Preview Termo de Garantia */}
+      {modalPreviewTermo && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden" style={{ width: 860, maxHeight: '95vh' }}>
+            <div className="flex items-center justify-between px-5 py-3 bg-teal-600 text-white flex-shrink-0">
+              <span className="font-bold text-sm flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                Preview — Termo de Garantia
+              </span>
+              <div className="flex items-center gap-2">
+                {termoGarantia && (
+                  <button onClick={() => baixarPdfTermo(termoGarantia.id)} disabled={termoBaixandoPdf}
+                    className="px-3 py-1.5 text-xs font-bold text-teal-700 bg-white rounded-lg hover:bg-teal-50 transition-all disabled:opacity-60 flex items-center gap-1">
+                    {termoBaixandoPdf
+                      ? <div className="w-3 h-3 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+                      : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+                    Baixar PDF
+                  </button>
+                )}
+                <button onClick={() => setModalPreviewTermo(false)}
+                  className="p-1.5 rounded-lg hover:bg-white/20 transition-all">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+            <div className="overflow-auto flex-1 flex justify-center bg-gray-200 p-4">
+              {carregandoPreviewTermo ? (
+                <div className="flex items-center justify-center w-full">
+                  <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : previewTermoHtml ? (
+                <iframe
+                  srcDoc={previewTermoHtml}
+                  style={{ width: 794, height: 1123, border: 'none', flexShrink: 0, background: '#fff' }}
+                  title="Preview Termo de Garantia"
+                />
+              ) : null}
             </div>
           </div>
         </div>

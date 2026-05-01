@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db
@@ -82,5 +83,14 @@ def get_termo_pdf(termo_id: int, db: Session = Depends(get_db)):
                 "Content-Disposition": f"attachment; filename=termo_garantia_{termo_id}.pdf"
             }
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{termo_id}/preview-html", response_class=HTMLResponse)
+def get_termo_preview_html(termo_id: int, db: Session = Depends(get_db)):
+    try:
+        html_str = TermoGarantiaService.gerar_html_preview(db, termo_id)
+        return HTMLResponse(content=html_str)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

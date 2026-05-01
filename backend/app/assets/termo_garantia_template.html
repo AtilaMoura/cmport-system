@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body { background: #fff; }
+
+  .doc {
+    width: 794px;
+    height: 1123px;
+    position: relative;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .doc-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 794px;
+    height: 1123px;
+    object-fit: fill;
+    z-index: 0;
+    display: block;
+  }
+
+  .doc-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 794px;
+    height: 1123px;
+    z-index: 1;
+  }
+
+  .doc-cmport {
+    position: absolute;
+    top: 157px;
+    left: 32px;
+    font-family: Calibri, 'Segoe UI', sans-serif;
+    font-size: 9.5pt;
+    font-weight: 900;
+    color: #111;
+    letter-spacing: 0.02em;
+  }
+
+  .doc-body {
+    position: absolute;
+    top: 205px;
+    left: 64px;
+    right: 64px;
+    font-family: Calibri, 'Segoe UI', sans-serif;
+    font-size: 10.5pt;
+    color: #111;
+    line-height: 1.52;
+  }
+
+  .doc-date {
+    font-style: italic;
+    margin-bottom: 13px;
+  }
+  .doc-title {
+    font-weight: 700;
+    font-style: italic;
+    font-size: 10.5pt;
+    margin-bottom: 13px;
+  }
+  .doc-body p {
+    font-style: italic;
+    margin-bottom: 8px;
+    text-align: justify;
+  }
+  .doc-body ul {
+    margin: 4px 0 10px 42px;
+    list-style: disc;
+  }
+  .doc-body ul li {
+    font-style: italic;
+    margin-bottom: 3px;
+  }
+  .sec-title {
+    font-weight: 700;
+    font-style: italic;
+    display: block;
+    margin-top: 11px;
+    margin-bottom: 2px;
+  }
+
+  .doc-sigs {
+    position: relative;
+    text-align: center;
+    font-family: Calibri, 'Segoe UI', sans-serif;
+    font-style: italic;
+    font-size: 10.5pt;
+    line-height: 1.6;
+    margin-top: 30px;
+  }
+  .doc-sigs img {
+    display: block;
+    margin: 0 auto -42px;
+    width: 110px;
+    opacity: 0.9;
+    position: relative;
+    z-index: 2;
+  }
+
+  @page { size: A4; margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="doc">
+  <img class="doc-bg" src="data:image/png;base64,{{ timbrado_b64 }}">
+
+  <div class="doc-layer">
+    <div class="doc-cmport">CM PORT</div>
+
+    <div class="doc-body">
+      <div class="doc-date"><em>{{ data_hoje }}</em></div>
+      <div class="doc-title">TERMO DE GARANTIA DO PRODUTO / SERVIÇO</div>
+
+      <p><em><strong>Cliente:</strong> {{ cliente_nome }}.<br>
+      <strong>Endereço:</strong> {{ cliente_endereco }}.</em></p>
+
+      <p>Pelo presente instrumento, formaliza-se o termo de garantia referente ao serviço
+      prestado, consistente na <strong>{{ produto_descricao }}</strong>, conforme abaixo descrito:</p>
+
+      <ul>
+        <li><em><strong>Data da execução do serviço:</strong> {{ data_servico }}</em></li>
+        {% if numero_nota %}
+        <li><em><strong>Nota Fiscal:</strong> nº {{ numero_nota }}</em></li>
+        {% endif %}
+        {% if numero_os %}
+        <li><em><strong>Ordem de Serviço:</strong> nº {{ numero_os }}</em></li>
+        {% endif %}
+      </ul>
+
+      <span class="sec-title">Prazo de Garantia:</span>
+      <p>A garantia concedida é de <strong>{{ prazo_fmt }} meses</strong>, com início em {{ data_inicio }} e término em {{ data_fim }}.</p>
+
+      <span class="sec-title">Condições da Garantia:</span>
+      <p>A presente garantia cobre exclusivamente defeitos decorrentes de falha de
+      instalação ou do equipamento fornecido, dentro do prazo estabelecido.</p>
+
+      <p>A garantia será automaticamente cancelada nas seguintes hipóteses:</p>
+      <ul>
+        <li>Intervenção, manutenção ou reparo realizado por pessoas não autorizadas;</li>
+        <li>Danos decorrentes de acidentes, quedas ou agentes externos;</li>
+        <li>Variações de tensão elétrica, sobrecargas ou instalações elétricas inadequadas;</li>
+        <li>Uso indevido ou em desacordo com as recomendações técnicas;</li>
+        <li>Qualquer ocorrência imprevisível ou de força maior que comprometa o funcionamento do equipamento.</li>
+      </ul>
+
+      <p>Sem mais, permanecemos à disposição para quaisquer esclarecimentos.</p>
+      <p><em>Atenciosamente,</em></p>
+
+      <div class="doc-sigs">
+        <img src="data:image/png;base64,{{ assinatura_b64 }}" alt="Assinatura">
+        <em>{{ empresa_nome }}<br>André Moreira Rosa<br>Diretor Comercial</em>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

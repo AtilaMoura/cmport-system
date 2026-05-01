@@ -2,9 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# LibreOffice para conversão de .docx → .pdf
+# Instala as dependências de sistema do WeasyPrint
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libreoffice \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    shared-mime-info \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala dependências Python
