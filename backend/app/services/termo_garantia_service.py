@@ -176,10 +176,8 @@ def _ajustar_para_uma_pagina(doc):
         section.right_margin = Cm(1.5)
     for para in doc.paragraphs:
         fmt = para.paragraph_format
-        if fmt.space_before and fmt.space_before > Pt(3):
-            fmt.space_before = Pt(2)
-        if fmt.space_after and fmt.space_after > Pt(3):
-            fmt.space_after = Pt(2)
+        fmt.space_before = Pt(2)
+        fmt.space_after = Pt(2)
         for run in para.runs:
             if run.font.size and run.font.size > Pt(10):
                 run.font.size = run.font.size - Pt(1)
