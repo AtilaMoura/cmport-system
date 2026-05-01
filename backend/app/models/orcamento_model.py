@@ -81,6 +81,7 @@ class OrcamentoTaskId(Base):
     __tablename__ = "orcamento_task_ids"
 
     orcamento_id = Column(Integer, ForeignKey("orcamentos.id", ondelete="CASCADE"), primary_key=True)
-    task_id = Column(BigInteger, primary_key=True, index=True) # ID da OS vinculada
+    task_id = Column(BigInteger, primary_key=True, index=True)
+    is_manual = Column(Boolean, default=False, nullable=False)
 
     orcamento = relationship("Orcamento", back_populates="task_ids")

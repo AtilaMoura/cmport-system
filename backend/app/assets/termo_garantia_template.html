@@ -92,7 +92,6 @@
     display: block;
     margin: 0 auto 6px;
     width: 110px;
-    opacity: 0.9;
   }
 </style>
 </head>
@@ -142,7 +141,7 @@
       <p><em>Atenciosamente,</em></p>
 
       <div class="doc-sigs">
-        <img src="data:image/png;base64,{{ assinatura_b64 }}" alt="Assinatura">
+        <img src="{{ assinatura_src }}" alt="Assinatura">
         <em>{{ empresa_nome }}<br>André Moreira Rosa<br>Diretor Comercial</em>
       </div>
     </div>

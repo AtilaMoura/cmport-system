@@ -91,7 +91,7 @@ def _build_context(db: Session, termo_id: int) -> dict:
         "data_fim":          _fmt_date(termo.data_fim),
         "empresa_nome":      empresa_nome,
         "timbrado_b64":      _b64_file(_TIMBRADO_PATH),
-        "assinatura_b64":    _b64_file(_ASSINATURA_PATH),
+        "assinatura_src":    f"data:image/png;base64,{_b64_file(_ASSINATURA_PATH)}",
     }
 
 
@@ -106,8 +106,12 @@ class TermoGarantiaService:
     @staticmethod
     def gerar_pdf(db: Session, termo_id: int) -> io.BytesIO:
         from weasyprint import HTML
-        html_str = TermoGarantiaService.gerar_html_preview(db, termo_id)
-        pdf_bytes = HTML(string=html_str).write_pdf()
+        context = _build_context(db, termo_id)
+        context["assinatura_src"] = "assinatura_andre.png"
+        tpl = _JINJA_ENV.get_template("termo_garantia_template.html")
+        html_str = tpl.render(**context)
+        base_url = f"file://{os.path.abspath(_ASSETS_DIR)}/"
+        pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
         return io.BytesIO(pdf_bytes)
 
     @staticmethod
