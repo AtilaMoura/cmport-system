@@ -174,10 +174,17 @@ def _ajustar_para_uma_pagina(doc):
         section.footer_distance = Cm(0.75)
         section.left_margin = Cm(1.5)
         section.right_margin = Cm(1.5)
+    primeiro_para = True
     for para in doc.paragraphs:
         fmt = para.paragraph_format
-        fmt.space_before = Pt(2)
-        fmt.space_after = Pt(2)
+        if primeiro_para and para.text.strip():
+            # Zera o space_before herdado do estilo no 1º parágrafo — esse era
+            # o responsável pela faixa branca entre o logo e o corpo do texto.
+            fmt.space_before = Pt(0)
+            primeiro_para = False
+        else:
+            fmt.space_before = Pt(4)
+            fmt.space_after = Pt(4)
         for run in para.runs:
             if run.font.size and run.font.size > Pt(10):
                 run.font.size = run.font.size - Pt(1)
