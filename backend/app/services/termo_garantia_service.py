@@ -184,7 +184,7 @@ def _ajustar_para_uma_pagina(doc):
     from docx.shared import Cm, Pt
     for section in doc.sections:
         # top_margin calibrado para começar logo abaixo do logo do header
-        section.top_margin = Cm(4.0)
+        section.top_margin = Cm(3.8)
         section.bottom_margin = Cm(1.5)
         section.footer_distance = Cm(1.25)
         section.left_margin = Cm(1.5)
@@ -244,7 +244,6 @@ class TermoGarantiaService:
 
         doc = Document(_TEMPLATE_PATH)
         _remover_quebras_pagina(doc)
-        _remover_paragrafos_vazios_iniciais(doc)
         _ajustar_para_uma_pagina(doc)
 
         paras_remover = []
