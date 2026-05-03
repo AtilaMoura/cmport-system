@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from datetime import date, datetime
 from typing import Optional
 
@@ -69,9 +69,19 @@ class NotaFiscalResponse(BaseModel):
     # vínculo entre notas
     nota_vinculada_id:      Optional[int]  = None
     imposto_config_vinculo: Optional[dict] = None
+    
+    # PDF Storage
+    pdf_object_key: Optional[str] = None
+    pdf_disponivel: bool = False
+
     criado_em: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode='after')
+    def set_pdf_disponivel(self) -> 'NotaFiscalResponse':
+        self.pdf_disponivel = bool(self.pdf_object_key)
+        return self
 
 
 class ImportacaoResponse(BaseModel):
@@ -112,3 +122,9 @@ class CandidataVinculoResponse(BaseModel):
     cliente_nome: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class UploadPdfResponse(BaseModel):
+    nota_id: int
+    pdf_object_key: str
+    mensagem: str

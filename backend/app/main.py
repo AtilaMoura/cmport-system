@@ -61,6 +61,7 @@ def _run_migrations():
         "ALTER TABLE manutencoes_assistencias ADD COLUMN orcamento_id INT NULL",
         "ALTER TABLE manutencoes_assistencias ADD INDEX idx_servico_orcamento (orcamento_id)",
         "ALTER TABLE manutencoes_assistencias ADD CONSTRAINT fk_servico_orcamento FOREIGN KEY (orcamento_id) REFERENCES orcamentos(id) ON DELETE SET NULL",
+        "ALTER TABLE notas_fiscais ADD COLUMN pdf_object_key VARCHAR(500) NULL",
     ]
     try:
         for stmt in stmts:
@@ -173,6 +174,17 @@ async def lifespan(app):
     )
     scheduler.start()
     print("[AutoSync] Scheduler iniciado — sincronização a cada hora das 8h às 19h (Brasília)")
+    
+    # ── Storage Bucket Initialization ─────────────────────────────────────────
+    from app.core.dependencies import get_storage_client
+    from app.core.config import settings
+    try:
+        storage = get_storage_client()
+        storage.ensure_bucket_exists(settings.STORAGE_BUCKET)
+        print(f"[Storage] Bucket '{settings.STORAGE_BUCKET}' verificado/criado.")
+    except Exception as e:
+        print(f"[Storage] Erro ao inicializar storage: {e}")
+
     yield
     scheduler.shutdown()
     print("[AutoSync] Scheduler encerrado")

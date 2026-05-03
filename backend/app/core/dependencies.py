@@ -58,3 +58,20 @@ def require_dev(usuario: Usuario = Depends(get_current_user)) -> Usuario:
     if usuario.role != RoleUsuario.DEV:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso restrito ao perfil DEV.")
     return usuario
+
+
+# ── Storage (MinIO / R2) ─────────────────────────────────────────────────────
+from app.core.config import settings
+from app.core.storage_client import StorageClient
+
+# Instância singleton para reuso de conexões
+_storage_client = StorageClient(
+    endpoint_url=settings.STORAGE_ENDPOINT,
+    access_key=settings.STORAGE_ACCESS_KEY,
+    secret_key=settings.STORAGE_SECRET_KEY,
+    region_name=settings.STORAGE_REGION
+)
+
+def get_storage_client() -> StorageClient:
+    """Retorna o cliente de storage (S3-compatible)."""
+    return _storage_client

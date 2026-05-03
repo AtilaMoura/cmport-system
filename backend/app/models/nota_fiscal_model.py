@@ -70,4 +70,7 @@ class NotaFiscal(Base):
     # {"aplicar_imposto_em": "nota_a"|"nota_b"|"ambas"|"nenhuma", "nota_a_id": int, "nota_b_id": int}
     imposto_config_vinculo = Column(JSON, nullable=True)
 
+    # Armazenamento de PDF (MinIO / R2)
+    pdf_object_key = Column(String(500), nullable=True)
+
     criado_em = Column(DateTime, server_default=func.now())

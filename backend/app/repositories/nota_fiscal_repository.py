@@ -117,3 +117,15 @@ class NotaFiscalRepository:
 
         print(f"[NOME] Nenhum match para '{nome}'")
         return None
+
+    @staticmethod
+    def update_pdf_key(db: Session, nota_id: int, pdf_object_key: str | None):
+        """Atualiza apenas a chave do PDF de uma nota."""
+        db.query(NotaFiscal).filter(NotaFiscal.id == nota_id).update({"pdf_object_key": pdf_object_key})
+        db.commit()
+
+    @staticmethod
+    def delete(db: Session, db_nota: NotaFiscal):
+        """Remove a nota do banco de dados."""
+        db.delete(db_nota)
+        db.commit()

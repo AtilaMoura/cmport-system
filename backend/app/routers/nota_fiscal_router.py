@@ -7,10 +7,12 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.core.database import SessionLocal
+from app.core.dependencies import get_storage_client, require_admin
+from app.core.storage_client import StorageClient
 from app.services.nota_fiscal_service import NotaFiscalService, corrigir_datas_servico
 from app.schemas.nota_fiscal_schema import (
     NotaFiscalCreate, NotaFiscalResponse, ImportacaoResponse, NotaFiscalUpdate,
-    VincularNotasRequest, CandidataVinculoResponse,
+    VincularNotasRequest, CandidataVinculoResponse, UploadPdfResponse,
 )
 
 
@@ -162,10 +164,11 @@ def get_nota_by_numero(numero: str, db: Session = Depends(get_db)):
 async def importar_xmls(
     arquivos: List[UploadFile] = File(...),
     tipo: Optional[str] = Form(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client)
 ):
     try:
-        resultado = await NotaFiscalService.importar_xmls(db, arquivos, tipo)
+        resultado = await NotaFiscalService.importar_xmls(db, arquivos, tipo, storage)
         return ImportacaoResponse(
             processados=resultado["processados"],
             ja_existentes=resultado.get("ja_existentes", 0),
@@ -263,12 +266,56 @@ def revalidar_todas_completo(db: Session = Depends(get_db)):
     }
 
 
+@router.post("/{id}/pdf", response_model=UploadPdfResponse)
+async def upload_pdf_nota(
+    id: int,
+    pdf: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client)
+):
+    """Faz upload manual de um PDF para uma nota fiscal existente."""
+    if not pdf.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=422, detail="O arquivo deve ser um PDF.")
+    
+    conteudo = await pdf.read()
+    object_key = NotaFiscalService.upload_pdf_nota(db, id, conteudo, storage)
+    
+    return UploadPdfResponse(
+        nota_id=id,
+        pdf_object_key=object_key,
+        mensagem="PDF enviado com sucesso."
+    )
+
+
+@router.get("/{id}/pdf-url")
+def get_pdf_url(
+    id: int,
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client)
+):
+    """Retorna uma URL assinada (temporária) para visualizar o PDF da nota."""
+    return NotaFiscalService.get_pdf_url(db, id, storage)
+
+
+@router.delete("/{id}/pdf", status_code=204)
+def delete_pdf_nota(
+    id: int,
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client),
+    admin = Depends(require_admin)
+):
+    """Remove o PDF da nota do storage e limpa a referência no banco."""
+    NotaFiscalService.delete_pdf_nota(db, id, storage)
+    return Response(status_code=204)
+
+
 @router.delete("/{id}", status_code=204)
 def delete_nota(
     id: int,
     motivo: str = Query(None),
     deletar_servicos: bool = Query(False),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client)
 ):
-    if not NotaFiscalService.delete_nota(db=db, nota_id=id, motivo=motivo, deletar_servicos=deletar_servicos):
+    if not NotaFiscalService.delete_nota(db=db, nota_id=id, motivo=motivo, deletar_servicos=deletar_servicos, storage=storage):
         raise HTTPException(status_code=404, detail="Nota não encontrada")

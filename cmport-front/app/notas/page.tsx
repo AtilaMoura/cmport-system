@@ -24,6 +24,7 @@ interface NotaFiscal {
   condominio_id: number | null;
   criado_em: string;
   nota_vinculada_id: number | null;
+  pdf_disponivel: boolean;
 }
 
 interface Condominio {
@@ -628,7 +629,7 @@ export default function NotasPage() {
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                       <th className="px-4 py-4 w-10"></th>
-                      {['Nota Fiscal', 'Tipo', 'Status', 'Cliente', 'Valor', 'Vencimento', 'Boleto', 'Acoes'].map(h => (
+                      {['Nota Fiscal', 'Tipo', 'Status', 'Cliente', 'Valor', 'Vencimento', 'Boleto', 'PDF', 'Acoes'].map(h => (
                         <th key={h} className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -718,6 +719,13 @@ export default function NotasPage() {
                                   ))}
                                 </div>
                               </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-5">
+                            {nota.pdf_disponivel ? (
+                              <span className="text-xl" title="PDF Disponível">📄</span>
+                            ) : (
+                              <span className="text-xl opacity-10" title="Sem PDF">📄</span>
                             )}
                           </td>
                           <td className="px-6 py-5 text-right">

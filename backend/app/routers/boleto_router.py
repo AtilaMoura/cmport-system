@@ -5,6 +5,8 @@ from typing import List, Dict, Any, Optional
 import json
 
 from app.core.database import SessionLocal
+from app.core.dependencies import get_storage_client
+from app.core.storage_client import StorageClient
 from app.services.boleto_service import BoletoService
 from app.schemas.boleto_schema import (
     BoletoResponse, GerarBoletosRequest, GerarBoletosResponse,
@@ -177,6 +179,7 @@ async def enviar_email_boleto(
     rodape: Optional[str] = Form(None),
     arquivos: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client),
 ):
     """Envia o PDF do boleto por email. Aceita assunto/saudação/corpo/rodapé customizados e anexos extras."""
     try:
@@ -186,7 +189,7 @@ async def enviar_email_boleto(
             conteudo = await arq.read()
             anexos_extras.append((arq.filename, conteudo, arq.content_type or "application/octet-stream"))
         return BoletoService.enviar_email_boleto(
-            db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras
+            db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras, storage
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

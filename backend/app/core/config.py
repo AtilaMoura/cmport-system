@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     OUTLOOK_PASSWORD: Optional[str] = None
     EMAIL_FROM_NAME: str = "CMPort"
 
+    # Storage
+    STORAGE_ENDPOINT: str = "http://localhost:9000"
+    STORAGE_ACCESS_KEY: str = "minioadmin"
+    STORAGE_SECRET_KEY: str = "minioadmin"
+    STORAGE_BUCKET: str = "cmport-nfe"
+    STORAGE_REGION: str = "us-east-1"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True

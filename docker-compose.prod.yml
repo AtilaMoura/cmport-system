@@ -64,9 +64,25 @@ services:
     networks:
       - cmport_net
 
+  # ── Storage (MinIO) ──────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: cmport_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    env_file: .env.production
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    networks:
+      - cmport_net
+
 networks:
   cmport_net:
     driver: bridge
 
 volumes:
   db_data:
+  minio_data:

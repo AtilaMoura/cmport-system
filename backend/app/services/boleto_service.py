@@ -1,6 +1,8 @@
 from datetime import date, timedelta
-from typing import List
+from typing import List, Optional
 from sqlalchemy.orm import Session
+
+from app.core.storage_client import StorageClient
 
 from app.repositories.boleto_repository import BoletoRepository
 from app.repositories.nota_fiscal_repository import NotaFiscalRepository
@@ -1115,6 +1117,7 @@ class BoletoService:
         corpo: str = None,
         rodape: str = None,
         anexos_extras: list = None,
+        storage: Optional[StorageClient] = None,
     ) -> dict:
         """
         Baixa o PDF do boleto no Inter, busca o XML da nota e envia por email
@@ -1160,6 +1163,21 @@ class BoletoService:
         from app.services.termo_garantia_service import TermoGarantiaService
 
         lista_anexos = list(anexos_extras or [])
+
+        # NF PDF do Storage
+        if nota.pdf_object_key and storage:
+            try:
+                from app.core.config import settings
+                pdf_nf = storage.download(settings.STORAGE_BUCKET, nota.pdf_object_key)
+                if pdf_nf:
+                    # Sanitiza nome do arquivo NF
+                    num_limpo = (nota.numero_nota or str(nota.id)).replace("/", "_").replace("\\", "_")
+                    nome_nf = f"nota_fiscal_{num_limpo}.pdf"
+                    lista_anexos.append((nome_nf, pdf_nf, "application/pdf"))
+                    print(f"[Email] PDF da NF {nota.numero_nota} anexado do storage.")
+            except Exception as e:
+                print(f"[Email] Aviso: não foi possível anexar PDF da NF do storage: {e}")
+
         servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota.id).first()
         if servico_os and servico_os.numero_os:
             try:

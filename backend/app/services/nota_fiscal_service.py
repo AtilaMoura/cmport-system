@@ -14,6 +14,7 @@ from app.schemas.servico_schema import ServicoCreate
 from app.services.servico_service import ServicoService
 from app.models.servico_model import ManutencaoAssistencia
 from app.models.nota_fiscal_model import TipoNota, StatusNota
+from app.core.storage_client import StorageClient
 
 
 def limpar_cnpj(cnpj: str) -> str:
@@ -570,6 +571,63 @@ class NotaFiscalService:
         return NotaFiscalResponse.model_validate(nota) if nota else None
 
     @staticmethod
+    def upload_pdf_nota(db: Session, nota_id: int, pdf_bytes: bytes, storage: StorageClient) -> str:
+        """Faz upload do PDF, vincula à nota e atualiza o banco."""
+        from app.core.config import settings
+        
+        db_nota = NotaFiscalRepository.get_by_id(db, nota_id)
+        if not db_nota:
+            raise HTTPException(status_code=404, detail="Nota fiscal não encontrada.")
+        
+        # Sanitiza número da nota para compor a chave
+        # "notas_fiscais/{nota_id}/{numero_sanitizado}.pdf"
+        numero_sanitizado = re.sub(r'[^a-zA-Z0-9]', '_', db_nota.numero_nota)
+        object_key = f"notas_fiscais/{nota_id}/{numero_sanitizado}.pdf"
+        
+        try:
+            storage.upload(settings.STORAGE_BUCKET, object_key, pdf_bytes, content_type="application/pdf")
+            NotaFiscalRepository.update_pdf_key(db, nota_id, object_key)
+            return object_key
+        except Exception as e:
+            print(f"[Storage] Erro ao fazer upload de PDF para nota {nota_id}: {e}")
+            raise HTTPException(status_code=500, detail="Erro ao salvar PDF no storage.")
+
+    @staticmethod
+    def get_pdf_url(db: Session, nota_id: int, storage: StorageClient) -> dict:
+        """Retorna uma URL assinada para visualização do PDF da nota."""
+        from app.core.config import settings
+        
+        db_nota = NotaFiscalRepository.get_by_id(db, nota_id)
+        if not db_nota:
+            raise HTTPException(status_code=404, detail="Nota fiscal não encontrada.")
+        
+        if not db_nota.pdf_object_key:
+            raise HTTPException(status_code=404, detail="Esta nota não possui PDF armazenado.")
+        
+        try:
+            url = storage.get_presigned_url(settings.STORAGE_BUCKET, db_nota.pdf_object_key, expiry_seconds=900)
+            return {"url": url, "expira_em": 900}
+        except Exception as e:
+            print(f"[Storage] Erro ao gerar URL assinada para nota {nota_id}: {e}")
+            raise HTTPException(status_code=500, detail="Erro ao gerar link de visualização.")
+
+    @staticmethod
+    def delete_pdf_nota(db: Session, nota_id: int, storage: StorageClient):
+        """Remove o PDF do storage e limpa a referência no banco."""
+        from app.core.config import settings
+
+        db_nota = NotaFiscalRepository.get_by_id(db, nota_id)
+        if not db_nota:
+            raise HTTPException(status_code=404, detail="Nota não encontrada.")
+
+        if db_nota.pdf_object_key:
+            try:
+                storage.delete(settings.STORAGE_BUCKET, db_nota.pdf_object_key)
+            except Exception as e:
+                print(f"[Storage] Aviso: erro ao deletar PDF do storage para nota {nota_id}: {e}")
+            NotaFiscalRepository.update_pdf_key(db, nota_id, None)
+
+    @staticmethod
     def vincular_condominio(db: Session, nota_id: int, condominio_id: int):
         from app.models.nota_fiscal_model import NotaFiscal
         from app.models.condominio_model import Condominio
@@ -626,12 +684,21 @@ class NotaFiscalService:
         return NotaFiscalResponse.model_validate(db_nota), aviso
 
     @staticmethod
-    def delete_nota(db: Session, nota_id: int, motivo: Optional[str] = None, deletar_servicos: bool = False) -> bool:
+    def delete_nota(db: Session, nota_id: int, motivo: Optional[str] = None, deletar_servicos: bool = False, storage: Optional[StorageClient] = None) -> bool:
         from app.routers.auditoria_router import registrar_exclusao
 
         db_nota = NotaFiscalRepository.get_by_id(db, nota_id)
         if not db_nota:
             return False
+
+        # Se houver PDF no storage, tenta deletar primeiro
+        if db_nota.pdf_object_key and storage:
+            try:
+                from app.core.config import settings
+                storage.delete(settings.STORAGE_BUCKET, db_nota.pdf_object_key)
+                print(f"[Storage] PDF deletado para nota {nota_id}: {db_nota.pdf_object_key}")
+            except Exception as e:
+                print(f"[Storage] Aviso: não foi possível deletar PDF do storage para nota {nota_id}: {e}")
 
         servicos_vinculados = db.query(ManutencaoAssistencia).filter(
             ManutencaoAssistencia.nota_fiscal_id == nota_id
@@ -774,13 +841,14 @@ class NotaFiscalService:
         }
 
     @staticmethod
-    async def importar_xmls(db: Session, files: List[UploadFile], tipo_fornecido: Optional[str] = None):
+    async def importar_xmls(db: Session, files: List[UploadFile], tipo_fornecido: Optional[str] = None, storage: Optional[StorageClient] = None):
         print(f"\n[IMPORT] >>> Requisicao recebida: {len(files)} arquivo(s)")
         processados = 0
         ja_existentes = 0
         canceladas = 0
         erros = []
         xmls_para_processar = []
+        pdfs_no_zip: dict[str, bytes] = {}  # nome_base_lower -> bytes
 
         for file in files:
             try:
@@ -791,9 +859,18 @@ class NotaFiscalService:
                     try:
                         with zipfile.ZipFile(io.BytesIO(conteudo)) as zip_ref:
                             for zip_info in zip_ref.filelist:
-                                if not zip_info.is_dir() and zip_info.filename.lower().endswith('.xml'):
+                                if zip_info.is_dir():
+                                    continue
+                                
+                                name_lower = zip_info.filename.lower()
+                                if name_lower.endswith('.xml'):
                                     xml_content = zip_ref.read(zip_info.filename)
-                                    xmls_para_processar.append({'filename': f"{filename}/{zip_info.filename}", 'content': xml_content})
+                                    xmls_para_processar.append({'filename': zip_info.filename, 'content': xml_content})
+                                elif name_lower.endswith('.pdf'):
+                                    pdf_content = zip_ref.read(zip_info.filename)
+                                    # Extrai nome base: "pasta/123.pdf" -> "123"
+                                    base_name = zip_info.filename.split('/')[-1].split('\\')[-1].rsplit('.', 1)[0].lower()
+                                    pdfs_no_zip[base_name] = pdf_content
                     except zipfile.BadZipFile:
                         erros.append({"arquivo": filename, "erro": "Arquivo ZIP corrompido ou inválido."})
                 elif filename.lower().endswith('.xml'):
@@ -859,6 +936,26 @@ class NotaFiscalService:
                 # Validar impostos vs configuração (alerta não-bloqueante)
                 _validar_impostos_vs_config(db, db_nota)
                 db.commit()
+
+                # Tentar vincular PDF se houver match
+                if storage:
+                    pdf_bytes = None
+                    # Estratégia 1: Numero da nota bate com nome do PDF (ex: "123.pdf" para nota "123")
+                    numero_limpo = db_nota.numero_nota.lower()
+                    pdf_bytes = pdfs_no_zip.get(numero_limpo)
+                    
+                    # Estratégia 2: Se ZIP tem exatamente 1 XML e 1 PDF, assume-se que são o par
+                    if not pdf_bytes and len(xmls_para_processar) == 1 and len(pdfs_no_zip) == 1:
+                        pdf_bytes = list(pdfs_no_zip.values())[0]
+                    
+                    if pdf_bytes:
+                        try:
+                            # Reutiliza upload_pdf_nota para salvar no storage e atualizar db_nota.pdf_object_key
+                            NotaFiscalService.upload_pdf_nota(db, db_nota.id, pdf_bytes, storage)
+                            print(f"[IMPORT] PDF vinculado automaticamente para nota {db_nota.numero_nota}")
+                        except Exception as e:
+                            # Erro no PDF não deve abortar a importação da nota
+                            print(f"[IMPORT] Aviso: falha ao vincular PDF automático para nota {db_nota.numero_nota}: {e}")
 
                 if dados_nota['condominio_id'] and dados_nota['tipo'] in [TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]:
                     try:

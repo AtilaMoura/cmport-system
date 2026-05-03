@@ -38,6 +38,7 @@ interface NotaFiscal {
   divergencia_impostos: Record<string, { pct: number; config: number; xml: number }> | null;
   nota_vinculada_id: number | null;
   imposto_config_vinculo: { aplicar_imposto_em: string; nota_a_id: number; nota_b_id: number } | null;
+  pdf_disponivel: boolean;
 }
 
 interface Condominio {
@@ -141,6 +142,8 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   const [nota, setNota] = useState<NotaFiscal | null>(null);
   const [condominio, setCondominio] = useState<Condominio | null>(null);
   const [boletos, setBoletos] = useState<Boleto[]>([]);
+  const [submittingPdf, setSubmittingPdf] = useState(false);
+  const [deletingPdf, setDeletingPdf] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState(false);
   const [modalExcluir, setModalExcluir] = useState(false);
@@ -412,6 +415,55 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     } catch (error) {
       console.error('Erro ao atualizar:', error);
       alert('Erro ao atualizar nota fiscal');
+    }
+  };
+
+  const handleUploadPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+
+    setSubmittingPdf(true);
+    const formData = new FormData();
+    formData.append('pdf', file);
+
+    try {
+      await api.post(`/notas-fiscais/${id}/pdf`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      alert('PDF enviado com sucesso!');
+      await carregarDados();
+    } catch (error) {
+      console.error('Erro ao enviar PDF:', error);
+      alert('Erro ao enviar PDF.');
+    } finally {
+      setSubmittingPdf(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleVerPdf = async () => {
+    if (!id) return;
+    try {
+      const res = await api.get(`/notas-fiscais/${id}/pdf-url`);
+      if (res.data.url) {
+        window.open(res.data.url, '_blank');
+      }
+    } catch {
+      alert('Erro ao obter link do PDF.');
+    }
+  };
+
+  const handleDeletePdf = async () => {
+    if (!id || !confirm('Deseja excluir o PDF desta nota fiscal?')) return;
+    setDeletingPdf(true);
+    try {
+      await api.delete(`/notas-fiscais/${id}/pdf`);
+      alert('PDF excluído com sucesso!');
+      await carregarDados();
+    } catch {
+      alert('Erro ao excluir PDF.');
+    } finally {
+      setDeletingPdf(false);
     }
   };
 
@@ -793,6 +845,78 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
               </div>
             </div>
           )}
+
+          {/* Gestão de PDF */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="text-xl">📄</span>
+                Documento (PDF)
+              </h3>
+              {nota.pdf_disponivel && (
+                <span className="text-xs font-bold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-500/20 px-2 py-1 rounded-lg">
+                  Disponível
+                </span>
+              )}
+            </div>
+            <div className="p-4 sm:p-6">
+              {nota.pdf_disponivel ? (
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={handleVerPdf}
+                    className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>👁️</span> Visualizar PDF
+                  </button>
+                  <button
+                    onClick={handleDeletePdf}
+                    disabled={deletingPdf}
+                    className="px-4 py-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-500/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {deletingPdf ? '...' : '🗑️ Excluir'}
+                  </button>
+                  <div className="relative flex-1">
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={handleUploadPdf}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      disabled={submittingPdf}
+                    />
+                    <button className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2">
+                      {submittingPdf ? 'Subindo...' : '🔄 Substituir PDF'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <div className="mb-4">
+                    <span className="text-4xl">📤</span>
+                  </div>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                    Esta nota fiscal ainda não possui um PDF vinculado.
+                  </p>
+                  <div className="relative inline-block">
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={handleUploadPdf}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      disabled={submittingPdf}
+                    />
+                    <button className="px-8 py-3 bg-orange-600 text-white rounded-xl font-bold shadow-lg shadow-orange-600/20 hover:brightness-110 transition-all flex items-center gap-2">
+                      {submittingPdf ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <span>📁</span>
+                      )}
+                      Selecionar PDF
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Nota vinculada */}
           {nota.nota_vinculada_id && (
