@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List
 from datetime import date, datetime
 from enum import Enum
+import json
 
 
 class TipoServico(str, Enum):
@@ -38,6 +39,20 @@ class ServicoResponse(ServicoBase):
     orcamento_id: Optional[int] = None
     criado_em: datetime
     atualizado_em: datetime
+    email_enviado_em: Optional[datetime] = None
+    email_destinatarios: Optional[List[str]] = None
+
+    @field_validator('email_destinatarios', mode='before')
+    @classmethod
+    def parse_destinatarios(cls, v):
+        if v is None or isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return None
+        return None
 
     class Config:
         from_attributes = True

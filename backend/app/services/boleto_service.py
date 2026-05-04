@@ -1280,10 +1280,12 @@ class BoletoService:
             dados_manutencao=dados_manutencao,
         )
 
-        # Atualiza data de envio no serviço se for manutenção/assistência
+        # Atualiza data de envio e destinatários no serviço se for manutenção/assistência
         if servico_os:
+            import json as _json
             from datetime import datetime
             servico_os.email_enviado_em = datetime.utcnow()
+            servico_os.email_destinatarios = _json.dumps(destinatarios)
             db.add(servico_os)
             db.commit()
 

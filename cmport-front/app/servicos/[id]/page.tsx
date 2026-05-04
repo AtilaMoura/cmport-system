@@ -17,6 +17,7 @@ interface Servico {
   criado_em: string;
   atualizado_em: string;
   email_enviado_em: string | null;
+  email_destinatarios: string[] | null;
 }
 
 interface ConfigImpostos {
@@ -1371,10 +1372,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                   {condominio?.nome || '—'} · {pd(servico.data_servico)}
                 </p>
                 {servico.email_enviado_em && (
-                  <div className="mt-2 flex items-center gap-1.5 bg-green-500/30 backdrop-blur-sm px-3 py-1 rounded-full w-fit border border-green-400/30">
+                  <div className="mt-2 flex flex-col gap-0.5 bg-green-500/30 backdrop-blur-sm px-3 py-2 rounded-xl w-fit border border-green-400/30 max-w-full">
                     <span className="text-[10px] sm:text-xs font-bold tracking-wide flex items-center gap-1.5 uppercase">
-                      <span className="text-sm">📧</span> E-mail de cobrança enviado em {new Date(servico.email_enviado_em).toLocaleString('pt-BR')}
+                      <span className="text-sm">📧</span> E-mail enviado em {new Date(servico.email_enviado_em).toLocaleString('pt-BR')}
                     </span>
+                    {servico.email_destinatarios && servico.email_destinatarios.length > 0 && (
+                      <span className="text-[10px] sm:text-xs opacity-90 font-medium pl-6 break-all">
+                        Para: {servico.email_destinatarios.join(', ')}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
