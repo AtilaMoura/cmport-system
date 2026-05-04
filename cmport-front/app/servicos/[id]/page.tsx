@@ -97,6 +97,7 @@ interface Boleto {
 }
 
 interface OrdemServico {
+  id: number;
   task_id: number;
   customer_description: string | null;
   task_date: string | null;
