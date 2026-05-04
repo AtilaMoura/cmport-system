@@ -1,0 +1,78 @@
+P: São Paulo, 27 de abril de 2026
+  R: São Paulo, 2 (bold=None, size=177800)
+  R: 7 (bold=None, size=177800)
+  R:  de abril de 2026 (bold=None, size=177800)
+P: TERMO DE GARANTIA DO PRODUTO / SERVIÇO
+  R: TERMO DE GARANTIA DO PRODUTO / SERVIÇO (bold=None, size=None)
+P: Cliente: Condominio Edifício Araucárias.
+Endereço: Av: Dr. Francisco Ranieri1, 700 – Lauzane Paulista – São Paulo/SP.
+  R: Cliente: (bold=None, size=None)
+  R:   (bold=None, size=None)
+  R: Condominio Edifício  (bold=None, size=None)
+  R: Araucárias (bold=None, size=None)
+  R: . (bold=None, size=None)
+  R: 
+ (bold=None, size=None)
+  R: Endereço: (bold=None, size=None)
+  R:   (bold=None, size=None)
+  R: Av: (bold=None, size=None)
+  R:   (bold=None, size=None)
+  R: Dr. Francisco Ranieri1 (bold=None, size=None)
+  R: , 700  (bold=None, size=None)
+  R: – Lauzane Paulista – São Paulo/SP. (bold=None, size=None)
+P: Pelo presente instrumento, formaliza-se o termo de garantia referente ao serviço prestado, consistente na troca de um refletor de 100W, conforme abaixo descrito:
+  R: Pelo presente instrumento, formaliza-se o termo de garantia referente ao serviço prestado, consistente na  (bold=None, size=158750)
+  R: troca de um refletor de 100W (bold=True, size=158750)
+  R: , conforme abaixo descrito: (bold=None, size=158750)
+P: Data da execução do serviço: 22/04/2026 
+  R: Data da execução do serviço: (bold=True, size=158750)
+  R:   (bold=None, size=158750)
+  R: 22 (bold=None, size=158750)
+  R: /04/2026  (bold=None, size=158750)
+P: Nota Fiscal: nº 000.000.079-A 
+  R: Nota Fiscal: (bold=True, size=158750)
+  R:  nº 000.000.0 (bold=None, size=158750)
+  R: 79 (bold=None, size=158750)
+  R: -A  (bold=None, size=158750)
+P: Ordem de Serviço: nº 72179837-A 
+  R: Ordem de Serviço: (bold=True, size=158750)
+  R:  nº 72 (bold=None, size=158750)
+  R: 1 (bold=None, size=158750)
+  R: 79837 (bold=None, size=158750)
+  R: -A  (bold=None, size=158750)
+P: Prazo de Garantia:
+A garantia concedida é de 06 (seis) meses, com início em 17/04/2026 e término em 17/04/2027.
+  R: Prazo de Garantia: (bold=True, size=158750)
+  R: 
+A garantia concedida é de  (bold=None, size=158750)
+  R: 06 (bold=True, size=158750)
+  R:  ( (bold=True, size=158750)
+  R: seis (bold=True, size=158750)
+  R: )  (bold=True, size=158750)
+  R: meses (bold=True, size=158750)
+  R: , com início em 17/04/2026 e término em 17/04/2027. (bold=None, size=158750)
+P: Condições da Garantia:
+A presente garantia cobre exclusivamente defeitos decorrentes de falha de instalação ou do equipamento fornecido, dentro do prazo estabelecido.
+  R: Condições da Garantia: (bold=True, size=158750)
+  R: 
+A presente garantia cobre exclusivamente defeitos decorrentes de falha de instalação ou do equipamento fornecido, dentro do prazo estabelecido. (bold=None, size=158750)
+P: A garantia será automaticamente cancelada nas seguintes hipóteses:
+  R: A garantia será automaticamente cancelada nas seguintes hipóteses: (bold=None, size=158750)
+P: Intervenção, manutenção ou reparo realizado por pessoas não autorizadas; 
+  R: Intervenção, manutenção ou reparo realizado por pessoas não autorizadas;  (bold=None, size=158750)
+P: Danos decorrentes de acidentes, quedas ou agentes externos; 
+  R: Danos decorrentes de acidentes, quedas ou agentes externos;  (bold=None, size=158750)
+P: Variações de tensão elétrica, sobrecargas ou instalações elétricas inadequadas; 
+  R: Variações de tensão elétrica, sobrecargas ou instalações elétricas inadequadas;  (bold=None, size=158750)
+P: Uso indevido ou em desacordo com as recomendações técnicas; 
+  R: Uso indevido ou em desacordo com as recomendações técnicas;  (bold=None, size=158750)
+P: Qualquer ocorrência imprevisível ou de força maior que comprometa o funcionamento do equipamento. 
+  R: Qualquer ocorrência imprevisível ou de força maior que comprometa o funcionamento do equipamento.  (bold=None, size=158750)
+P: Sem mais, permanecemos à disposição para quaisquer esclarecimentos.
+  R:  (bold=None, size=158750)
+  R: Sem mais, permanecemos à disposição para quaisquer esclarecimentos. (bold=None, size=158750)
+P: Atenciosamente,
+  R: Atenciosamente, (bold=None, size=158750)
+P: CMPORT Sistemas de Eletrônicos de Segurança                                                                         André Moreira Rosa                                                                                                     Diretor Comercial
+  R: CMPORT Sistemas de Eletrônicos de Segurança                                                                          (bold=None, size=177800)
+  R: André Moreira Rosa                                                                                                     Diretor Comercial (bold=None, size=177800)

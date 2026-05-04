@@ -289,6 +289,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   // Ordem de Serviço vinculada
   const [ordemServico, setOrdemServico] = useState<OrdemServico | null>(null);
   const [pdfLoadingOs, setPdfLoadingOs] = useState(false);
+  const [modalVincularOs, setModalVincularOs] = useState(false);
+  const [ordensDisponiveis, setOrdensDisponiveis] = useState<OrdemServico[]>([]);
+  const [carregandoOsDisponiveis, setCarregandoOsDisponiveis] = useState(false);
+  const [vinculandoOs, setVinculandoOs] = useState(false);
 
   // Modal "Marcar Pago"
   const [modalPago, setModalPago] = useState<Boleto | null>(null);
@@ -460,6 +464,48 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       alert('PDF não disponível para esta OS.');
     } finally {
       setPdfLoadingOs(false);
+    }
+  };
+
+  const abrirModalVincularOs = async () => {
+    if (!condominio) return;
+    setModalVincularOs(true);
+    setCarregandoOsDisponiveis(true);
+    try {
+      const { data } = await api.get(`/ordens-servico/disponiveis/${condominio.id}`);
+      setOrdensDisponiveis(data);
+    } catch {
+      alert("Erro ao buscar ordens de serviço disponíveis.");
+    } finally {
+      setCarregandoOsDisponiveis(false);
+    }
+  };
+
+  const handleVincularOsManual = async (ordemServicoId: number) => {
+    if (!id) return;
+    setVinculandoOs(true);
+    try {
+      await api.put(`/servicos/${id}/vincular-os/${ordemServicoId}`);
+      setModalVincularOs(false);
+      await carregarDados();
+    } catch {
+      alert("Erro ao vincular ordem de serviço.");
+    } finally {
+      setVinculandoOs(false);
+    }
+  };
+
+  const handleDesvincularOsManual = async () => {
+    if (!id) return;
+    if (!confirm("Deseja desvincular esta Ordem de Serviço deste serviço?")) return;
+    setVinculandoOs(true);
+    try {
+      await api.put(`/servicos/${id}/desvincular-os`);
+      await carregarDados();
+    } catch {
+      alert("Erro ao desvincular ordem de serviço.");
+    } finally {
+      setVinculandoOs(false);
     }
   };
 
@@ -1394,7 +1440,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Data do Serviço</p>
                         <p className="font-bold text-slate-900 dark:text-white">{pd(servico.data_servico)}</p>
                       </div>
-                      {servico.numero_os && (
+                      {servico.numero_os ? (
                         <div className="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-4 col-span-2 flex items-center justify-between gap-2">
                           <div>
                             <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Ordem de Serviço (OS)</p>
@@ -1404,6 +1450,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                             className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline shrink-0">
                             Ver OS →
                           </Link>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 dark:bg-slate-800/50 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4 col-span-2 flex items-center justify-between gap-2">
+                          <p className="text-sm text-slate-500 italic">Nenhuma OS vinculada</p>
+                          <button onClick={abrirModalVincularOs}
+                            className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline shrink-0 flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.1-1.1m1.415-8.328a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.1-1.1" /></svg>
+                            Vincular OS Manualmente →
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1440,6 +1495,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         Baixar PDF
                       </button>
                     )}
+                    <button onClick={handleDesvincularOsManual} disabled={vinculandoOs}
+                      className="px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-500/20 rounded-lg hover:brightness-105 transition-all flex items-center gap-1">
+                      {vinculandoOs
+                        ? <div className="w-3 h-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                        : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                      Desvincular
+                    </button>
                     <Link href={`/ordens-servico/${ordemServico.task_id}`}
                       className="px-3 py-1.5 text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-500/20 rounded-lg hover:brightness-105 transition-all flex items-center gap-1">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
@@ -3332,6 +3394,70 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               <button onClick={() => setModalVincularOrc(false)}
                 className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all text-sm hover:brightness-95">
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal vincular OS manual */}
+      {modalVincularOs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg" style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <h3 className="font-black text-slate-900 dark:text-white text-lg">Vincular Ordem de Serviço</h3>
+              <button onClick={() => setModalVincularOs(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none">×</button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {carregandoOsDisponiveis ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : ordensDisponiveis.length === 0 ? (
+                <div className="text-center py-10">
+                   <p className="text-4xl mb-4">🔍</p>
+                   <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+                    Nenhuma Ordem de Serviço disponível para vinculação encontrada para <strong>{condominio?.nome}</strong>.
+                   </p>
+                   <p className="text-xs text-slate-400 mt-2">Certifique-se que a OS foi sincronizada e ainda não está vinculada a outro serviço.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 uppercase font-bold tracking-wider">
+                    Ordens de Serviço Disponíveis ({condominio?.nome}):
+                  </p>
+                  {ordensDisponiveis.map(os => (
+                    <button
+                      key={os.id}
+                      onClick={() => handleVincularOsManual(os.id)}
+                      disabled={vinculandoOs}
+                      className="w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/5 transition-all disabled:opacity-50 group"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-black text-purple-600 dark:text-purple-400 group-hover:scale-105 transition-transform">#{os.task_id}</span>
+                        <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
+                          {os.task_date ? new Date(os.task_date).toLocaleDateString('pt-BR') : '—'}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{os.task_type_description || 'Sem tipo'}</p>
+                      {os.report && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 italic">
+                          {os.report}
+                        </p>
+                      )}
+                      <div className="mt-3 flex items-center justify-end">
+                         <span className="text-[10px] font-black uppercase text-purple-600 dark:text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                           Vincular Agora <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                         </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <button onClick={() => setModalVincularOs(false)}
+                className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all text-sm hover:brightness-95">
+                Fechar
               </button>
             </div>
           </div>

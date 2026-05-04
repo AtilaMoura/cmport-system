@@ -118,6 +118,31 @@ class OrdemServicoService:
             "nota_numero": nota.numero_nota if nota else None,
             "condominio_id": servico.condominio_id if servico else None,
         }
+    @staticmethod
+    def listar_disponiveis_condominio(db: Session, condominio_id: int):
+        """Lista OSs do Auvo (via customer_id) que ainda não estão vinculadas a nenhum serviço."""
+        from app.models.condominio_model import Condominio
+        from app.models.ordem_servico_model import OrdemServico
+        
+        condo = db.query(Condominio).filter(Condominio.id == condominio_id).first()
+        if not condo or not condo.auvo_id:
+            return []
+            
+        # OSs que pertencem a este condominio (via auvo_id)
+        # E que não estão vinculadas a ManutencaoAssistencia
+        # Nota: ManutencaoAssistencia.ordem_servico_id é o FK
+        
+        linked_os_ids = db.query(ManutencaoAssistencia.ordem_servico_id).filter(
+            ManutencaoAssistencia.ordem_servico_id.isnot(None)
+        ).all()
+        linked_os_ids = [r[0] for r in linked_os_ids]
+        
+        ordens = db.query(OrdemServico).filter(
+            OrdemServico.customer_id == condo.auvo_id,
+            OrdemServico.id.notin_(linked_os_ids) if linked_os_ids else True
+        ).order_by(OrdemServico.task_date.desc()).all()
+        
+        return [OrdemServicoService._enriquecer(db, o) for o in ordens]
 
 
     @staticmethod

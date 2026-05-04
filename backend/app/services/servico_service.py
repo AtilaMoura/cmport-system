@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
@@ -90,3 +91,31 @@ class ServicoService:
 
         ServicoRepository.delete(db, db_servico)
         return True
+    @staticmethod
+    def vincular_os_manual(db: Session, servico_id: int, ordem_servico_id: int):
+        servico = ServicoRepository.get_by_id(db, servico_id)
+        if not servico:
+            return None
+            
+        from app.models.ordem_servico_model import OrdemServico
+        os_obj = db.query(OrdemServico).filter(OrdemServico.id == ordem_servico_id).first()
+        if not os_obj:
+            raise HTTPException(status_code=404, detail="Ordem de serviço não encontrada")
+            
+        servico.ordem_servico_id = os_obj.id
+        servico.numero_os = str(os_obj.task_id)
+        db.commit()
+        db.refresh(servico)
+        return servico
+
+    @staticmethod
+    def desvincular_os_manual(db: Session, servico_id: int):
+        servico = ServicoRepository.get_by_id(db, servico_id)
+        if not servico:
+            return None
+        servico.ordem_servico_id = None
+        # Opcional: limpar numero_os se quiser desvincular totalmente a referência
+        # servico.numero_os = None 
+        db.commit()
+        db.refresh(servico)
+        return servico

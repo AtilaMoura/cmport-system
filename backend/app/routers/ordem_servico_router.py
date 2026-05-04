@@ -60,3 +60,7 @@ def detalhe_ordem(task_id: int, db: Session = Depends(get_db)):
     if not ordem:
         raise HTTPException(status_code=404, detail="Ordem de serviço não encontrada")
     return ordem
+@router.get("/disponiveis/{condominio_id}")
+def listar_disponiveis(condominio_id: int, db: Session = Depends(get_db)):
+    """Lista OSs do condomínio que ainda não estão vinculadas."""
+    return OrdemServicoService.listar_disponiveis_condominio(db, condominio_id)

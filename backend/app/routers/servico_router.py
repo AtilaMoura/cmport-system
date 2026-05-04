@@ -66,3 +66,19 @@ def vincular_orcamento(servico_id: int, body: VincularOrcamentoBody, db: Session
 def delete_servico(servico_id: int, db: Session = Depends(get_db)):
     if not ServicoService.delete_servico(db, servico_id):
         raise HTTPException(status_code=404, detail="Serviço não encontrado")
+@router.put("/{servico_id}/vincular-os/{ordem_servico_id}", response_model=ServicoResponse)
+def vincular_os(servico_id: int, ordem_servico_id: int, db: Session = Depends(get_db)):
+    """Vincula uma Ordem de Serviço manualmente ao serviço."""
+    updated = ServicoService.vincular_os_manual(db, servico_id, ordem_servico_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+    return updated
+
+
+@router.put("/{servico_id}/desvincular-os", response_model=ServicoResponse)
+def desvincular_os(servico_id: int, db: Session = Depends(get_db)):
+    """Remove o vínculo da Ordem de Serviço do serviço."""
+    updated = ServicoService.desvincular_os_manual(db, servico_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+    return updated
