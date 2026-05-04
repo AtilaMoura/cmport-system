@@ -271,9 +271,98 @@ def _html_manutencao(
     pis_fmt = _fmt_valor(pis or 0)
     csll_fmt = _fmt_valor(csll or 0)
 
-    assinatura_img = ""
-    if _ASSINATURA_B64:
-        assinatura_img = f'<img src="data:image/jpeg;base64,{_ASSINATURA_B64}" alt="Assinatura CM Port" style="max-width:400px;width:100%;height:auto;display:block;margin:0 auto 14px auto;" />'
+    logo_url = f"data:image/jpeg;base64,{_ASSINATURA_B64}" if _ASSINATURA_B64 else ""
+    assinatura_bloco = f"""<!-- ASSINATURA CM PORT -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;font-family:Arial,Helvetica,sans-serif;">
+  <tr>
+    <td style="padding:0;margin:0;">
+      <!-- faixa superior -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="height:18px;background-color:#1f4e79;font-size:0;line-height:0;">&nbsp;</td>
+        </tr>
+      </table>
+
+      <!-- corpo da assinatura -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:900px;">
+        <tr>
+          <td align="center" valign="middle" style="padding:28px 24px 28px 24px;background-color:#ffffff;">
+            <table cellpadding="0" cellspacing="0" border="0" style="max-width:760px;width:100%;">
+              <tr>
+                <!-- coluna esquerda: logo -->
+                <td valign="middle" align="center" style="width:42%;padding:10px 20px 10px 0;">
+                  <img
+                    src="{logo_url}"
+                    alt="CM Port"
+                    style="display:block;max-width:180px;width:100%;height:auto;border:0;outline:none;text-decoration:none;"
+                  />
+                </td>
+
+                <!-- divisor -->
+                <td valign="middle" style="width:2%;padding:0;">
+                  <div style="width:4px;height:170px;background-color:#1f4e79;margin:0 auto;border-radius:2px;"></div>
+                </td>
+
+                <!-- coluna direita: dados -->
+                <td valign="middle" style="width:56%;padding:10px 0 10px 24px;">
+                  <div style="font-size:34px;line-height:1.1;font-weight:700;color:#1f4e79;letter-spacing:0.2px;">
+                    Fabiana Pedretti
+                  </div>
+
+                  <div style="font-size:20px;line-height:1.3;color:#6a6a6a;font-weight:400;margin-top:8px;letter-spacing:0.2px;">
+                    Gerente Comercial
+                  </div>
+
+                  <table cellpadding="0" cellspacing="0" border="0" style="margin-top:20px;">
+                    <tr>
+                      <td style="padding:6px 10px 6px 0;vertical-align:middle;">
+                        <span style="font-size:20px;line-height:1;color:#6a6a6a;">✉</span>
+                      </td>
+                      <td style="padding:6px 0;vertical-align:middle;">
+                        <span style="font-size:18px;line-height:1.3;color:#5b7690;">comercial@cmport.com.br</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 10px 6px 0;vertical-align:middle;">
+                        <span style="font-size:20px;line-height:1;color:#6a6a6a;">🌐</span>
+                      </td>
+                      <td style="padding:6px 0;vertical-align:middle;">
+                        <span style="font-size:18px;line-height:1.3;color:#5b7690;">www.cmport.com.br</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 10px 6px 0;vertical-align:middle;">
+                        <span style="font-size:20px;line-height:1;color:#6a6a6a;">☎</span>
+                      </td>
+                      <td style="padding:6px 0;vertical-align:middle;">
+                        <span style="font-size:18px;line-height:1.3;color:#5b7690;">(11) 94034-1682</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 10px 6px 0;vertical-align:middle;">
+                        <span style="font-size:20px;line-height:1;color:#6a6a6a;">☏</span>
+                      </td>
+                      <td style="padding:6px 0;vertical-align:middle;">
+                        <span style="font-size:18px;line-height:1.3;color:#5b7690;">(11) 3998-1347</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- faixa inferior -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="height:18px;background-color:#1f4e79;font-size:0;line-height:0;">&nbsp;</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>"""
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -441,11 +530,8 @@ def _html_manutencao(
 
           <!-- Rodapé / Assinatura -->
           <tr>
-            <td style="background-color:#f8fafc;padding:24px 40px 32px 40px;border-top:1px solid #e2e8f0;text-align:center;">
-              {assinatura_img}
-              <p style="margin:0;color:#64748b;font-size:12px;line-height:1.5;">
-                CM Port — Sistemas de Segurança e Portaria Remota
-              </p>
+            <td style="background-color:#f8fafc;padding:0;border-top:1px solid #e2e8f0;text-align:center;">
+              {assinatura_bloco}
             </td>
           </tr>
 
