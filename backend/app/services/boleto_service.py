@@ -1154,6 +1154,7 @@ class BoletoService:
         rodape: str = None,
         anexos_extras: list = None,
         storage: Optional[StorageClient] = None,
+        dados_manutencao_manual: Optional[dict] = None,
     ) -> dict:
         """
         Baixa o PDF do boleto no Inter, busca o XML da nota e envia por email
@@ -1192,7 +1193,7 @@ class BoletoService:
             pass
 
         # Determina se usa template de manutenção
-        dados_manutencao = BoletoService._preparar_dados_manutencao(db, nota, boleto, nome_condominio)
+        dados_manutencao = dados_manutencao_manual or BoletoService._preparar_dados_manutencao(db, nota, boleto, nome_condominio)
         if dados_manutencao and saudacao:
             dados_manutencao["saudacao"] = saudacao
 

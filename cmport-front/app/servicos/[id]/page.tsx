@@ -1176,8 +1176,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       const fd = _buildFormData(modalEmail, destinatarios);
       await api.post(`/boletos/${modalEmail.id}/enviar-email`, fd);
       setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
-    } catch {
-      alert('Erro ao enviar email. Verifique as configurações de SMTP.');
+    } catch (err) {
+      console.error(err);
+      alert('Falha ao enviar o e-mail. Por favor, tente novamente ou verifique os logs do servidor.');
     } finally {
       setEnviandoEmail(false);
     }
@@ -1210,8 +1211,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       await api.post(`/boletos/${modalEmail.id}/enviar-email`, fd);
       fecharComposer();
       setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
-    } catch {
-      alert('Erro ao enviar email. Verifique as configurações de SMTP.');
+    } catch (err) {
+      console.error(err);
+      alert('Falha ao enviar o e-mail. Por favor, tente novamente ou verifique os logs do servidor.');
     } finally {
       setComposerEnviando(false);
     }
