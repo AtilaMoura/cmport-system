@@ -279,71 +279,71 @@ def _html_manutencao(
       <!-- faixa superior -->
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td style="height:18px;background-color:#1f4e79;font-size:0;line-height:0;">&nbsp;</td>
+          <td style="height:10px;background-color:#1f4e79;font-size:0;line-height:0;">&nbsp;</td>
         </tr>
       </table>
 
       <!-- corpo da assinatura -->
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
         <tr>
-          <td align="center" valign="middle" style="padding:28px 24px 28px 24px;background-color:#ffffff;">
-            <table cellpadding="0" cellspacing="0" border="0" style="max-width:760px;width:100%;">
+          <td align="center" valign="middle" style="padding:16px 20px;background-color:#ffffff;">
+            <table cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;">
               <tr>
                 <!-- coluna esquerda: logo -->
-                <td valign="middle" align="center" style="width:42%;padding:10px 20px 10px 0;">
+                <td valign="middle" align="center" style="width:38%;padding:6px 16px 6px 0;">
                   <img
                     src="{logo_url}"
                     alt="CM Port"
-                    style="display:block;max-width:180px;width:100%;height:auto;border:0;outline:none;text-decoration:none;"
+                    style="display:block;max-width:120px;width:100%;height:auto;border:0;outline:none;text-decoration:none;"
                   />
                 </td>
 
                 <!-- divisor -->
                 <td valign="middle" style="width:2%;padding:0;">
-                  <div style="width:4px;height:170px;background-color:#1f4e79;margin:0 auto;border-radius:2px;"></div>
+                  <div style="width:3px;height:80px;background-color:#1f4e79;margin:0 auto;border-radius:2px;"></div>
                 </td>
 
                 <!-- coluna direita: dados -->
-                <td valign="middle" style="width:56%;padding:10px 0 10px 24px;">
-                  <div style="font-size:34px;line-height:1.1;font-weight:700;color:#1f4e79;letter-spacing:0.2px;">
+                <td valign="middle" style="width:60%;padding:6px 0 6px 16px;">
+                  <div style="font-size:17px;line-height:1.2;font-weight:700;color:#1f4e79;letter-spacing:0.2px;">
                     Fabiana Pedretti
                   </div>
 
-                  <div style="font-size:20px;line-height:1.3;color:#6a6a6a;font-weight:400;margin-top:8px;letter-spacing:0.2px;">
+                  <div style="font-size:13px;line-height:1.3;color:#6a6a6a;font-weight:400;margin-top:4px;letter-spacing:0.2px;">
                     Gerente Comercial
                   </div>
 
-                  <table cellpadding="0" cellspacing="0" border="0" style="margin-top:20px;">
+                  <table cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
                     <tr>
-                      <td style="padding:6px 10px 6px 0;vertical-align:middle;">
-                        <span style="font-size:20px;line-height:1;color:#6a6a6a;">✉</span>
+                      <td style="padding:3px 8px 3px 0;vertical-align:middle;">
+                        <span style="font-size:13px;line-height:1;color:#6a6a6a;">✉</span>
                       </td>
-                      <td style="padding:6px 0;vertical-align:middle;">
-                        <span style="font-size:18px;line-height:1.3;color:#5b7690;">comercial@cmport.com.br</span>
+                      <td style="padding:3px 0;vertical-align:middle;">
+                        <span style="font-size:12px;line-height:1.3;color:#5b7690;">comercial@cmport.com.br</span>
                       </td>
                     </tr>
                     <tr>
-                      <td style="padding:6px 10px 6px 0;vertical-align:middle;">
-                        <span style="font-size:20px;line-height:1;color:#6a6a6a;">🌐</span>
+                      <td style="padding:3px 8px 3px 0;vertical-align:middle;">
+                        <span style="font-size:13px;line-height:1;color:#6a6a6a;">🌐</span>
                       </td>
-                      <td style="padding:6px 0;vertical-align:middle;">
-                        <span style="font-size:18px;line-height:1.3;color:#5b7690;">www.cmport.com.br</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style="padding:6px 10px 6px 0;vertical-align:middle;">
-                        <span style="font-size:20px;line-height:1;color:#6a6a6a;">☎</span>
-                      </td>
-                      <td style="padding:6px 0;vertical-align:middle;">
-                        <span style="font-size:18px;line-height:1.3;color:#5b7690;">(11) 94034-1682</span>
+                      <td style="padding:3px 0;vertical-align:middle;">
+                        <span style="font-size:12px;line-height:1.3;color:#5b7690;">www.cmport.com.br</span>
                       </td>
                     </tr>
                     <tr>
-                      <td style="padding:6px 10px 6px 0;vertical-align:middle;">
-                        <span style="font-size:20px;line-height:1;color:#6a6a6a;">☏</span>
+                      <td style="padding:3px 8px 3px 0;vertical-align:middle;">
+                        <span style="font-size:13px;line-height:1;color:#6a6a6a;">☎</span>
                       </td>
-                      <td style="padding:6px 0;vertical-align:middle;">
-                        <span style="font-size:18px;line-height:1.3;color:#5b7690;">(11) 3998-1347</span>
+                      <td style="padding:3px 0;vertical-align:middle;">
+                        <span style="font-size:12px;line-height:1.3;color:#5b7690;">(11) 94034-1682</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:3px 8px 3px 0;vertical-align:middle;">
+                        <span style="font-size:13px;line-height:1;color:#6a6a6a;">☏</span>
+                      </td>
+                      <td style="padding:3px 0;vertical-align:middle;">
+                        <span style="font-size:12px;line-height:1.3;color:#5b7690;">(11) 3998-1347</span>
                       </td>
                     </tr>
                   </table>
@@ -357,7 +357,7 @@ def _html_manutencao(
       <!-- faixa inferior -->
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td style="height:18px;background-color:#1f4e79;font-size:0;line-height:0;">&nbsp;</td>
+          <td style="height:10px;background-color:#1f4e79;font-size:0;line-height:0;">&nbsp;</td>
         </tr>
       </table>
     </td>

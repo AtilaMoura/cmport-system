@@ -1118,9 +1118,11 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       const html = typeof res.data === 'string' ? res.data : res.data.html;
       const manutData = typeof res.data === 'object' ? res.data.dados_manutencao : null;
 
-      const assuntoPadrao = `Boleto #${notaFiscal?.numero_nota ?? ''} — ${condominio?.nome ?? ''} — Venc. ${modalEmail.data_vencimento ? pd(modalEmail.data_vencimento) : ''}`;
+      const assuntoPadrao = manutData
+        ? `${condominio?.nome ?? ''} - ${(manutData as Record<string, string>).servico ?? 'Manutenção Preventiva'}`
+        : `Boleto #${notaFiscal?.numero_nota ?? ''} — ${condominio?.nome ?? ''} — Venc. ${modalEmail.data_vencimento ? pd(modalEmail.data_vencimento) : ''}`;
       const corpoPadrao = `Segue em anexo o boleto, nota fiscal e a ordem de serviço referente à Nota Fiscal #${notaFiscal?.numero_nota ?? ''} — ${condominio?.nome ?? ''}.`;
-      
+
       setComposerCorpoHtml(html);
       setComposerManutencao(manutData);
       setComposerAssunto(assuntoPadrao);
