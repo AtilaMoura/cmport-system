@@ -117,8 +117,6 @@ interface OrdemServico {
   signature_url: string | null;
 }
 
-const pd = (d: string) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '';
-
 interface TermoGarantia {
   id: number;
   servico_id: number;
