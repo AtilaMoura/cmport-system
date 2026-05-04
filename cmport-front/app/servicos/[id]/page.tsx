@@ -73,6 +73,7 @@ interface NotaFiscal {
   divergencia_impostos: Record<string, { pct: number; config: number; xml: number }> | null;
   nota_vinculada_id: number | null;
   imposto_config_vinculo: { aplicar_imposto_em: string; nota_a_id: number; nota_b_id: number } | null;
+  pdf_object_key: string | null;
 }
 
 
@@ -2967,6 +2968,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
                       📄 boleto_{modalEmail.codigo_solicitacao}.pdf <span className="text-slate-400 dark:text-slate-500">(automático)</span>
                     </span>
+                    {notaFiscal?.pdf_object_key && (
+                      <span className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs px-3 py-1.5 rounded-lg font-medium">
+                        📄 nota_fiscal_{notaFiscal.numero_nota}.pdf <span className="text-amber-500 dark:text-amber-600">(automático)</span>
+                      </span>
+                    )}
+                    {notaVinculada?.pdf_object_key && (
+                      <span className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs px-3 py-1.5 rounded-lg font-medium">
+                        📄 nota_fiscal_{notaVinculada.numero_nota}.pdf <span className="text-amber-500 dark:text-amber-600">(vinculada)</span>
+                      </span>
+                    )}
                     {servico?.numero_os && (
                       <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
                         🔧 os_{servico.numero_os}.pdf <span className="text-slate-400 dark:text-slate-500">(automático)</span>
@@ -2979,25 +2990,31 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     )}
                   </div>
                   {/* Extras adicionados */}
-                  {composerAnexos.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
+                  {composerAnexos.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-blue-50/50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/20">
                       {composerAnexos.map((f, i) => (
-                        <span key={i} className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-xs px-3 py-1.5 rounded-lg font-medium">
-                          📎 {f.name}
-                          <button onClick={() => setComposerAnexos(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-red-500 font-black ml-0.5">×</button>
+                        <span key={i} className="flex items-center gap-1.5 bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-sm border border-blue-100 dark:border-blue-500/20">
+                          📎 {f.name} ({ (f.size / 1024).toFixed(0) } KB)
+                          <button onClick={() => setComposerAnexos(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-red-500 font-black ml-1 p-0.5 leading-none bg-slate-100 dark:bg-slate-700 rounded-full">×</button>
                         </span>
                       ))}
                     </div>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 italic px-1">Nenhum anexo extra adicionado.</p>
                   )}
                   {/* Upload */}
-                  <label className="flex items-center gap-2 cursor-pointer w-fit px-3 py-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors">
-                    <span>＋ Adicionar anexo</span>
+                  <label className="flex items-center gap-2 cursor-pointer w-full sm:w-fit px-4 py-2 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/5 transition-all group">
+                    <span className="text-lg group-hover:scale-125 transition-transform">➕</span>
+                    <span className="font-bold">Anexar Documento Manualmente</span>
                     <input
                       type="file"
                       multiple
                       className="hidden"
                       onChange={e => {
-                        if (e.target.files) setComposerAnexos(prev => [...prev, ...Array.from(e.target.files!)]);
+                        const files = e.target.files ? Array.from(e.target.files) : [];
+                        if (files.length > 0) {
+                          setComposerAnexos(prev => [...prev, ...files]);
+                        }
                         e.target.value = '';
                       }}
                     />
