@@ -100,6 +100,7 @@ interface Boleto {
 interface OrdemServico {
   id: number;
   task_id: number;
+  task_url: string;
   customer_description: string | null;
   task_date: string | null;
   task_type_description: string | null;
@@ -114,8 +115,9 @@ interface OrdemServico {
   duration: string | null;
   address: string | null;
   signature_url: string | null;
-  task_url: string | null;
 }
+
+const pd = (d: string) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '';
 
 interface TermoGarantia {
   id: number;
@@ -2955,9 +2957,25 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         value={composerCorpo}
                         onChange={e => setComposerCorpo(e.target.value)}
                         rows={3}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Corpo da mensagem</label>
+                      <textarea
+                        value={composerCorpo}
+                        onChange={e => setComposerCorpo(e.target.value)}
+                        rows={3}
                         className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Rodapé / Observação</label>
+                      <textarea
+                        value={composerRodape}
+                        onChange={e => setComposerRodape(e.target.value)}
+                        rows={2}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
+                      />
                     </div>
 
                     {composerManutencao && (
