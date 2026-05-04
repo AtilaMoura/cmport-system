@@ -1371,18 +1371,6 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 <p className="text-sm sm:text-base opacity-90 mt-1">
                   {condominio?.nome || '—'} · {pd(servico.data_servico)}
                 </p>
-                {servico.email_enviado_em && (
-                  <div className="mt-2 flex flex-col gap-0.5 bg-green-500/30 backdrop-blur-sm px-3 py-2 rounded-xl w-fit border border-green-400/30 max-w-full">
-                    <span className="text-[10px] sm:text-xs font-bold tracking-wide flex items-center gap-1.5 uppercase">
-                      <span className="text-sm">📧</span> E-mail enviado em {new Date(servico.email_enviado_em).toLocaleString('pt-BR')}
-                    </span>
-                    {servico.email_destinatarios && servico.email_destinatarios.length > 0 && (
-                      <span className="text-[10px] sm:text-xs opacity-90 font-medium pl-6 break-all">
-                        Para: {servico.email_destinatarios.join(', ')}
-                      </span>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
             {/* Resumo financeiro rápido */}
@@ -1867,6 +1855,20 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 <span className="text-3xl sm:text-4xl mb-3 block">📄</span>
                 <p className="text-slate-500 dark:text-slate-400 font-semibold">Sem nota fiscal vinculada</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Este serviço não está associado a nenhuma nota fiscal.</p>
+              </div>
+            )}
+
+            {/* Status de último email enviado */}
+            {servico.email_enviado_em && (
+              <div className="flex flex-col gap-0.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700/40 px-4 py-3 rounded-xl w-fit max-w-full">
+                <span className="text-xs font-bold text-green-800 dark:text-green-300 flex items-center gap-1.5">
+                  <span>📧</span> E-mail enviado em {new Date(servico.email_enviado_em).toLocaleString('pt-BR')}
+                </span>
+                {servico.email_destinatarios && servico.email_destinatarios.length > 0 && (
+                  <span className="text-xs text-green-700 dark:text-green-400 font-medium pl-6 break-all">
+                    Para: {servico.email_destinatarios.join(', ')}
+                  </span>
+                )}
               </div>
             )}
 
