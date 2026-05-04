@@ -18,7 +18,7 @@ from app.core.config import settings
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
 _ASSINATURA_B64 = ""
 try:
-    _sig_path = os.path.join(_ASSETS_DIR, "assinatura.jpg")
+    _sig_path = os.path.join(_ASSETS_DIR, "logo_novo.jpg")
     with open(_sig_path, "rb") as _f:
         _ASSINATURA_B64 = base64.b64encode(_f.read()).decode()
 except Exception:
@@ -580,7 +580,10 @@ class EmailService:
         if not destinatarios:
             raise Exception("Nenhum destinatário informado.")
 
-        assunto = assunto_override or f"Boleto #{numero_nota} — {nome_condominio} — Venc. {_fmt_data(vencimento)}"
+        if not assunto_override and dados_manutencao:
+            assunto = f"{nome_condominio} - Manutenção Preventiva"
+        else:
+            assunto = assunto_override or f"Boleto #{numero_nota} — {nome_condominio} — Venc. {_fmt_data(vencimento)}"
 
         # Monta lista de todos os anexos para ambos os fluxos
         todos_anexos: List[tuple] = []

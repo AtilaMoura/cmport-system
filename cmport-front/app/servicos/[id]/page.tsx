@@ -16,6 +16,7 @@ interface Servico {
   orcamento_id: number | null;
   criado_em: string;
   atualizado_em: string;
+  email_enviado_em: string | null;
 }
 
 interface ConfigImpostos {
@@ -1176,6 +1177,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       const fd = _buildFormData(modalEmail, destinatarios);
       await api.post(`/boletos/${modalEmail.id}/enviar-email`, fd);
       setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
+      await carregarDados();
     } catch (err) {
       console.error(err);
       alert('Falha ao enviar o e-mail. Por favor, tente novamente ou verifique os logs do servidor.');
@@ -1211,6 +1213,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       await api.post(`/boletos/${modalEmail.id}/enviar-email`, fd);
       fecharComposer();
       setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
+      await carregarDados();
     } catch (err) {
       console.error(err);
       alert('Falha ao enviar o e-mail. Por favor, tente novamente ou verifique os logs do servidor.');
@@ -1365,6 +1368,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 <p className="text-sm sm:text-base opacity-90 mt-1">
                   {condominio?.nome || '—'} · {pd(servico.data_servico)}
                 </p>
+                {servico.email_enviado_em && (
+                  <div className="mt-2 flex items-center gap-1.5 bg-green-500/30 backdrop-blur-sm px-3 py-1 rounded-full w-fit border border-green-400/30">
+                    <span className="text-[10px] sm:text-xs font-bold tracking-wide flex items-center gap-1.5 uppercase">
+                      <span className="text-sm">📧</span> E-mail de cobrança enviado em {new Date(servico.email_enviado_em).toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             {/* Resumo financeiro rápido */}

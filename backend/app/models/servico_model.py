@@ -26,6 +26,7 @@ class ManutencaoAssistencia(Base):
 
     criado_em = Column(DateTime, default=datetime.utcnow)
     atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    email_enviado_em = Column(DateTime, nullable=True)
 
     orcamento_id = Column(Integer, ForeignKey("orcamentos.id", ondelete="SET NULL"), nullable=True, index=True)
 
