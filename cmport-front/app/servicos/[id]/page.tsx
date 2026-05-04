@@ -2957,14 +2957,6 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         value={composerCorpo}
                         onChange={e => setComposerCorpo(e.target.value)}
                         rows={3}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Corpo da mensagem</label>
-                      <textarea
-                        value={composerCorpo}
-                        onChange={e => setComposerCorpo(e.target.value)}
-                        rows={3}
                         className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
                       />
                     </div>
