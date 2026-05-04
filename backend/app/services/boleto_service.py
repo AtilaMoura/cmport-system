@@ -1105,7 +1105,41 @@ class BoletoService:
             numero_parcela=boleto.numero_parcela,
             total_parcelas=boleto.total_parcelas,
             linha_digitavel=linha_digitavel,
+            dados_manutencao=BoletoService._preparar_dados_manutencao(db, nota, boleto, nome_condominio)
         )
+
+    @staticmethod
+    def _preparar_dados_manutencao(db: Session, nota, boleto, nome_condominio: str) -> Optional[dict]:
+        from app.models.nota_fiscal_model import TipoNota
+        from app.services.email_service import _fmt_data
+        
+        if nota.tipo != TipoNota.MANUTENCAO:
+            return None
+            
+        # Busca serviço vinculado para pegar data e descrição
+        from app.models.servico_model import ManutencaoAssistencia as _MA
+        servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota.id).first()
+        
+        data_servico = servico_os.data_servico if servico_os else nota.data_vencimento
+        periodo = data_servico.strftime("%m/%Y") if hasattr(data_servico, 'strftime') else str(data_servico)
+        
+        return {
+            "saudacao": "Prezados(as),",
+            "servico": "Manutenção Preventiva Mensal",
+            "nome_condominio": nome_condominio,
+            "periodo": periodo,
+            "data_execucao": _fmt_data(data_servico),
+            "numero_os": str(servico_os.numero_os) if (servico_os and servico_os.numero_os) else "N/A",
+            "quantidade_parcelas": f"{boleto.numero_parcela}/{boleto.total_parcelas}",
+            "valor_bruto": float(nota.valor),
+            "inss": float(nota.inss or 0),
+            "cofins": float(nota.cofins or 0),
+            "pis": float(nota.pis or 0),
+            "csll": float(nota.csll or 0),
+            "valor_liquido": float(boleto.valor_nominal),
+            "vencimento": _fmt_data(boleto.data_vencimento),
+            "descricao_servicos": (servico_os.descricao if servico_os and servico_os.descricao else nota.descricao_servico) or "Manutenção preventiva de sistemas de segurança e portaria.",
+        }
 
     @staticmethod
     def enviar_email_boleto(
@@ -1154,6 +1188,11 @@ class BoletoService:
             )
         except Exception:
             pass
+
+        # Determina se usa template de manutenção
+        dados_manutencao = BoletoService._preparar_dados_manutencao(db, nota, boleto, nome_condominio)
+        if dados_manutencao and saudacao:
+            dados_manutencao["saudacao"] = saudacao
 
         # PDF da OS Auvo vinculada + termo de garantia (se existirem)
         from app.models.servico_model import ManutencaoAssistencia as _MA
@@ -1235,6 +1274,7 @@ class BoletoService:
             rodape=rodape,
             anexos_extras=lista_anexos,
             db=db,
+            dados_manutencao=dados_manutencao,
         )
 
         return {"enviado": True, "destinatarios": destinatarios, "boleto_id": boleto_id}

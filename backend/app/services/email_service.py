@@ -25,6 +25,56 @@ except Exception:
     pass  # Assinatura não encontrada — rodapé ficará sem imagem
 
 
+def valor_por_extenso(valor: float) -> str:
+    """Retorna o valor em Reais por extenso (versão simplificada)."""
+    from decimal import Decimal
+    
+    unidades = ["", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove"]
+    dezenas = ["", "dez", "vinte", "trinta", "quarenta", "cinquenta", "sessenta", "setenta", "oitenta", "noventa"]
+    especiais = ["dez", "onze", "doze", "treze", "quatorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove"]
+    centenas = ["", "cento", "duzentos", "trezentos", "quatrocentos", "quinhentos", "seiscentos", "setecentos", "oitocentos", "novecentos"]
+    
+    def converter_bloco(n):
+        if n == 0: return ""
+        if n == 100: return "cem"
+        res = []
+        c, d, u = n // 100, (n % 100) // 10, n % 10
+        if c > 0: res.append(centenas[c])
+        if d == 1:
+            res.append(especiais[u])
+        else:
+            if d > 1: res.append(dezenas[d])
+            if u > 0: res.append(unidades[u])
+        return " e ".join(res)
+
+    v = Decimal(str(valor)).quantize(Decimal("0.00"))
+    reais = int(v)
+    centavos = int((v - reais) * 100)
+
+    partes = []
+    
+    # Reais (até 999.999 — suficiente para CMPort)
+    if reais == 0:
+        partes.append("zero reais")
+    else:
+        milhares = reais // 1000
+        resto = reais % 1000
+        if milhares > 0:
+            txt_mil = converter_bloco(milhares)
+            partes.append(f"{txt_mil} mil" if milhares > 1 else "mil")
+        if resto > 0:
+            partes.append(converter_bloco(resto))
+        partes.append("reais" if reais > 1 else "real")
+
+    # Centavos
+    if centavos > 0:
+        partes.append("e")
+        partes.append(converter_bloco(centavos))
+        partes.append("centavos" if centavos > 1 else "centavo")
+
+    return " ".join(p for p in partes if p).capitalize()
+
+
 def gerar_html_boleto(
     nome_condominio: str,
     numero_nota: str,
@@ -33,8 +83,12 @@ def gerar_html_boleto(
     numero_parcela: int = 1,
     total_parcelas: int = 1,
     linha_digitavel: Optional[str] = None,
+    dados_manutencao: Optional[dict] = None,
 ) -> str:
     """Gera e retorna o HTML do email de boleto (usado no preview)."""
+    if dados_manutencao:
+        return _html_manutencao(**dados_manutencao)
+    
     return _html_boleto(
         nome_condominio=nome_condominio,
         numero_nota=numero_nota,
@@ -186,6 +240,224 @@ def _html_boleto(
 </html>"""
 
 
+def _html_manutencao(
+    saudacao: str,
+    servico: str,
+    nome_condominio: str,
+    periodo: str,
+    data_execucao: str,
+    numero_os: str,
+    quantidade_parcelas: str,
+    valor_bruto: float,
+    inss: float,
+    cofins: float,
+    pis: float,
+    csll: float,
+    valor_liquido: float,
+    vencimento: str,
+    descricao_servicos: str,
+    email_financeiro: str = "financeiro@cmport.com.br",
+    email_comercial: str = "comercial@cmport.com.br",
+) -> str:
+    """Implementa o template específico para Manutenção Preventiva Mensal."""
+    
+    bruto_fmt = _fmt_valor(valor_bruto)
+    bruto_extenso = valor_por_extenso(valor_bruto)
+    liquido_fmt = _fmt_valor(valor_liquido)
+    liquido_extenso = valor_por_extenso(valor_liquido)
+    
+    inss_fmt = _fmt_valor(inss or 0)
+    cofins_fmt = _fmt_valor(cofins or 0)
+    pis_fmt = _fmt_valor(pis or 0)
+    csll_fmt = _fmt_valor(csll or 0)
+
+    assinatura_img = ""
+    if _ASSINATURA_B64:
+        assinatura_img = f'<img src="data:image/jpeg;base64,{_ASSINATURA_B64}" alt="Assinatura CM Port" style="max-width:400px;width:100%;height:auto;display:block;margin:0 auto 14px auto;" />'
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);">
+          
+          <!-- Cabeçalho -->
+          <tr>
+            <td style="background-color:#1e40af;padding:40px 32px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:800;letter-spacing:-0.5px;line-height:1.2;">
+                Cobrança de Manutenção Preventiva
+              </h1>
+              <p style="margin:8px 0 0;color:#bfdbfe;font-size:14px;font-weight:500;line-height:1.5;">
+                Relatório, retenções e cobrança do serviço realizado
+              </p>
+            </td>
+          </tr>
+
+          <!-- Conteúdo -->
+          <tr>
+            <td style="padding:40px 40px 24px 40px;">
+              <p style="margin:0 0 18px;color:#334155;font-size:16px;line-height:1.7;">
+                Prezados(as),<br>
+                {saudacao.replace('\\n', '<br>')}<br><br>
+                Segue abaixo a cobrança referente à manutenção preventiva mensal, conforme detalhamento:
+              </p>
+
+              <!-- Bloco principal -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Serviço</span>
+                    <span style="color:#0f172a;font-size:16px;font-weight:700;">{servico}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Condomínio</span>
+                    <span style="color:#0f172a;font-size:16px;font-weight:600;">{nome_condominio}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Período</span>
+                    <span style="color:#0f172a;font-size:16px;font-weight:600;">{periodo}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Data de execução</span>
+                    <span style="color:#0f172a;font-size:16px;font-weight:600;">{data_execucao}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Ordem de Serviço</span>
+                    <span style="color:#0f172a;font-size:16px;font-weight:700;">{numero_os}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Quantidade de parcelas</span>
+                    <span style="color:#0f172a;font-size:16px;font-weight:600;">{quantidade_parcelas}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Valor bruto</span>
+                    <span style="color:#0f172a;font-size:18px;font-weight:800;">{bruto_fmt}</span>
+                    <div style="margin-top:4px;color:#64748b;font-size:13px;line-height:1.5;">({bruto_extenso})</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Retenções -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;background-color:#f8fafc;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Retenções</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:6px 0;color:#334155;font-size:15px;line-height:1.6;">INSS</td>
+                        <td align="right" style="padding:6px 0;color:#0f172a;font-size:15px;font-weight:700;">{inss_fmt}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;color:#334155;font-size:15px;line-height:1.6;">COFINS</td>
+                        <td align="right" style="padding:6px 0;color:#0f172a;font-size:15px;font-weight:700;">{cofins_fmt}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;color:#334155;font-size:15px;line-height:1.6;">PIS</td>
+                        <td align="right" style="padding:6px 0;color:#0f172a;font-size:15px;font-weight:700;">{pis_fmt}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;color:#334155;font-size:15px;line-height:1.6;">CSLL</td>
+                        <td align="right" style="padding:6px 0;color:#0f172a;font-size:15px;font-weight:700;">{csll_fmt}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Valor líquido e vencimento -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;overflow:hidden;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #bfdbfe;">
+                    <span style="display:block;color:#1d4ed8;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Valor líquido do boleto</span>
+                    <span style="color:#1e3a8a;font-size:22px;font-weight:900;">{liquido_fmt}</span>
+                    <div style="margin-top:4px;color:#1d4ed8;font-size:13px;line-height:1.5;">({liquido_extenso})</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;">
+                    <span style="display:block;color:#1d4ed8;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Vencimento</span>
+                    <span style="color:#dc2626;font-size:18px;font-weight:800;">{vencimento}</span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Descrição do serviço -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;background-color:#f8fafc;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Descrição dos serviços realizados</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;">
+                    <p style="margin:0;color:#334155;font-size:15px;line-height:1.7;">{descricao_servicos.replace('\\n', '<br>')}</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Atualização de e-mails -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;background-color:#f8fafc;">
+                    <span style="display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Atualização de e-mails da empresa</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;">
+                    <p style="margin:0 0 10px;color:#334155;font-size:15px;line-height:1.7;">Informamos também que os e-mails da empresa foram atualizados:</p>
+                    <p style="margin:0;color:#334155;font-size:15px;line-height:1.7;">
+                      <strong>Financeiro:</strong> {email_financeiro}<br>
+                      <strong>Comercial:</strong> {email_comercial}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;">
+                Ficamos à disposição para quaisquer esclarecimentos.<br><br>
+                Por gentileza, solicitamos a confirmação de recebimento deste e-mail.
+              </p>
+              <p style="margin:0;color:#334155;font-size:15px;line-height:1.7;">Atenciosamente,</p>
+            </td>
+          </tr>
+
+          <!-- Rodapé / Assinatura -->
+          <tr>
+            <td style="background-color:#f8fafc;padding:24px 40px 32px 40px;border-top:1px solid #e2e8f0;text-align:center;">
+              {assinatura_img}
+              <p style="margin:0;color:#64748b;font-size:12px;line-height:1.5;">
+                CM Port — Sistemas de Segurança e Portaria Remota
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 class EmailService:
     @staticmethod
     def enviar_boleto(
@@ -205,6 +477,7 @@ class EmailService:
         saudacao: Optional[str] = None,
         corpo: Optional[str] = None,
         rodape: Optional[str] = None,
+        rodape: Optional[str] = None,
         anexos_extras: Optional[List[tuple]] = None,
         # Credenciais SMTP explícitas (legado — ignoradas quando db é fornecido)
         email_remetente: Optional[str] = None,
@@ -212,6 +485,8 @@ class EmailService:
         from_name: Optional[str] = None,
         # Sessão DB: quando presente, detecta automaticamente SMTP vs Graph
         db=None,
+        # Dados para template de manutenção
+        dados_manutencao: Optional[dict] = None,
     ) -> None:
         """
         Envia email com boleto (PDF + XML + anexos extras).
@@ -232,18 +507,21 @@ class EmailService:
             todos_anexos.append(item)
 
         # Gera HTML do email
-        html = _html_boleto(
-            nome_condominio=nome_condominio,
-            numero_nota=numero_nota,
-            valor=valor,
-            vencimento=vencimento,
-            numero_parcela=numero_parcela,
-            total_parcelas=total_parcelas,
-            linha_digitavel=linha_digitavel,
-            saudacao=saudacao,
-            corpo=corpo,
-            rodape=rodape,
-        )
+        if dados_manutencao:
+            html = _html_manutencao(**dados_manutencao)
+        else:
+            html = _html_boleto(
+                nome_condominio=nome_condominio,
+                numero_nota=numero_nota,
+                valor=valor,
+                vencimento=vencimento,
+                numero_parcela=numero_parcela,
+                total_parcelas=total_parcelas,
+                linha_digitavel=linha_digitavel,
+                saudacao=saudacao,
+                corpo=corpo,
+                rodape=rodape,
+            )
 
         # ── Detecta conta ativa ───────────────────────────────────────────────
         if db is not None:

@@ -167,9 +167,11 @@ STORAGE_REGION=us-east-1
     *   **Backend:** Criados métodos `listar_disponiveis_condominio`, `vincular_os_manual` e `desvincular_os_manual`.
     *   **Frontend:** Adicionado botão "Vincular OS Manualmente" na página de detalhes do serviço, abrindo um modal de busca por OSs disponíveis do condomínio, além de opção para desvincular.
 
-### 5. Estabilidade do Frontend
-*   **Problema:** Código corrompido durante edições manuais e erro de build por falta de tipagem em interfaces.
-*   **Solução:** Restaurado código de exclusão em `notas/[id]/page.tsx` e corrigida a interface `OrdemServico` em `servicos/[id]/page.tsx` com o campo `id` necessário para o vínculo manual.
+### 6. Automação de E-mail e Anexos (Notas Fiscais e OS)
+*   **Problema:** O PDF da Nota Fiscal não era anexado automaticamente aos e-mails. Além disso, quando havia notas vinculadas (parceiras), apenas uma era enviada. O anexo manual de documentos no frontend também não exibia feedback visual ao usuário.
+*   **Solução:** 
+    *   **Backend:** Corrigida a lógica de download do PDF no `BoletoService.enviar_email_boleto` para usar as configurações de storage validadas. Implementada a busca automática e anexo do PDF da nota vinculada (`nota_vinculada_id`) se existir.
+    *   **Frontend (UX):** Atualizado o Composer de e-mail para exibir as Notas Fiscais (principal e vinculada) na lista de "Anexos Automáticos". Reformulada a área de "Anexos Adicionais" com design aprimorado, exibição de nome/tamanho do arquivo e feedback visual claro após a seleção manual de documentos.
 
 ---
 > **Status Atual**: ✅ **Implementado e Validado em Produção**
