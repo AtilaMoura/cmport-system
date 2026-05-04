@@ -444,12 +444,18 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   const handleVerPdf = async () => {
     if (!id) return;
     try {
-      const res = await api.get(`/notas-fiscais/${id}/pdf-url`);
-      if (res.data.url) {
-        window.open(res.data.url, '_blank');
+      const res = await api.get(`/notas-fiscais/${id}/pdf-stream`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');
+      if (win) {
+        setTimeout(() => window.URL.revokeObjectURL(url), 100);
       }
-    } catch {
-      alert('Erro ao obter link do PDF.');
+    } catch (error) {
+      console.error('Erro ao visualizar PDF:', error);
+      alert('Erro ao obter PDF para visualização.');
     }
   };
 

@@ -612,6 +612,26 @@ class NotaFiscalService:
             raise HTTPException(status_code=500, detail="Erro ao gerar link de visualização.")
 
     @staticmethod
+    def get_pdf_stream_data(db: Session, nota_id: int, storage: StorageClient) -> tuple:
+        """Retorna os bytes do PDF e o nome do arquivo para streaming."""
+        from app.core.config import settings
+        
+        db_nota = NotaFiscalRepository.get_by_id(db, nota_id)
+        if not db_nota:
+            raise HTTPException(status_code=404, detail="Nota fiscal não encontrada.")
+        
+        if not db_nota.pdf_object_key:
+            raise HTTPException(status_code=404, detail="Esta nota não possui PDF armazenado.")
+        
+        try:
+            conteudo = storage.download(settings.STORAGE_BUCKET, db_nota.pdf_object_key)
+            filename = db_nota.pdf_object_key.split('/')[-1]
+            return conteudo, filename
+        except Exception as e:
+            print(f"[Storage] Erro ao baixar PDF para streaming da nota {nota_id}: {e}")
+            raise HTTPException(status_code=500, detail="Erro ao baixar PDF do storage.")
+
+    @staticmethod
     def delete_pdf_nota(db: Session, nota_id: int, storage: StorageClient):
         """Remove o PDF do storage e limpa a referência no banco."""
         from app.core.config import settings

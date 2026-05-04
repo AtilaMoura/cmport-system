@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, File
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from io import BytesIO
@@ -295,6 +295,26 @@ def get_pdf_url(
 ):
     """Retorna uma URL assinada (temporária) para visualizar o PDF da nota."""
     return NotaFiscalService.get_pdf_url(db, id, storage)
+
+
+@router.get("/{id}/pdf-stream")
+def get_pdf_stream(
+    id: int,
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client)
+):
+    """Faz streaming do PDF da nota fiscal diretamente do storage."""
+    try:
+        conteudo, filename = NotaFiscalService.get_pdf_stream_data(db, id, storage)
+        return StreamingResponse(
+            BytesIO(conteudo),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={filename}"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/{id}/pdf", status_code=204)
