@@ -152,7 +152,7 @@ def _html_boleto(
         assinatura_bloco = (
             f'<img src="data:image/jpeg;base64,{_ASSINATURA_B64}" '
             'alt="Assinatura CM Port" '
-            'style="max-width:480px;width:100%;height:auto;display:block;margin:0 auto;" />'
+            'style="max-width:200px;width:100%;height:auto;display:block;margin:0 auto;" />'
         )
 
     return f"""<!DOCTYPE html>
@@ -294,7 +294,7 @@ def _html_manutencao(
                   <img
                     src="{logo_url}"
                     alt="CM Port"
-                    style="display:block;max-width:120px;width:100%;height:auto;border:0;outline:none;text-decoration:none;"
+                    style="display:block;max-width:90px;width:100%;height:auto;border:0;outline:none;text-decoration:none;"
                   />
                 </td>
 
