@@ -71,9 +71,6 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     env_file: .env.production
-    environment:
-      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
     volumes:
       - minio_data:/data
     networks:
