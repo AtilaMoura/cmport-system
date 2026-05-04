@@ -480,7 +480,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     }
 
     const deletarServicos = confirm(
-      "Esta nota esta vinculada a servicos. Deseja deletar tambem todos os servicos associados?"
+      "Esta nota possui serviços ou cobranças vinculadas. Deseja deletar TODOS os registros associados para prosseguir?"
     );
 
     try {

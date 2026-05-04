@@ -724,10 +724,19 @@ class NotaFiscalService:
             ManutencaoAssistencia.nota_fiscal_id == nota_id
         ).all()
 
-        if servicos_vinculados and not deletar_servicos:
+        from app.models.boleto_model import Boleto
+        boletos_vinculados = db.query(Boleto).filter(Boleto.nota_fiscal_id == nota_id).all()
+
+        if (servicos_vinculados or boletos_vinculados) and not deletar_servicos:
+            detalhe = "Esta nota está vinculada a "
+            itens = []
+            if servicos_vinculados: itens.append("serviços")
+            if boletos_vinculados: itens.append("boletos/cobranças")
+            detalhe += " e ".join(itens) + ". Confirme deletar tudo para prosseguir."
+            
             raise HTTPException(
                 status_code=400,
-                detail="Esta nota está vinculada a serviços. Confirme deletar os serviços também (deletar_servicos=true)."
+                detail=detalhe
             )
 
         dados_nota = {
@@ -750,6 +759,16 @@ class NotaFiscalService:
                 }
                 registrar_exclusao(db=db, tipo="servico", registro_id=servico.id, dados=dados_servico, motivo=f"Exclusão em cascata por deleção da nota {nota_id}")
                 db.delete(servico)
+            
+            for boleto in boletos_vinculados:
+                dados_boleto = {
+                    "id": boleto.id,
+                    "numero_parcela": boleto.numero_parcela,
+                    "valor": boleto.valor_nominal,
+                    "vencimento": boleto.data_vencimento.isoformat(),
+                }
+                registrar_exclusao(db=db, tipo="boleto", registro_id=boleto.id, dados=dados_boleto, motivo=f"Exclusão em cascata por deleção da nota {nota_id}")
+                db.delete(boleto)
 
         db.delete(db_nota)
         db.commit()
