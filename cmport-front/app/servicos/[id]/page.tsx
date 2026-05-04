@@ -2378,7 +2378,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     const liquido = calcularValorLiquidoModal();
                     const soma = somaParcelasModal();
                     const diff = soma - liquido;
-                    const ok = Math.abs(diff) < 0.005;
+                    const ok = Math.abs(diff) < 0.02;
                     return (
                       <div className={`rounded-xl p-4 border-2 ${ok ? 'bg-green-50 dark:bg-green-500/10 border-green-300 dark:border-green-700' : 'bg-red-50 dark:bg-red-500/10 border-red-300 dark:border-red-700'}`}>
                         <p className="text-xs font-black uppercase mb-3 text-slate-500 dark:text-slate-400">Validação</p>
@@ -2412,7 +2412,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         </div>
                         {!ok && (
                           <p className="mt-2 text-xs text-red-600 dark:text-red-400 font-semibold">
-                            Ajuste os valores das parcelas para que a soma seja exatamente {fmt(liquido)}.
+                            Ajuste os valores das parcelas para que a soma esteja dentro de ±R$ 0,02 do valor líquido ({fmt(liquido)}).
                           </p>
                         )}
                       </div>
@@ -2601,7 +2601,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                   </button>
                   <button
                     onClick={handleAprovarBoletos}
-                    disabled={Math.abs(somaParcelasModal() - calcularValorLiquidoModal()) >= 0.005}
+                    disabled={Math.abs(somaParcelasModal() - calcularValorLiquidoModal()) >= 0.02}
                     className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     ✅ Aprovar Boletos →
