@@ -477,7 +477,6 @@ class EmailService:
         saudacao: Optional[str] = None,
         corpo: Optional[str] = None,
         rodape: Optional[str] = None,
-        rodape: Optional[str] = None,
         anexos_extras: Optional[List[tuple]] = None,
         # Credenciais SMTP explícitas (legado — ignoradas quando db é fornecido)
         email_remetente: Optional[str] = None,
