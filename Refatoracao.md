@@ -137,3 +137,39 @@ STORAGE_REGION=us-east-1
 ---
 
 > **IMPORTANTE**: O dev não deve alterar este plano. Deve seguir na íntegra a sequência acima. Após concluir, avisar o arquiteto para validação.
+
+---
+
+## Registro de Implementação e Correções Efetuadas (04/05/2026)
+
+### 1. Infraestrutura e Storage (PDF)
+*   **Problema:** O backend não conseguia se conectar ao MinIO em produção devido ao `STORAGE_ENDPOINT` incorreto e à falta de variáveis de ambiente no container.
+*   **Solução:** 
+    *   Atualizado `.env.production` no servidor com credenciais e endpoint corretos (`http://minio:9000`).
+    *   Removido bloco `environment` redundante do `docker-compose.prod.yml`, garantindo que o MinIO leia do `env_file`.
+    *   Documentadas as variáveis no `.env.production.example`.
+
+### 2. Visualização de PDF (Streaming Proxy)
+*   **Problema:** O acesso direto ao MinIO pelo navegador falhava em produção (localhost inacessível fora do servidor).
+*   **Solução:** 
+    *   **Backend:** Implementado endpoint `GET /api/v1/notas-fiscais/{id}/pdf-stream` que faz o download interno do MinIO e serve o PDF via `StreamingResponse`.
+    *   **Frontend:** Refatorada a função `handleVerPdf` para consumir o stream como Blob e exibir de forma segura via `URL.createObjectURL`.
+
+### 3. Exclusão de Notas com Boletos (Integridade)
+*   **Problema:** Erro 500 (`IntegrityError`) ao tentar excluir notas fiscais que possuíam boletos ou serviços vinculados.
+*   **Solução:** 
+    *   **Backend:** Modificado `NotaFiscalService.delete_nota` para realizar a exclusão em cascata de boletos associados quando solicitado.
+    *   **Frontend:** Corrigida a função `handleExcluir` e atualizada a mensagem de confirmação para alertar sobre a remoção de serviços e cobranças vinculadas.
+
+### 4. Vínculo Manual de Ordem de Serviço (OS)
+*   **Problema:** Algumas notas não vinculavam automaticamente à OS do Auvo (quando o número da OS não consta no XML/descrição).
+*   **Solução:** 
+    *   **Backend:** Criados métodos `listar_disponiveis_condominio`, `vincular_os_manual` e `desvincular_os_manual`.
+    *   **Frontend:** Adicionado botão "Vincular OS Manualmente" na página de detalhes do serviço, abrindo um modal de busca por OSs disponíveis do condomínio, além de opção para desvincular.
+
+### 5. Estabilidade do Frontend
+*   **Problema:** Código corrompido durante edições manuais e erro de build por falta de tipagem em interfaces.
+*   **Solução:** Restaurado código de exclusão em `notas/[id]/page.tsx` e corrigida a interface `OrdemServico` em `servicos/[id]/page.tsx` com o campo `id` necessário para o vínculo manual.
+
+---
+> **Status Atual**: ✅ **Implementado e Validado em Produção**
