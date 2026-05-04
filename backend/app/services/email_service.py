@@ -284,7 +284,7 @@ def _html_manutencao(
       </table>
 
       <!-- corpo da assinatura -->
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:900px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
         <tr>
           <td align="center" valign="middle" style="padding:28px 24px 28px 24px;background-color:#ffffff;">
             <table cellpadding="0" cellspacing="0" border="0" style="max-width:760px;width:100%;">
@@ -581,7 +581,8 @@ class EmailService:
             raise Exception("Nenhum destinatário informado.")
 
         if not assunto_override and dados_manutencao:
-            assunto = f"{nome_condominio} - Manutenção Preventiva"
+            _serv = dados_manutencao.get("servico", "Manutenção Preventiva")
+            assunto = f"{nome_condominio} - {_serv}"
         else:
             assunto = assunto_override or f"Boleto #{numero_nota} — {nome_condominio} — Venc. {_fmt_data(vencimento)}"
 
