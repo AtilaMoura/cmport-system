@@ -1170,13 +1170,26 @@ class BoletoService:
                 from app.core.config import settings
                 pdf_nf = storage.download(settings.STORAGE_BUCKET, nota.pdf_object_key)
                 if pdf_nf:
-                    # Sanitiza nome do arquivo NF
                     num_limpo = (nota.numero_nota or str(nota.id)).replace("/", "_").replace("\\", "_")
                     nome_nf = f"nota_fiscal_{num_limpo}.pdf"
                     lista_anexos.append((nome_nf, pdf_nf, "application/pdf"))
                     print(f"[Email] PDF da NF {nota.numero_nota} anexado do storage.")
             except Exception as e:
                 print(f"[Email] Aviso: não foi possível anexar PDF da NF do storage: {e}")
+
+        # PDF da nota vinculada (quando duas notas foram vinculadas em um boleto único)
+        if nota.nota_vinculada_id and storage:
+            nota_vinculada = NotaFiscalRepository.get_by_id(db, nota.nota_vinculada_id)
+            if nota_vinculada and nota_vinculada.pdf_object_key:
+                try:
+                    from app.core.config import settings
+                    pdf_nf2 = storage.download(settings.STORAGE_BUCKET, nota_vinculada.pdf_object_key)
+                    if pdf_nf2:
+                        num2 = (nota_vinculada.numero_nota or str(nota_vinculada.id)).replace("/", "_").replace("\\", "_")
+                        lista_anexos.append((f"nota_fiscal_{num2}.pdf", pdf_nf2, "application/pdf"))
+                        print(f"[Email] PDF da NF vinculada {nota_vinculada.numero_nota} anexado do storage.")
+                except Exception as e:
+                    print(f"[Email] Aviso: não foi possível anexar PDF da NF vinculada do storage: {e}")
 
         servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota.id).first()
         if servico_os and servico_os.numero_os:
