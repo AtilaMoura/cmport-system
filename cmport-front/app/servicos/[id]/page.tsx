@@ -237,6 +237,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [composerRodape, setComposerRodape] = useState('O boleto em PDF e o XML da nota fiscal estão anexados a este email.\nPor gentileza, confirmar o recebimento deste e-mail.');
   const [composerAba, setComposerAba] = useState<'preview' | 'editar'>('preview');
   const [composerAnexos, setComposerAnexos] = useState<File[]>([]);
+  const [composerManutencao, setComposerManutencao] = useState<any>(null);
   const [composerEnviando, setComposerEnviando] = useState(false);
   const [composerCarregando, setComposerCarregando] = useState(false);
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
@@ -1112,17 +1113,24 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setComposerCarregando(true);
     try {
       const res = await api.get(`/boletos/${modalEmail.id}/preview-email`);
+      // res.data agora é { html: string, dados_manutencao: object | null }
+      const html = typeof res.data === 'string' ? res.data : res.data.html;
+      const manutData = typeof res.data === 'object' ? res.data.dados_manutencao : null;
+
       const assuntoPadrao = `Boleto #${notaFiscal?.numero_nota ?? ''} — ${condominio?.nome ?? ''} — Venc. ${modalEmail.data_vencimento ? pd(modalEmail.data_vencimento) : ''}`;
       const corpoPadrao = `Segue em anexo o boleto, nota fiscal e a ordem de serviço referente à Nota Fiscal #${notaFiscal?.numero_nota ?? ''} — ${condominio?.nome ?? ''}.`;
-      setComposerCorpoHtml(res.data);
+      
+      setComposerCorpoHtml(html);
+      setComposerManutencao(manutData);
       setComposerAssunto(assuntoPadrao);
-      setComposerSaudacao('Prezados(as),');
+      setComposerSaudacao(manutData?.saudacao || 'Prezados(as),');
       setComposerCorpo(corpoPadrao);
       setComposerRodape('O boleto em PDF e o XML da nota fiscal estão anexados a este email.\nPor gentileza, confirmar o recebimento deste e-mail.');
       setComposerAba('preview');
       setComposerAnexos([]);
       setComposerAberto(true);
-    } catch {
+    } catch (err) {
+      console.error(err);
       alert('Erro ao carregar o email.');
     } finally {
       setComposerCarregando(false);
@@ -1194,6 +1202,11 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       if (composerCorpo) fd.append('corpo', composerCorpo);
       if (composerRodape) fd.append('rodape', composerRodape);
       for (const arq of composerAnexos) fd.append('arquivos', arq);
+      if (composerManutencao) {
+        // Garante que a saudação atualizada vá para os dados de manutenção também
+        const dadosCompletos = { ...composerManutencao, saudacao: composerSaudacao };
+        fd.append('dados_manutencao', JSON.stringify(dadosCompletos));
+      }
       await api.post(`/boletos/${modalEmail.id}/enviar-email`, fd);
       fecharComposer();
       setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
@@ -2945,15 +2958,77 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Rodapé / Observação</label>
-                      <textarea
-                        value={composerRodape}
-                        onChange={e => setComposerRodape(e.target.value)}
-                        rows={2}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
-                      />
                     </div>
+
+                    {composerManutencao && (
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 mt-2">
+                        <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase mb-3">Campos de Manutenção Preventiva</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-2">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Serviço / Título</label>
+                            <input type="text" value={composerManutencao.servico} onChange={e => setComposerManutencao({ ...composerManutencao, servico: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Período (Ref.)</label>
+                            <input type="text" value={composerManutencao.periodo} onChange={e => setComposerManutencao({ ...composerManutencao, periodo: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Data Educação</label>
+                            <input type="text" value={composerManutencao.data_execucao} onChange={e => setComposerManutencao({ ...composerManutencao, data_execucao: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Número OS</label>
+                            <input type="text" value={composerManutencao.numero_os} onChange={e => setComposerManutencao({ ...composerManutencao, numero_os: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Parcelas</label>
+                            <input type="text" value={composerManutencao.quantidade_parcelas} onChange={e => setComposerManutencao({ ...composerManutencao, quantidade_parcelas: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Valor Bruto (R$)</label>
+                            <input type="number" step="0.01" value={composerManutencao.valor_bruto} onChange={e => setComposerManutencao({ ...composerManutencao, valor_bruto: parseFloat(e.target.value) })}
+                              className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Valor Líquido (R$)</label>
+                            <input type="number" step="0.01" value={composerManutencao.valor_liquido} onChange={e => setComposerManutencao({ ...composerManutencao, valor_liquido: parseFloat(e.target.value) })}
+                              className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm outline-none" />
+                          </div>
+                          <div className="col-span-2 grid grid-cols-4 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">INSS</label>
+                              <input type="number" step="0.01" value={composerManutencao.inss} onChange={e => setComposerManutencao({ ...composerManutencao, inss: parseFloat(e.target.value) })}
+                                className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">COFINS</label>
+                              <input type="number" step="0.01" value={composerManutencao.cofins} onChange={e => setComposerManutencao({ ...composerManutencao, cofins: parseFloat(e.target.value) })}
+                                className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">PIS</label>
+                              <input type="number" step="0.01" value={composerManutencao.pis} onChange={e => setComposerManutencao({ ...composerManutencao, pis: parseFloat(e.target.value) })}
+                                className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">CSLL</label>
+                              <input type="number" step="0.01" value={composerManutencao.csll} onChange={e => setComposerManutencao({ ...composerManutencao, csll: parseFloat(e.target.value) })}
+                                className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs outline-none" />
+                            </div>
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Descrição dos Serviços</label>
+                            <textarea value={composerManutencao.descricao_servicos} onChange={e => setComposerManutencao({ ...composerManutencao, descricao_servicos: e.target.value })}
+                              rows={2} className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm outline-none resize-none" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <p className="text-xs text-slate-400 italic">O preview reflete o modelo padrão. As edições serão aplicadas no envio.</p>
                   </div>
                 )}

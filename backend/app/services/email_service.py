@@ -300,7 +300,6 @@ def _html_manutencao(
           <tr>
             <td style="padding:40px 40px 24px 40px;">
               <p style="margin:0 0 18px;color:#334155;font-size:16px;line-height:1.7;">
-                Prezados(as),<br>
                 {saudacao.replace('\\n', '<br>')}<br><br>
                 Segue abaixo a cobrança referente à manutenção preventiva mensal, conforme detalhamento:
               </p>

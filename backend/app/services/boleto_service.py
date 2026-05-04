@@ -1068,7 +1068,7 @@ class BoletoService:
         return BoletoStats(**data)
 
     @staticmethod
-    def preview_email_boleto(db: Session, boleto_id: int) -> str:
+    def preview_email_boleto(db: Session, boleto_id: int) -> dict:
         """Retorna o HTML do email que seria enviado para o boleto (para preview no frontend)."""
         from app.services.email_service import gerar_html_boleto
 
@@ -1097,7 +1097,8 @@ class BoletoService:
             except Exception:
                 pass
 
-        return gerar_html_boleto(
+        manut_data = BoletoService._preparar_dados_manutencao(db, nota, boleto, nome_condominio)
+        html = gerar_html_boleto(
             nome_condominio=nome_condominio,
             numero_nota=nota.numero_nota or str(nota.id),
             valor=boleto.valor_nominal,
@@ -1105,8 +1106,9 @@ class BoletoService:
             numero_parcela=boleto.numero_parcela,
             total_parcelas=boleto.total_parcelas,
             linha_digitavel=linha_digitavel,
-            dados_manutencao=BoletoService._preparar_dados_manutencao(db, nota, boleto, nome_condominio)
+            dados_manutencao=manut_data
         )
+        return {"html": html, "dados_manutencao": manut_data}
 
     @staticmethod
     def _preparar_dados_manutencao(db: Session, nota, boleto, nome_condominio: str) -> Optional[dict]:

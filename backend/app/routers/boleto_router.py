@@ -159,12 +159,11 @@ def cancelar_boleto(codigo: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{boleto_id}/preview-email", response_class=HTMLResponse)
+@router.get("/{boleto_id}/preview-email")
 def preview_email_boleto(boleto_id: int, db: Session = Depends(get_db)):
-    """Retorna o HTML do email que seria enviado para o boleto (para preview)."""
+    """Retorna o HTML e os dados do email (para preview)."""
     try:
-        html = BoletoService.preview_email_boleto(db, boleto_id)
-        return HTMLResponse(content=html)
+        return BoletoService.preview_email_boleto(db, boleto_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -178,6 +177,7 @@ async def enviar_email_boleto(
     corpo: Optional[str] = Form(None),
     rodape: Optional[str] = Form(None),
     arquivos: List[UploadFile] = File(default=[]),
+    dados_manutencao: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     storage: StorageClient = Depends(get_storage_client),
 ):
@@ -188,8 +188,9 @@ async def enviar_email_boleto(
         for arq in arquivos:
             conteudo = await arq.read()
             anexos_extras.append((arq.filename, conteudo, arq.content_type or "application/octet-stream"))
+        manut_data = json.loads(dados_manutencao) if dados_manutencao else None
         return BoletoService.enviar_email_boleto(
-            db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras, storage
+            db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras, storage, manut_data
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
