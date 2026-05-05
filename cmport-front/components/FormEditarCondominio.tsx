@@ -40,7 +40,14 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.put(`/condominios/${initialData.id}`, formData);
+      await api.put(`/condominios/${initialData.id}`, {
+        nome: formData.nome,
+        cnpj: formData.cnpj,
+        razao_social: formData.razao_social,
+        observacao: formData.observacao,
+        ativo: formData.ativo,
+      });
+
       if (formData.endereco) {
         await api.post('/enderecos', {
           condominio_id: initialData.id,
@@ -55,6 +62,37 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
           longitude: formData.endereco.longitude || null,
         });
       }
+
+      // Sincroniza contatos: atualiza existentes, cria novos, remove deletados
+      const idsIniciais: Set<number> = new Set(
+        (initialData.contatos || []).map((c: any) => c.id).filter(Boolean)
+      );
+      const idsAtuais: Set<number> = new Set(
+        formData.contatos.map((c: any) => c.id).filter(Boolean)
+      );
+
+      for (const id of idsIniciais) {
+        if (!idsAtuais.has(id)) {
+          await api.delete(`/contatos/${id}`);
+        }
+      }
+
+      for (const contato of formData.contatos) {
+        const payload = {
+          nome: contato.nome,
+          telefone: contato.telefone || null,
+          email: contato.email || null,
+          funcao: contato.funcao || null,
+          principal: contato.principal ?? false,
+          receber_boleto: contato.receber_boleto ?? true,
+        };
+        if (contato.id) {
+          await api.put(`/contatos/${contato.id}`, payload);
+        } else if (contato.nome) {
+          await api.post('/contatos', { condominio_id: initialData.id, ...payload });
+        }
+      }
+
       router.push(`/condominios/${initialData.id}`);
       router.refresh();
     } catch (error) {
@@ -229,7 +267,7 @@ export function FormEditarCondominio({ initialData }: { initialData: any }) {
                   }`} />
                 </button>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  📧 Recebe boleto por email
+                  📧 Recebe email
                 </span>
               </div>
             </div>
