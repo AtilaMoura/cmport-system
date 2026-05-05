@@ -572,6 +572,8 @@ class EmailService:
         db=None,
         # Dados para template de manutenção
         dados_manutencao: Optional[dict] = None,
+        # CC por envio (mesclado com CC global da ConfiguracaoEmpresa)
+        cc_emails: Optional[List[str]] = None,
     ) -> None:
         """
         Envia email com boleto (PDF + XML + anexos extras).
@@ -580,6 +582,19 @@ class EmailService:
         """
         if not destinatarios:
             raise Exception("Nenhum destinatário informado.")
+
+        # Mescla CC por envio com CC global da empresa
+        import json as _json
+        cc_final: List[str] = list(cc_emails or [])
+        if db is not None:
+            try:
+                from app.models.configuracao_model import ConfiguracaoEmpresa as _Empresa
+                _empresa = db.query(_Empresa).first()
+                if _empresa and _empresa.emails_copia:
+                    cc_global = _json.loads(_empresa.emails_copia)
+                    cc_final = list(set(cc_final + cc_global))
+            except Exception:
+                pass
 
         if not assunto_override and dados_manutencao:
             _serv = dados_manutencao.get("servico", "Manutenção Preventiva")
@@ -628,6 +643,7 @@ class EmailService:
                     graph_tenant_id=cfg["graph_tenant_id"],
                     graph_client_secret=cfg["graph_client_secret"],
                     todos_anexos=todos_anexos,
+                    cc_emails=cc_final,
                 )
                 return
 
@@ -648,6 +664,8 @@ class EmailService:
         msg["From"]    = f"{_from} <{_email}>"
         msg["To"]      = ", ".join(destinatarios)
         msg["Subject"] = assunto
+        if cc_final:
+            msg["Cc"] = ", ".join(cc_final)
         msg.attach(MIMEText(html, "html", "utf-8"))
 
         for (filename, conteudo, content_type) in todos_anexos:
@@ -664,7 +682,8 @@ class EmailService:
             smtp.starttls(context=context)
             smtp.ehlo()
             smtp.login(_email, _senha)
-            smtp.sendmail(_email, destinatarios, msg.as_bytes())
+            todos_dest = destinatarios + cc_final
+            smtp.sendmail(_email, todos_dest, msg.as_bytes())
 
     @staticmethod
     def _enviar_graph(
@@ -677,6 +696,7 @@ class EmailService:
         graph_tenant_id: str,
         graph_client_secret: str,
         todos_anexos: List[tuple],
+        cc_emails: Optional[List[str]] = None,
     ) -> None:
         if not graph_client_id or not graph_tenant_id or not graph_client_secret:
             raise Exception("Credenciais Graph API incompletas. Verifique Configurações → Email.")
@@ -691,4 +711,5 @@ class EmailService:
             token=token,
             from_name=from_name,
             anexos_extras=todos_anexos,
+            cc_emails=cc_emails,
         )

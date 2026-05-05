@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import json
 import smtplib
 import ssl
 from typing import Optional, Tuple
@@ -227,5 +228,8 @@ class ConfiguracaoService:
 
     @staticmethod
     def salvar_empresa(db: Session, req: ConfiguracaoEmpresaSchema) -> ConfiguracaoEmpresaSchema:
-        obj = ConfiguracaoEmpresaRepository.upsert(db, req.model_dump())
+        dados = req.model_dump()
+        if "emails_copia" in dados:
+            dados["emails_copia"] = json.dumps(dados["emails_copia"]) if dados["emails_copia"] else None
+        obj = ConfiguracaoEmpresaRepository.upsert(db, dados)
         return ConfiguracaoEmpresaSchema.model_validate(obj)

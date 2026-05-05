@@ -40,6 +40,7 @@ class GraphEmailService:
         token: str,
         from_name: Optional[str] = None,
         anexos_extras: Optional[List[Tuple[str, bytes, str]]] = None,
+        cc_emails: Optional[List[str]] = None,
     ) -> None:
         """
         Envia email via POST /users/{sender}/sendMail.
@@ -75,6 +76,10 @@ class GraphEmailService:
             },
             "saveToSentItems": True,
         }
+        if cc_emails:
+            payload["message"]["ccRecipients"] = [
+                {"emailAddress": {"address": cc}} for cc in cc_emails
+            ]
         if attachments:
             payload["message"]["attachments"] = attachments
 

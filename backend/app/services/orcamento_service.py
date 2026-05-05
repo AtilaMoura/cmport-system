@@ -1,3 +1,5 @@
+import base64
+import os
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from typing import List, Optional, Dict, Any
@@ -194,3 +196,132 @@ class OrcamentoService:
         return OrcamentoRepository.list_by_condominio_e_periodo(
             db, servico.condominio_id, data_inicio, data_fim
         )
+
+    @staticmethod
+    def gerar_pdf(db: Session, orcamento_id: int) -> bytes:
+        """Gera PDF do orçamento com WeasyPrint a partir dos dados locais."""
+        from weasyprint import HTML
+        from app.models.orcamento_model import TipoItemOrcamento
+        from app.models.configuracao_model import ConfiguracaoEmpresa
+
+        orc = OrcamentoRepository.get_by_id(db, orcamento_id)
+        if not orc:
+            raise Exception(f"Orçamento #{orcamento_id} não encontrado.")
+
+        empresa_obj = db.query(ConfiguracaoEmpresa).first()
+        empresa_nome = (empresa_obj.nome if empresa_obj else None) or "CMPort"
+
+        _assets = os.path.join(os.path.dirname(__file__), "..", "assets")
+        logo_b64 = ""
+        try:
+            _logo_path = os.path.join(_assets, "logo_novo.jpg")
+            with open(_logo_path, "rb") as _f:
+                logo_b64 = base64.b64encode(_f.read()).decode()
+        except Exception:
+            pass
+
+        def fmt(v) -> str:
+            try:
+                return f"R$ {float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            except Exception:
+                return "—"
+
+        def fmt_date(d) -> str:
+            return d.strftime('%d/%m/%Y') if d else "—"
+
+        def fmt_qtd(q) -> str:
+            try:
+                v = float(q)
+                return str(int(v)) if v == int(v) else f"{v:.2f}"
+            except Exception:
+                return str(q)
+
+        tipo_labels = {
+            TipoItemOrcamento.PRODUTO: "Produto",
+            TipoItemOrcamento.SERVICO: "Serviço",
+            TipoItemOrcamento.CUSTO_ADICIONAL: "Custo Adicional",
+        }
+
+        linhas_itens = ""
+        for item in (orc.itens or []):
+            tipo_txt = tipo_labels.get(item.tipo, str(item.tipo))
+            linhas_itens += f"""
+            <tr>
+              <td>{tipo_txt}</td>
+              <td>{item.nome or '—'}</td>
+              <td style="text-align:center">{fmt_qtd(item.quantidade)}</td>
+              <td style="text-align:right">{fmt(item.valor_unitario)}</td>
+              <td style="text-align:right">{fmt(item.valor_total)}</td>
+            </tr>"""
+
+        logo_tag = f'<img src="data:image/jpeg;base64,{logo_b64}" style="height:50px;margin-bottom:8px;" /><br/>' if logo_b64 else ""
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  body {{ font-family: Arial, sans-serif; font-size: 11px; color: #222; margin: 0; padding: 20px 30px; }}
+  h2 {{ font-size: 14px; margin: 0 0 4px; color: #1a3a5c; }}
+  .header {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; border-bottom: 2px solid #1a3a5c; padding-bottom: 10px; }}
+  .info-block {{ margin-bottom: 12px; }}
+  .info-block strong {{ display: inline-block; width: 130px; color: #555; }}
+  table {{ width: 100%; border-collapse: collapse; margin-top: 12px; }}
+  th {{ background: #1a3a5c; color: #fff; padding: 6px 8px; text-align: left; font-size: 11px; }}
+  td {{ padding: 5px 8px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }}
+  tr:nth-child(even) td {{ background: #f7f9fc; }}
+  .totais {{ margin-top: 10px; text-align: right; font-size: 12px; }}
+  .totais div {{ margin: 2px 0; }}
+  .totais .total-final {{ font-weight: bold; font-size: 14px; color: #1a3a5c; border-top: 2px solid #1a3a5c; padding-top: 4px; margin-top: 6px; display: inline-block; }}
+  .obs {{ margin-top: 16px; font-size: 10px; color: #666; border-top: 1px solid #ddd; padding-top: 8px; }}
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    {logo_tag}
+    <h2>{empresa_nome}</h2>
+    <div style="color:#555;font-size:11px;">Orçamento</div>
+  </div>
+  <div style="text-align:right;">
+    <div><strong style="width:auto;color:#555">Nº Auvo:</strong> {orc.auvo_public_id}</div>
+    {"<div><strong style='width:auto;color:#555'>Cód. Externo:</strong> " + (orc.external_code or "—") + "</div>"}
+    <div><strong style="width:auto;color:#555">Data:</strong> {fmt_date(orc.register_date)}</div>
+    <div><strong style="width:auto;color:#555">Validade:</strong> {fmt_date(orc.expire_date)}</div>
+    <div style="margin-top:6px;padding:4px 8px;background:#1a3a5c;color:#fff;border-radius:3px;display:inline-block;">{orc.current_stage_description or 'Orçamento'}</div>
+  </div>
+</div>
+
+<div class="info-block">
+  <div><strong>Cliente:</strong> {orc.customer_name or '—'}</div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:90px">Tipo</th>
+      <th>Descrição</th>
+      <th style="width:50px;text-align:center">Qtd</th>
+      <th style="width:100px;text-align:right">Unit.</th>
+      <th style="width:100px;text-align:right">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {linhas_itens or '<tr><td colspan="5" style="text-align:center;color:#999">Nenhum item</td></tr>'}
+  </tbody>
+</table>
+
+<div class="totais">
+  <div><strong style="color:#555">Produtos:</strong> {fmt(orc.total_products)}</div>
+  <div><strong style="color:#555">Serviços:</strong> {fmt(orc.total_services)}</div>
+  {"<div><strong style='color:#555'>Custos Adicionais:</strong> " + fmt(orc.total_additional_costs) + "</div>" if float(orc.total_additional_costs or 0) else ""}
+  {"<div><strong style='color:#555'>Desconto:</strong> -" + fmt(orc.discount_value) + "</div>" if float(orc.discount_value or 0) else ""}
+  <div class="total-final">Total Líquido: {fmt(orc.net_total_value)}</div>
+</div>
+
+{"<div class='obs'><strong>Observações:</strong> " + orc.observations + "</div>" if orc.observations else ""}
+</body>
+</html>"""
+
+        base_url = f"file://{os.path.abspath(_assets)}/"
+        return HTML(string=html, base_url=base_url).write_pdf()

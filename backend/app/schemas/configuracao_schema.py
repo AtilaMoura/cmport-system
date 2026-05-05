@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, field_validator
+from typing import Optional, List
 from datetime import datetime
+import json
 
 
 class ConfiguracaoEmailCreate(BaseModel):
@@ -51,6 +52,19 @@ class ConfiguracaoEmpresaSchema(BaseModel):
     email_from_name: str = "CMPort"
     telefone:        Optional[str] = None
     site:            Optional[str] = None
+    emails_copia:    Optional[List[str]] = None
+
+    @field_validator('emails_copia', mode='before')
+    @classmethod
+    def parse_emails_copia(cls, v):
+        if v is None or isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return None
+        return None
 
     model_config = {"from_attributes": True}
 

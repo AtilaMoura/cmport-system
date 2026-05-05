@@ -19,9 +19,10 @@ interface Empresa {
   email_from_name: string;
   telefone: string | null;
   site: string | null;
+  emails_copia: string[] | null;
 }
 
-const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '' };
+const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '', emails_copia: [] };
 
 const FORM_VAZIO = {
   nome: '', email: '', ativo: false, tipo: 'SMTP',
@@ -48,6 +49,7 @@ export default function ConfiguracoesPage() {
   const [loadingEmpresa, setLoadingEmpresa] = useState(true);
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false);
   const [empresaSalva, setEmpresaSalva] = useState(false);
+  const [novoEmailCC, setNovoEmailCC] = useState('');
 
   // ── Carregar dados ─────────────────────────────────────────────────────────
   const carregarContas = async () => {
@@ -61,7 +63,7 @@ export default function ConfiguracoesPage() {
   const carregarEmpresa = async () => {
     try {
       const { data } = await api.get('/configuracoes/empresa');
-      setEmpresa({ ...data, telefone: data.telefone ?? '', site: data.site ?? '' });
+      setEmpresa({ ...data, telefone: data.telefone ?? '', site: data.site ?? '', emails_copia: data.emails_copia ?? [] });
     } catch { /* silencioso */ }
     finally { setLoadingEmpresa(false); }
   };
@@ -311,6 +313,69 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
         )}
+      </section>
+
+      {/* ── E-mails em Cópia (Global) ── */}
+      <section>
+        <h2 className="text-lg font-black text-slate-800 dark:text-white mb-1">📋 E-mails em Cópia (Global)</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Estes endereços recebem cópia em <strong>todos</strong> os emails enviados pelo sistema.</p>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-3">
+          {/* Lista atual */}
+          <div className="flex flex-wrap gap-2 min-h-[36px]">
+            {(empresa.emails_copia ?? []).length === 0 ? (
+              <span className="text-xs text-slate-400 italic">Nenhum email em cópia configurado.</span>
+            ) : (
+              (empresa.emails_copia ?? []).map(email => (
+                <span key={email} className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-3 py-1.5 rounded-full font-medium">
+                  {email}
+                  <button
+                    onClick={async () => {
+                      const nova = (empresa.emails_copia ?? []).filter(e => e !== email);
+                      setEmpresa(p => ({ ...p, emails_copia: nova }));
+                      try { await api.put('/configuracoes/empresa', { ...empresa, emails_copia: nova }); }
+                      catch { setEmpresa(p => ({ ...p, emails_copia: empresa.emails_copia })); alert('Erro ao salvar.'); }
+                    }}
+                    className="hover:text-red-500 font-black leading-none"
+                  >×</button>
+                </span>
+              ))
+            )}
+          </div>
+          {/* Input para adicionar */}
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={novoEmailCC}
+              onChange={e => setNovoEmailCC(e.target.value)}
+              onKeyDown={async e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const email = novoEmailCC.trim();
+                  if (!email || (empresa.emails_copia ?? []).includes(email)) return;
+                  const nova = [...(empresa.emails_copia ?? []), email];
+                  setEmpresa(p => ({ ...p, emails_copia: nova }));
+                  setNovoEmailCC('');
+                  try { await api.put('/configuracoes/empresa', { ...empresa, emails_copia: nova }); }
+                  catch { setEmpresa(p => ({ ...p, emails_copia: empresa.emails_copia })); alert('Erro ao salvar.'); }
+                }
+              }}
+              placeholder="email@exemplo.com"
+              className="flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+            />
+            <button
+              onClick={async () => {
+                const email = novoEmailCC.trim();
+                if (!email || (empresa.emails_copia ?? []).includes(email)) return;
+                const nova = [...(empresa.emails_copia ?? []), email];
+                setEmpresa(p => ({ ...p, emails_copia: nova }));
+                setNovoEmailCC('');
+                try { await api.put('/configuracoes/empresa', { ...empresa, emails_copia: nova }); }
+                catch { setEmpresa(p => ({ ...p, emails_copia: empresa.emails_copia })); alert('Erro ao salvar.'); }
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all"
+            >+</button>
+          </div>
+        </div>
       </section>
 
       {/* ── Modal Nova/Editar Conta ── */}

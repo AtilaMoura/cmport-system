@@ -1,7 +1,7 @@
 # Plano de Implementação — CMPort
 
-**Última atualização:** 2026-05-02
-**Status atual:** Fases 0–9 e Sub-fases 10A–10G concluídas. **Sub-fase 11 concluída (11.1 a 11.6).**
+**Última atualização:** 2026-05-05
+**Status atual:** Fases 0–9 e Sub-fases 10A–10G concluídas. Sub-fase 11 concluída. **Sub-fase 12 em andamento.**
 
 Convenções: `[x]` concluído · `[~]` em andamento · `[ ]` a fazer.
 
@@ -360,3 +360,47 @@ STORAGE_REGION=auto
 - `[x]` Nenhuma falha de storage aborta fluxo principal
 - `[x]` Chave no formato `notas_fiscais/{id}/{numero_sanitizado}.pdf`
 - `[x]` Troca para R2 documentada: 4 vars + remover serviço `minio` do compose
+
+---
+
+## Sub-fase 12 — Melhorias no Envio de Email
+
+### Resumo
+
+Quatro melhorias no fluxo de email de boleto:
+1. **CC global** — lista de emails em Configurações que sempre recebem cópia
+2. **CC por envio** — campo "Com cópia para" no compositor de email
+3. **Envio em lote** — todos os boletos de um serviço em 1 email
+4. **PDF de orçamento gerado** — gerar PDF do orçamento com WeasyPrint (dados locais do banco) e anexar ao email
+
+> Auvo não fornece PDF de orçamento — apenas `public_link`. Solução: gerar PDF próprio a partir dos dados em `orcamentos` + `orcamento_itens`.
+
+---
+
+### Fase 12.1 — CC Global (Configurações) ✅
+
+- `[x]` Adicionar `emails_copia = Column(Text, nullable=True)` em `configuracao_model.py` (`ConfiguracaoEmpresa`)
+- `[x]` Migration em `main.py`: `ALTER TABLE configuracao_empresa ADD COLUMN emails_copia TEXT NULL`
+- `[x]` `configuracao_schema.py` → `EmpresaUpdate` e `EmpresaResponse`: `emails_copia: Optional[List[str]]` + `@field_validator` para parse JSON
+- `[x]` `configuracao_service.py` → `atualizar_empresa()`: serializar `emails_copia` como JSON antes de salvar
+- `[x]` Frontend `configuracoes/page.tsx`: seção "E-mails em Cópia (Global)" — input + "+" + lista com "×"; salva via `PUT /configuracoes/empresa`
+
+### Fase 12.2 — CC por Envio + Merge CC Global ✅
+
+- `[x]` `email_service.py` → `enviar_boleto()`: parâmetro `cc_emails: List[str] = []`; buscar `ConfiguracaoEmpresa.emails_copia`; merge via `set()`; SMTP `msg["Cc"]`; Graph `ccRecipients`
+- `[x]` `boleto_service.py` → `enviar_email_boleto()`: parâmetro `cc_emails: List[str] = []`, repassar para EmailService
+- `[x]` `boleto_router.py` → Form: adicionar `cc: Optional[str] = Form(None)`
+- `[x]` Frontend `servicos/[id]/page.tsx`: input "Com cópia para" no compositor; parse ao enviar
+
+### Fase 12.3 — Envio em Lote ✅
+
+- `[x]` `boleto_router.py`: novo endpoint `POST /enviar-email-servico/{servico_id}`
+- `[x]` `boleto_service.py`: novo método `enviar_email_servico()` — busca boletos da nota, baixa PDFs via Inter, envia 1 email com todos os anexos, atualiza `email_enviado_em` / `email_destinatarios`
+- `[x]` Frontend `servicos/[id]/page.tsx`: botão "Enviar todos em 1 email" (visível quando nota tem > 1 parcela)
+
+### Fase 12.4 — PDF de Orçamento Gerado ✅
+
+- `[x]` `orcamento_service.py`: novo método `gerar_pdf(db, orcamento_id) -> bytes` — monta HTML + WeasyPrint com dados de `Orcamento` + `OrcamentoItem[]`
+- `[x]` `boleto_service.py` → `enviar_email_servico()`: se `incluir_orcamento=True` e `servico.orcamento_id` existir, gerar PDF e adicionar em `anexos_extras`
+- `[x]` Endpoint `enviar-email-servico`: parâmetro `incluir_orcamento: bool = Form(False)`
+- `[x]` Frontend `servicos/[id]/page.tsx`: checkbox "Incluir PDF do Orçamento" (visível só se `servico.orcamento_id !== null`)

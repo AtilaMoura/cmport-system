@@ -1164,6 +1164,7 @@ class BoletoService:
         anexos_extras: list = None,
         storage: Optional[StorageClient] = None,
         dados_manutencao_manual: Optional[dict] = None,
+        cc_emails: Optional[List[str]] = None,
     ) -> dict:
         """
         Baixa o PDF do boleto no Inter, busca o XML da nota e envia por email
@@ -1287,6 +1288,7 @@ class BoletoService:
             anexos_extras=lista_anexos,
             db=db,
             dados_manutencao=dados_manutencao,
+            cc_emails=cc_emails,
         )
 
         # Atualiza data de envio e destinatários no serviço se for manutenção/assistência
@@ -1299,3 +1301,125 @@ class BoletoService:
             db.commit()
 
         return {"enviado": True, "destinatarios": destinatarios, "boleto_id": boleto_id}
+
+    @staticmethod
+    def enviar_email_servico(
+        db: Session,
+        servico_id: int,
+        destinatarios: List[str],
+        assunto_override: str = None,
+        saudacao: str = None,
+        corpo: str = None,
+        rodape: str = None,
+        cc_emails: Optional[List[str]] = None,
+        incluir_orcamento: bool = False,
+        storage: Optional[StorageClient] = None,
+    ) -> dict:
+        """
+        Envia todos os boletos de um serviço em um único email.
+        Cada boleto com codigo_solicitacao gera um anexo PDF separado.
+        """
+        import json as _json
+        from datetime import datetime
+        from app.models.servico_model import ManutencaoAssistencia
+        from app.services.email_service import EmailService
+
+        servico = db.query(ManutencaoAssistencia).filter(ManutencaoAssistencia.id == servico_id).first()
+        if not servico:
+            raise Exception(f"Serviço #{servico_id} não encontrado.")
+        if not servico.nota_fiscal_id:
+            raise Exception("Serviço não possui nota fiscal vinculada.")
+
+        nota = NFRepo.get_by_id(db, servico.nota_fiscal_id)
+        if not nota:
+            raise Exception("Nota fiscal não encontrada.")
+
+        from app.models.boleto_model import Boleto, SituacaoBoleto as _Sit
+        boletos = (
+            db.query(Boleto)
+            .filter(
+                Boleto.nota_fiscal_id == nota.id,
+                Boleto.situacao != _Sit.CANCELADO,
+            )
+            .order_by(Boleto.numero_parcela)
+            .all()
+        )
+        if not boletos:
+            raise Exception("Nenhum boleto encontrado para este serviço.")
+
+        nome_condominio = ""
+        if nota.condominio_id:
+            from app.repositories.condominio_repository import CondominioRepository
+            cond = CondominioRepository.get_by_id(db, nota.condominio_id)
+            nome_condominio = cond.nome if cond else ""
+
+        # Baixa PDFs de todos os boletos com codigo_solicitacao
+        anexos: List[tuple] = []
+        for b in boletos:
+            if b.codigo_solicitacao:
+                try:
+                    pdf = inter_client.baixar_pdf(b.codigo_solicitacao)
+                    anexos.append((f"boleto_p{b.numero_parcela}.pdf", pdf, "application/pdf"))
+                except Exception as e:
+                    print(f"[EmailServico] PDF boleto parcela {b.numero_parcela} indisponível: {e}")
+
+        # Anexa PDF da nota fiscal se disponível no storage
+        if storage and nota.pdf_object_key:
+            try:
+                from app.core.config import settings
+                pdf_nf = storage.download(settings.STORAGE_BUCKET, nota.pdf_object_key)
+                anexos.append((f"nota_fiscal_{nota.numero_nota}.pdf", pdf_nf, "application/pdf"))
+            except Exception as e:
+                print(f"[EmailServico] PDF da NF indisponível: {e}")
+
+        # Gera e anexa PDF do orçamento se solicitado
+        if incluir_orcamento and servico.orcamento_id:
+            try:
+                from app.services.orcamento_service import OrcamentoService
+                pdf_orc = OrcamentoService.gerar_pdf(db, servico.orcamento_id)
+                anexos.append(("orcamento.pdf", pdf_orc, "application/pdf"))
+            except Exception as e:
+                print(f"[EmailServico] PDF do orçamento indisponível: {e}")
+
+        # Usa o primeiro boleto como referência para o template de email
+        boleto_ref = boletos[0]
+        dados_manutencao = BoletoService._preparar_dados_manutencao(db, nota, boleto_ref, nome_condominio)
+
+        if not anexos:
+            raise Exception("Nenhum PDF de boleto disponível para envio.")
+
+        # O primeiro PDF da lista é obrigatório para enviar_boleto; os demais vão como extras
+        primeiro_pdf_nome, primeiro_pdf_bytes, _ = anexos[0]
+        anexos_extras = anexos[1:]
+
+        EmailService.enviar_boleto(
+            destinatarios=destinatarios,
+            boleto_pdf=primeiro_pdf_bytes,
+            codigo_boleto=boleto_ref.codigo_solicitacao or str(boleto_ref.id),
+            numero_nota=nota.numero_nota or str(nota.id),
+            nome_condominio=nome_condominio,
+            valor=sum(b.valor_nominal for b in boletos),
+            vencimento=boleto_ref.data_vencimento,
+            numero_parcela=boleto_ref.numero_parcela,
+            total_parcelas=boleto_ref.total_parcelas,
+            assunto_override=assunto_override,
+            saudacao=saudacao,
+            corpo=corpo,
+            rodape=rodape,
+            anexos_extras=[(a[0], a[1], a[2]) for a in anexos_extras],
+            db=db,
+            dados_manutencao=dados_manutencao,
+            cc_emails=cc_emails,
+        )
+
+        servico.email_enviado_em = datetime.utcnow()
+        servico.email_destinatarios = _json.dumps(destinatarios)
+        db.add(servico)
+        db.commit()
+
+        return {
+            "enviado": True,
+            "destinatarios": destinatarios,
+            "boletos_incluidos": len(boletos),
+            "pdfs_anexados": len(anexos),
+        }

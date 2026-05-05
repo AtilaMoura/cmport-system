@@ -32,4 +32,5 @@ class ConfiguracaoEmpresa(Base):
     email_from_name = Column(String(100), nullable=False, default="CMPort")
     telefone        = Column(String(50), nullable=True)
     site            = Column(String(200), nullable=True)
+    emails_copia    = Column(Text, nullable=True)  # JSON: ["email1@...", "email2@..."]
     atualizado_em   = Column(DateTime, server_default=func.now(), onupdate=func.now())

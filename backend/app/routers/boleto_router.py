@@ -178,6 +178,7 @@ async def enviar_email_boleto(
     rodape: Optional[str] = Form(None),
     arquivos: List[UploadFile] = File(default=[]),
     dados_manutencao: Optional[str] = Form(None),
+    cc: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     storage: StorageClient = Depends(get_storage_client),
 ):
@@ -189,8 +190,33 @@ async def enviar_email_boleto(
             conteudo = await arq.read()
             anexos_extras.append((arq.filename, conteudo, arq.content_type or "application/octet-stream"))
         manut_data = json.loads(dados_manutencao) if dados_manutencao else None
+        lista_cc = json.loads(cc) if cc else []
         return BoletoService.enviar_email_boleto(
-            db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras, storage, manut_data
+            db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras, storage, manut_data, lista_cc
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/enviar-email-servico/{servico_id}", response_model=Dict[str, Any])
+async def enviar_email_servico(
+    servico_id: int,
+    destinatarios: str = Form(...),
+    assunto: Optional[str] = Form(None),
+    saudacao: Optional[str] = Form(None),
+    corpo: Optional[str] = Form(None),
+    rodape: Optional[str] = Form(None),
+    cc: Optional[str] = Form(None),
+    incluir_orcamento: bool = Form(False),
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client),
+):
+    """Envia todos os boletos de um serviço em um único email com múltiplos PDFs anexados."""
+    try:
+        lista_dest = json.loads(destinatarios)
+        lista_cc = json.loads(cc) if cc else []
+        return BoletoService.enviar_email_servico(
+            db, servico_id, lista_dest, assunto, saudacao, corpo, rodape, lista_cc, incluir_orcamento, storage
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

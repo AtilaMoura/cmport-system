@@ -242,6 +242,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [composerManutencao, setComposerManutencao] = useState<any>(null);
   const [composerEnviando, setComposerEnviando] = useState(false);
   const [composerCarregando, setComposerCarregando] = useState(false);
+  const [composerCC, setComposerCC] = useState('');
+  const [incluirOrcamentoPdf, setIncluirOrcamentoPdf] = useState(false);
+  const [envioLoteAtivo, setEnvioLoteAtivo] = useState(false);
+  const [enviandoLote, setEnviandoLote] = useState(false);
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
 
   // Form
@@ -1146,6 +1150,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setComposerCorpoHtml('');
     setComposerAssunto('');
     setComposerAnexos([]);
+    setComposerCC('');
+    setIncluirOrcamentoPdf(false);
+    setEnvioLoteAtivo(false);
   };
 
   const adicionarEmailAvulso = () => {
@@ -1201,6 +1208,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
     setComposerEnviando(true);
     try {
+      const listaCC = composerCC.split(',').map(e => e.trim()).filter(Boolean);
       const fd = new FormData();
       fd.append('destinatarios', JSON.stringify(destinatarios));
       if (composerAssunto) fd.append('assunto', composerAssunto);
@@ -1208,6 +1216,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       if (composerCorpo) fd.append('corpo', composerCorpo);
       if (composerRodape) fd.append('rodape', composerRodape);
       for (const arq of composerAnexos) fd.append('arquivos', arq);
+      if (listaCC.length > 0) fd.append('cc', JSON.stringify(listaCC));
       if (composerManutencao) {
         // Garante que a saudação atualizada vá para os dados de manutenção também
         const dadosCompletos = { ...composerManutencao, saudacao: composerSaudacao };
@@ -1222,6 +1231,39 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       alert('Falha ao enviar o e-mail. Por favor, tente novamente ou verifique os logs do servidor.');
     } finally {
       setComposerEnviando(false);
+    }
+  };
+
+  const enviarTodosEmLote = async () => {
+    if (!servico) return;
+    const destinatarios = [
+      ...emailContatos.filter(c => c.selecionado).map(c => c.email),
+      ...emailsAvulsos,
+    ];
+    if (destinatarios.length === 0) {
+      alert('Selecione pelo menos um destinatário.');
+      return;
+    }
+    setEnviandoLote(true);
+    try {
+      const listaCC = composerCC.split(',').map(e => e.trim()).filter(Boolean);
+      const fd = new FormData();
+      fd.append('destinatarios', JSON.stringify(destinatarios));
+      if (composerAssunto) fd.append('assunto', composerAssunto);
+      if (composerSaudacao) fd.append('saudacao', composerSaudacao);
+      if (composerCorpo) fd.append('corpo', composerCorpo);
+      if (composerRodape) fd.append('rodape', composerRodape);
+      if (listaCC.length > 0) fd.append('cc', JSON.stringify(listaCC));
+      fd.append('incluir_orcamento', incluirOrcamentoPdf ? 'true' : 'false');
+      await api.post(`/boletos/enviar-email-servico/${servico.id}`, fd);
+      fecharComposer();
+      setEmailEnviado(`Todos os boletos enviados para ${destinatarios.length} destinatário(s) com sucesso!`);
+      await carregarDados();
+    } catch (err) {
+      console.error(err);
+      alert('Falha ao enviar os e-mails. Por favor, tente novamente.');
+    } finally {
+      setEnviandoLote(false);
     }
   };
 
@@ -2853,26 +2895,41 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
 
             <div className="flex flex-col gap-2 mt-2">
               {!emailEnviado && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={abrirComposer}
-                    disabled={composerCarregando || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
-                    className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:brightness-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-                  >
-                    {composerCarregando
-                      ? <><div className="w-3.5 h-3.5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" /> Carregando...</>
-                      : '✏️ Ver / Editar email'}
-                  </button>
-                  <button
-                    onClick={enviarEmail}
-                    disabled={enviandoEmail || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
-                    className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-                  >
-                    {enviandoEmail
-                      ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
-                      : `📧 Enviar direto (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
-                  </button>
-                </div>
+                <>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={abrirComposer}
+                      disabled={composerCarregando || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                      className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:brightness-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                    >
+                      {composerCarregando
+                        ? <><div className="w-3.5 h-3.5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" /> Carregando...</>
+                        : '✏️ Ver / Editar email'}
+                    </button>
+                    <button
+                      onClick={enviarEmail}
+                      disabled={enviandoEmail || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                      className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                    >
+                      {enviandoEmail
+                        ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                        : `📧 Enviar direto (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
+                    </button>
+                  </div>
+                  {/* Enviar todos os boletos em 1 email */}
+                  {notaFiscal && notaFiscal.parcelas > 1 && (
+                    <button
+                      onClick={async () => {
+                        setEnvioLoteAtivo(true);
+                        await abrirComposer();
+                      }}
+                      disabled={composerCarregando || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                      className="w-full py-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 rounded-xl font-bold hover:brightness-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                    >
+                      📦 Enviar todos os boletos em 1 email
+                    </button>
+                  )}
+                </>
               )}
               <button
                 onClick={() => { setModalEmail(null); setEmailEnviado(null); }}
@@ -2892,9 +2949,13 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
             {/* Cabeçalho */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
               <div>
-                <h2 className="text-base font-black text-slate-900 dark:text-white">✏️ Compor Email</h2>
+                <h2 className="text-base font-black text-slate-900 dark:text-white">
+                  {envioLoteAtivo ? '📦 Enviar Todos os Boletos' : '✏️ Compor Email'}
+                </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Boleto #{notaFiscal?.numero_nota} · Parcela {modalEmail.numero_parcela}/{modalEmail.total_parcelas} · {fmt(modalEmail.valor_nominal)}
+                  {envioLoteAtivo
+                    ? `${notaFiscal?.parcelas ?? ''} parcelas · Nota #${notaFiscal?.numero_nota}`
+                    : `Boleto #${notaFiscal?.numero_nota} · Parcela ${modalEmail.numero_parcela}/${modalEmail.total_parcelas} · ${fmt(modalEmail.valor_nominal)}`}
                 </p>
               </div>
               <button onClick={fecharComposer} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold">×</button>
@@ -2922,6 +2983,18 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     <span className="text-xs text-slate-400 italic">Nenhum destinatário selecionado</span>
                   )}
                 </div>
+              </div>
+
+              {/* Com Cópia Para */}
+              <div>
+                <p className="text-xs font-black text-slate-400 uppercase mb-2">Com Cópia Para <span className="text-slate-300 font-normal normal-case">(separar por vírgula)</span></p>
+                <input
+                  type="text"
+                  value={composerCC}
+                  onChange={e => setComposerCC(e.target.value)}
+                  placeholder="email1@exemplo.com, email2@exemplo.com"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white placeholder:text-slate-400"
+                />
               </div>
 
               {/* Assunto */}
@@ -3107,6 +3180,18 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                   ) : (
                     <p className="text-[10px] text-slate-400 italic px-1">Nenhum anexo extra adicionado.</p>
                   )}
+                  {/* Orçamento PDF */}
+                  {servico?.orcamento_id && (
+                    <label className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 w-fit">
+                      <input
+                        type="checkbox"
+                        checked={incluirOrcamentoPdf}
+                        onChange={e => setIncluirOrcamentoPdf(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-amber-500"
+                      />
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400">📋 Incluir PDF do Orçamento</span>
+                    </label>
+                  )}
                   {/* Upload */}
                   <label className="flex items-center gap-2 cursor-pointer w-full sm:w-fit px-4 py-2 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/5 transition-all group">
                     <span className="text-lg group-hover:scale-125 transition-transform">➕</span>
@@ -3136,15 +3221,27 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               >
                 ← Voltar
               </button>
-              <button
-                onClick={enviarDoComposer}
-                disabled={composerEnviando || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-              >
-                {composerEnviando
-                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
-                  : `📧 Enviar (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
-              </button>
+              {envioLoteAtivo ? (
+                <button
+                  onClick={enviarTodosEmLote}
+                  disabled={enviandoLote || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                >
+                  {enviandoLote
+                    ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                    : `📦 Enviar Todos os Boletos`}
+                </button>
+              ) : (
+                <button
+                  onClick={enviarDoComposer}
+                  disabled={composerEnviando || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                >
+                  {composerEnviando
+                    ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                    : `📧 Enviar (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
+                </button>
+              )}
             </div>
           </div>
         </div>
