@@ -256,10 +256,11 @@ def _html_manutencao(
     valor_liquido: float,
     vencimento: str,
     descricao_servicos: str,
+    titulo: str = "Cobrança de Manutenção Preventiva",
     email_financeiro: str = "financeiro@cmport.com.br",
     email_comercial: str = "comercial@cmport.com.br",
 ) -> str:
-    """Implementa o template específico para Manutenção Preventiva Mensal."""
+    """Template de email para Manutenção Preventiva e Serviços Prestados."""
     
     bruto_fmt = _fmt_valor(valor_bruto)
     bruto_extenso = valor_por_extenso(valor_bruto)
@@ -377,7 +378,7 @@ def _html_manutencao(
           <tr>
             <td style="background-color:#1e40af;padding:40px 32px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:800;letter-spacing:-0.5px;line-height:1.2;">
-                Cobrança de Manutenção Preventiva
+                {titulo}
               </h1>
               <p style="margin:8px 0 0;color:#bfdbfe;font-size:14px;font-weight:500;line-height:1.5;">
                 Relatório, retenções e cobrança do serviço realizado
@@ -390,7 +391,7 @@ def _html_manutencao(
             <td style="padding:40px 40px 24px 40px;">
               <p style="margin:0 0 18px;color:#334155;font-size:16px;line-height:1.7;">
                 {saudacao.replace('\\n', '<br>')}<br><br>
-                Segue abaixo a cobrança referente à manutenção preventiva mensal, conforme detalhamento:
+                Segue abaixo a cobrança referente à {servico.lower()}, conforme detalhamento:
               </p>
 
               <!-- Bloco principal -->

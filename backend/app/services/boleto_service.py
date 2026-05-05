@@ -1114,20 +1114,29 @@ class BoletoService:
     def _preparar_dados_manutencao(db: Session, nota, boleto, nome_condominio: str) -> Optional[dict]:
         from app.models.nota_fiscal_model import TipoNota
         from app.services.email_service import _fmt_data
-        
-        if nota.tipo != TipoNota.MANUTENCAO:
+
+        if nota.tipo not in (TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA):
             return None
-            
-        # Busca serviço vinculado para pegar data e descrição
+
         from app.models.servico_model import ManutencaoAssistencia as _MA
         servico_os = db.query(_MA).filter(_MA.nota_fiscal_id == nota.id).first()
-        
+
         data_servico = servico_os.data_servico if servico_os else nota.data_vencimento
         periodo = data_servico.strftime("%m/%Y") if hasattr(data_servico, 'strftime') else str(data_servico)
-        
+
+        if nota.tipo == TipoNota.ASSISTENCIA:
+            titulo      = "Cobrança de Serviços Prestados"
+            servico_txt = "Serviços Prestados"
+            desc_default = "Serviços prestados conforme ordem de serviço."
+        else:
+            titulo      = "Cobrança de Manutenção Preventiva"
+            servico_txt = "Manutenção Preventiva Mensal"
+            desc_default = "Manutenção preventiva de sistemas de segurança e portaria."
+
         return {
             "saudacao": "Prezados(as),",
-            "servico": "Manutenção Preventiva Mensal",
+            "titulo": titulo,
+            "servico": servico_txt,
             "nome_condominio": nome_condominio,
             "periodo": periodo,
             "data_execucao": _fmt_data(data_servico),
@@ -1140,7 +1149,7 @@ class BoletoService:
             "csll": float(nota.csll or 0),
             "valor_liquido": float(boleto.valor_nominal),
             "vencimento": _fmt_data(boleto.data_vencimento),
-            "descricao_servicos": (servico_os.descricao if servico_os and servico_os.descricao else nota.descricao_servico) or "Manutenção preventiva de sistemas de segurança e portaria.",
+            "descricao_servicos": (servico_os.descricao if servico_os and servico_os.descricao else nota.descricao_servico) or desc_default,
         }
 
     @staticmethod
