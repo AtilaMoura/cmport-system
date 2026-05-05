@@ -57,6 +57,9 @@ class ServicoService:
         if not servico:
             return None
         servico.orcamento_id = orcamento_id
+        # ao desvincular, bloqueia o fallback automático por task_id
+        # ao vincular manualmente, libera o fallback caso seja necessário no futuro
+        servico.bloquear_vinculo_automatico = orcamento_id is None
         db.commit()
         db.refresh(servico)
         return servico

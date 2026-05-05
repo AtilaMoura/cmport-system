@@ -1624,7 +1624,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                       #{orcamentoDoServico.auvo_public_id}
                     </span>
                   )}
-                  {servico.orcamento_id ? (
+                  {orcamentoDoServico ? (
                     <button
                       onClick={handleDesvinculartOrcamento}
                       disabled={vinculandoOrc}

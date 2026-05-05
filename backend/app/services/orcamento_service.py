@@ -166,6 +166,9 @@ class OrcamentoService:
         if servico.orcamento_id:
             return OrcamentoRepository.get_by_id(db, servico.orcamento_id)
 
+        if servico.bloquear_vinculo_automatico:
+            return None
+
         if not servico.numero_os:
             return None
 

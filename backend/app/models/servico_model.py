@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, DateTime, Enum as SQLEnum, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -30,6 +30,7 @@ class ManutencaoAssistencia(Base):
     email_destinatarios = Column(Text, nullable=True)  # JSON: ["email1@...", "email2@..."]
 
     orcamento_id = Column(Integer, ForeignKey("orcamentos.id", ondelete="SET NULL"), nullable=True, index=True)
+    bloquear_vinculo_automatico = Column(Boolean, nullable=False, default=False, server_default="0")
 
     condominio = relationship("Condominio", back_populates="servicos")
     nota_fiscal = relationship("NotaFiscal")
