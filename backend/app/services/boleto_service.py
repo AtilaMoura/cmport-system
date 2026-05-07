@@ -1314,6 +1314,7 @@ class BoletoService:
         cc_emails: Optional[List[str]] = None,
         incluir_orcamento: bool = False,
         storage: Optional[StorageClient] = None,
+        anexos_extras: list = None,
     ) -> dict:
         """
         Envia todos os boletos de um serviço em um único email.
@@ -1380,6 +1381,51 @@ class BoletoService:
                 anexos.append(("orcamento.pdf", pdf_orc, "application/pdf"))
             except Exception as e:
                 print(f"[EmailServico] PDF do orçamento indisponível: {e}")
+
+        # PDF da nota fiscal vinculada
+        if nota.nota_vinculada_id and storage:
+            nota_vinculada = NFRepo.get_by_id(db, nota.nota_vinculada_id)
+            if nota_vinculada and nota_vinculada.pdf_object_key:
+                try:
+                    from app.core.config import settings
+                    pdf_nf2 = storage.download(settings.STORAGE_BUCKET, nota_vinculada.pdf_object_key)
+                    if pdf_nf2:
+                        num2 = (nota_vinculada.numero_nota or str(nota_vinculada.id)).replace("/", "_").replace("\\", "_")
+                        anexos.append((f"nota_fiscal_{num2}.pdf", pdf_nf2, "application/pdf"))
+                except Exception as e:
+                    print(f"[EmailServico] PDF da NF vinculada indisponível: {e}")
+
+        # PDF da OS Auvo
+        if servico.numero_os:
+            try:
+                from app.services.auvo_client import auvo_client
+                from app.repositories.ordem_servico_repository import OrdemServicoRepository
+                task_id = int(servico.numero_os)
+                os_obj = OrdemServicoRepository.get_by_task_id(db, task_id)
+                if os_obj and os_obj.task_url:
+                    pdf_os = auvo_client.baixar_pdf_os(os_obj.task_url)
+                    if pdf_os:
+                        anexos.append((f"os_{task_id}.pdf", pdf_os, "application/pdf"))
+            except Exception as e:
+                print(f"[EmailServico] PDF da OS indisponível: {e}")
+
+        # Termo de Garantia
+        try:
+            from app.repositories.termo_garantia_repository import TermoGarantiaRepository
+            from app.services.termo_garantia_service import TermoGarantiaService
+            termo = TermoGarantiaRepository.get_by_servico_id(db, servico.id)
+            if termo:
+                try:
+                    pdf_termo = TermoGarantiaService.gerar_pdf(db, termo.id)
+                    anexos.append((f"termo_garantia_servico_{servico.id}.pdf", pdf_termo.getvalue(), "application/pdf"))
+                except Exception as e:
+                    print(f"[EmailServico] Termo de garantia indisponível: {e}")
+        except Exception as e:
+            print(f"[EmailServico] Erro ao buscar termo de garantia: {e}")
+
+        # Arquivos extras enviados pelo usuário
+        if anexos_extras:
+            anexos.extend(list(anexos_extras))
 
         # Usa o primeiro boleto como referência para o template de email
         boleto_ref = boletos[0]

@@ -1099,7 +1099,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setEmailEnviado(null);
     setEmailsAvulsos([]);
     setEmailAvulso('');
-    setEnvioLoteAtivo(false);
+    setEnvioLoteAtivo((notaFiscal?.parcelas ?? 1) > 1);
     setModalEmail(boleto);
     // Busca contatos do condomínio com campo receber_boleto
     if (condominio) {
@@ -1256,6 +1256,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       if (composerRodape) fd.append('rodape', composerRodape);
       if (listaCC.length > 0) fd.append('cc', JSON.stringify(listaCC));
       fd.append('incluir_orcamento', incluirOrcamentoPdf ? 'true' : 'false');
+      for (const arq of composerAnexos) fd.append('arquivos', arq);
       await api.post(`/boletos/enviar-email-servico/${servico.id}`, fd);
       fecharComposer();
       setEmailEnviado(`Todos os boletos enviados para ${destinatarios.length} destinatário(s) com sucesso!`);
