@@ -1099,6 +1099,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setEmailEnviado(null);
     setEmailsAvulsos([]);
     setEmailAvulso('');
+    setEnvioLoteAtivo(false);
     setModalEmail(boleto);
     // Busca contatos do condomínio com campo receber_boleto
     if (condominio) {
@@ -2893,6 +2894,21 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               </>
             )}
 
+            {notaFiscal && notaFiscal.parcelas > 1 && !emailEnviado && (
+              <label className="flex items-center gap-2 cursor-pointer select-none mt-3 mb-1">
+                <input
+                  type="checkbox"
+                  checked={envioLoteAtivo}
+                  onChange={e => setEnvioLoteAtivo(e.target.checked)}
+                  className="w-4 h-4 rounded accent-indigo-600"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-300">
+                  Incluir todos os boletos em 1 email{' '}
+                  <span className="text-xs text-slate-400">({notaFiscal.parcelas} parcelas)</span>
+                </span>
+              </label>
+            )}
+
             <div className="flex flex-col gap-2 mt-2">
               {!emailEnviado && (
                 <>
@@ -2907,28 +2923,20 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                         : '✏️ Ver / Editar email'}
                     </button>
                     <button
-                      onClick={enviarEmail}
-                      disabled={enviandoEmail || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
+                      onClick={envioLoteAtivo ? enviarTodosEmLote : enviarEmail}
+                      disabled={
+                        (envioLoteAtivo ? enviandoLote : enviandoEmail) ||
+                        (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0
+                      }
                       className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                     >
-                      {enviandoEmail
+                      {(envioLoteAtivo ? enviandoLote : enviandoEmail)
                         ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
-                        : `📧 Enviar direto (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
+                        : envioLoteAtivo
+                          ? `📦 Enviar todos (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`
+                          : `📧 Enviar direto (${emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length})`}
                     </button>
                   </div>
-                  {/* Enviar todos os boletos em 1 email */}
-                  {notaFiscal && notaFiscal.parcelas > 1 && (
-                    <button
-                      onClick={async () => {
-                        setEnvioLoteAtivo(true);
-                        await abrirComposer();
-                      }}
-                      disabled={composerCarregando || (emailContatos.filter(c => c.selecionado).length + emailsAvulsos.length) === 0}
-                      className="w-full py-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 rounded-xl font-bold hover:brightness-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-                    >
-                      📦 Enviar todos os boletos em 1 email
-                    </button>
-                  )}
                 </>
               )}
               <button
