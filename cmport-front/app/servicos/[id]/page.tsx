@@ -3151,9 +3151,17 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 <div className="space-y-2">
                   {/* Automáticos */}
                   <div className="flex flex-wrap gap-2">
-                    <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
-                      📄 boleto_{modalEmail.codigo_solicitacao}.pdf <span className="text-slate-400 dark:text-slate-500">(automático)</span>
-                    </span>
+                    {envioLoteAtivo ? (
+                      boletos.filter(b => b.situacao !== 'CANCELADO').map(b => (
+                        <span key={b.id} className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
+                          📄 boleto_parcela_{b.numero_parcela}.pdf <span className="text-slate-400 dark:text-slate-500">(automático)</span>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
+                        📄 boleto_{modalEmail.codigo_solicitacao}.pdf <span className="text-slate-400 dark:text-slate-500">(automático)</span>
+                      </span>
+                    )}
                     {notaFiscal?.pdf_object_key && (
                       <span className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs px-3 py-1.5 rounded-lg font-medium">
                         📄 nota_fiscal_{notaFiscal.numero_nota}.pdf <span className="text-amber-500 dark:text-amber-600">(automático)</span>
