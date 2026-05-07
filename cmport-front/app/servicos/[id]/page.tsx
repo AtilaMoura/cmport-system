@@ -1462,9 +1462,91 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-6">
-          {/* Coluna principal */}
-          <div className="lg:col-span-2 space-y-3 lg:space-y-6">
+        <div className="space-y-3 lg:space-y-6">
+          {/* Condomínio | Status Financeiro | Metadados */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-6">
+            {/* Condomínio */}
+            {condominio && (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                  <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><span>🏢</span> Condomínio</h3>
+                </div>
+                <div className="p-4">
+                  <Link href={`/condominios/${condominio.id}`}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-sm font-black shrink-0">
+                      {condominio.nome.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors truncate">{condominio.nome}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">{condominio.cnpj || 'Sem CNPJ'}</p>
+                    </div>
+                    <svg className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Status geral */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><span>📊</span> Status Financeiro</h3>
+              </div>
+              <div className="p-4 space-y-2">
+                {!notaFiscal && (
+                  <div className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-500 dark:text-slate-400">
+                    Sem nota fiscal vinculada
+                  </div>
+                )}
+                {notaFiscal && boletos.length === 0 && (
+                  <div className="px-3 py-2 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-xs font-bold text-orange-600 dark:text-orange-400">
+                    Nota sem boleto emitido
+                  </div>
+                )}
+                {boletos.length > 0 && (
+                  <div className={`px-3 py-2 rounded-lg text-xs font-bold ${
+                    totalPago === boletosAtivos.length && boletosAtivos.length > 0
+                      ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
+                      : totalPago > 0
+                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'
+                        : 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400'
+                  }`}>
+                    {totalPago === boletosAtivos.length && boletosAtivos.length > 0 ? '✅ Totalmente pago' : totalPago > 0 ? `⏳ ${totalPago}/${boletosAtivos.length} parcelas pagas` : '⏳ Aguardando pagamento'}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Metadados */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><span>ℹ️</span> Metadados</h3>
+              </div>
+              <div className="p-5 space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">ID</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-white">#{servico.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Criado</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{new Date(servico.criado_em).toLocaleDateString('pt-BR')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Atualizado</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{new Date(servico.atualizado_em).toLocaleDateString('pt-BR')}</span>
+                </div>
+                {servico.nota_fiscal_id && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 dark:text-slate-400">Nota ID</span>
+                    <span className="font-mono font-bold text-orange-600 dark:text-orange-400">#{servico.nota_fiscal_id}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Conteúdo principal — largura total */}
+          <div className="space-y-3 lg:space-y-6">
 
             {/* Dados do Serviço */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -2133,87 +2215,6 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
 
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-3 lg:space-y-6">
-            {/* Condomínio */}
-            {condominio && (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                  <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><span>🏢</span> Condomínio</h3>
-                </div>
-                <div className="p-4">
-                  <Link href={`/condominios/${condominio.id}`}
-                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-sm font-black shrink-0">
-                      {condominio.nome.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors truncate">{condominio.nome}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">{condominio.cnpj || 'Sem CNPJ'}</p>
-                    </div>
-                    <svg className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            {/* Status geral */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><span>📊</span> Status Financeiro</h3>
-              </div>
-              <div className="p-4 space-y-2">
-                {!notaFiscal && (
-                  <div className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-500 dark:text-slate-400">
-                    Sem nota fiscal vinculada
-                  </div>
-                )}
-                {notaFiscal && boletos.length === 0 && (
-                  <div className="px-3 py-2 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-xs font-bold text-orange-600 dark:text-orange-400">
-                    Nota sem boleto emitido
-                  </div>
-                )}
-                {boletos.length > 0 && (
-                  <div className={`px-3 py-2 rounded-lg text-xs font-bold ${
-                    totalPago === boletosAtivos.length && boletosAtivos.length > 0
-                      ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
-                      : totalPago > 0
-                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'
-                        : 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400'
-                  }`}>
-                    {totalPago === boletosAtivos.length && boletosAtivos.length > 0 ? '✅ Totalmente pago' : totalPago > 0 ? `⏳ ${totalPago}/${boletosAtivos.length} parcelas pagas` : '⏳ Aguardando pagamento'}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Metadados */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><span>ℹ️</span> Metadados</h3>
-              </div>
-              <div className="p-5 space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">ID</span>
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">#{servico.id}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Criado</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{new Date(servico.criado_em).toLocaleDateString('pt-BR')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Atualizado</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{new Date(servico.atualizado_em).toLocaleDateString('pt-BR')}</span>
-                </div>
-                {servico.nota_fiscal_id && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Nota ID</span>
-                    <span className="font-mono font-bold text-orange-600 dark:text-orange-400">#{servico.nota_fiscal_id}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
