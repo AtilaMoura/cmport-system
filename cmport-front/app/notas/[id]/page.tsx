@@ -593,9 +593,217 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Main content */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8 grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
-        {/* Left: nota details */}
-        <div className="lg:col-span-3 space-y-4 lg:space-y-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-4 lg:space-y-8">
+        {/* Cobranças | Status | Metadados */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
+          {/* Cobracas section */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="text-xl">💳</span>
+                Cobranças
+              </h3>
+              {boletos.length > 0 && (
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                  {boletos.filter(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO').length}/{totalParcelas} pagos
+                </span>
+              )}
+            </div>
+
+            {/* Info: boletos são gerados no serviço */}
+            <div className="mx-4 mt-4 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Para gerar boletos, acesse o serviço vinculado a esta nota.
+              </p>
+            </div>
+
+            {/* Parcelas list */}
+            <div className="p-4 space-y-3">
+              {parcelasDisplay.map((parcela) => {
+                const boleto = boletos.find(b => b.numero_parcela === parcela.parcela) ?? null;
+                const cfg = boleto ? SITUACAO_CONFIG[boleto.situacao] : null;
+                const canMarkPaid = boleto && (boleto.situacao === 'EMABERTO' || boleto.situacao === 'VENCIDO');
+                const isInactive = boleto && (boleto.situacao === 'CANCELADO' || boleto.situacao === 'EXPIRADO');
+                const parcelaLabel = totalParcelas > 1
+                  ? `Parcela ${parcela.parcela}/${totalParcelas}`
+                  : 'A vista';
+
+                return (
+                  <div key={parcela.parcela} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-2">
+                    {/* Row header: label + situacao badge */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        {parcelaLabel}
+                      </span>
+                      {cfg && (
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${cfg.cls}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                          {cfg.label}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Value and date */}
+                    <div className="flex items-baseline justify-between">
+                      <span className="font-bold text-slate-900 dark:text-white text-sm">
+                        {fmt(parcela.valor)}
+                      </span>
+                      {parcela.data && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Venc. {parseDateLocal(parcela.data)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Boleto extra info */}
+                    {boleto && (
+                      <div className="space-y-0.5">
+                        {boleto.data_pagamento && (
+                          <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                            Pago em {parseDateLocal(boleto.data_pagamento)}
+                            {boleto.valor_total_recebido && boleto.valor_total_recebido !== boleto.valor_nominal
+                              ? ` · ${fmt(boleto.valor_total_recebido)}`
+                              : ''}
+                          </p>
+                        )}
+                        {(boleto.valor_juros > 0 || boleto.valor_multa > 0) && (
+                          <p className="text-xs text-orange-600 dark:text-orange-400">
+                            +{fmt(boleto.valor_juros + boleto.valor_multa)} juros/multa
+                          </p>
+                        )}
+                        {/* Forma de pagamento badge */}
+                        <span className="inline-block text-xs font-mono font-bold px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
+                          {FORMA_PAGAMENTO_ICONS[boleto.forma_pagamento as FormaPagamento] ?? boleto.forma_pagamento}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {boleto ? (
+                        isInactive ? (
+                          // CANCELADO or EXPIRADO: allow cleanup and re-register
+                          <>
+                            <button
+                              onClick={() => openModalCobranca(parcela)}
+                              className="flex-1 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
+                              title="Registrar nova cobrança manualmente"
+                            >
+                              + Registrar Novo
+                            </button>
+                            <button
+                              onClick={() => handleDeletarBoleto(boleto)}
+                              disabled={deletandoBoletoId === boleto.id}
+                              className="px-3 py-1.5 text-xs font-bold bg-red-700 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                              title="Remover registro do sistema para poder criar novo"
+                            >
+                              {deletandoBoletoId === boleto.id ? '...' : '🗑️'}
+                            </button>
+                          </>
+                        ) : (
+                          canMarkPaid && (
+                            <>
+                              <button
+                                onClick={() => openModalPagamento(boleto)}
+                                className="flex-1 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all"
+                              >
+                                ✅ Marcar Pago
+                              </button>
+                              {boleto.codigo_solicitacao && (
+                                <button
+                                  onClick={() => handleCancelarBoleto(boleto)}
+                                  disabled={cancelandoBoletoId === boleto.id}
+                                  className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                                >
+                                  {cancelandoBoletoId === boleto.id ? '...' : '🚫 Cancelar Inter'}
+                                </button>
+                              )}
+                            </>
+                          )
+                        )
+                      ) : (
+                        <button
+                          onClick={() => openModalCobranca(parcela)}
+                          className="flex-1 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
+                          title="Registrar manualmente"
+                        >
+                          + Registrar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Status card */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="text-xl">📊</span>
+                Status
+              </h3>
+            </div>
+            <div className="p-4 sm:p-6 space-y-3">
+              {/* Status da NF */}
+              <div className={`p-3 rounded-xl flex items-center gap-3 ${
+                nota.status === 'AUTORIZADA'
+                  ? 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800'
+                  : nota.status === 'CANCELADA'
+                  ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800'
+                  : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
+              }`}>
+                <span className="text-2xl">{nota.status === 'AUTORIZADA' ? '✅' : nota.status === 'CANCELADA' ? '❌' : '❓'}</span>
+                <div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nota Fiscal</p>
+                  <p className={`font-black ${nota.status === 'AUTORIZADA' ? 'text-green-700 dark:text-green-400' : nota.status === 'CANCELADA' ? 'text-red-700 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {nota.status}
+                  </p>
+                </div>
+              </div>
+              {/* Status de pagamento */}
+              <div className={`p-3 rounded-xl flex items-center gap-3 ${
+                nota.data_pagamento
+                  ? 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800'
+                  : 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-800'
+              }`}>
+                <span className="text-2xl">{nota.data_pagamento ? '💰' : '⏳'}</span>
+                <div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Pagamento</p>
+                  <p className={`font-black ${nota.data_pagamento ? 'text-green-700 dark:text-green-400' : 'text-orange-700 dark:text-orange-400'}`}>
+                    {nota.data_pagamento ? `Pago em ${parseDateLocal(nota.data_pagamento)}` : 'Pendente'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Metadata card */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="text-xl">ℹ️</span>
+                Metadados
+              </h3>
+            </div>
+            <div className="p-6 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600 dark:text-slate-400">ID do Sistema</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white">#{nota.id}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600 dark:text-slate-400">Criado em</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {new Date(nota.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Conteúdo principal — largura total */}
+        <div className="space-y-4 lg:space-y-6">
           {/* Hero card */}
           <div className={`bg-gradient-to-r ${getTipoColor(nota.tipo)} rounded-3xl p-4 sm:p-8 text-white shadow-xl`}>
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -966,213 +1174,6 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
           )}
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-4 lg:space-y-6">
-          {/* Cobracas section */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                <span className="text-xl">💳</span>
-                Cobranças
-              </h3>
-              {boletos.length > 0 && (
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                  {boletos.filter(b => b.situacao === 'PAGO' || b.situacao === 'BAIXADO').length}/{totalParcelas} pagos
-                </span>
-              )}
-            </div>
-
-            {/* Info: boletos são gerados no serviço */}
-            <div className="mx-4 mt-4 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Para gerar boletos, acesse o serviço vinculado a esta nota.
-              </p>
-            </div>
-
-            {/* Parcelas list */}
-            <div className="p-4 space-y-3">
-              {parcelasDisplay.map((parcela) => {
-                const boleto = boletos.find(b => b.numero_parcela === parcela.parcela) ?? null;
-                const cfg = boleto ? SITUACAO_CONFIG[boleto.situacao] : null;
-                const canMarkPaid = boleto && (boleto.situacao === 'EMABERTO' || boleto.situacao === 'VENCIDO');
-                const isInactive = boleto && (boleto.situacao === 'CANCELADO' || boleto.situacao === 'EXPIRADO');
-                const parcelaLabel = totalParcelas > 1
-                  ? `Parcela ${parcela.parcela}/${totalParcelas}`
-                  : 'A vista';
-
-                return (
-                  <div key={parcela.parcela} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-2">
-                    {/* Row header: label + situacao badge */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                        {parcelaLabel}
-                      </span>
-                      {cfg && (
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${cfg.cls}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                          {cfg.label}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Value and date */}
-                    <div className="flex items-baseline justify-between">
-                      <span className="font-bold text-slate-900 dark:text-white text-sm">
-                        {fmt(parcela.valor)}
-                      </span>
-                      {parcela.data && (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          Venc. {parseDateLocal(parcela.data)}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Boleto extra info */}
-                    {boleto && (
-                      <div className="space-y-0.5">
-                        {boleto.data_pagamento && (
-                          <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
-                            Pago em {parseDateLocal(boleto.data_pagamento)}
-                            {boleto.valor_total_recebido && boleto.valor_total_recebido !== boleto.valor_nominal
-                              ? ` · ${fmt(boleto.valor_total_recebido)}`
-                              : ''}
-                          </p>
-                        )}
-                        {(boleto.valor_juros > 0 || boleto.valor_multa > 0) && (
-                          <p className="text-xs text-orange-600 dark:text-orange-400">
-                            +{fmt(boleto.valor_juros + boleto.valor_multa)} juros/multa
-                          </p>
-                        )}
-                        {/* Forma de pagamento badge */}
-                        <span className="inline-block text-xs font-mono font-bold px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
-                          {FORMA_PAGAMENTO_ICONS[boleto.forma_pagamento as FormaPagamento] ?? boleto.forma_pagamento}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {boleto ? (
-                        isInactive ? (
-                          // CANCELADO or EXPIRADO: allow cleanup and re-register
-                          <>
-                            <button
-                              onClick={() => openModalCobranca(parcela)}
-                              className="flex-1 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
-                              title="Registrar nova cobrança manualmente"
-                            >
-                              + Registrar Novo
-                            </button>
-                            <button
-                              onClick={() => handleDeletarBoleto(boleto)}
-                              disabled={deletandoBoletoId === boleto.id}
-                              className="px-3 py-1.5 text-xs font-bold bg-red-700 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
-                              title="Remover registro do sistema para poder criar novo"
-                            >
-                              {deletandoBoletoId === boleto.id ? '...' : '🗑️'}
-                            </button>
-                          </>
-                        ) : (
-                          canMarkPaid && (
-                            <>
-                              <button
-                                onClick={() => openModalPagamento(boleto)}
-                                className="flex-1 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all"
-                              >
-                                ✅ Marcar Pago
-                              </button>
-                              {boleto.codigo_solicitacao && (
-                                <button
-                                  onClick={() => handleCancelarBoleto(boleto)}
-                                  disabled={cancelandoBoletoId === boleto.id}
-                                  className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
-                                >
-                                  {cancelandoBoletoId === boleto.id ? '...' : '🚫 Cancelar Inter'}
-                                </button>
-                              )}
-                            </>
-                          )
-                        )
-                      ) : (
-                        <button
-                          onClick={() => openModalCobranca(parcela)}
-                          className="flex-1 py-1.5 text-xs font-bold bg-slate-600 text-white rounded-lg hover:brightness-110 transition-all"
-                          title="Registrar manualmente"
-                        >
-                          + Registrar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Status card */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                <span className="text-xl">📊</span>
-                Status
-              </h3>
-            </div>
-            <div className="p-4 sm:p-6 space-y-3">
-              {/* Status da NF */}
-              <div className={`p-3 rounded-xl flex items-center gap-3 ${
-                nota.status === 'AUTORIZADA'
-                  ? 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800'
-                  : nota.status === 'CANCELADA'
-                  ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800'
-                  : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
-              }`}>
-                <span className="text-2xl">{nota.status === 'AUTORIZADA' ? '✅' : nota.status === 'CANCELADA' ? '❌' : '❓'}</span>
-                <div>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nota Fiscal</p>
-                  <p className={`font-black ${nota.status === 'AUTORIZADA' ? 'text-green-700 dark:text-green-400' : nota.status === 'CANCELADA' ? 'text-red-700 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>
-                    {nota.status}
-                  </p>
-                </div>
-              </div>
-              {/* Status de pagamento */}
-              <div className={`p-3 rounded-xl flex items-center gap-3 ${
-                nota.data_pagamento
-                  ? 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800'
-                  : 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-800'
-              }`}>
-                <span className="text-2xl">{nota.data_pagamento ? '💰' : '⏳'}</span>
-                <div>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Pagamento</p>
-                  <p className={`font-black ${nota.data_pagamento ? 'text-green-700 dark:text-green-400' : 'text-orange-700 dark:text-orange-400'}`}>
-                    {nota.data_pagamento ? `Pago em ${parseDateLocal(nota.data_pagamento)}` : 'Pendente'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Metadata card */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                <span className="text-xl">ℹ️</span>
-                Metadados
-              </h3>
-            </div>
-            <div className="p-6 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600 dark:text-slate-400">ID do Sistema</span>
-                <span className="font-mono font-bold text-slate-900 dark:text-white">#{nota.id}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600 dark:text-slate-400">Criado em</span>
-                <span className="font-bold text-slate-900 dark:text-white">
-                  {new Date(nota.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Modal: Confirmar exclusao */}
