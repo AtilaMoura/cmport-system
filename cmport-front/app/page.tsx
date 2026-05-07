@@ -124,7 +124,7 @@ export default function DashboardPage() {
   const { inicio, fim } = useMemo(() => getPeriodRange(periodo), [periodo]);
 
   const bF = useMemo(() => boletos.filter(b => { const d = pd(b.data_emissao); return d >= inicio && d <= fim; }), [boletos, inicio, fim]);
-  const nF = useMemo(() => notas.filter(n => { const d = pd(n.data_vencimento); return d >= inicio && d <= fim; }), [notas, inicio, fim]);
+  const nF = useMemo(() => notas.filter(n => { if (n.status !== 'AUTORIZADA') return false; const d = pd(n.data_vencimento); return d >= inicio && d <= fim; }), [notas, inicio, fim]);
   const sF = useMemo(() => servicos.filter(s => { const d = pd(s.data_servico); return d >= inicio && d <= fim; }), [servicos, inicio, fim]);
 
   const mesesPeriodo = useMemo(() => getMesesList(inicio, fim), [inicio, fim]);
@@ -136,7 +136,7 @@ export default function DashboardPage() {
   }, [inicio, fim]);
 
   const bAnt = useMemo(() => boletos.filter(b => { const d = pd(b.data_emissao); return d >= inicioAnt && d <= fimAnt; }), [boletos, inicioAnt, fimAnt]);
-  const nAnt = useMemo(() => notas.filter(n => { const d = pd(n.data_vencimento); return d >= inicioAnt && d <= fimAnt; }), [notas, inicioAnt, fimAnt]);
+  const nAnt = useMemo(() => notas.filter(n => { if (n.status !== 'AUTORIZADA') return false; const d = pd(n.data_vencimento); return d >= inicioAnt && d <= fimAnt; }), [notas, inicioAnt, fimAnt]);
   const sAnt = useMemo(() => servicos.filter(s => { const d = pd(s.data_servico); return d >= inicioAnt && d <= fimAnt; }), [servicos, inicioAnt, fimAnt]);
 
   const kpis = useMemo(() => {
@@ -145,7 +145,7 @@ export default function DashboardPage() {
     const valorRecebido   = bPagos.reduce((s, b) => s + (b.valor_total_recebido ?? b.valor_nominal), 0);
     const bPendentes      = bF.filter(b => b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO');
     const valorPendente   = bPendentes.reduce((s, b) => s + b.valor_nominal, 0);
-    const issEstimado     = valorRecebido * (issRate / 100);
+    const issEstimado     = valorEmitido * (issRate / 100);
     const receitaLiquida  = valorRecebido - issEstimado;
     return {
       totalServicos: sF.length, totalNotas: nF.length, totalBoletos: bF.length,
