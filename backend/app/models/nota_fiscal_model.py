@@ -37,6 +37,7 @@ class NotaFiscal(Base):
     data_pagamento = Column(Date, nullable=True)
 
     cliente_nome = Column(String(255), nullable=True)
+    cnpj_emitente = Column(String(18), nullable=True)
     observacao = Column(String(500), nullable=True)
     descricao_servico = Column(Text, nullable=True)
 

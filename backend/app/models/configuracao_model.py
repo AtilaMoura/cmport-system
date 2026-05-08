@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
 from sqlalchemy.sql import func
 
@@ -34,3 +36,17 @@ class ConfiguracaoEmpresa(Base):
     site            = Column(String(200), nullable=True)
     emails_copia    = Column(Text, nullable=True)  # JSON: ["email1@...", "email2@..."]
     atualizado_em   = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class ConfiguracaoInter(Base):
+    __tablename__ = "configuracao_inter"
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    cnpj           = Column(String(18), nullable=False, unique=True)
+    razao_social   = Column(String(255), nullable=True)
+    client_id      = Column(String(300), nullable=False)
+    client_secret  = Column(String(300), nullable=False)
+    conta_corrente = Column(String(50), nullable=False)
+    cert_path      = Column(String(500), nullable=False)
+    ativo          = Column(Boolean, default=True)
+    criado_em      = Column(DateTime, default=datetime.utcnow)

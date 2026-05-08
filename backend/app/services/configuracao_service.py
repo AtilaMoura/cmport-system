@@ -10,11 +10,12 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.configuracao_model import ConfiguracaoEmail, ConfiguracaoEmpresa
 from app.repositories.configuracao_repository import (
-    ConfiguracaoEmailRepository, ConfiguracaoEmpresaRepository
+    ConfiguracaoEmailRepository, ConfiguracaoEmpresaRepository, ConfiguracaoInterRepository,
 )
 from app.schemas.configuracao_schema import (
     ConfiguracaoEmailCreate, ConfiguracaoEmailUpdate,
     ConfiguracaoEmailResponse, ConfiguracaoEmpresaSchema, TestarEmailResponse,
+    ConfiguracaoInterCreate, ConfiguracaoInterUpdate, ConfiguracaoInterResponse,
 )
 
 
@@ -233,3 +234,33 @@ class ConfiguracaoService:
             dados["emails_copia"] = json.dumps(dados["emails_copia"]) if dados["emails_copia"] else None
         obj = ConfiguracaoEmpresaRepository.upsert(db, dados)
         return ConfiguracaoEmpresaSchema.model_validate(obj)
+
+    # ── Inter ─────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def listar_inter(db: Session) -> list[ConfiguracaoInterResponse]:
+        return [ConfiguracaoInterResponse.model_validate(c)
+                for c in ConfiguracaoInterRepository.get_all(db)]
+
+    @staticmethod
+    def criar_inter(db: Session, req: ConfiguracaoInterCreate) -> ConfiguracaoInterResponse:
+        dados = req.model_dump()
+        obj = ConfiguracaoInterRepository.create(db, dados)
+        return ConfiguracaoInterResponse.model_validate(obj)
+
+    @staticmethod
+    def atualizar_inter(db: Session, id: int, req: ConfiguracaoInterUpdate) -> ConfiguracaoInterResponse:
+        obj = ConfiguracaoInterRepository.get_by_id(db, id)
+        if not obj:
+            raise Exception("Configuração Inter não encontrada.")
+        dados = {k: v for k, v in req.model_dump().items() if v is not None}
+        obj = ConfiguracaoInterRepository.update(db, obj, dados)
+        return ConfiguracaoInterResponse.model_validate(obj)
+
+    @staticmethod
+    def desativar_inter(db: Session, id: int) -> ConfiguracaoInterResponse:
+        obj = ConfiguracaoInterRepository.get_by_id(db, id)
+        if not obj:
+            raise Exception("Configuração Inter não encontrada.")
+        obj = ConfiguracaoInterRepository.desativar(db, obj)
+        return ConfiguracaoInterResponse.model_validate(obj)

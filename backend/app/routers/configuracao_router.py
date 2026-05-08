@@ -6,6 +6,7 @@ from app.core.database import SessionLocal
 from app.schemas.configuracao_schema import (
     ConfiguracaoEmailCreate, ConfiguracaoEmailUpdate,
     ConfiguracaoEmailResponse, ConfiguracaoEmpresaSchema, TestarEmailResponse,
+    ConfiguracaoInterCreate, ConfiguracaoInterUpdate, ConfiguracaoInterResponse,
 )
 from app.services.configuracao_service import ConfiguracaoService
 
@@ -78,5 +79,36 @@ def get_empresa(db: Session = Depends(get_db)):
 def salvar_empresa(req: ConfiguracaoEmpresaSchema, db: Session = Depends(get_db)):
     try:
         return ConfiguracaoService.salvar_empresa(db, req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Contas Banco Inter ─────────────────────────────────────────────────────────
+
+@router.get("/inter", response_model=List[ConfiguracaoInterResponse])
+def listar_inter(db: Session = Depends(get_db)):
+    return ConfiguracaoService.listar_inter(db)
+
+
+@router.post("/inter", response_model=ConfiguracaoInterResponse, status_code=201)
+def criar_inter(req: ConfiguracaoInterCreate, db: Session = Depends(get_db)):
+    try:
+        return ConfiguracaoService.criar_inter(db, req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/inter/{id}", response_model=ConfiguracaoInterResponse)
+def atualizar_inter(id: int, req: ConfiguracaoInterUpdate, db: Session = Depends(get_db)):
+    try:
+        return ConfiguracaoService.atualizar_inter(db, id, req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/inter/{id}", response_model=ConfiguracaoInterResponse)
+def desativar_inter(id: int, db: Session = Depends(get_db)):
+    try:
+        return ConfiguracaoService.desativar_inter(db, id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

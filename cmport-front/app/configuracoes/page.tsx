@@ -22,6 +22,23 @@ interface Empresa {
   emails_copia: string[] | null;
 }
 
+interface ContaInter {
+  id: number;
+  cnpj: string;
+  razao_social: string | null;
+  client_id: string;
+  client_secret: string;
+  conta_corrente: string;
+  cert_path: string;
+  ativo: boolean;
+  criado_em: string;
+}
+
+const INTER_VAZIO: Omit<ContaInter, 'id' | 'criado_em'> = {
+  cnpj: '', razao_social: '', client_id: '', client_secret: '',
+  conta_corrente: '', cert_path: '', ativo: true,
+};
+
 const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '', emails_copia: [] };
 
 const FORM_VAZIO = {
@@ -43,6 +60,15 @@ export default function ConfiguracoesPage() {
   const [excluindo, setExcluindo] = useState<number | null>(null);
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [mostrarSecret, setMostrarSecret] = useState(false);
+
+  // ── Inter ──────────────────────────────────────────────────────────────────
+  const [contasInter, setContasInter] = useState<ContaInter[]>([]);
+  const [loadingInter, setLoadingInter] = useState(true);
+  const [modalInter, setModalInter] = useState<'novo' | ContaInter | null>(null);
+  const [interForm, setInterForm] = useState({ ...INTER_VAZIO });
+  const [salvandoInter, setSalvandoInter] = useState(false);
+  const [desativandoInter, setDesativandoInter] = useState<number | null>(null);
+  const [mostrarInterSecret, setMostrarInterSecret] = useState(false);
 
   // ── Empresa ────────────────────────────────────────────────────────────────
   const [empresa, setEmpresa] = useState<Empresa>(EMPRESA_VAZIA);
@@ -68,7 +94,15 @@ export default function ConfiguracoesPage() {
     finally { setLoadingEmpresa(false); }
   };
 
-  useEffect(() => { carregarContas(); carregarEmpresa(); }, []);
+  const carregarInter = async () => {
+    try {
+      const { data } = await api.get('/configuracoes/inter');
+      setContasInter(data);
+    } catch { /* silencioso */ }
+    finally { setLoadingInter(false); }
+  };
+
+  useEffect(() => { carregarContas(); carregarEmpresa(); carregarInter(); }, []);
 
   // ── Conta Email ────────────────────────────────────────────────────────────
   const abrirNovaConta = () => {
@@ -158,6 +192,66 @@ export default function ConfiguracoesPage() {
     finally { setTestando(null); }
   };
 
+  // ── Inter ──────────────────────────────────────────────────────────────────
+  const abrirNovaInter = () => {
+    setInterForm({ ...INTER_VAZIO });
+    setMostrarInterSecret(false);
+    setModalInter('novo');
+  };
+
+  const abrirEditarInter = (c: ContaInter) => {
+    setInterForm({
+      cnpj:          c.cnpj,
+      razao_social:  c.razao_social ?? '',
+      client_id:     c.client_id,
+      client_secret: '',
+      conta_corrente: c.conta_corrente,
+      cert_path:     c.cert_path,
+      ativo:         c.ativo,
+    });
+    setMostrarInterSecret(false);
+    setModalInter(c);
+  };
+
+  const salvarInter = async () => {
+    if (!interForm.cnpj || !interForm.client_id || !interForm.conta_corrente || !interForm.cert_path) {
+      alert('Preencha CNPJ, Client ID, Conta Corrente e Caminho do Certificado.'); return;
+    }
+    if (modalInter === 'novo' && !interForm.client_secret) {
+      alert('Informe o Client Secret.'); return;
+    }
+    setSalvandoInter(true);
+    try {
+      if (modalInter === 'novo') {
+        await api.post('/configuracoes/inter', interForm);
+      } else {
+        const payload: Record<string, unknown> = {
+          cnpj:          interForm.cnpj,
+          razao_social:  interForm.razao_social || null,
+          client_id:     interForm.client_id,
+          conta_corrente: interForm.conta_corrente,
+          cert_path:     interForm.cert_path,
+          ativo:         interForm.ativo,
+        };
+        if (interForm.client_secret) payload.client_secret = interForm.client_secret;
+        await api.put(`/configuracoes/inter/${(modalInter as ContaInter).id}`, payload);
+      }
+      setModalInter(null);
+      await carregarInter();
+    } catch { alert('Erro ao salvar conta Inter.'); }
+    finally { setSalvandoInter(false); }
+  };
+
+  const desativarInter = async (id: number) => {
+    if (!confirm('Desativar esta conta Inter? Ela não será mais usada para emitir boletos.')) return;
+    setDesativandoInter(id);
+    try {
+      await api.delete(`/configuracoes/inter/${id}`);
+      await carregarInter();
+    } catch { alert('Erro ao desativar conta Inter.'); }
+    finally { setDesativandoInter(null); }
+  };
+
   // ── Empresa ────────────────────────────────────────────────────────────────
   const salvarEmpresa = async () => {
     if (!empresa.nome) return;
@@ -211,7 +305,7 @@ export default function ConfiguracoesPage() {
         ) : contas.length === 0 ? (
           <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
             <p className="text-slate-400 text-sm">Nenhuma conta cadastrada.</p>
-            <p className="text-slate-400 text-xs mt-1">Clique em "+ Nova conta" para adicionar.</p>
+            <p className="text-slate-400 text-xs mt-1">Clique em &quot;+ Nova conta&quot; para adicionar.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -377,6 +471,186 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       </section>
+
+      {/* ── Contas Banco Inter ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-black text-slate-800 dark:text-white">🏦 Contas Banco Inter</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Uma conta por CNPJ emitente — o boleto usa a conta do CNPJ da nota</p>
+          </div>
+          <button
+            onClick={abrirNovaInter}
+            className="px-4 py-2 bg-orange-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all"
+          >
+            + Adicionar conta
+          </button>
+        </div>
+
+        {loadingInter ? (
+          <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : contasInter.length === 0 ? (
+          <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+            <p className="text-slate-400 text-sm">Nenhuma conta Inter cadastrada.</p>
+            <p className="text-slate-400 text-xs mt-1">Sem configuração, o sistema usa as variáveis de ambiente (.env).</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {contasInter.map(c => (
+              <div key={c.id} className={`rounded-2xl border p-4 transition-all ${c.ativo ? 'border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-500/5' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 opacity-60'}`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm font-mono">{c.cnpj}</p>
+                      {c.ativo
+                        ? <span className="text-xs bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-bold">● Ativa</span>
+                        : <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded-full font-bold">Inativa</span>
+                      }
+                    </div>
+                    {c.razao_social && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.razao_social}</p>}
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Conta: <span className="font-mono">{c.conta_corrente}</span></p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Cert: <span className="font-mono">{c.cert_path}</span></p>
+                  </div>
+
+                  <div className="flex gap-1.5 flex-wrap justify-end shrink-0">
+                    <button
+                      onClick={() => abrirEditarInter(c)}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:brightness-95 transition-all"
+                    >
+                      ✏️ Editar
+                    </button>
+                    {c.ativo && (
+                      <button
+                        onClick={() => desativarInter(c.id)}
+                        disabled={desativandoInter === c.id}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:brightness-95 transition-all disabled:opacity-50"
+                      >
+                        {desativandoInter === c.id ? '...' : 'Desativar'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Modal Nova/Editar Conta Inter ── */}
+      {modalInter !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
+            <h2 className="text-lg font-black text-slate-900 dark:text-white mb-5">
+              {modalInter === 'novo' ? '+ Nova Conta Banco Inter' : '✏️ Editar Conta Inter'}
+            </h2>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>CNPJ</label>
+                  <input
+                    type="text"
+                    value={interForm.cnpj}
+                    onChange={e => setInterForm(p => ({ ...p, cnpj: e.target.value }))}
+                    placeholder="12.345.678/0001-90"
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Razão Social</label>
+                  <input
+                    type="text"
+                    value={interForm.razao_social ?? ''}
+                    onChange={e => setInterForm(p => ({ ...p, razao_social: e.target.value }))}
+                    placeholder="Empresa LTDA"
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Client ID</label>
+                <input
+                  type="text"
+                  value={interForm.client_id}
+                  onChange={e => setInterForm(p => ({ ...p, client_id: e.target.value }))}
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  className={`${inputCls} font-mono text-xs`}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>
+                  Client Secret {modalInter !== 'novo' && <span className="normal-case font-normal text-slate-400">(deixe em branco para não alterar)</span>}
+                </label>
+                <div className="relative">
+                  <input
+                    type={mostrarInterSecret ? 'text' : 'password'}
+                    value={interForm.client_secret}
+                    onChange={e => setInterForm(p => ({ ...p, client_secret: e.target.value }))}
+                    placeholder={modalInter === 'novo' ? 'client_secret...' : '••••••••'}
+                    className={`${inputCls} pr-10 font-mono text-xs`}
+                  />
+                  <button type="button" onClick={() => setMostrarInterSecret(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+                    {mostrarInterSecret ? '🙈' : '👁️'}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Conta Corrente</label>
+                <input
+                  type="text"
+                  value={interForm.conta_corrente}
+                  onChange={e => setInterForm(p => ({ ...p, conta_corrente: e.target.value }))}
+                  placeholder="12345678"
+                  className={`${inputCls} font-mono`}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Caminho do Certificado (no servidor)</label>
+                <input
+                  type="text"
+                  value={interForm.cert_path}
+                  onChange={e => setInterForm(p => ({ ...p, cert_path: e.target.value }))}
+                  placeholder="app/auth/cnpj1/"
+                  className={`${inputCls} font-mono text-xs`}
+                />
+                <p className="text-xs text-slate-400 mt-1">Pasta no servidor contendo <code>certificado.crt</code> e <code>key.key</code></p>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={interForm.ativo}
+                  onChange={e => setInterForm(p => ({ ...p, ativo: e.target.checked }))}
+                  className="w-4 h-4 rounded accent-orange-600"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">Conta ativa</span>
+              </label>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setModalInter(null)}
+                className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarInter}
+                disabled={salvandoInter || !interForm.cnpj || !interForm.client_id || !interForm.conta_corrente || !interForm.cert_path}
+                className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {salvandoInter
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
+                  : '💾 Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal Nova/Editar Conta ── */}
       {modalConta !== null && (

@@ -72,3 +72,36 @@ class ConfiguracaoEmpresaSchema(BaseModel):
 class TestarEmailResponse(BaseModel):
     ok:       bool
     mensagem: str
+
+
+class ConfiguracaoInterCreate(BaseModel):
+    cnpj:           str
+    razao_social:   Optional[str] = None
+    client_id:      str
+    client_secret:  str
+    conta_corrente: str
+    cert_path:      str
+
+
+class ConfiguracaoInterUpdate(BaseModel):
+    cnpj:           Optional[str] = None
+    razao_social:   Optional[str] = None
+    client_id:      Optional[str] = None
+    client_secret:  Optional[str] = None
+    conta_corrente: Optional[str] = None
+    cert_path:      Optional[str] = None
+    ativo:          Optional[bool] = None
+
+
+class ConfiguracaoInterResponse(BaseModel):
+    id:             int
+    cnpj:           str
+    razao_social:   Optional[str] = None
+    client_id:      str
+    client_secret:  str
+    conta_corrente: str
+    cert_path:      str
+    ativo:          bool
+    criado_em:      datetime
+
+    model_config = {"from_attributes": True}

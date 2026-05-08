@@ -13,10 +13,27 @@ from app.schemas.boleto_schema import BoletoResponse, GerarBoletosResponse, Sinc
 
 NFRepo = NotaFiscalRepository
 from app.services import inter_client
+from app.services.inter_client import InterClient
 
 
 def _limpar_cnpj(cnpj: str) -> str:
     return "".join(filter(str.isdigit, cnpj or ""))
+
+
+def _get_inter_client(nota, db: Session) -> InterClient:
+    """Retorna o InterClient correto pelo CNPJ emitente da nota. Fallback: env vars."""
+    from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+    if nota and getattr(nota, "cnpj_emitente", None):
+        cnpj_limpo = _limpar_cnpj(nota.cnpj_emitente)
+        config = ConfiguracaoInterRepository.get_by_cnpj(db, cnpj_limpo)
+        if config:
+            return InterClient(
+                client_id=config.client_id,
+                client_secret=config.client_secret,
+                conta_corrente=config.conta_corrente,
+                cert_path=config.cert_path,
+            )
+    return inter_client._get_default_client()
 
 
 def _calcular_valor_liquido(db: Session, nota, pcts_override: dict = None) -> float:
@@ -357,6 +374,7 @@ class BoletoService:
 
                 base_numero = nota.numero_nota or str(nota_id)
                 msg_payload = _montar_mensagem_payload(mensagem, base_numero, numero_os)
+                client = _get_inter_client(nota, db)
 
                 for i in range(total_parcelas):
                     numero_parcela = i + 1
@@ -385,7 +403,7 @@ class BoletoService:
                         payload["mensagem"] = msg_payload
                     payload.update(mora_payload)
 
-                    resposta = inter_client.emitir_boleto(payload)
+                    resposta = client.emitir_boleto(payload)
 
                     db_boleto = BoletoRepository.create(db, {
                         "nota_fiscal_id": nota_id,
@@ -565,6 +583,7 @@ class BoletoService:
 
         base_numero = nota.numero_nota or str(nota_id)
         msg_payload = _montar_mensagem_payload(mensagem, base_numero, numero_os)
+        client = _get_inter_client(nota, db)
 
         pagador = {
             "cpfCnpj": _limpar_cnpj(condominio.cnpj),
@@ -604,7 +623,7 @@ class BoletoService:
                     payload["mensagem"] = msg_payload
                 payload.update(mora_payload)
 
-                resposta = inter_client.emitir_boleto(payload)
+                resposta = client.emitir_boleto(payload)
 
                 db_boleto = BoletoRepository.create(db, {
                     "nota_fiscal_id": nota_id,
@@ -694,7 +713,9 @@ class BoletoService:
         if not db_boleto:
             raise Exception("Boleto não encontrado.")
 
-        inter_client.cancelar_boleto(codigo_solicitacao)
+        nota = NFRepo.get_by_id(db, db_boleto.nota_fiscal_id) if db_boleto.nota_fiscal_id else None
+        client = _get_inter_client(nota, db)
+        client.cancelar_boleto(codigo_solicitacao)
         BoletoRepository.update(db, db_boleto, {"situacao": SituacaoBoleto.CANCELADO})
         return BoletoResponse.model_validate(db_boleto)
 
@@ -703,7 +724,9 @@ class BoletoService:
         db_boleto = BoletoRepository.get_by_codigo(db, codigo_solicitacao)
         if not db_boleto:
             raise Exception("Boleto não encontrado.")
-        return inter_client.baixar_pdf(codigo_solicitacao)
+        nota = NFRepo.get_by_id(db, db_boleto.nota_fiscal_id) if db_boleto.nota_fiscal_id else None
+        client = _get_inter_client(nota, db)
+        return client.baixar_pdf(codigo_solicitacao)
 
     @staticmethod
     def sincronizar_status(db: Session) -> SincronizarResponse:
@@ -715,7 +738,9 @@ class BoletoService:
             if not boleto.codigo_solicitacao:
                 continue
             try:
-                dados_json = inter_client.consultar_boleto(boleto.codigo_solicitacao)
+                nota_boleto = NFRepo.get_by_id(db, boleto.nota_fiscal_id) if boleto.nota_fiscal_id else None
+                client_boleto = _get_inter_client(nota_boleto, db)
+                dados_json = client_boleto.consultar_boleto(boleto.codigo_solicitacao)
                 # v3 pode retornar a cobrança aninhada ou na raiz
                 dados = dados_json.get("cobranca", dados_json) if isinstance(dados_json, dict) else dados_json
                 
@@ -759,10 +784,33 @@ class BoletoService:
         erros = []
         sem_vinculo_lista = []
 
-        try:
-            cobrancas = inter_client.listar_cobrancas(data_inicio, data_fim)
-        except Exception as e:
-            return SincronizarInterResponse(criados=0, atualizados=0, sem_vinculo=0, erros=[{"erro": str(e)}])
+        # Monta lista de clientes: DB configs + cliente padrão (env vars) como fallback
+        from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+        configs_db = ConfiguracaoInterRepository.get_ativos(db)
+        clientes: list[InterClient] = [
+            InterClient(
+                client_id=c.client_id,
+                client_secret=c.client_secret,
+                conta_corrente=c.conta_corrente,
+                cert_path=c.cert_path,
+            )
+            for c in configs_db
+        ]
+        # Inclui cliente padrão se não houver configs no banco ou se não coincidir
+        if not clientes:
+            clientes = [inter_client._get_default_client()]
+
+        all_cobrancas = []
+        for cli in clientes:
+            try:
+                cobrancas_cli = cli.listar_cobrancas(data_inicio, data_fim)
+                all_cobrancas.extend(cobrancas_cli)
+            except Exception as e:
+                erros.append({"conta": cli.conta_corrente, "erro": str(e)})
+
+        cobrancas = all_cobrancas
+        if not cobrancas and erros:
+            return SincronizarInterResponse(criados=0, atualizados=0, sem_vinculo=0, erros=erros)
 
         print(f"[SyncInter] Total retornado pelo Inter: {len(cobrancas)}")
 
@@ -1089,7 +1137,8 @@ class BoletoService:
         linha_digitavel = None
         if boleto.codigo_solicitacao:
             try:
-                detalhe = inter_client.consultar_boleto(boleto.codigo_solicitacao)
+                client_preview = _get_inter_client(nota, db)
+                detalhe = client_preview.consultar_boleto(boleto.codigo_solicitacao)
                 linha_digitavel = (
                     detalhe.get("linhaDigitavel")
                     or detalhe.get("cobranca", {}).get("linhaDigitavel")
@@ -1188,13 +1237,16 @@ class BoletoService:
             (condominio.razao_social or condominio.nome) if condominio else "Condomínio"
         )
 
+        # Cliente Inter correto para a nota deste boleto
+        client_email = _get_inter_client(nota, db)
+
         # Baixa PDF do boleto via Inter
-        pdf_bytes = inter_client.baixar_pdf(boleto.codigo_solicitacao)
+        pdf_bytes = client_email.baixar_pdf(boleto.codigo_solicitacao)
 
         # Tenta obter linha digitável consultando o Inter
         linha_digitavel = None
         try:
-            detalhe = inter_client.consultar_boleto(boleto.codigo_solicitacao)
+            detalhe = client_email.consultar_boleto(boleto.codigo_solicitacao)
             linha_digitavel = (
                 detalhe.get("linhaDigitavel")
                 or detalhe.get("cobranca", {}).get("linhaDigitavel")
@@ -1355,11 +1407,12 @@ class BoletoService:
             nome_condominio = cond.nome if cond else ""
 
         # Baixa PDFs de todos os boletos com codigo_solicitacao
+        client_servico = _get_inter_client(nota, db)
         anexos: List[tuple] = []
         for b in boletos:
             if b.codigo_solicitacao:
                 try:
-                    pdf = inter_client.baixar_pdf(b.codigo_solicitacao)
+                    pdf = client_servico.baixar_pdf(b.codigo_solicitacao)
                     anexos.append((f"boleto_p{b.numero_parcela}.pdf", pdf, "application/pdf"))
                 except Exception as e:
                     print(f"[EmailServico] PDF boleto parcela {b.numero_parcela} indisponível: {e}")

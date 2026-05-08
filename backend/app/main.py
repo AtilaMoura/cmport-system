@@ -65,6 +65,7 @@ def _run_migrations():
         "ALTER TABLE manutencoes_assistencias ADD COLUMN email_enviado_em DATETIME NULL",
         "ALTER TABLE manutencoes_assistencias ADD COLUMN email_destinatarios TEXT NULL",
         "ALTER TABLE configuracao_empresa ADD COLUMN emails_copia TEXT NULL",
+        "ALTER TABLE notas_fiscais ADD COLUMN cnpj_emitente VARCHAR(18) NULL",
     ]
     try:
         for stmt in stmts:
