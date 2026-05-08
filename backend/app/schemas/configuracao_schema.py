@@ -94,14 +94,18 @@ class ConfiguracaoInterUpdate(BaseModel):
 
 
 class ConfiguracaoInterResponse(BaseModel):
-    id:             int
-    cnpj:           str
-    razao_social:   Optional[str] = None
-    client_id:      str
-    client_secret:  str
-    conta_corrente: str
-    cert_path:      str
-    ativo:          bool
-    criado_em:      datetime
+    id:            int
+    cnpj:          str
+    razao_social:  Optional[str] = None
+    client_id:     str
+    client_secret: str = "***"
+    ativo:         bool
+    criado_em:     datetime
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        instance = super().model_validate(obj, *args, **kwargs)
+        instance.client_secret = "***"
+        return instance

@@ -27,14 +27,21 @@ interface ContaInter {
   cnpj: string;
   razao_social: string | null;
   client_id: string;
-  client_secret: string;
-  conta_corrente: string;
-  cert_path: string;
   ativo: boolean;
   criado_em: string;
 }
 
-const INTER_VAZIO: Omit<ContaInter, 'id' | 'criado_em'> = {
+interface InterForm {
+  cnpj: string;
+  razao_social: string;
+  client_id: string;
+  client_secret: string;
+  conta_corrente: string;
+  cert_path: string;
+  ativo: boolean;
+}
+
+const INTER_VAZIO: InterForm = {
   cnpj: '', razao_social: '', client_id: '', client_secret: '',
   conta_corrente: '', cert_path: '', ativo: true,
 };
@@ -65,7 +72,7 @@ export default function ConfiguracoesPage() {
   const [contasInter, setContasInter] = useState<ContaInter[]>([]);
   const [loadingInter, setLoadingInter] = useState(true);
   const [modalInter, setModalInter] = useState<'novo' | ContaInter | null>(null);
-  const [interForm, setInterForm] = useState({ ...INTER_VAZIO });
+  const [interForm, setInterForm] = useState<InterForm>({ ...INTER_VAZIO });
   const [salvandoInter, setSalvandoInter] = useState(false);
   const [desativandoInter, setDesativandoInter] = useState<number | null>(null);
   const [mostrarInterSecret, setMostrarInterSecret] = useState(false);
@@ -201,13 +208,13 @@ export default function ConfiguracoesPage() {
 
   const abrirEditarInter = (c: ContaInter) => {
     setInterForm({
-      cnpj:          c.cnpj,
-      razao_social:  c.razao_social ?? '',
-      client_id:     c.client_id,
-      client_secret: '',
-      conta_corrente: c.conta_corrente,
-      cert_path:     c.cert_path,
-      ativo:         c.ativo,
+      cnpj:           c.cnpj,
+      razao_social:   c.razao_social ?? '',
+      client_id:      c.client_id,
+      client_secret:  '',
+      conta_corrente: '',
+      cert_path:      '',
+      ativo:          c.ativo,
     });
     setMostrarInterSecret(false);
     setModalInter(c);
@@ -508,8 +515,7 @@ export default function ConfiguracoesPage() {
                       }
                     </div>
                     {c.razao_social && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.razao_social}</p>}
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Conta: <span className="font-mono">{c.conta_corrente}</span></p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Cert: <span className="font-mono">{c.cert_path}</span></p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-mono">{c.client_id.substring(0, 8)}…</p>
                   </div>
 
                   <div className="flex gap-1.5 flex-wrap justify-end shrink-0">
