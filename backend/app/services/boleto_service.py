@@ -181,6 +181,20 @@ def _buscar_nota(
     if nota:
         return nota, "exato"
 
+    # --- tentativa 1.1: sanitização de sufixos A/M e parcelas para busca ---
+    # Ex: "109-A-1/2" -> "109"
+    # Ex: "109-M" -> "109"
+    if "-" in seu_numero:
+        base_limpa = seu_numero.split('-')[0]
+        nota = query_exata(base_limpa)
+        if nota:
+            return nota, f"base_limpa({base_limpa})"
+        
+        # Tenta com prefixo (caso no banco esteja 109-2)
+        nota = query_prefixo(base_limpa)
+        if nota:
+            return nota, f"prefixo_base_limpa({base_limpa})"
+
     # --- tentativa 2: prefixo (número começa com seuNumero) ---
     nota = query_prefixo(seu_numero)
     if nota:
@@ -376,6 +390,15 @@ class BoletoService:
                 msg_payload = _montar_mensagem_payload(mensagem, base_numero, numero_os)
                 client = _get_inter_client(nota, db)
 
+                from app.models.nota_fiscal_model import TipoNota
+                num_base_limpo = (nota.numero_nota or str(nota_id)).split('-')[0]
+                if nota.tipo == TipoNota.ASSISTENCIA:
+                    base_para_seu_numero = f"{num_base_limpo}-A"
+                elif nota.tipo == TipoNota.MANUTENCAO:
+                    base_para_seu_numero = f"{num_base_limpo}-M"
+                else:
+                    base_para_seu_numero = nota.numero_nota or str(nota_id)
+
                 for i in range(total_parcelas):
                     numero_parcela = i + 1
                     if data_vencimento_override:
@@ -388,10 +411,10 @@ class BoletoService:
 
                     if total_parcelas > 1:
                         sufixo = f"-{numero_parcela}/{total_parcelas}"
-                        base = base_numero[:15 - len(sufixo)]
-                        seu_numero = (base + sufixo)[:15]
+                        base_trunc = base_para_seu_numero[:15 - len(sufixo)]
+                        seu_numero = (base_trunc + sufixo)[:15]
                     else:
-                        seu_numero = base_numero[:15]
+                        seu_numero = base_para_seu_numero[:15]
 
                     payload = {
                         "seuNumero": seu_numero,
@@ -609,9 +632,18 @@ class BoletoService:
                 data_inter = max(data_venc, date.today() + timedelta(days=5))
                 valor = valor_ultima if numero_parcela == total_parcelas else valor_parcela
 
+                from app.models.nota_fiscal_model import TipoNota
+                num_base_limpo = (nota.numero_nota or str(nota_id)).split('-')[0]
+                if nota.tipo == TipoNota.ASSISTENCIA:
+                    base_para_seu_numero = f"{num_base_limpo}-A"
+                elif nota.tipo == TipoNota.MANUTENCAO:
+                    base_para_seu_numero = f"{num_base_limpo}-M"
+                else:
+                    base_para_seu_numero = nota.numero_nota or str(nota_id)
+
                 sufixo = f"-{numero_parcela}/{total_parcelas}"
-                base = base_numero[:15 - len(sufixo)]
-                seu_numero = (base + sufixo)[:15]
+                base_trunc = base_para_seu_numero[:15 - len(sufixo)]
+                seu_numero = (base_trunc + sufixo)[:15]
 
                 payload = {
                     "seuNumero": seu_numero,
