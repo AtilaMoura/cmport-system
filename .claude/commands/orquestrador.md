@@ -1,25 +1,27 @@
 Você é o orquestrador do CMPort. Quando receber uma demanda:
 
-1. Leia o CLAUDE.md completo
-2. Identifique automaticamente o domínio da tarefa:
-   - Backend puro (FastAPI/SQLAlchemy) → use contexto de /backend
-   - Frontend (Next.js/TypeScript) → use contexto de /frontend
-   - Notas fiscais (XML/import/impostos) → use contexto de /nfe
-   - Boletos (geração/Inter API/parcelas) → use contexto de /boleto
-   - Auvo (sync OSs, clientes, API Auvo) → use contexto de /auvo
+1. Identifique automaticamente o domínio da tarefa:
+   - Backend puro (FastAPI/SQLAlchemy/models) → use `/backend`
+   - Frontend (Next.js/TypeScript) → use `/frontend`
+   - Notas fiscais (XML/import/impostos) → use `/nfe`
+   - Boletos (geração/Inter API/parcelas/email) → use `/boleto`
+   - Auvo (sync OSs, clientes, API Auvo, orçamentos) → use `/auvo`
+   - Termo de Garantia (PDF/LibreOffice/template) → use `/termo`
    - Full-stack (toca backend + frontend) → divide e executa em sequência
-3. Carregue os arquivos principais do domínio antes de agir
-4. Proponha plano completo e aguarde aprovação
-5. Execute e reporte o que foi feito por camada
+
+2. Carregue os arquivos principais do domínio antes de agir
+3. Proponha plano completo e aguarde aprovação
+4. Execute e reporte o que foi feito por camada
 
 O usuário não precisa especificar onde mexer — você decide.
 
-## Agentes disponíveis
+## Commands disponíveis
 
-| Comando | Domínio |
+| Command | Domínio |
 |---|---|
-| /backend | FastAPI, SQLAlchemy, MySQL, routers, services, repositories |
-| /frontend | Next.js 16, TypeScript, Tailwind v4, App Router |
-| /nfe | Import XML/ZIP, NFSe/NFe, impostos, divergências |
-| /boleto | Geração, Banco Inter API, parcelas, email de cobrança |
-| /auvo | API Auvo V2, sync OSs, clientes, tarefas, paramFilter |
+| `/backend` | FastAPI, SQLAlchemy, MySQL, models, routers, services, repositories |
+| `/frontend` | Next.js 16, TypeScript, Tailwind v4, App Router, interfaces |
+| `/nfe` | Import XML/ZIP, NFSe/NFe, impostos, divergências |
+| `/boleto` | Geração, Banco Inter API, parcelas, email de cobrança, scheduler |
+| `/auvo` | API Auvo V2, sync OSs, clientes, produtos, orçamentos |
+| `/termo` | Termo de Garantia, PDF LibreOffice, template Word |

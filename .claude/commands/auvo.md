@@ -11,6 +11,8 @@ Você é especialista na integração Auvo do CMPort.
 | Endpoint de trigger do sync no CMPort | `backend/app/routers/condominio_router.py` (rota `/sync-auvo`) |
 | Exemplo real de OS retornada pela API | `backend/auvo_so_example.json` |
 
+---
+
 ## Regras críticas da API Auvo V2
 
 **Filtros em `tasks/`:**
@@ -47,6 +49,38 @@ params = {
 - 4: All | 5: WithPendency | 6: StartedOrFinished | 7: InExecution
 
 **Rate limit:** 400 req/minuto
+
+---
+
+## Produtos e Orçamentos
+
+**Sync de produtos:**
+`POST /produtos/sync` — sincroniza catálogo via `auvo_client.get_all_products()`
+
+**Sync de orçamentos:**
+`POST /orcamentos/sync?date_start=&date_end=`
+Salva: `orcamentos` + `orcamento_itens` + `orcamento_task_ids`
+
+**Busca de orçamentos por serviço:**
+```
+GET /orcamentos/por-servico/{servico_id}
+  → OrcamentoTaskId.task_id == int(servico.numero_os)
+  → null se não encontrado
+
+GET /orcamentos/candidatos/{servico_id}
+  → orçamentos do mesmo condomínio nos 90 dias antes do serviço
+  → usado como fallback quando por-servico retorna null
+```
+
+**Chave de vínculo Orçamento ↔ OS:**
+```
+manutencoes_assistencias.numero_os  (String)
+== ordens_servico.task_id           (Int)
+== orcamento_task_ids.task_id       (BigInt)
+```
+Todos são o Auvo task ID. Um orçamento pode ter N task_ids; uma OS liga a 1 orçamento.
+
+---
 
 ## Antes de qualquer tarefa
 

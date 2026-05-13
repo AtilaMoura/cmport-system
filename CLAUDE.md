@@ -1,453 +1,171 @@
-# CLAUDE.md
+# CLAUDE.md — CMPort
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-CMPort is a management system for condominios (residential condominiums) in Brazil. It consists of:
+Sistema de gestão de condomínios brasileiros.
 - **Backend**: FastAPI + SQLAlchemy + MySQL (PyMySQL)
 - **Frontend**: Next.js 16 (App Router) + TypeScript + Tailwind CSS v4
 
-## Fluxo de Trabalho
-
-### 1. Desenvolver e testar localmente
-### 2. Commitar e subir para produção com `git push vps master`
-
-O deploy em produção é **automático** ao fazer push — o servidor rebuilda e reinicia os containers sozinho.
-
 ---
 
-## Ambiente Local (desenvolvimento)
+## Ambiente Local
 
-### Pré-requisitos
-- Docker rodando (para o banco MySQL)
-- Venv Python criado em `backend/venv/`
-- Arquivo `backend/.env` com `ENV=development` e `DB_HOST=localhost`
-- Certificados do Banco Inter em `backend/app/auth/`
-
-### Passo 1 — Subir o banco
 ```bash
+# Banco
 docker-compose up -d db
-# MySQL disponível em localhost:3306
-# Adminer (UI do banco) em http://localhost:8080
-```
+# MySQL: localhost:3306 | Adminer: http://localhost:8080
 
-### Passo 2 — Subir o backend
-```bash
-cd backend
-venv\Scripts\activate
+# Backend
+cd backend && venv\Scripts\activate
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-API docs: `http://localhost:8000/docs`
+# Docs: http://localhost:8000/docs
 
-### Passo 3 — Subir o frontend
-```bash
-cd cmport-front
-npm run dev
-```
-Acesse: `http://localhost:3000`
+# Frontend
+cd cmport-front && npm run dev
+# http://localhost:3000
 
-### Verificar qualidade antes de commitar
-```bash
-cd cmport-front
-npm run lint
-npx tsc --noEmit   # deve ficar em zero erros
+# Qualidade antes de commitar
+cd cmport-front && npm run lint && npx tsc --noEmit
 ```
 
 ---
 
-## Deploy em Produção (VPS Hostinger)
+## Deploy (VPS Hostinger)
 
-### Fluxo completo
 ```bash
-# 1. Fazer as alterações localmente e testar
-# 2. Commitar
-git add <arquivos>
-git commit -m "feat/fix: descrição"
-
-# 3. Subir para produção — deploy automático
-git push vps master
+git push vps master   # deploy automático via hook post-receive
 ```
 
-O hook `post-receive` no servidor executa automaticamente:
-- Checkout do código novo em `/root/cmport-system`
-- `docker compose up -d --build` (rebuild dos containers)
-- Limpeza de imagens antigas
+Hook executa: checkout → `docker compose up -d --build` → limpeza de imagens
 
-Você acompanha o progresso em tempo real no terminal durante o `git push`.
+**Servidor:** `root@168.231.96.184` | `/root/cmport-system` | SSH: `~/.ssh/id_ed25519`
 
-### Servidor
-- **IP**: `168.231.96.184`
-- **Usuário**: `root`
-- **Repositório bare**: `/root/cmport.git` (hook post-receive)
-- **Diretório de trabalho**: `/root/cmport-system`
-- **Acesso SSH**: chave em `~/.ssh/id_ed25519` (já instalada no servidor)
+**Containers:**
+- `cmport_nginx` — proxy porta 80
+- `cmport_front` — Next.js :3000 interna
+- `cmport_api` — FastAPI :8000 interna
+- `cmport_db` — MySQL 8.0 (volume `db_data`)
 
-### Containers em produção
-- `cmport_nginx` — proxy reverso porta 80
-- `cmport_front` — Next.js porta 3000 interna
-- `cmport_api` — FastAPI porta 8000 interna
-- `cmport_db` — MySQL 8.0 com volume persistente `db_data`
+Nginx: `/` → frontend | `/api/v1/` → backend direto
 
-Roteamento nginx: `/` → frontend, `/api/v1/` → backend direto.
-
-### Variáveis de produção
-Arquivo `.env.production` na raiz (não commitado). Contém `ENV=production`.
-
-### Acesso manual ao servidor (se necessário)
 ```bash
+# Acesso manual
 ssh root@168.231.96.184
-cd /root/cmport-system
 docker compose -f docker-compose.prod.yml logs --tail=50
 ```
 
-### Proteção do `/api/v1/dev`
-Endpoints `/dev/*` protegidos por `require_dev` (role=DEV). Funcionam em produção para o usuário DEV.
+---
 
-## Environment Variables (`backend/.env`)
+## Variáveis de Ambiente (`backend/.env`)
+
 ```
-# Database
-DB_HOST=db
-DB_PORT=3306
-DB_NAME=cmport_gerenciamento
-DB_USER=root
-DB_PASSWORD=...
-
-# Auvo (external field service platform)
-AUVO_API_KEY=...
-AUVO_API_TOKEN=...
-
-# Banco Inter API
-INTER_CLIENT_ID=...
-INTER_CLIENT_SECRET=...
-INTER_CONTA_CORRENTE=...        # bank account number (x-conta-corrente header)
-INTER_CERT_PATH=app/auth/       # folder with certificado.crt + key.key
-INTER_ENV=production            # "sandbox" or "production"
-
-# App
-ENV=development
+DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD
+AUVO_API_KEY / AUVO_API_TOKEN
+INTER_CERT_PATH=app/auth/    INTER_ENV=production
+ENV=development  (local) | ENV=production  (VPS via .env.production)
+# Credenciais Inter ficam no banco (ConfiguracaoInter), não mais no .env
+# INTER_CLIENT_ID / INTER_CLIENT_SECRET / INTER_CONTA_CORRENTE — fallback legado apenas
 ```
 
-## Deploy em Produção (VPS Hostinger)
+---
 
-### Servidor
-- **IP**: `168.231.96.184`
-- **Usuário**: `root`
-- **Caminho do projeto**: `/root/cmport-system`
-- **Acesso**: SSH com senha (usar `paramiko` via Python quando automatizar)
+## Arquitetura Backend
 
-### Infraestrutura
-Quatro containers Docker gerenciados pelo `docker-compose.prod.yml`:
-- `cmport_nginx` — Nginx proxy reverso (porta 80)
-- `cmport_front` — Next.js (porta 3000 interna)
-- `cmport_api` — FastAPI (porta 8000 interna)
-- `cmport_db` — MySQL 8.0 (volume persistente `db_data`)
-
-Roteamento do Nginx:
-- `/` → `frontend:3000` (Next.js)
-- `/api/v1/` → `backend:8000/api/v1/` (FastAPI direto, sem passar pelo Next.js)
-
-### Como fazer deploy
-
-O projeto **não está no GitHub**. O deploy é feito copiando arquivos diretamente via SFTP + restart do container.
-
-**Enviar arquivos alterados (Python/paramiko):**
-```python
-import paramiko
-from pathlib import Path
-
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect("168.231.96.184", username="root", password="...", timeout=15)
-
-sftp = client.open_sftp()
-sftp.put("caminho/local/arquivo.py", "/root/cmport-system/caminho/remoto/arquivo.py")
-sftp.close()
-client.close()
+**Camadas obrigatórias — nunca pular:**
+```
+schema → model → repository → service → router
 ```
 
-**Reiniciar apenas o backend (sem rebuild):**
-```bash
-cd /root/cmport-system
-docker compose -f docker-compose.prod.yml restart backend
-```
-
-**Rebuild completo (quando Dockerfile ou dependências mudam):**
-```bash
-cd /root/cmport-system
-docker compose -f docker-compose.prod.yml up -d --build
-docker image prune -f
-```
-
-**Ver logs:**
-```bash
-docker logs cmport_api --tail=50
-docker logs cmport_front --tail=50
-```
-
-### Variáveis de produção
-Arquivo `.env.production` na raiz do projeto (não commitado no git). Contém `ENV=production`, credenciais do banco, Inter, Auvo e JWT.
-
-### Proteção do `/api/v1/dev`
-Os endpoints `/dev/*` são protegidos **apenas por role** (`require_dev` — role=DEV). A verificação de `ENV=development` foi removida — funciona em produção para o usuário DEV.
-
-## Architecture
-
-### Backend Structure (flat layered — NOT domains-based)
 ```
 backend/app/
-  models/       — SQLAlchemy ORM models (11 models)
-  repositories/ — DB access layer (queries, CRUD)
-  services/     — Business logic (calls repositories, calls external APIs)
-  routers/      — FastAPI route handlers (calls services)
-  schemas/      — Pydantic request/response models
-  core/         — config.py (DB connection string), database.py (SessionLocal), security.py (JWT), dependencies.py
-  auth/         — SSL certificates for Banco Inter (certificado.crt, key.key)
-  assets/       — assinatura.jpg (image embedded in base64 in email footer)
+  models/       ORM models (SQLAlchemy)
+  repositories/ queries e CRUD (sem lógica de negócio)
+  services/     lógica de negócio (chama repositories e APIs externas)
+  routers/      handlers FastAPI (só chama service, sem lógica)
+  schemas/      Pydantic request/response
+  core/         config, database, security, dependencies
+  auth/         certificados Banco Inter (certificado.crt, key.key)
+  assets/       assinatura.jpg (base64 no footer de email)
 ```
 
-Tables are auto-created on startup via `Base.metadata.create_all(bind=engine)` in `main.py`.
-Seeds executados no startup:
-- `ConfiguracaoImpostosServico` — alíquotas padrão (se tabela vazia)
-- `Usuario` — 3 usuários iniciais: DEV (`atila.dev@cmport.com`), ADMIN (`admin@cmport.com`), USUARIO (`usuario@cmport.com`) (se tabela vazia)
+Tables criadas automaticamente no startup: `Base.metadata.create_all(bind=engine)`
+Seeds no startup: `ConfiguracaoImpostosServico` + 3 usuários (DEV/ADMIN/USUARIO) se tabelas vazias.
 
-### API Routes
+---
 
-| Prefix | Router File | Purpose |
+## API Routes
+
+| Prefix | Arquivo | Função |
 |---|---|---|
-| `/api/v1/auth` | `auth_router.py` | Login JWT (`/login`, `/login-form`) + `/me` — **público** |
-| `/api/v1/condominios` | `condominio_router.py` | CRUD + Auvo sync + search |
-| `/api/v1/termos-garantia` | `termo_garantia_router.py` | CRUD termo + gerar PDF (LibreOffice) |
-| `/api/v1/enderecos` | `endereco_router.py` | 1:1 address per condominio |
-| `/api/v1/contatos` | `contato_router.py` | N contacts per condominio |
-| `/api/v1/servicos` | `servico_router.py` | Maintenance/assistance records |
-| `/api/v1/notas-fiscais` | `nota_fiscal_router.py` | Import XML/ZIP, CRUD, Excel export, revalidation |
-| `/api/v1/boletos` | `boleto_router.py` | Generate/sync boletos, Inter API, PDF, email, payments |
-| `/api/v1/dashboard` | `dashboard_router.py` | Aggregate stats and Excel export |
-| `/api/v1/auditoria` | `auditoria_router.py` | Deletion audit trail |
-| `/api/v1/configuracoes` | `configuracao_router.py` | Email accounts CRUD + empresa config |
-| `/api/v1/dev` | `dev_router.py` | Development/testing utilities |
-| `/api/v1/produtos` | `produto_router.py` | Sync + listagem produtos Auvo |
-| `/api/v1/orcamentos` | `orcamento_router.py` | Sync + listagem + candidatos + por-servico |
-| `/api/v1/termos-garantia` | `termo_garantia_router.py` | CRUD + PDF via LibreOffice |
+| `/api/v1/auth` | `auth_router.py` | Login JWT + `/me` — **público** |
+| `/api/v1/condominios` | `condominio_router.py` | CRUD + sync Auvo |
+| `/api/v1/enderecos` | `endereco_router.py` | 1:1 por condomínio |
+| `/api/v1/contatos` | `contato_router.py` | N por condomínio |
+| `/api/v1/servicos` | `servico_router.py` | ManutencaoAssistencia |
+| `/api/v1/notas-fiscais` | `nota_fiscal_router.py` | Import XML/ZIP, CRUD, Excel |
+| `/api/v1/boletos` | `boleto_router.py` | Geração, Inter API, PDF, email |
+| `/api/v1/produtos` | `produto_router.py` | Sync produtos Auvo |
+| `/api/v1/orcamentos` | `orcamento_router.py` | Sync + candidatos + por-servico |
+| `/api/v1/termos-garantia` | `termo_garantia_router.py` | CRUD + PDF LibreOffice |
+| `/api/v1/dashboard` | `dashboard_router.py` | Stats + Excel |
+| `/api/v1/auditoria` | `auditoria_router.py` | Audit trail de exclusões |
+| `/api/v1/configuracoes` | `configuracao_router.py` | Email accounts + empresa + contas Inter |
+| `/api/v1/dev` | `dev_router.py` | Utilitários DEV (role=DEV) |
 
-Todos os routers exceto `/auth` exigem JWT válido via `get_current_user` (injetado globalmente em `main.py`).
+Todos exceto `/auth` exigem JWT via `get_current_user` (injetado globalmente em `main.py`).
 
-### Database Models & Relationships
+---
 
-```
-Condominio (1) ——— (1) Endereco               [cascade delete]
-Condominio (1) ——— (N) Contato                [cascade delete]
-Condominio (1) ——— (N) ManutencaoAssistencia  [cascade delete]
-Condominio (1) ——— (N) NotaFiscal             [FK condominio_id, nullable]
-
-ManutencaoAssistencia (N) ——— (1) NotaFiscal  [FK nota_fiscal_id, nullable]
-
-NotaFiscal (1) ——— (N) Boleto                 [FK nota_fiscal_id, not null]
-
-ConfiguracaoImpostosServico — standalone config table (seeded on startup)
-RegistroExclusao            — audit table (JSON snapshot of deleted records)
-Usuario                     — auth table (seeded on startup with 3 users)
-ConfiguracaoEmail           — Outlook email accounts (password encrypted)
-ConfiguracaoEmpresa         — company info used as email sender name
-```
-
-### All Models
-
-| Model | Table | Key Fields |
-|---|---|---|
-| `Condominio` | `condominios` | nome, cnpj, razao_social |
-| `Endereco` | `enderecos` | condominio_id, rua, numero, bairro, cidade, estado, cep |
-| `Contato` | `contatos` | condominio_id, nome, email, telefone, principal |
-| `ManutencaoAssistencia` | `manutencoes_assistencias` | condominio_id, nota_fiscal_id, tipo, numero_os, data_servico, descricao |
-| `NotaFiscal` | `notas_fiscais` | see section below |
-| `Boleto` | `boletos` | see section below |
-| `ConfiguracaoImpostosServico` | `configuracao_impostos_servico` | tipo_servico, pct_pis, pct_cofins, pct_inss, pct_csll, ativo |
-| `RegistroExclusao` | `registros_exclusoes` | entidade, entidade_id, dados_json, excluido_em |
-| `Usuario` | `usuarios` | nome, email (unique), senha_hash, role (DEV/ADMIN/USUARIO), ativo |
-| `ConfiguracaoEmail` | `configuracao_email` | nome, email, senha_enc (criptografada), ativo |
-| `ConfiguracaoEmpresa` | `configuracao_empresa` | nome, email_from_name, telefone, site |
-
-### NotaFiscal Model Fields
-- `id`, `condominio_id` (nullable FK), `numero_nota` (unique)
-- `tipo` (enum: MANUTENCAO, ASSISTENCIA, OUTROS)
-- `status` (enum: AUTORIZADA, CANCELADA, DESCONHECIDO)
-- `parcelas` (int), `valor` (float)
-- `data_vencimento`, `data_pagamento`
-- `cliente_nome`, `observacao`, `descricao_servico`
-- `valor_boleto_parcela` (float, nullable) — per-parcel boleto amount override
-- `parcelas_json` (JSON, nullable) — list of `{parcela, valor, data}` extracted from XML description
-- `xml_original` (Text) — full original XML stored for re-parsing/revalidation
-- **Tax fields from NFSe**: `iss`, `pis`, `cofins`, `inss`, `csll` (float, nullable)
-- **Tax fields from NFe**: `icms`, `prev` (float, nullable) — `prev` = INSS retenção
-- `alerta_impostos` (int, default 0) — 0=ok, 1=active alert (divergence detected)
-- `divergencia_impostos` (JSON, nullable) — `{field: {pct, config, xml}}` per divergent tax
-- `criado_em`
-
-### Boleto Model Fields
-- `id`, `nota_fiscal_id` (FK, not null)
-- `numero_parcela`, `total_parcelas`
-- `codigo_solicitacao` (nullable) — Inter's ID (null for manual/non-Inter boletos)
-- `nosso_numero`, `seu_numero` (nullable)
-- `valor_nominal`, `valor_juros`, `valor_multa`, `valor_total_recebido`
-- `data_emissao`, `data_vencimento`, `data_pagamento`
-- `situacao` (enum: EMABERTO, PAGO, CANCELADO, EXPIRADO, VENCIDO, BAIXADO)
-- `tipo_cobranca` (enum: SIMPLES)
-- `forma_pagamento` (enum: BOLETO_INTER, BOLETO_ITAU, PIX, DINHEIRO, TRANSFERENCIA, CHEQUE)
-- `banco_pagamento`, `observacao`
-- `criado_em`
-
-## Key Business Logic
-
-### Nota Fiscal Import Flow
-`POST /api/v1/notas-fiscais/importar` accepts `.xml` or `.zip` files.
-The service auto-detects:
-- XML type: `NFSe` (municipal) or `NFe` (federal) or `EventoCancelamentoNFe`
-- Invoice type: `MANUTENCAO` / `ASSISTENCIA` / `OUTROS` — from description text prefix
-- Status: `AUTORIZADA` / `CANCELADA` — from XML; canceled invoices are skipped
-- On import of MANUTENCAO/ASSISTENCIA nota linked to a condominio: a `ManutencaoAssistencia` record is auto-created
-- Parcel data extracted from nota description text → stored in `parcelas_json`
-- Tax divergence detected: compares XML taxes vs `ConfiguracaoImpostosServico` config → sets `alerta_impostos=1` if mismatch
-
-### Tax Calculation (`boleto_service._calcular_valor_liquido()`)
-- MANUTENCAO/ASSISTENCIA: `valor_liquido = valor * (1 - (pis + cofins + inss + csll) / 100)`
-- OUTROS: `valor_liquido = valor` (no taxes deducted)
-- Percentages sourced from `ConfiguracaoImpostosServico` table (seeded defaults below), can be overridden per request via `pct_pis`, `pct_cofins`, `pct_inss`, `pct_csll` parameters
-
-**Default tax rates (ConfiguracaoImpostosServico seed):**
-```
-MANUTENCAO:  PIS 0.65%, COFINS 3.00%, INSS 11.00%, CSLL 1.00%
-ASSISTENCIA: PIS 0.65%, COFINS 3.00%, INSS 11.00%, CSLL 1.00%
-OUTROS:      all 0.00%
-```
-
-### Boleto Generation — 2-Step UI Flow
-**Step 1 — Configuration (frontend modal)**:
-- Calls `GET /boletos/config-impostos/{nota_id}` → returns `ConfigImpostosResponse`:
-  `{pct_pis, pct_cofins, pct_inss, pct_csll, valor_bruto, valor_liquido, numero_os, aplicar_juros_default, alerta_impostos, divergencia_impostos}`
-- User edits: tax percentages, per-parcel values, due dates, nota number, description
-- Validation: sum of all parcel values must equal `valor_liquido` (no rounding; threshold 0.005)
-- "Aprovar Boletos" button enabled only when validation passes
-
-**Step 2 — Emit (frontend modal)**:
-- Calls `POST /boletos/gerar-parcelas-faltantes/{nota_id}` once per parcel (individual) or for all
-- Each call: `{parcelas_selecionadas: [n], valor_total_override: parcel_value * total_parcelas, data_vencimento_override: adjusted_base, pct_pis, pct_cofins, pct_inss, pct_csll, aplicar_juros: false, mensagem?}`
-- The `data_vencimento_override` must be adjusted: `desired_date - 30*(parcel_num - 1) days` so backend adds offsets correctly
-- User can still edit date and description in Step 2; values are locked
-- "Reabrir Config" button goes back to Step 1
-
-### Parcel Generation (`gerar_parcelas_faltantes`)
-- Generates only parcelas not yet emitted (no active boleto)
-- `parcelas_selecionadas: List[int]` — filter to specific parcel numbers only
-- `valor_total_override` — backend divides by `nota.parcelas` → per-parcel value; to get specific per-parcel value V: pass `V * total_parcelas`
-- `data_vencimento_override` = base date; backend adds `+30 * (parcel_num - 1)` days for each parcel
-- `aplicar_juros: false` always sent from UI (user disabled juros feature)
-
-### Banco Inter Integration (`inter_client.py`)
-- OAuth2 client_credentials with mTLS (SSL cert required)
-- Base URL: sandbox or production (controlled by `INTER_ENV`)
-- Token cached with 5-min buffer before expiry
-- **Functions**: `emitir_boleto(payload)`, `consultar_boleto(codigo)`, `cancelar_boleto(codigo, motivo)`, `listar_cobrancas(data_inicio, data_fim)`, `baixar_pdf(codigo)` → bytes
-- `seuNumero` format: `{numero_nota[:15-len(suffix)]}-{parcela}/{total}`, max 15 chars
-
-### Autenticação JWT
-- `POST /api/v1/auth/login` — recebe `{email, senha}`, retorna `{access_token, role, nome}`
-- `GET /api/v1/auth/me` — retorna dados do usuário autenticado
-- Token JWT gerado em `core/security.py` com `criar_token()` / verificado com `get_current_user()` em `core/dependencies.py`
-- Roles: `DEV` > `ADMIN` > `USUARIO` — `require_dev` exige role DEV
-- Frontend armazena token no `localStorage` e envia no header `Authorization: Bearer <token>`
-
-### Email de Boleto (`email_service.py`)
-- `EmailService.enviar_boleto(...)` — envia email HTML com PDF + XML da nota como anexos
-- SMTP: Outlook (`smtp.office365.com:587`, STARTTLS)
-- Credenciais: buscadas da conta ativa em `ConfiguracaoEmail` (DB), com fallback para `OUTLOOK_EMAIL`/`OUTLOOK_PASSWORD` do `.env`
-- HTML gerado dinamicamente com campos editáveis: `saudacao`, `corpo`, `rodape`
-- Assinatura de imagem carregada de `backend/app/assets/assinatura.jpg` em base64
-- Pré-visualização disponível via `gerar_html_boleto()` (usado no frontend antes de enviar)
-- `assunto_override` opcional; padrão: `"Boleto #{numero_nota} — {nome_condominio} — Venc. {data}"`
-- Suporta `anexos_extras: List[(filename, bytes, content_type)]` para arquivos adicionais
-
-### Configurações (`configuracao_router.py` + `configuracao_service.py`)
-- Contas de email: CRUD completo — apenas uma pode estar `ativo=True` por vez (`POST /configuracoes/emails/{id}/ativar`)
-- Testar conta: `POST /configuracoes/emails/{id}/testar` envia email de teste
-- Empresa: `GET/PUT /configuracoes/empresa` — nome e `email_from_name` usados como remetente
-
-### Sincronização Automática de Boletos (APScheduler)
-- Scheduler iniciado no lifespan do FastAPI (`main.py`)
-- Executa `_sincronizar_boletos_auto()` **a cada hora das 8h às 19h (horário de Brasília)**
-- Dois passos: (1) polling individual dos boletos EMABERTO/VENCIDO locais; (2) bulk sync dos últimos 7 dias via `listar_cobrancas` do Inter
-
-### Auvo Integration
-`backend/app/services/auvo_client.py` e `auvo_service.py` sincronizam dados de clientes da API Auvo para condominios/enderecos/contatos locais. Triggered via `/api/v1/condominios/sync-auvo`.
-
-### Produtos e Orçamentos Auvo
-- `POST /produtos/sync` — sincroniza catálogo de produtos do Auvo (`auvo_client.get_all_products()`)
-- `POST /orcamentos/sync?date_start=&date_end=` — sincroniza orçamentos do período; salva `orcamentos` + `orcamento_itens` + `orcamento_task_ids`
-- `GET /orcamentos/candidatos/{servico_id}` — orçamentos do mesmo condomínio nos 90 dias antes do serviço (usados no modal do termo)
-- `GET /orcamentos/por-servico/{servico_id}` — orçamento com `OrcamentoTaskId.task_id == int(servico.numero_os)` (vínculo direto); retorna `null` se não encontrado
-- Fallback no frontend: se `por-servico` retorna null, busca primeiro candidato dos 90 dias
-
-**Chave de vínculo Orçamento ↔ OS:**
-- `manutencoes_assistencias.numero_os` (String) = `ordens_servico.task_id` (Int) = `orcamento_task_ids.task_id` (BigInt) — todos são o Auvo task ID
-- Um orçamento pode ter N `task_ids` (linkedado a N OSs); uma OS normalmente liga a 1 orçamento
-
-### Termo de Garantia
-- Tabela `termos_garantia`: 1:1 com `ManutencaoAssistencia` (UNIQUE `servico_id`); armazena `produto_descricao`, `prazo_meses`, `data_inicio`, `data_fim`, `orcamento_id` (FK opcional)
-- `gerar_pdf(db, termo_id)` — carrega template Word (`assets/termo_garantia_template.docx`), substitui campos via `python-docx`, remove `w:pageBreakBefore` para manter 1 página, converte para PDF via LibreOffice (disponível no container)
-- `produto_descricao` é formatado no frontend pelo checklist (`"2x Câmera · 1x NVDS"`) e salvo na criação — o service usa diretamente sem re-consultar o orçamento
-- Sufixo nota fiscal: `-A` para assistencia, `-M` para manutencao
-- Frontend (`/servicos/[id]`): card "Orçamento Vinculado" (amber) + card "Termo de Garantia" (teal); ao abrir modal do termo, se orçamento já carregado → pula direto para checklist (Etapa 2) pré-preenchido com itens PRODUTO + SERVICO
-
-### Auditoria (Audit Trail)
-Deletions call `registrar_exclusao()` from `auditoria/router.py`, storing a full JSON snapshot of the deleted record in `registros_exclusoes` before deletion.
-
-## Frontend Structure
-
-`cmport-front/app/` uses Next.js 16 App Router:
+## Relacionamentos entre Models
 
 ```
-app/
-  page.tsx                — Dashboard (home)
-  layout.tsx              — Root layout
-  login/
-    page.tsx              — Login (email + senha → JWT → localStorage)
-  condominios/
-    page.tsx              — List
-    novo/page.tsx         — Create
-    [id]/page.tsx         — Detail
-    [id]/editar/page.tsx  — Edit
-  servicos/
-    page.tsx              — List (includes bulk boleto generation "Gerar em Massa")
-    [id]/page.tsx         — Detail + "Cobranças por Parcela" + 2-step boleto modal + email sender
-  notas/
-    page.tsx              — List (includes single-nota boleto generation modal)
-    [id]/page.tsx         — Detail
-    importar/page.tsx     — Import XML/ZIP
-  boletos/
-    page.tsx              — List/manage all boletos
-  configuracoes/
-    page.tsx              — Email accounts management + empresa config + email preview/test
-  dev/
-    page.tsx              — Development utilities
+Condominio (1)——(1) Endereco               [cascade delete]
+Condominio (1)——(N) Contato                [cascade delete]
+Condominio (1)——(N) ManutencaoAssistencia  [cascade delete]
+Condominio (1)——(N) NotaFiscal             [FK condominio_id nullable]
+ManutencaoAssistencia (N)——(1) NotaFiscal  [FK nota_fiscal_id nullable]
+NotaFiscal (1)——(N) Boleto                 [FK nota_fiscal_id not null]
+ManutencaoAssistencia (1)——(1) TermoGarantia [UNIQUE servico_id]
+
+Standalone: ConfiguracaoImpostosServico, RegistroExclusao, Usuario,
+            ConfiguracaoEmail, ConfiguracaoEmpresa, ConfiguracaoInter
 ```
 
-**Key components** in `cmport-front/components/`: `Sidebar`, `ThemeToggle`, `CondominiosList`, `FormEditarCondominio`, `FloatingActionButton`.
+---
 
-The frontend calls the backend at `http://localhost:8000/api/v1/` using `axios`.
-Dark mode via `next-themes` with Tailwind `dark:` classes.
+## Auth JWT
 
-### Frontend State Patterns
-- `ParcelaItem` interface: `{numero, valor, dataVencimento, situacaoBoleto}` — used in 2-step boleto modal to track per-parcel editable values
-- `MassaItem` interface — used in "Gerar em Massa" modal in `servicos/page.tsx`
-- `ConfigImpostos` interface mirrors `ConfigImpostosResponse` from backend
-- Helper `addDays(dateStr, days)` — date arithmetic used for parcel date offsets
+```
+POST /api/v1/auth/login → {access_token, role, nome}
+GET  /api/v1/auth/me   → usuário autenticado
+```
+Roles: `DEV` > `ADMIN` > `USUARIO` — `require_dev` exige DEV.
+Frontend: token em `localStorage`, header `Authorization: Bearer <token>`.
 
-## Important Implementation Notes
+---
 
-- **No rounding in parcel validation**: diff threshold is `< 0.005` (half a cent), not `=== 0`
-- **Last-parcel value adjustment**: use `Math.floor(liquido/n * 100)/100` for all but last; last = `liquido - base*(n-1)` to avoid cumulative rounding
-- **Per-parcel Inter API call pattern**: to generate parcel N with value V from a nota with N total parcelas, pass `valor_total_override = V * N` + `parcelas_selecionadas = [N]`
-- **Date adjustment for individual parcel**: pass `data_vencimento_override = desired_date - 30*(N-1) days` so backend's offset calculation lands on desired date
-- **`aplicar_juros: false`** is always sent from UI — juros/mora feature is disabled from the user's perspective
-- **Boleto status lock rules**: EMABERTO/VENCIDO = value locked (can't edit in Step 1); PAGO/BAIXADO = fully locked (can't regenerate); CANCELADO/EXPIRADO = can regenerate
-- **`numero_nota` can be updated** via `PUT /notas-fiscais/{id}` with `{numero_nota: ...}` before emitting — saved to DB before Inter API call
+## Regras Críticas de Negócio
+
+**Cálculo valor líquido (boleto_service):**
+- `MANUTENCAO/ASSISTENCIA`: `liquido = valor * (1 - (pis+cofins+inss+csll)/100)`
+- `OUTROS`: `liquido = valor` (sem deduções)
+
+**Geração de parcelas — armadilhas críticas:**
+- Para valor `V` na parcela `N`: passar `valor_total_override = V * total_parcelas`
+- Para data `D` na parcela `N`: passar `data_vencimento_override = D - 30*(N-1) dias`
+- Validação frontend: `|soma_parcelas - liquido| < 0.005` (nunca `=== 0`)
+- Última parcela: `liquido - base*(n-1)` para evitar erro cumulativo de arredondamento
+- `aplicar_juros: false` sempre (feature desabilitada no UI)
+
+**Soft delete obrigatório:** chamar `registrar_exclusao()` antes de qualquer delete (salva JSON snapshot em `registros_exclusoes`).
+
+---
+
+## Para detalhes por domínio use os commands:
+
+| Command | Conteúdo |
+|---|---|
+| `/backend` | Models completos com campos, seeds, padrões SQLAlchemy, configurações |
+| `/boleto` | Fluxo 2-step, Inter API, email, scheduler, status locks |
+| `/nfe` | Import flow, tipos XML, impostos, divergência |
+| `/auvo` | API Auvo V2, sync, produtos, orçamentos |
+| `/frontend` | Estrutura App Router, interfaces TS, state patterns |
+| `/termo` | Termo de Garantia, LibreOffice, template Word |
