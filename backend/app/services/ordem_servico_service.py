@@ -52,6 +52,7 @@ class OrdemServicoService:
                 ManutencaoAssistencia.numero_os == str(task_id),
                 ManutencaoAssistencia.ordem_servico_id.is_(None),
             ).update({"ordem_servico_id": os_obj.id}, synchronize_session=False)
+            db.commit() # Garante que o vínculo seja salvo no banco
 
         return {
             "sincronizadas": len(ordens_auvo),

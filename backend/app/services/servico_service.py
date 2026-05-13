@@ -12,7 +12,11 @@ def _vincular_os(db: Session, servico) -> None:
         return
     try:
         from app.repositories.ordem_servico_repository import OrdemServicoRepository
-        os_obj = OrdemServicoRepository.get_by_task_id(db, int(servico.numero_os))
+        # Sanitiza o número (remove pontos, espaços, traços) antes de converter para int
+        num_limpo = "".join(filter(str.isdigit, str(servico.numero_os)))
+        if not num_limpo:
+            return
+        os_obj = OrdemServicoRepository.get_by_task_id(db, int(num_limpo))
         if os_obj and servico.ordem_servico_id != os_obj.id:
             servico.ordem_servico_id = os_obj.id
             db.flush()

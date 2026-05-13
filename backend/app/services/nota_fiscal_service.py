@@ -75,7 +75,8 @@ def extrair_numero_os(texto: str) -> Optional[str]:
     match = re.search(r'[Nn]umeros?\s+(?:d[ae]s?\s+)?ordens?\s+servi[cç]os?[:\s]+([\d.]+)', texto)
     if not match:
         return None
-    return match.group(1).replace('.', '')
+    # Remove qualquer caractere que não seja dígito (pontos, espaços, etc)
+    return "".join(filter(str.isdigit, match.group(1)))
 
 
 def extrair_data_servico(discriminacao: str) -> Optional[date]:
