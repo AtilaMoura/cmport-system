@@ -710,26 +710,30 @@ class NotaFiscalService:
             if not servico_existente:
                 try:
                     tipo_str = "assistencia" if db_nota.tipo == TipoNota.ASSISTENCIA else "manutencao"
-                    # Extrair numero_os do XML se disponível
                     numero_os = None
+                    data_servico_real = None
                     if db_nota.xml_original:
                         try:
                             tipo_xml = detectar_tipo_xml(db_nota.xml_original)
                             if tipo_xml == 'NFSe':
                                 root_os = ET.fromstring(db_nota.xml_original)
                                 el_os = root_os.find('.//Discriminacao')
-                                numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                                texto_desc = el_os.text if el_os is not None else ''
+                                numero_os = extrair_numero_os(texto_desc)
+                                data_servico_real = extrair_data_servico(texto_desc)
                             elif tipo_xml == 'NFe':
                                 root_os = ET.fromstring(db_nota.xml_original)
                                 ns_os = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
                                 el_os = root_os.find('.//nfe:infAdic/nfe:infCpl', ns_os)
-                                numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                                texto_desc = el_os.text if el_os is not None else ''
+                                numero_os = extrair_numero_os(texto_desc)
+                                data_servico_real = extrair_data_servico(texto_desc)
                         except Exception:
                             pass
                     servico = ServicoCreate(
                         condominio_id=condominio_id,
                         tipo=tipo_str,
-                        data_servico=db_nota.data_vencimento,
+                        data_servico=data_servico_real or db_nota.data_vencimento,
                         descricao=db_nota.descricao_servico or db_nota.observacao or "",
                         nota_fiscal_id=nota_id,
                         numero_os=numero_os,
@@ -1113,18 +1117,23 @@ class NotaFiscalService:
         # Criar serviço único combinado (nota_fiscal_id = nota_a.id)
         tipo_str = "assistencia" if nota_a.tipo == TipoNota.ASSISTENCIA else "manutencao"
         numero_os = None
+        data_servico_real = None
         if nota_a.xml_original:
             try:
                 tipo_xml = detectar_tipo_xml(nota_a.xml_original)
                 if tipo_xml == 'NFSe':
                     root_os = ET.fromstring(nota_a.xml_original)
                     el_os = root_os.find('.//Discriminacao')
-                    numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                    texto_desc = el_os.text if el_os is not None else ''
+                    numero_os = extrair_numero_os(texto_desc)
+                    data_servico_real = extrair_data_servico(texto_desc)
                 elif tipo_xml == 'NFe':
                     root_os = ET.fromstring(nota_a.xml_original)
                     ns_os = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
                     el_os = root_os.find('.//nfe:infAdic/nfe:infCpl', ns_os)
-                    numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                    texto_desc = el_os.text if el_os is not None else ''
+                    numero_os = extrair_numero_os(texto_desc)
+                    data_servico_real = extrair_data_servico(texto_desc)
             except Exception:
                 pass
 
@@ -1132,7 +1141,7 @@ class NotaFiscalService:
         servico_combinado = ServicoCreate(
             condominio_id=nota_a.condominio_id,
             tipo=tipo_str,
-            data_servico=nota_a.data_vencimento,
+            data_servico=data_servico_real or nota_a.data_vencimento,
             descricao=f"Notas vinculadas: {nota_a.numero_nota} + {nota_b.numero_nota} | Valor total: R$ {valor_total:.2f}",
             nota_fiscal_id=nota_a_id,
             numero_os=numero_os,
@@ -1189,24 +1198,29 @@ class NotaFiscalService:
             try:
                 tipo_str = "assistencia" if db_nota.tipo == TipoNota.ASSISTENCIA else "manutencao"
                 numero_os = None
+                data_servico_real = None
                 if db_nota.xml_original:
                     try:
                         tipo_xml = detectar_tipo_xml(db_nota.xml_original)
                         if tipo_xml == 'NFSe':
                             root_os = ET.fromstring(db_nota.xml_original)
                             el_os = root_os.find('.//Discriminacao')
-                            numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                            texto_desc = el_os.text if el_os is not None else ''
+                            numero_os = extrair_numero_os(texto_desc)
+                            data_servico_real = extrair_data_servico(texto_desc)
                         elif tipo_xml == 'NFe':
                             root_os = ET.fromstring(db_nota.xml_original)
                             ns_os = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
                             el_os = root_os.find('.//nfe:infAdic/nfe:infCpl', ns_os)
-                            numero_os = extrair_numero_os(el_os.text if el_os is not None else '')
+                            texto_desc = el_os.text if el_os is not None else ''
+                            numero_os = extrair_numero_os(texto_desc)
+                            data_servico_real = extrair_data_servico(texto_desc)
                     except Exception:
                         pass
                 servico = ServicoCreate(
                     condominio_id=db_nota.condominio_id,
                     tipo=tipo_str,
-                    data_servico=db_nota.data_vencimento,
+                    data_servico=data_servico_real or db_nota.data_vencimento,
                     descricao=db_nota.descricao_servico or db_nota.observacao or "",
                     nota_fiscal_id=db_nota.id,
                     numero_os=numero_os,

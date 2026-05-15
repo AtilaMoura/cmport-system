@@ -326,6 +326,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [termoProduto, setTermoProduto] = useState('');
   const [termoPrazo, setTermoPrazo] = useState(12);
   const [termoDataInicio, setTermoDataInicio] = useState('');
+  const [termoDataServico, setTermoDataServico] = useState('');
   const [termoSalvando, setTermoSalvando] = useState(false);
   const [termoBaixandoPdf, setTermoBaixandoPdf] = useState(false);
   const [modalPreviewTermo, setModalPreviewTermo] = useState(false);
@@ -921,6 +922,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setTermoProduto(ordemServico?.report || '');
     setTermoPrazo(12);
     setTermoDataInicio(servico.data_servico);
+    setTermoDataServico(servico.data_servico);
     setNovoItemNome('');
     setNovoItemQtd(1);
     setAdicionandoItem(false);
@@ -1015,6 +1017,12 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     if (!id || !servico) return;
     setTermoSalvando(true);
     try {
+      // Atualiza data_servico do serviço se o usuário corrigiu no modal
+      if (termoDataServico && termoDataServico !== servico.data_servico) {
+        await api.put(`/servicos/${id}`, { tipo: servico.tipo, data_servico: termoDataServico, descricao: servico.descricao });
+        setServico({ ...servico, data_servico: termoDataServico });
+      }
+
       const dInicio = new Date(termoDataInicio + 'T12:00:00');
       const dFim = new Date(dInicio);
       dFim.setMonth(dFim.getMonth() + termoPrazo);
@@ -3503,6 +3511,18 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500"
                       placeholder="Ex: Instalação de Motor de Portão PPA..."
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data do Serviço Executado</label>
+                    <input
+                      type="date"
+                      value={termoDataServico}
+                      onChange={(e) => setTermoDataServico(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                    {termoDataServico !== servico?.data_servico && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Data será corrigida ao salvar</p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
