@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 import io
 import re
+import unicodedata
 import json
 
 from app.repositories.nota_fiscal_repository import NotaFiscalRepository
@@ -33,8 +34,13 @@ def find_text(root, xpath_expr, namespaces=None):
     return el.text.strip() if el is not None and el.text else None
 
 
+def _strip_accents(s: str) -> str:
+    """Remove acentos e diacríticos para comparações de texto."""
+    return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
+
+
 def detectar_tipo_automatico(tipo_fornecido: Optional[str], descricao: str) -> TipoNota:
-    """Detecta tipo para NFSe — baseado no prefixo da discriminação."""
+    """Detecta tipo para NFSe — baseado no prefixo ou conteúdo da discriminação."""
     if tipo_fornecido:
         tipo_upper = tipo_fornecido.upper()
         if tipo_upper == "ASSISTENCIA":
@@ -42,11 +48,14 @@ def detectar_tipo_automatico(tipo_fornecido: Optional[str], descricao: str) -> T
         elif tipo_upper == "MANUTENCAO":
             return TipoNota.MANUTENCAO
 
-    desc_upper = (descricao or "").strip().upper()
+    desc_upper = _strip_accents((descricao or "").strip()).upper()
     if desc_upper.startswith("MANUTENCAO"):
         return TipoNota.MANUTENCAO
     if desc_upper.startswith("SERVICOS PRESTADOS"):
         return TipoNota.ASSISTENCIA
+    # Formato novo: "Segue abaixo a cobrança referente à manutenção preventiva mensal..."
+    if "MANUTENCAO PREVENTIVA" in desc_upper:
+        return TipoNota.MANUTENCAO
 
     return TipoNota.OUTROS
 
@@ -69,25 +78,42 @@ def extrair_numero_os(texto: str) -> Optional[str]:
       'Numero ordem servico: 20.262.286'   ← pontilhado → '20262286'
       'Numero das ordens servicos: 12345, 67890 e 11111'
       'Numeros das ordens servicos: 12345 e 67890'
+      'Ordem de Servico: 72598263'          ← formato novo
+      'Ordens de Servico: OS n 73585494'    ← formato novo com "OS n"
     """
     if not texto:
         return None
+    # Formato antigo: "Numero [da] ordem servico: X"
     match = re.search(r'[Nn]umeros?\s+(?:d[ae]s?\s+)?ordens?\s+servi[cç]os?[:\s]+([\d.]+)', texto)
-    if not match:
-        return None
-    # Remove qualquer caractere que não seja dígito (pontos, espaços, etc)
-    return "".join(filter(str.isdigit, match.group(1)))
+    if match:
+        return "".join(filter(str.isdigit, match.group(1)))
+    # Formato novo: "Ordem de Servico: X" ou "Ordens de Servico: OS n X"
+    match = re.search(r'[Oo]rdens?\s+de\s+[Ss]ervi[cç]o[s]?[:\s]+(?:OS\s+n[º°]?\s*)?([\d.]+)', texto)
+    if match:
+        return "".join(filter(str.isdigit, match.group(1)))
+    return None
 
 
 def extrair_data_servico(discriminacao: str) -> Optional[date]:
     """
     Extrai a data real de execução do serviço a partir da discriminação/infCpl.
-    Suporta: 'Data servico executado: 13.01.2026' e 'Data servico executado:23.01.2026'
+    Suporta: 'Data servico executado: 13.01.2026'
+             'Data de execucao: 15.04.2026'  ← formato novo
+             'Datas dos Servicos Executados: 06.05.2026 e 07.05.2026'  ← formato novo
     Retorna None se não encontrar (o código usa data_emissao como fallback).
     """
     if not discriminacao:
         return None
+    # Formato antigo
     match = re.search(r'[Dd]ata\s+servi[cç]o\s+executado[:\s]+(\d{2})[.\-/](\d{2})[.\-/](\d{4})', discriminacao)
+    if match:
+        dia, mes, ano = match.group(1), match.group(2), match.group(3)
+        try:
+            return datetime.strptime(f"{dia}/{mes}/{ano}", '%d/%m/%Y').date()
+        except ValueError:
+            pass
+    # Formato novo: "Data de execucao: DD.MM.YYYY" ou "Datas dos Servicos Executados: DD.MM.YYYY"
+    match = re.search(r'[Dd]atas?\s+(?:de\s+execu[cç][aã]o|dos\s+[Ss]ervi[cç]os\s+[Ee]xecutados)[:\s]+(\d{2})[.\-/](\d{2})[.\-/](\d{4})', discriminacao)
     if match:
         dia, mes, ano = match.group(1), match.group(2), match.group(3)
         try:
@@ -103,12 +129,14 @@ def extrair_data_vencimento(discriminacao: str, fallback: date) -> date:
     Suporta NFSe: 'Vencimento:.....28.01.2026'
     Suporta NFe single: 'Vencimentos:....09.02.2026'
     Suporta NFe multi: '1 parcela R$:1.600,00 vencimentos 09.01.2026'
+    Suporta formato novo: '1 Parcela: R$ 1.180,00 ? Vencimento: 20.05.2026'
+    Suporta barra como separador: 'Vencimento: 25/05/2026'
     """
     if not discriminacao:
         return fallback
 
-    # Padrão 1 — "Vencimento(s):" seguido de pontos/espaços e depois DD.MM.YYYY
-    match = re.search(r'[Vv]encimentos?[:\s\.]+(\d{2})[.\-](\d{2})[.\-](\d{4})', discriminacao)
+    # Padrão 1 — "Vencimento(s):" seguido de pontos/espaços e depois DD.MM.YYYY ou DD/MM/YYYY
+    match = re.search(r'[Vv]encimentos?[:\s\.]+(\d{2})[.\-/](\d{2})[.\-/](\d{4})', discriminacao)
     if match:
         dia, mes, ano = match.group(1), match.group(2), match.group(3)
         try:
@@ -117,7 +145,7 @@ def extrair_data_vencimento(discriminacao: str, fallback: date) -> date:
             pass
 
     # Padrão 2 — "N parcela R$:X vencimentos DD.MM.YYYY" (pega o primeiro)
-    match = re.search(r'\d+\s+parcela\s+R\$[\s:\d\.,]+vencimentos?\s+(\d{2})[.\-](\d{2})[.\-](\d{4})', discriminacao, re.IGNORECASE)
+    match = re.search(r'\d+\s+parcela\s+R\$[\s:\d\.,]+vencimentos?\s+(\d{2})[.\-/](\d{2})[.\-/](\d{4})', discriminacao, re.IGNORECASE)
     if match:
         dia, mes, ano = match.group(1), match.group(2), match.group(3)
         try:
@@ -144,15 +172,22 @@ def _parse_valor_brl(s: str) -> Optional[float]:
 def _extrair_lista_vencimentos(texto: str) -> list:
     """
     Extrai lista de parcelas com valores e datas.
-    Padrão: '1 parcela R$:1.600,00 vencimentos 09.01.2026'
+    Formato antigo: '1 parcela R$:1.600,00 vencimentos 09.01.2026'
+    Formato novo:   '1 Parcela: R$ 1.180,00 ? Vencimento: 20.05.2026'
+                    (ª e – viram ? na codificação do XML)
     """
+    # Formato antigo
     pattern = r'(\d+)\s+parcela\s+R\$[:\s]*([\d\.,]+)\s+vencimentos?\s+(\d{2})[.\-](\d{2})[.\-](\d{4})'
     matches = re.findall(pattern, texto, re.IGNORECASE)
+    if not matches:
+        # Formato novo: "1 Parcela: R$ 1.180,00 ? Vencimento: 20.05.2026"
+        pattern = r'(\d+)\D{0,3}[Pp]arcela[s]?[:\s]+R\$\s*([\d\.]+,\d{2}).*?[Vv]encimento[s]?[:\s]+(\d{2})[.\-/](\d{2})[.\-/](\d{4})'
+        matches = re.findall(pattern, texto, re.IGNORECASE)
     resultado = []
     for n, val_str, dd, mm, yyyy in matches:
         resultado.append({
             'parcela': int(n),
-            'valor': _parse_valor_brl(val_str),
+            'valor': _parse_valor_brl(val_str.strip()),
             'data': f'{yyyy}-{mm}-{dd}'
         })
     return resultado
@@ -203,7 +238,7 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
     if lista_vencimentos:
         parcelas = len(lista_vencimentos)
     else:
-        m = re.search(r'[Qq]uantidade\s+parcela[s]?[:\s]+(\d+)', discriminacao)
+        m = re.search(r'[Qq]uantidade\s+(?:de\s+)?[Pp]arcela[s]?[:\s]+(\d+)', discriminacao)
         parcelas = int(m.group(1)) if m else 1
 
     # Vencimento da 1ª parcela
@@ -313,7 +348,7 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
     if lista_vencimentos:
         parcelas = len(lista_vencimentos)
     else:
-        m = re.search(r'[Qq]uantidade\s+parcela[s]?[:\s]+(\d+)', inf_compl)
+        m = re.search(r'[Qq]uantidade\s+(?:de\s+)?[Pp]arcela[s]?[:\s]+(\d+)', inf_compl)
         parcelas = int(m.group(1)) if m else 1
 
     # Vencimento da 1ª parcela
