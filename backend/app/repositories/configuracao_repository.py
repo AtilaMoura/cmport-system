@@ -43,7 +43,6 @@ class ConfiguracaoEmailRepository:
     @staticmethod
     def desativar_todos(db: Session) -> None:
         db.query(ConfiguracaoEmail).update({"ativo": False})
-        db.commit()
 
 
 class ConfiguracaoEmpresaRepository:
