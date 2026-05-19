@@ -44,6 +44,11 @@ class AuvoClient:
         url = f"{self.BASE_URL}/{endpoint}"
         try:
             response = requests.get(url, headers=self._get_headers(), params=params, timeout=120)
+            if response.status_code == 401:
+                # Token expirado — força novo login e retenta uma vez
+                print(f"[Auvo] 401 em {endpoint} — renovando token e retentando...")
+                self._access_token = None
+                response = requests.get(url, headers=self._get_headers(), params=params, timeout=120)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
