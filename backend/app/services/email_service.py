@@ -274,13 +274,17 @@ def _html_manutencao(
     pis_fmt = _fmt_valor(pis or 0)
     csll_fmt = _fmt_valor(csll or 0)
 
+    corpo_html = corpo.replace('\n', '<br>') if corpo else ''
+    rodape_html = rodape.replace('\n', '<br>') if rodape else ''
+    descricao_html = (descricao_servicos or '').replace('\n', '<br>')
+
     bloco_corpo = f"""
-              <p style="margin:0 0 18px;color:#334155;font-size:15px;line-height:1.7;white-space:pre-wrap;">{corpo}</p>
-""" if corpo else ""
+              <p style="margin:0 0 18px;color:#334155;font-size:15px;line-height:1.7;">{corpo_html}</p>
+""" if corpo_html else ""
 
     bloco_rodape = f"""
-              <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;white-space:pre-wrap;">{rodape}</p>
-""" if rodape else ""
+              <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;">{rodape_html}</p>
+""" if rodape_html else ""
 
     logo_url = f"data:image/jpeg;base64,{_ASSINATURA_B64}" if _ASSINATURA_B64 else ""
     assinatura_bloco = f"""<!-- ASSINATURA CM PORT -->
@@ -508,7 +512,7 @@ def _html_manutencao(
                 </tr>
                 <tr>
                   <td style="padding:18px 20px;">
-                    <p style="margin:0;color:#334155;font-size:15px;line-height:1.7;">{descricao_servicos.replace('\\n', '<br>')}</p>
+                    <p style="margin:0;color:#334155;font-size:15px;line-height:1.7;">{descricao_html}</p>
                   </td>
                 </tr>
               </table>

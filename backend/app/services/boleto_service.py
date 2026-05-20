@@ -1214,6 +1214,20 @@ class BoletoService:
             servico_txt = "Manutenção Preventiva Mensal"
             desc_default = "Manutenção preventiva de sistemas de segurança e portaria."
 
+        # Descrição: ignora o texto auto-gerado do vínculo ("Notas vinculadas: ...")
+        # e prefere a descrição real da nota (ou da nota parceira NFSe no caso de vínculo)
+        desc_servico_os = (
+            servico_os.descricao
+            if servico_os and servico_os.descricao and not servico_os.descricao.startswith("Notas vinculadas")
+            else None
+        )
+        desc_nota = nota.descricao_servico
+        if not desc_nota and nota.nota_vinculada_id:
+            from app.repositories.nota_fiscal_repository import NotaFiscalRepository as _NFRepo
+            parceira = _NFRepo.get_by_id(db, nota.nota_vinculada_id)
+            if parceira and parceira.descricao_servico:
+                desc_nota = parceira.descricao_servico
+
         return {
             "saudacao": "Prezados(as),",
             "titulo": titulo,
@@ -1230,7 +1244,7 @@ class BoletoService:
             "csll": float(nota.csll or 0),
             "valor_liquido": float(boleto.valor_nominal),
             "vencimento": _fmt_data(boleto.data_vencimento),
-            "descricao_servicos": (servico_os.descricao if servico_os and servico_os.descricao else nota.descricao_servico) or desc_default,
+            "descricao_servicos": desc_servico_os or desc_nota or desc_default,
         }
 
     @staticmethod
