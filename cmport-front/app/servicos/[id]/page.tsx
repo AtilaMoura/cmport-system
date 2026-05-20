@@ -1162,9 +1162,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setComposerAnexos([]);
     setComposerCC('');
     setIncluirOrcamentoPdf(false);
-    setEnvioLoteAtivo(false);
-    // composerBoletoId, composerManutencao e composerAssunto persistem
-    // para que "Enviar direto" no modal principal use as edições feitas
+    // envioLoteAtivo, composerBoletoId, composerManutencao, composerAssunto,
+    // composerSaudacao, composerCorpo e composerRodape persistem para que o
+    // botão do modal principal (Enviar direto OU Enviar todos) use as edições feitas
   };
 
   const adicionarEmailAvulso = () => {
@@ -2964,7 +2964,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 </>
               )}
               <button
-                onClick={() => { setModalEmail(null); setEmailEnviado(null); setComposerBoletoId(null); setComposerManutencao(null); setComposerAssunto(''); }}
+                onClick={() => { setModalEmail(null); setEmailEnviado(null); setComposerBoletoId(null); setComposerManutencao(null); setComposerAssunto(''); setEnvioLoteAtivo(false); }}
                 className="w-full py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all text-sm"
               >
                 {emailEnviado ? 'Fechar' : 'Cancelar'}
