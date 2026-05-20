@@ -240,6 +240,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [composerAba, setComposerAba] = useState<'preview' | 'editar'>('preview');
   const [composerAnexos, setComposerAnexos] = useState<File[]>([]);
   const [composerManutencao, setComposerManutencao] = useState<any>(null);
+  const [composerBoletoId, setComposerBoletoId] = useState<number | null>(null);
   const [composerEnviando, setComposerEnviando] = useState(false);
   const [composerCarregando, setComposerCarregando] = useState(false);
   const [composerCC, setComposerCC] = useState('');
@@ -1145,6 +1146,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       setComposerRodape('O boleto em PDF e o XML da nota fiscal estão anexados a este email.\nPor gentileza, confirmar o recebimento deste e-mail.');
       setComposerAba('preview');
       setComposerAnexos([]);
+      setComposerBoletoId(modalEmail?.id ?? null);
       setComposerAberto(true);
     } catch (err) {
       console.error(err);
@@ -1162,6 +1164,8 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setComposerCC('');
     setIncluirOrcamentoPdf(false);
     setEnvioLoteAtivo(false);
+    setComposerBoletoId(null);
+    setComposerManutencao(null);
   };
 
   const adicionarEmailAvulso = () => {
@@ -1193,7 +1197,18 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
     setEnviandoEmail(true);
     try {
-      const fd = _buildFormData(modalEmail, destinatarios);
+      const fd = new FormData();
+      fd.append('destinatarios', JSON.stringify(destinatarios));
+      // Inclui edições do composer apenas se foram feitas para este boleto
+      if (composerBoletoId === modalEmail.id) {
+        if (composerAssunto) fd.append('assunto', composerAssunto);
+        if (composerSaudacao) fd.append('saudacao', composerSaudacao);
+        if (composerCorpo) fd.append('corpo', composerCorpo);
+        if (composerRodape) fd.append('rodape', composerRodape);
+        if (composerManutencao) {
+          fd.append('dados_manutencao', JSON.stringify({ ...composerManutencao, saudacao: composerSaudacao }));
+        }
+      }
       await api.post(`/boletos/${modalEmail.id}/enviar-email`, fd);
       setEmailEnviado(`Email enviado para ${destinatarios.length} destinatário(s) com sucesso!`);
       await carregarDados();
