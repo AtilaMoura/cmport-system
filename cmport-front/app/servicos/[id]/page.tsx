@@ -1276,6 +1276,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       if (composerSaudacao) fd.append('saudacao', composerSaudacao);
       if (composerCorpo) fd.append('corpo', composerCorpo);
       if (composerRodape) fd.append('rodape', composerRodape);
+      if (composerManutencao) {
+        fd.append('dados_manutencao', JSON.stringify({ ...composerManutencao, saudacao: composerSaudacao }));
+      }
       if (listaCC.length > 0) fd.append('cc', JSON.stringify(listaCC));
       fd.append('incluir_orcamento', incluirOrcamentoPdf ? 'true' : 'false');
       for (const arq of composerAnexos) fd.append('arquivos', arq);

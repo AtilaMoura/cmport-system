@@ -1399,6 +1399,7 @@ class BoletoService:
         incluir_orcamento: bool = False,
         storage: Optional[StorageClient] = None,
         anexos_extras: list = None,
+        dados_manutencao_manual: Optional[dict] = None,
     ) -> dict:
         """
         Envia todos os boletos de um serviço em um único email.
@@ -1514,7 +1515,9 @@ class BoletoService:
 
         # Usa o primeiro boleto como referência para o template de email
         boleto_ref = boletos[0]
-        dados_manutencao = BoletoService._preparar_dados_manutencao(db, nota, boleto_ref, nome_condominio)
+        dados_manutencao = dados_manutencao_manual or BoletoService._preparar_dados_manutencao(db, nota, boleto_ref, nome_condominio)
+        if dados_manutencao and saudacao:
+            dados_manutencao["saudacao"] = saudacao
 
         if not anexos:
             raise Exception("Nenhum PDF de boleto disponível para envio.")

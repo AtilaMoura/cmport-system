@@ -208,6 +208,7 @@ async def enviar_email_servico(
     rodape: Optional[str] = Form(None),
     cc: Optional[str] = Form(None),
     incluir_orcamento: bool = Form(False),
+    dados_manutencao: Optional[str] = Form(None),
     arquivos: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
     storage: StorageClient = Depends(get_storage_client),
@@ -216,12 +217,13 @@ async def enviar_email_servico(
     try:
         lista_dest = json.loads(destinatarios)
         lista_cc = json.loads(cc) if cc else []
+        manut_data = json.loads(dados_manutencao) if dados_manutencao else None
         anexos_extras = []
         for arq in arquivos:
             conteudo = await arq.read()
             anexos_extras.append((arq.filename, conteudo, arq.content_type or "application/octet-stream"))
         return BoletoService.enviar_email_servico(
-            db, servico_id, lista_dest, assunto, saudacao, corpo, rodape, lista_cc, incluir_orcamento, storage, anexos_extras
+            db, servico_id, lista_dest, assunto, saudacao, corpo, rodape, lista_cc, incluir_orcamento, storage, anexos_extras, manut_data
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
