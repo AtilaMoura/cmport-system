@@ -276,7 +276,7 @@ def _html_manutencao(
 
     corpo_html = corpo.replace('\n', '<br>') if corpo else ''
     rodape_html = rodape.replace('\n', '<br>') if rodape else ''
-    descricao_html = (descricao_servicos or '').replace('\n', '<br>')
+    descricao_html = (descricao_servicos or '').replace('\n', '<br>').replace('|', '<br>')
 
     bloco_corpo = f"""
               <p style="margin:0 0 18px;color:#334155;font-size:15px;line-height:1.7;">{corpo_html}</p>
