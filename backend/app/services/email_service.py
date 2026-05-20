@@ -259,18 +259,28 @@ def _html_manutencao(
     titulo: str = "Cobrança de Manutenção Preventiva",
     email_financeiro: str = "financeiro@cmport.com.br",
     email_comercial: str = "comercial@cmport.com.br",
+    corpo: str = None,
+    rodape: str = None,
 ) -> str:
     """Template de email para Manutenção Preventiva e Serviços Prestados."""
-    
+
     bruto_fmt = _fmt_valor(valor_bruto)
     bruto_extenso = valor_por_extenso(valor_bruto)
     liquido_fmt = _fmt_valor(valor_liquido)
     liquido_extenso = valor_por_extenso(valor_liquido)
-    
+
     inss_fmt = _fmt_valor(inss or 0)
     cofins_fmt = _fmt_valor(cofins or 0)
     pis_fmt = _fmt_valor(pis or 0)
     csll_fmt = _fmt_valor(csll or 0)
+
+    bloco_corpo = f"""
+              <p style="margin:0 0 18px;color:#334155;font-size:15px;line-height:1.7;white-space:pre-wrap;">{corpo}</p>
+""" if corpo else ""
+
+    bloco_rodape = f"""
+              <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;white-space:pre-wrap;">{rodape}</p>
+""" if rodape else ""
 
     logo_url = f"data:image/jpeg;base64,{_ASSINATURA_B64}" if _ASSINATURA_B64 else ""
     assinatura_bloco = f"""<!-- ASSINATURA CM PORT -->
@@ -393,7 +403,7 @@ def _html_manutencao(
                 {saudacao.replace('\\n', '<br>')}<br><br>
                 Segue abaixo a cobrança referente à {servico.lower()}, conforme detalhamento:
               </p>
-
+{bloco_corpo}
               <!-- Bloco principal -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:24px;">
                 <tr>
@@ -521,6 +531,7 @@ def _html_manutencao(
                 </tr>
               </table>
 
+{bloco_rodape}
               <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;">
                 Ficamos à disposição para quaisquer esclarecimentos.<br><br>
                 Por gentileza, solicitamos a confirmação de recebimento deste e-mail.
@@ -612,7 +623,7 @@ class EmailService:
 
         # Gera HTML do email
         if dados_manutencao:
-            html = _html_manutencao(**dados_manutencao)
+            html = _html_manutencao(**dados_manutencao, corpo=corpo, rodape=rodape)
         else:
             html = _html_boleto(
                 nome_condominio=nome_condominio,
