@@ -10,6 +10,7 @@ interface CorpoNota {
   ciclo_id: number;
   condominio_id: number;
   tipo_nota: string;
+  numero_referencia: string | null;
   numero_os: string | null;
   data_servico: string | null;
   descricao_servico: string | null;
@@ -216,7 +217,7 @@ export default function DetalheCorpoNotaPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-3 lg:py-5">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-3 lg:py-5">
           <div className="flex items-center justify-between gap-3">
             <Link href="/corpos-nota" className="inline-flex items-center gap-2 text-slate-500 hover:text-violet-600 transition-colors font-semibold text-sm">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,18 +250,21 @@ export default function DetalheCorpoNotaPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-6 space-y-4">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-6 space-y-4">
 
         {/* Card principal */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
           <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`w-3 h-3 rounded-full ${statusConf.dot}`} />
-              <span className="font-black text-slate-900 dark:text-white">
-                Corpo #{corpo.id} · {corpo.tipo_nota}
-              </span>
+              <div>
+                <span className="font-black text-slate-900 dark:text-white">
+                  {corpo.numero_referencia ?? `Corpo #${corpo.id}`}
+                </span>
+                <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{corpo.tipo_nota}</span>
+              </div>
             </div>
-            <span className="text-xs text-slate-400">{corpo.mes_referencia ?? `${corpo.tipo_nota} ${corpo.id}`}</span>
+            <span className="text-xs text-slate-400">{corpo.mes_referencia ?? '—'}</span>
           </div>
 
           <div className="p-6 space-y-4">
@@ -327,11 +331,12 @@ export default function DetalheCorpoNotaPage() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <InfoItem label="Nº Referência" value={corpo.numero_referencia ?? '—'} />
                 <InfoItem label="OS" value={corpo.numero_os ?? '—'} />
+                <InfoItem label="Mês de Referência" value={corpo.mes_referencia ?? '—'} />
                 <InfoItem label="Data do Serviço" value={fmt(corpo.data_servico)} />
                 <InfoItem label="Vencimento" value={fmt(corpo.data_vencimento)} />
-                <InfoItem label="Mês de Referência" value={corpo.mes_referencia ?? '—'} />
                 <InfoItem label="Nota Fiscal" value={corpo.nota_fiscal_id ? `#${corpo.nota_fiscal_id}` : '—'} />
                 <InfoItem label="Preenchimento" value={corpo.preenchimento_manual ? 'Manual' : 'Automático (OS)'} />
                 {corpo.observacoes && <InfoItem label="Observações" value={corpo.observacoes} className="sm:col-span-2" />}

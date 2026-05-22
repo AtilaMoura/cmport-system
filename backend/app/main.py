@@ -86,6 +86,9 @@ def _run_migrations():
         "ALTER TABLE contratos_condominio ADD COLUMN observacoes_contrato TEXT NULL",
         # ConfiguracaoImpostosServico — ISS
         "ALTER TABLE configuracao_impostos_servico ADD COLUMN pct_iss DECIMAL(5,2) NOT NULL DEFAULT 0",
+        # CorpoNota — número de referência sequencial interno
+        "ALTER TABLE corpos_nota ADD COLUMN numero_referencia VARCHAR(20) NULL",
+        "ALTER TABLE corpos_nota ADD UNIQUE INDEX uq_corpo_numero_referencia (numero_referencia)",
     ]
     try:
         for stmt in stmts:

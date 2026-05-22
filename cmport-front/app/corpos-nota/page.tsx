@@ -12,6 +12,7 @@ interface Condominio {
 interface CorpoResumo {
   id: number;
   tipo_nota: string;
+  numero_referencia: string | null;
   numero_os: string | null;
   mes_referencia: string | null;
   status: string;
@@ -226,6 +227,9 @@ export default function CorposNotaPage() {
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${corpoStatus.cls}`}>
                                   {corpoStatus.label}
                                 </span>
+                                {corpo.numero_referencia && (
+                                  <span className="text-xs font-bold text-violet-600 dark:text-violet-400">{corpo.numero_referencia}</span>
+                                )}
                                 {corpo.numero_os && (
                                   <span className="text-xs text-slate-500 dark:text-slate-400">OS #{corpo.numero_os}</span>
                                 )}

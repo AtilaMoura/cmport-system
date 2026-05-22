@@ -74,6 +74,9 @@ class CorpoNota(Base):
     termo_garantia_id = Column(Integer, ForeignKey("termos_garantia.id", ondelete="SET NULL"), nullable=True)
     termo_garantia = relationship("TermoGarantia")
 
+    # Número de referência sequencial interno (ex: MAT-2026/0001)
+    numero_referencia = Column(String(20), nullable=True, unique=True, index=True)
+
     # Texto gerado do corpo da nota
     conteudo_gerado = Column(Text, nullable=True)
 

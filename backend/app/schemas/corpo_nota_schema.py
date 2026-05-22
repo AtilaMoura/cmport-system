@@ -100,6 +100,7 @@ class CorpoNotaResumoResponse(BaseModel):
     condominio_id: int
     tipo_nota: TipoNotaCorpo
     numero_os: Optional[str] = None
+    numero_referencia: Optional[str] = None
     mes_referencia: Optional[str] = None
     status: StatusCorpoNota
     valor_bruto: Optional[float] = None

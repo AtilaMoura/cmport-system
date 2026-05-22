@@ -127,10 +127,13 @@ class CorpoNotaService:
 
         mes_ref = f"{mes:02d}/{ano}"
 
+        numero_referencia = CorpoNotaService._gerar_numero_referencia(db, tipo_nota, ano)
+
         corpo = CorpoNota(
             ciclo_id=ciclo.id,
             condominio_id=condominio_id,
             tipo_nota=tipo_nota,
+            numero_referencia=numero_referencia,
             servico_id=corpo_dados.get("servico_id"),
             numero_os=corpo_dados.get("numero_os"),
             data_servico=corpo_dados.get("data_servico"),
@@ -367,6 +370,31 @@ class CorpoNotaService:
     # ── Helpers privados ─────────────────────────────────────────────────────
 
     @staticmethod
+    def _gerar_numero_referencia(db: Session, tipo_nota: TipoNotaCorpo, ano: int) -> str:
+        """Gera número sequencial anual: MAT-2026/0001, MAT-2026/0002..."""
+        prefixo_tipo = {
+            TipoNotaCorpo.MANUTENCAO: "MAT",
+            TipoNotaCorpo.SERVICO: "SRV",
+            TipoNotaCorpo.PRODUTO: "PRD",
+        }.get(tipo_nota, "REF")
+
+        prefixo = f"{prefixo_tipo}-{ano}/"
+        from sqlalchemy import func as sqlfunc
+        ultimo = (
+            db.query(CorpoNota.numero_referencia)
+            .filter(CorpoNota.numero_referencia.like(f"{prefixo}%"))
+            .order_by(CorpoNota.numero_referencia.desc())
+            .first()
+        )
+        proximo = 1
+        if ultimo and ultimo[0]:
+            try:
+                proximo = int(ultimo[0].split("/")[-1]) + 1
+            except Exception:
+                pass
+        return f"{prefixo}{proximo:04d}"
+
+    @staticmethod
     def _auto_fill_os(
         db: Session,
         condominio_id: int,
@@ -483,6 +511,49 @@ class CorpoNotaService:
         )
 
     @staticmethod
+    def _valor_por_extenso(v: float) -> str:
+        """Converte valor monetário para texto por extenso em português brasileiro."""
+        centavos_total = round(v * 100)
+        reais = int(centavos_total) // 100
+        centavos = int(centavos_total) % 100
+
+        UNIDADES = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove',
+                    'dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove']
+        DEZENAS = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa']
+        CENTENAS = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos',
+                    'seiscentos', 'setecentos', 'oitocentos', 'novecentos']
+
+        def nn(n: int) -> str:
+            if n == 0:
+                return ''
+            if n < 20:
+                return UNIDADES[n]
+            if n < 100:
+                d, u = divmod(n, 10)
+                return f"{DEZENAS[d]}{' e ' + UNIDADES[u] if u else ''}"
+            if n == 100:
+                return 'cem'
+            c, resto = divmod(n, 100)
+            return f"{CENTENAS[c]}{' e ' + nn(resto) if resto else ''}"
+
+        partes = []
+        mil = reais // 1000
+        resto_reais = reais % 1000
+        if mil == 1:
+            partes.append('mil')
+        elif mil > 1:
+            partes.append(f"{nn(mil)} mil")
+        if resto_reais:
+            partes.append(nn(resto_reais))
+
+        r_texto = ' e '.join(p for p in partes if p) or 'zero'
+        resultado = f"{r_texto} {'real' if reais == 1 else 'reais'}"
+
+        if centavos > 0:
+            resultado += f" e {nn(centavos)} {'centavo' if centavos == 1 else 'centavos'}"
+        return resultado
+
+    @staticmethod
     def _montar_texto(
         nome_cond: str,
         mes_referencia: str,
@@ -502,43 +573,89 @@ class CorpoNotaService:
                 return "—"
             return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-        def fmt_data(d) -> str:
+        def fmt_data_pontos(d) -> str:
+            if not d:
+                return "—"
+            if hasattr(d, "strftime"):
+                return d.strftime("%d.%m.%Y")
+            return str(d)
+
+        def fmt_data_barra(d) -> str:
             if not d:
                 return "—"
             if hasattr(d, "strftime"):
                 return d.strftime("%d/%m/%Y")
             return str(d)
 
-        linhas = [nome_cond]
-        if razao_social_cond and razao_social_cond != nome_cond:
-            linhas.append(razao_social_cond)
-        if cnpj_cond:
-            linhas.append(f"CNPJ: {cnpj_cond}")
-        if contrato_inicio:
-            linhas.append(f"Contrato desde: {fmt_data(contrato_inicio)}")
-        linhas.append(f"Referente ao mês de {mes_referencia}")
-        linhas.append("")
-        linhas.append(f"Serviços prestados: {descricao_servico}")
+        def fmt_pct(p: float) -> str:
+            return f"{int(p)}%" if p == int(p) else f"{p:.2f}%".replace('.', ',')
+
+        # Converte "04/2026" → "abril/2026"
+        MESES_PT = ['janeiro','fevereiro','março','abril','maio','junho',
+                    'julho','agosto','setembro','outubro','novembro','dezembro']
+        periodo = mes_referencia
+        if mes_referencia and '/' in mes_referencia:
+            try:
+                m_num, a_str = mes_referencia.split('/')
+                periodo = f"{MESES_PT[int(m_num) - 1]}/{a_str}"
+            except Exception:
+                pass
+
+        linhas = [
+            "ESSE É CORPO DA NOTA DE MANUTENÇÃO PREVENTIVA MENSAL",
+            "Segue abaixo a cobrança referente à manutenção preventiva mensal, conforme detalhamento:",
+            "",
+        ]
+
+        # Linha de sumário
+        sumario = [f"Serviço: Manutenção Preventiva Mensal", f"Período: {periodo}"]
+        if data_servico:
+            sumario.append(f"Data de execução: {fmt_data_pontos(data_servico)}")
         if numero_os:
-            linhas.append(f"OS nº: {numero_os}")
-        linhas.append(f"Data de execução: {fmt_data(data_servico)}")
+            sumario.append(f"Ordem de Serviço: {numero_os}")
+        sumario.append("Quantidade de parcelas: 01")
+        linhas.append(" | ".join(sumario))
         linhas.append("")
-        linhas.append(f"Valor bruto: {fmt_valor(valor_bruto)}")
+
+        if valor_bruto is not None:
+            extenso = CorpoNotaService._valor_por_extenso(valor_bruto)
+            linhas.append(f"Valor bruto: {fmt_valor(valor_bruto)} ({extenso})")
+
         if impostos:
-            linhas.append(f"(-) INSS {impostos.percentual_inss:.2f}%: {fmt_valor(impostos.valor_inss)}")
-            linhas.append(f"(-) COFINS {impostos.percentual_cofins:.2f}%: {fmt_valor(impostos.valor_cofins)}")
-            linhas.append(f"(-) PIS {impostos.percentual_pis:.2f}%: {fmt_valor(impostos.valor_pis)}")
-            linhas.append(f"(-) CSLL {impostos.percentual_csll:.2f}%: {fmt_valor(impostos.valor_csll)}")
+            linhas.append("Retenções:")
+            if impostos.valor_inss:
+                linhas.append(f"INSS ({fmt_pct(impostos.percentual_inss)}): {fmt_valor(impostos.valor_inss)}")
+            if impostos.valor_cofins:
+                linhas.append(f"COFINS ({fmt_pct(impostos.percentual_cofins)}): {fmt_valor(impostos.valor_cofins)}")
+            if impostos.valor_pis:
+                linhas.append(f"PIS ({fmt_pct(impostos.percentual_pis)}): {fmt_valor(impostos.valor_pis)}")
+            if impostos.valor_csll:
+                linhas.append(f"CSLL ({fmt_pct(impostos.percentual_csll)}): {fmt_valor(impostos.valor_csll)}")
             iss = getattr(impostos, "valor_iss", 0.0)
             if iss and iss > 0:
                 pct_iss = getattr(impostos, "percentual_iss", 0.0)
-                linhas.append(f"(-) ISS {pct_iss:.2f}%: {fmt_valor(iss)}")
+                linhas.append(f"ISS ({fmt_pct(pct_iss)}): {fmt_valor(iss)}")
             linhas.append("")
-            linhas.append(f"Valor líquido: {fmt_valor(impostos.valor_liquido)}")
-        linhas.append(f"Vencimento: {fmt_data(data_vencimento)}")
+            extenso_liq = CorpoNotaService._valor_por_extenso(impostos.valor_liquido)
+            liquido_linha = f"Valor líquido do boleto: {fmt_valor(impostos.valor_liquido)} ({extenso_liq})"
+            if data_vencimento:
+                liquido_linha += f" | Vencimento: {fmt_data_barra(data_vencimento)}"
+            linhas.append(liquido_linha)
+        elif data_vencimento:
+            linhas.append(f"Vencimento: {fmt_data_barra(data_vencimento)}")
+
+        if descricao_servico:
+            linhas.append("")
+            linhas.append(f"Descrição dos serviços realizados: {descricao_servico}")
+
         if observacoes:
             linhas.append("")
             linhas.append(observacoes)
+
+        linhas.append("")
+        linhas.append("Ficamos à disposição para quaisquer esclarecimentos.")
+        linhas.append("Por gentileza, solicitamos a confirmação de recebimento deste e-mail.")
+        linhas.append("Atenciosamente,")
         return "\n".join(linhas)
 
     # ── Matching interno (chamado pela nota fiscal service) ───────────────────
