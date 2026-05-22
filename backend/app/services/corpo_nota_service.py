@@ -162,6 +162,10 @@ class CorpoNotaService:
             corpo.valor_iss = getattr(impostos, "valor_iss", 0.0)
         corpo = CorpoNotaRepository.create(db, corpo)
 
+        # Gera o conteúdo textual imediatamente após criação
+        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        corpo = CorpoNotaRepository.save(db, corpo)
+
         CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
         return corpo
 
@@ -222,6 +226,8 @@ class CorpoNotaService:
                 corpo.valor_csll = impostos.valor_csll
                 corpo.valor_liquido = impostos.valor_liquido
 
+        # Regenera o texto com os dados atualizados
+        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
 
     # ── Status ───────────────────────────────────────────────────────────────
@@ -406,8 +412,7 @@ class CorpoNotaService:
         data_servico: Optional[date],
         descricao_servico: Optional[str],
     ) -> dict:
-        from app.models.servico_model import ManutencaoAssistencia
-        from sqlalchemy import extract
+        from app.models.servico_model import ManutencaoAssistencia, TipoServico
 
         resultado = {
             "servico_id": servico_id,
@@ -424,16 +429,12 @@ class CorpoNotaService:
         if tipo_nota != TipoNotaCorpo.MANUTENCAO:
             return resultado
 
-        # Busca OS de manutenção no mês sem nota fiscal vinculada
-        tipo_str = "manutencao"
+        # Busca OS de manutenção mais recente do condomínio (sem filtro de data/nota)
         servico = (
             db.query(ManutencaoAssistencia)
             .filter(
                 ManutencaoAssistencia.condominio_id == condominio_id,
-                ManutencaoAssistencia.tipo == tipo_str,
-                extract("year", ManutencaoAssistencia.data_servico) == ano,
-                extract("month", ManutencaoAssistencia.data_servico) == mes,
-                ManutencaoAssistencia.nota_fiscal_id.is_(None),
+                ManutencaoAssistencia.tipo == TipoServico.MANUTENCAO,
             )
             .order_by(ManutencaoAssistencia.data_servico.desc())
             .first()
