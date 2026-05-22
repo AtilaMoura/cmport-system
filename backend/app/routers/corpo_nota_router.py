@@ -108,13 +108,19 @@ def condominios_pendentes(
     except ValueError:
         return []
 
-    # IDs dos condomínios que já têm ciclo neste mês/tipo
-    ciclos_ids = (
+    from app.models.corpo_nota_model import CorpoNota, StatusCorpoNota
+
+    # IDs dos condomínios que têm corpo ATIVO (não-cancelado, não-deletado) neste mês/tipo
+    # Ciclos vazios ou com apenas corpos cancelados/deletados não bloqueiam
+    condominios_com_corpo_ativo = (
         db.query(CicloNota.condominio_id)
+        .join(CorpoNota, CorpoNota.ciclo_id == CicloNota.id)
         .filter(
             CicloNota.tipo_nota == tipo_enum,
             CicloNota.ano == ano,
             CicloNota.mes == mes,
+            CorpoNota.deletado_em.is_(None),
+            CorpoNota.status != StatusCorpoNota.CANCELADO,
         )
         .scalar_subquery()
     )
@@ -125,7 +131,7 @@ def condominios_pendentes(
         .filter(
             ContratoCondominio.ativo.is_(True),
             ContratoCondominio.deletado_em.is_(None),
-            ~ContratoCondominio.condominio_id.in_(ciclos_ids),
+            ~ContratoCondominio.condominio_id.in_(condominios_com_corpo_ativo),
         )
         .order_by(ContratoCondominio.condominio_id)
         .all()

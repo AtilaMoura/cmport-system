@@ -184,6 +184,36 @@ def limpar_dados(db: Session = Depends(get_db), _: Usuario = Depends(require_dev
 
 
 
+@router.post("/limpar-corpos-nota")
+def limpar_corpos_nota(db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
+    """
+    Soft-deleta todos os corpos de nota que não estão com status PAGO.
+    Usado para limpar corpos de teste sem perder dados financeiros finalizados.
+    """
+    from app.models.corpo_nota_model import CorpoNota, StatusCorpoNota
+    from datetime import datetime
+
+    corpos = (
+        db.query(CorpoNota)
+        .filter(
+            CorpoNota.deletado_em.is_(None),
+            CorpoNota.status != StatusCorpoNota.PAGO,
+        )
+        .all()
+    )
+
+    agora = datetime.utcnow()
+    for corpo in corpos:
+        corpo.deletado_em = agora
+
+    db.commit()
+
+    return {
+        "corpos_deletados": len(corpos),
+        "mensagem": f"{len(corpos)} corpos de nota soft-deletados (status PAGO preservados).",
+    }
+
+
 @router.post("/seed", response_model=SeedResponse)
 def seed_dados_teste(
     gerar_nota: bool = True,
