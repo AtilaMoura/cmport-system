@@ -55,17 +55,16 @@ def buscar_os_para_corpo(
     usuario=Depends(get_current_user),
 ):
     """Retorna lista de OSs de manutenção do período para seleção manual ou auto-preenchimento."""
-    from app.models.servico_model import ManutencaoAssistencia
+    from app.models.servico_model import ManutencaoAssistencia, TipoServico
     from sqlalchemy import extract
 
     servicos = (
         db.query(ManutencaoAssistencia)
         .filter(
             ManutencaoAssistencia.condominio_id == condominio_id,
-            ManutencaoAssistencia.tipo == "manutencao",
+            ManutencaoAssistencia.tipo == TipoServico.MANUTENCAO,
             extract("year", ManutencaoAssistencia.data_servico) == ano,
             extract("month", ManutencaoAssistencia.data_servico) == mes,
-            ManutencaoAssistencia.nota_fiscal_id.is_(None),
         )
         .order_by(ManutencaoAssistencia.data_servico.desc())
         .all()
