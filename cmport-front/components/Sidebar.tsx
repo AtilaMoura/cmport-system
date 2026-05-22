@@ -23,7 +23,6 @@ export default function Sidebar() {
     { name: 'Ordens de Serviço', icon: '📋', href: '/ordens-servico',   roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Notas Fiscais',     icon: '📄', href: '/notas',            roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Corpos de Nota',    icon: '📝', href: '/corpos-nota',      roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Contratos',         icon: '📃', href: '/contratos',         roles: ['DEV', 'ADMIN'] },
     { name: 'Boletos',        icon: '🏦', href: '/boletos',        roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Configurações', icon: '⚙️', href: '/configuracoes', roles: ['DEV', 'ADMIN'] },
     { name: 'Dev / Teste',   icon: '🔧', href: '/dev',            roles: ['DEV'] },
