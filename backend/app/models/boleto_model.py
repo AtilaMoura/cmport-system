@@ -60,5 +60,8 @@ class Boleto(Base):
     banco_pagamento = Column(String(100), nullable=True)
     observacao = Column(Text, nullable=True)
 
+    # Vínculo direto com o corpo da nota para rastreio completo do ciclo
+    corpo_nota_id = Column(Integer, ForeignKey("corpos_nota.id", ondelete="SET NULL"), nullable=True, index=True)
+
     criado_em = Column(DateTime, server_default=func.now())
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now())

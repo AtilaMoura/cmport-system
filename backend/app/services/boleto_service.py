@@ -287,6 +287,33 @@ def _buscar_nota(
     return None, None
 
 
+def _atualizar_corpo_nota_para_pago(db: Session, corpo_nota_id: int) -> None:
+    """Atualiza o status do corpo da nota para PAGO quando todos os boletos foram liquidados."""
+    try:
+        from app.models.corpo_nota_model import CorpoNota, StatusCorpoNota
+        from app.services.ciclo_nota_service import CicloNotaService
+        from app.repositories.ciclo_nota_repository import CicloNotaRepository
+
+        corpo = db.query(CorpoNota).filter(
+            CorpoNota.id == corpo_nota_id,
+            CorpoNota.deletado_em.is_(None),
+        ).first()
+        if not corpo:
+            return
+        if corpo.status == StatusCorpoNota.PAGO:
+            return
+
+        corpo.status = StatusCorpoNota.PAGO
+        db.commit()
+        print(f"[CorpoNota] Corpo #{corpo_nota_id} atualizado para PAGO")
+
+        ciclo = CicloNotaRepository.get_by_id(db, corpo.ciclo_id)
+        if ciclo:
+            CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
+    except Exception as e:
+        print(f"[CorpoNota] Aviso: erro ao atualizar corpo para PAGO: {e}")
+
+
 def _atualizar_data_pagamento_nota(db: Session, nota_id: int) -> None:
     """Se todos os boletos da nota estão PAGO/BAIXADO, preenche nota.data_pagamento."""
     from app.models.nota_fiscal_model import NotaFiscal
@@ -308,6 +335,10 @@ def _atualizar_data_pagamento_nota(db: Session, nota_id: int) -> None:
         nota.data_pagamento = data_pag
         db.commit()
         print(f"[DataPag] Nota #{nota_id} marcada como paga em {data_pag}")
+
+    # Atualiza o corpo da nota vinculado para PAGO
+    if nota and nota.corpo_nota_id:
+        _atualizar_corpo_nota_para_pago(db, nota.corpo_nota_id)
 
 
 class BoletoService:
@@ -430,6 +461,7 @@ class BoletoService:
 
                     db_boleto = BoletoRepository.create(db, {
                         "nota_fiscal_id": nota_id,
+                        "corpo_nota_id": getattr(nota, "corpo_nota_id", None),
                         "codigo_solicitacao": resposta.get("codigoSolicitacao"),
                         "nosso_numero": resposta.get("nossoNumero"),
                         "seu_numero": seu_numero,
@@ -443,6 +475,20 @@ class BoletoService:
                         "total_parcelas": total_parcelas,
                         "forma_pagamento": "BOLETO_INTER",
                     })
+
+                    # Atualiza status do corpo para BOLETO_GERADO na primeira parcela
+                    if numero_parcela == 1 and nota.corpo_nota_id:
+                        try:
+                            from app.models.corpo_nota_model import CorpoNota, StatusCorpoNota
+                            corpo = db.query(CorpoNota).filter(
+                                CorpoNota.id == nota.corpo_nota_id,
+                                CorpoNota.deletado_em.is_(None),
+                            ).first()
+                            if corpo and corpo.status == StatusCorpoNota.XML_VINCULADO:
+                                corpo.status = StatusCorpoNota.BOLETO_GERADO
+                                db.commit()
+                        except Exception as _e:
+                            print(f"[CorpoNota] Aviso: erro ao atualizar status para BOLETO_GERADO: {_e}")
 
                     sucesso.append(BoletoResponse.model_validate(db_boleto))
 
@@ -475,6 +521,7 @@ class BoletoService:
 
         db_boleto = BoletoRepository.create(db, {
             "nota_fiscal_id": req.nota_fiscal_id,
+            "corpo_nota_id": getattr(nota, "corpo_nota_id", None),
             "numero_parcela": req.numero_parcela,
             "total_parcelas": req.total_parcelas,
             "valor_nominal": req.valor_nominal,

@@ -1038,6 +1038,26 @@ class NotaFiscalService:
                             # Erro no PDF não deve abortar a importação da nota
                             print(f"[IMPORT] Aviso: falha ao vincular PDF automático para nota {db_nota.numero_nota}: {e}")
 
+                # Tenta vincular ao corpo da nota já existente para este mês/condomínio
+                try:
+                    from app.services.corpo_nota_service import CorpoNotaService
+                    candidatos = CorpoNotaService.tentar_vincular_por_nota_fiscal(db, db_nota.id)
+                    if candidatos is None:
+                        pass  # sem candidatos
+                    elif len(candidatos) == 0:
+                        print(f"[IMPORT] CorpoNota vinculado automaticamente à nota {db_nota.numero_nota}")
+                    else:
+                        print(f"[IMPORT] {len(candidatos)} candidatos de CorpoNota para nota {db_nota.numero_nota} — vínculo manual necessário")
+                        erros.append({
+                            "arquivo": filename,
+                            "numero": db_nota.numero_nota,
+                            "aviso": "Múltiplos corpos de nota candidatos — vincule manualmente.",
+                            "tipo_erro": "corpo_nota_multiplos_candidatos",
+                            "candidatos": candidatos,
+                        })
+                except Exception as e:
+                    print(f"[IMPORT] Aviso: erro ao tentar vincular corpo da nota: {e}")
+
                 if dados_nota['condominio_id'] and dados_nota['tipo'] in [TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]:
                     try:
                         tipo_servico_str = "assistencia" if dados_nota['tipo'] == TipoNota.ASSISTENCIA else "manutencao"

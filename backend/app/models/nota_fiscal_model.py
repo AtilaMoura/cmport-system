@@ -74,4 +74,7 @@ class NotaFiscal(Base):
     # Armazenamento de PDF (MinIO / R2)
     pdf_object_key = Column(String(500), nullable=True)
 
+    # Vínculo com o corpo da nota gerado antes do XML chegar
+    corpo_nota_id = Column(Integer, ForeignKey("corpos_nota.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
+
     criado_em = Column(DateTime, server_default=func.now())
