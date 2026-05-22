@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.core.dependencies import get_current_user
-from app.schemas.contrato_schema import ContratoCreate, ContratoResponse
+from app.schemas.contrato_schema import ContratoCreate, ContratoUpdate, ContratoResponse
 from app.services.contrato_condominio_service import ContratoCondominioService
 
 router = APIRouter()
@@ -56,6 +56,26 @@ def criar_ou_atualizar_contrato(
         descricao_padrao_servico=payload.descricao_padrao_servico,
         observacoes_contrato=payload.observacoes_contrato,
         usuario=getattr(usuario, "nome", None),
+    )
+
+
+@router.patch("/{contrato_id}", response_model=ContratoResponse)
+def atualizar_contrato(
+    contrato_id: int,
+    payload: ContratoUpdate,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    return ContratoCondominioService.atualizar(
+        db=db,
+        contrato_id=contrato_id,
+        ativo=payload.ativo,
+        data_inicio=payload.data_inicio,
+        data_termino=payload.data_termino,
+        dia_vencimento_padrao=payload.dia_vencimento_padrao,
+        valor_fixo_mensal=payload.valor_fixo_mensal,
+        descricao_padrao_servico=payload.descricao_padrao_servico,
+        observacoes_contrato=payload.observacoes_contrato,
     )
 
 

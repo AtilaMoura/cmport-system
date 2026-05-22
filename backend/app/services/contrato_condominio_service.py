@@ -61,6 +61,33 @@ class ContratoCondominioService:
         return ContratoCondominioRepository.save(db, contrato)
 
     @staticmethod
+    def atualizar(
+        db: Session,
+        contrato_id: int,
+        ativo: Optional[bool],
+        data_inicio,
+        data_termino,
+        dia_vencimento_padrao: Optional[int],
+        valor_fixo_mensal,
+        descricao_padrao_servico: Optional[str],
+        observacoes_contrato: Optional[str],
+    ) -> ContratoCondominio:
+        contrato = ContratoCondominioRepository.get_by_id(db, contrato_id)
+        if not contrato:
+            raise HTTPException(status_code=404, detail="Contrato não encontrado.")
+        if ativo is not None:
+            contrato.ativo = ativo
+        if data_inicio is not None:
+            contrato.data_inicio = data_inicio
+        # Campos opcionais: None = limpar o valor existente
+        contrato.data_termino = data_termino
+        contrato.dia_vencimento_padrao = dia_vencimento_padrao
+        contrato.valor_fixo_mensal = valor_fixo_mensal
+        contrato.descricao_padrao_servico = descricao_padrao_servico
+        contrato.observacoes_contrato = observacoes_contrato
+        return ContratoCondominioRepository.save(db, contrato)
+
+    @staticmethod
     def toggle_ativo(db: Session, contrato_id: int) -> ContratoCondominio:
         contrato = ContratoCondominioRepository.get_by_id(db, contrato_id)
         if not contrato:

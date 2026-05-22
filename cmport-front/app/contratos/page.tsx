@@ -103,17 +103,32 @@ export default function ContratosPage() {
     setSalvando(true);
     setErro(null);
     try {
-      const payload = {
-        condominio_id: Number(form.condominio_id),
-        ativo: form.ativo,
-        data_inicio: form.data_inicio,
-        data_termino: form.data_termino || null,
-        dia_vencimento_padrao: form.dia_vencimento_padrao ? Number(form.dia_vencimento_padrao) : null,
-        valor_fixo_mensal: form.valor_fixo_mensal ? Number(form.valor_fixo_mensal) : null,
-        descricao_padrao_servico: form.descricao_padrao_servico || null,
-        observacoes_contrato: form.observacoes_contrato || null,
-      };
-      await api.post('/contratos', payload);
+      if (editando) {
+        // Edição: PATCH no contrato existente
+        const payload = {
+          ativo: form.ativo,
+          data_inicio: form.data_inicio,
+          data_termino: form.data_termino || null,
+          dia_vencimento_padrao: form.dia_vencimento_padrao ? Number(form.dia_vencimento_padrao) : null,
+          valor_fixo_mensal: form.valor_fixo_mensal ? Number(form.valor_fixo_mensal) : null,
+          descricao_padrao_servico: form.descricao_padrao_servico || null,
+          observacoes_contrato: form.observacoes_contrato || null,
+        };
+        await api.patch(`/contratos/${editando.id}`, payload);
+      } else {
+        // Criação: POST com condominio_id
+        const payload = {
+          condominio_id: Number(form.condominio_id),
+          ativo: form.ativo,
+          data_inicio: form.data_inicio,
+          data_termino: form.data_termino || null,
+          dia_vencimento_padrao: form.dia_vencimento_padrao ? Number(form.dia_vencimento_padrao) : null,
+          valor_fixo_mensal: form.valor_fixo_mensal ? Number(form.valor_fixo_mensal) : null,
+          descricao_padrao_servico: form.descricao_padrao_servico || null,
+          observacoes_contrato: form.observacoes_contrato || null,
+        };
+        await api.post('/contratos', payload);
+      }
       setShowForm(false);
       carregar();
     } catch (e: unknown) {
