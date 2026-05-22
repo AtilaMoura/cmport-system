@@ -80,10 +80,12 @@ class ImpostosCalculadosResponse(BaseModel):
     percentual_cofins: float
     percentual_pis: float
     percentual_csll: float
+    percentual_iss: float = 0.0
     valor_inss: float
     valor_cofins: float
     valor_pis: float
     valor_csll: float
+    valor_iss: float = 0.0
     valor_liquido: float
 
 

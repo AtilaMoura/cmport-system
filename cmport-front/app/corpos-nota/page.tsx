@@ -185,7 +185,7 @@ export default function CorposNotaPage() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 xl:grid-cols-2">
             {ciclos.map(ciclo => {
               const cicloStatus = STATUS_CICLO_CONFIG[ciclo.status_ciclo] ?? STATUS_CICLO_CONFIG.PENDENTE;
               const tipoConf = TIPO_NOTA_CONFIG[ciclo.tipo_nota] ?? { label: ciclo.tipo_nota, icon: '📄' };

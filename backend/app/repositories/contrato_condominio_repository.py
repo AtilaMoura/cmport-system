@@ -1,5 +1,5 @@
 from typing import Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.contrato_condominio_model import ContratoCondominio
 
@@ -10,6 +10,7 @@ class ContratoCondominioRepository:
     def get_by_condominio(db: Session, condominio_id: int) -> Optional[ContratoCondominio]:
         return (
             db.query(ContratoCondominio)
+            .options(joinedload(ContratoCondominio.condominio))
             .filter(
                 ContratoCondominio.condominio_id == condominio_id,
                 ContratoCondominio.deletado_em.is_(None),
@@ -21,6 +22,7 @@ class ContratoCondominioRepository:
     def get_by_id(db: Session, contrato_id: int) -> Optional[ContratoCondominio]:
         return (
             db.query(ContratoCondominio)
+            .options(joinedload(ContratoCondominio.condominio))
             .filter(
                 ContratoCondominio.id == contrato_id,
                 ContratoCondominio.deletado_em.is_(None),
@@ -30,7 +32,11 @@ class ContratoCondominioRepository:
 
     @staticmethod
     def list_all(db: Session, apenas_ativos: bool = False) -> List[ContratoCondominio]:
-        q = db.query(ContratoCondominio).filter(ContratoCondominio.deletado_em.is_(None))
+        q = (
+            db.query(ContratoCondominio)
+            .options(joinedload(ContratoCondominio.condominio))
+            .filter(ContratoCondominio.deletado_em.is_(None))
+        )
         if apenas_ativos:
             q = q.filter(ContratoCondominio.ativo.is_(True))
         return q.all()

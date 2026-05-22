@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional, List
 
 from fastapi import HTTPException
@@ -25,22 +26,36 @@ class ContratoCondominioService:
         ativo: bool,
         data_inicio: date,
         data_termino: Optional[date],
+        dia_vencimento_padrao: Optional[int] = None,
+        valor_fixo_mensal: Optional[Decimal] = None,
+        descricao_padrao_servico: Optional[str] = None,
+        observacoes_contrato: Optional[str] = None,
         usuario: Optional[str] = None,
     ) -> ContratoCondominio:
         if data_termino and data_termino < data_inicio:
             raise HTTPException(status_code=422, detail="data_termino não pode ser anterior a data_inicio.")
+        if dia_vencimento_padrao is not None and not (1 <= dia_vencimento_padrao <= 28):
+            raise HTTPException(status_code=422, detail="dia_vencimento_padrao deve ser entre 1 e 28.")
 
         contrato = ContratoCondominioRepository.get_by_condominio(db, condominio_id)
         if contrato:
             contrato.ativo = ativo
             contrato.data_inicio = data_inicio
             contrato.data_termino = data_termino
+            contrato.dia_vencimento_padrao = dia_vencimento_padrao
+            contrato.valor_fixo_mensal = valor_fixo_mensal
+            contrato.descricao_padrao_servico = descricao_padrao_servico
+            contrato.observacoes_contrato = observacoes_contrato
         else:
             contrato = ContratoCondominio(
                 condominio_id=condominio_id,
                 ativo=ativo,
                 data_inicio=data_inicio,
                 data_termino=data_termino,
+                dia_vencimento_padrao=dia_vencimento_padrao,
+                valor_fixo_mensal=valor_fixo_mensal,
+                descricao_padrao_servico=descricao_padrao_servico,
+                observacoes_contrato=observacoes_contrato,
                 criado_por=usuario,
             )
         return ContratoCondominioRepository.save(db, contrato)
@@ -70,6 +85,8 @@ class ContratoCondominioService:
                 "ativo": contrato.ativo,
                 "data_inicio": str(contrato.data_inicio),
                 "data_termino": str(contrato.data_termino) if contrato.data_termino else None,
+                "dia_vencimento_padrao": contrato.dia_vencimento_padrao,
+                "valor_fixo_mensal": str(contrato.valor_fixo_mensal) if contrato.valor_fixo_mensal else None,
                 "criado_por": contrato.criado_por,
             },
             motivo=f"Exclusão por {usuario or 'sistema'}",

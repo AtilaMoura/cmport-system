@@ -79,6 +79,13 @@ def _run_migrations():
         "ALTER TABLE boletos ADD COLUMN corpo_nota_id INT NULL",
         "ALTER TABLE boletos ADD CONSTRAINT fk_boleto_corpo_nota FOREIGN KEY (corpo_nota_id) REFERENCES corpos_nota(id) ON DELETE SET NULL",
         "ALTER TABLE boletos ADD INDEX ix_boleto_corpo_nota (corpo_nota_id)",
+        # Contrato — campos opcionais para auto-preenchimento
+        "ALTER TABLE contratos_condominio ADD COLUMN dia_vencimento_padrao SMALLINT NULL",
+        "ALTER TABLE contratos_condominio ADD COLUMN valor_fixo_mensal DECIMAL(10,2) NULL",
+        "ALTER TABLE contratos_condominio ADD COLUMN descricao_padrao_servico TEXT NULL",
+        "ALTER TABLE contratos_condominio ADD COLUMN observacoes_contrato TEXT NULL",
+        # ConfiguracaoImpostosServico — ISS
+        "ALTER TABLE configuracao_impostos_servico ADD COLUMN pct_iss DECIMAL(5,2) NOT NULL DEFAULT 0",
     ]
     try:
         for stmt in stmts:

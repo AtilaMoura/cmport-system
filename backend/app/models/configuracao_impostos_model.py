@@ -20,5 +20,6 @@ class ConfiguracaoImpostosServico(Base):
     pct_cofins   = Column(Numeric(5, 2), nullable=False, default=0)
     pct_inss     = Column(Numeric(5, 2), nullable=False, default=0)
     pct_csll     = Column(Numeric(5, 2), nullable=False, default=0)
+    pct_iss      = Column(Numeric(5, 2), nullable=False, default=0)
     ativo        = Column(Boolean, nullable=False, default=True)
     criado_em    = Column(DateTime, server_default=func.now())

@@ -84,6 +84,20 @@ class CorpoNotaService:
                 detail=f"Já existe um corpo ativo (id={existente.id}) para este ciclo. Cancele-o antes de criar outro.",
             )
 
+        # Auto-fill a partir do contrato (baixa prioridade — sobreposto pelo operador e pela OS)
+        from app.repositories.contrato_condominio_repository import ContratoCondominioRepository
+        contrato = ContratoCondominioRepository.get_by_condominio(db, condominio_id)
+
+        if contrato and contrato.ativo:
+            if descricao_servico is None and contrato.descricao_padrao_servico:
+                descricao_servico = contrato.descricao_padrao_servico
+            if valor_bruto is None and contrato.valor_fixo_mensal:
+                valor_bruto = float(contrato.valor_fixo_mensal)
+            if data_vencimento is None and contrato.dia_vencimento_padrao:
+                from calendar import monthrange
+                dia = min(contrato.dia_vencimento_padrao, monthrange(ano, mes)[1])
+                data_vencimento = date(ano, mes, dia)
+
         # Auto-fill a partir da OS
         preenchimento_manual = False
         corpo_dados = CorpoNotaService._auto_fill_os(
@@ -139,6 +153,10 @@ class CorpoNotaService:
             tem_garantia=tem_garantia,
             criado_por=usuario,
         )
+        # Salva ISS se disponível no modelo (coluna adicionada via migration)
+        if impostos and hasattr(corpo, "percentual_iss"):
+            corpo.percentual_iss = getattr(impostos, "percentual_iss", 0.0)
+            corpo.valor_iss = getattr(impostos, "valor_iss", 0.0)
         corpo = CorpoNotaRepository.create(db, corpo)
 
         CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
@@ -259,6 +277,12 @@ class CorpoNotaService:
         from app.models.condominio_model import Condominio
         condominio = db.query(Condominio).filter(Condominio.id == condominio_id).first()
         nome_cond = condominio.nome if condominio else f"Condomínio #{condominio_id}"
+        cnpj_cond = getattr(condominio, "cnpj", None) if condominio else None
+        razao_social_cond = getattr(condominio, "razao_social", None) if condominio else None
+
+        from app.repositories.contrato_condominio_repository import ContratoCondominioRepository
+        contrato = ContratoCondominioRepository.get_by_condominio(db, condominio_id)
+        contrato_inicio = contrato.data_inicio if contrato else None
 
         texto = CorpoNotaService._montar_texto(
             nome_cond=nome_cond,
@@ -270,6 +294,9 @@ class CorpoNotaService:
             impostos=impostos,
             data_vencimento=data_vencimento,
             observacoes=observacoes,
+            cnpj_cond=cnpj_cond,
+            razao_social_cond=razao_social_cond,
+            contrato_inicio=contrato_inicio,
         )
         return {"conteudo_gerado": texto, "impostos_calculados": impostos}
 
@@ -416,6 +443,12 @@ class CorpoNotaService:
         from app.models.condominio_model import Condominio
         condominio = db.query(Condominio).filter(Condominio.id == corpo.condominio_id).first()
         nome_cond = condominio.nome if condominio else f"Condomínio #{corpo.condominio_id}"
+        cnpj_cond = getattr(condominio, "cnpj", None) if condominio else None
+        razao_social_cond = getattr(condominio, "razao_social", None) if condominio else None
+
+        from app.repositories.contrato_condominio_repository import ContratoCondominioRepository
+        contrato = ContratoCondominioRepository.get_by_condominio(db, corpo.condominio_id)
+        contrato_inicio = contrato.data_inicio if contrato else None
 
         from app.services.imposto_service import ImpostosCalculados
         impostos = None
@@ -425,10 +458,12 @@ class CorpoNotaService:
                 percentual_cofins=float(corpo.percentual_cofins or 0),
                 percentual_pis=float(corpo.percentual_pis or 0),
                 percentual_csll=float(corpo.percentual_csll or 0),
+                percentual_iss=float(getattr(corpo, "percentual_iss", None) or 0),
                 valor_inss=float(corpo.valor_inss or 0),
                 valor_cofins=float(corpo.valor_cofins or 0),
                 valor_pis=float(corpo.valor_pis or 0),
                 valor_csll=float(corpo.valor_csll or 0),
+                valor_iss=float(getattr(corpo, "valor_iss", None) or 0),
                 valor_liquido=float(corpo.valor_liquido or 0),
             )
 
@@ -442,6 +477,9 @@ class CorpoNotaService:
             impostos=impostos,
             data_vencimento=corpo.data_vencimento,
             observacoes=corpo.observacoes,
+            cnpj_cond=cnpj_cond,
+            razao_social_cond=razao_social_cond,
+            contrato_inicio=contrato_inicio,
         )
 
     @staticmethod
@@ -455,6 +493,9 @@ class CorpoNotaService:
         impostos: Optional[ImpostosCalculados],
         data_vencimento: Optional[date],
         observacoes: Optional[str],
+        cnpj_cond: Optional[str] = None,
+        razao_social_cond: Optional[str] = None,
+        contrato_inicio: Optional[date] = None,
     ) -> str:
         def fmt_valor(v: Optional[float]) -> str:
             if v is None:
@@ -468,12 +509,16 @@ class CorpoNotaService:
                 return d.strftime("%d/%m/%Y")
             return str(d)
 
-        linhas = [
-            nome_cond,
-            f"Referente ao mês de {mes_referencia}",
-            "",
-            f"Serviços prestados: {descricao_servico}",
-        ]
+        linhas = [nome_cond]
+        if razao_social_cond and razao_social_cond != nome_cond:
+            linhas.append(razao_social_cond)
+        if cnpj_cond:
+            linhas.append(f"CNPJ: {cnpj_cond}")
+        if contrato_inicio:
+            linhas.append(f"Contrato desde: {fmt_data(contrato_inicio)}")
+        linhas.append(f"Referente ao mês de {mes_referencia}")
+        linhas.append("")
+        linhas.append(f"Serviços prestados: {descricao_servico}")
         if numero_os:
             linhas.append(f"OS nº: {numero_os}")
         linhas.append(f"Data de execução: {fmt_data(data_servico)}")
@@ -484,6 +529,10 @@ class CorpoNotaService:
             linhas.append(f"(-) COFINS {impostos.percentual_cofins:.2f}%: {fmt_valor(impostos.valor_cofins)}")
             linhas.append(f"(-) PIS {impostos.percentual_pis:.2f}%: {fmt_valor(impostos.valor_pis)}")
             linhas.append(f"(-) CSLL {impostos.percentual_csll:.2f}%: {fmt_valor(impostos.valor_csll)}")
+            iss = getattr(impostos, "valor_iss", 0.0)
+            if iss and iss > 0:
+                pct_iss = getattr(impostos, "percentual_iss", 0.0)
+                linhas.append(f"(-) ISS {pct_iss:.2f}%: {fmt_valor(iss)}")
             linhas.append("")
             linhas.append(f"Valor líquido: {fmt_valor(impostos.valor_liquido)}")
         linhas.append(f"Vencimento: {fmt_data(data_vencimento)}")

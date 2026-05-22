@@ -51,11 +51,15 @@ def criar_ou_atualizar_contrato(
         ativo=payload.ativo,
         data_inicio=payload.data_inicio,
         data_termino=payload.data_termino,
+        dia_vencimento_padrao=payload.dia_vencimento_padrao,
+        valor_fixo_mensal=payload.valor_fixo_mensal,
+        descricao_padrao_servico=payload.descricao_padrao_servico,
+        observacoes_contrato=payload.observacoes_contrato,
         usuario=getattr(usuario, "nome", None),
     )
 
 
-@router.patch("/{contrato_id}/toggle", response_model=ContratoResponse)
+@router.patch("/{contrato_id}/toggle-ativo", response_model=ContratoResponse)
 def toggle_contrato(
     contrato_id: int,
     db: Session = Depends(get_db),

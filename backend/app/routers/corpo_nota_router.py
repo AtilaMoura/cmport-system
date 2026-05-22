@@ -54,11 +54,11 @@ def buscar_os_para_corpo(
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    """Retorna a OS de manutenção mais recente do período para auto-preenchimento."""
+    """Retorna lista de OSs de manutenção do período para seleção manual ou auto-preenchimento."""
     from app.models.servico_model import ManutencaoAssistencia
     from sqlalchemy import extract
 
-    servico = (
+    servicos = (
         db.query(ManutencaoAssistencia)
         .filter(
             ManutencaoAssistencia.condominio_id == condominio_id,
@@ -68,17 +68,79 @@ def buscar_os_para_corpo(
             ManutencaoAssistencia.nota_fiscal_id.is_(None),
         )
         .order_by(ManutencaoAssistencia.data_servico.desc())
-        .first()
+        .all()
     )
-    if not servico:
-        return {"numero_os": None, "data_servico": None, "descricao_servico": None, "valor_bruto": None, "preenchimento_manual": True}
+
+    if not servicos:
+        return {"lista": [], "preenchimento_manual": True}
+
     return {
-        "numero_os": servico.numero_os,
-        "data_servico": servico.data_servico.isoformat() if servico.data_servico else None,
-        "descricao_servico": servico.descricao,
-        "valor_bruto": float(servico.valor_servico) if getattr(servico, "valor_servico", None) else None,
+        "lista": [
+            {
+                "servico_id": s.id,
+                "numero_os": s.numero_os,
+                "data_servico": s.data_servico.isoformat() if s.data_servico else None,
+                "descricao_preview": (s.descricao or "")[:60],
+                "descricao_completa": s.descricao,
+            }
+            for s in servicos
+        ],
         "preenchimento_manual": False,
     }
+
+
+@router.get("/condominios-pendentes")
+def condominios_pendentes(
+    tipo_nota: str,
+    ano: int,
+    mes: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Retorna condomínios com contrato ativo que ainda não têm ciclo no mês/tipo informado."""
+    from app.models.contrato_condominio_model import ContratoCondominio
+    from app.models.ciclo_nota_model import CicloNota, TipoNotaCorpo
+    from sqlalchemy.orm import joinedload
+
+    try:
+        tipo_enum = TipoNotaCorpo(tipo_nota)
+    except ValueError:
+        return []
+
+    # IDs dos condomínios que já têm ciclo neste mês/tipo
+    ciclos_ids = (
+        db.query(CicloNota.condominio_id)
+        .filter(
+            CicloNota.tipo_nota == tipo_enum,
+            CicloNota.ano == ano,
+            CicloNota.mes == mes,
+        )
+        .scalar_subquery()
+    )
+
+    contratos = (
+        db.query(ContratoCondominio)
+        .options(joinedload(ContratoCondominio.condominio))
+        .filter(
+            ContratoCondominio.ativo.is_(True),
+            ContratoCondominio.deletado_em.is_(None),
+            ~ContratoCondominio.condominio_id.in_(ciclos_ids),
+        )
+        .order_by(ContratoCondominio.condominio_id)
+        .all()
+    )
+
+    return [
+        {
+            "condominio_id": c.condominio_id,
+            "nome": c.condominio.nome if c.condominio else f"Condomínio #{c.condominio_id}",
+            "data_inicio_contrato": c.data_inicio.isoformat() if c.data_inicio else None,
+            "valor_fixo_mensal": float(c.valor_fixo_mensal) if c.valor_fixo_mensal else None,
+            "dia_vencimento_padrao": c.dia_vencimento_padrao,
+            "descricao_padrao_servico": c.descricao_padrao_servico,
+        }
+        for c in contratos
+    ]
 
 
 @router.post("/preview", response_model=CorpoNotaPreviewResponse)
@@ -116,10 +178,12 @@ def preview_corpo(
             percentual_cofins=imp.percentual_cofins,
             percentual_pis=imp.percentual_pis,
             percentual_csll=imp.percentual_csll,
+            percentual_iss=getattr(imp, "percentual_iss", 0.0),
             valor_inss=imp.valor_inss,
             valor_cofins=imp.valor_cofins,
             valor_pis=imp.valor_pis,
             valor_csll=imp.valor_csll,
+            valor_iss=getattr(imp, "valor_iss", 0.0),
             valor_liquido=imp.valor_liquido,
         )
     return CorpoNotaPreviewResponse(
