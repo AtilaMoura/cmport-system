@@ -5,12 +5,26 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
+interface CandidatoCorpoNota {
+  corpo_nota_id: number;
+  condominio_id: number;
+  tipo_nota: string;
+  mes: number;
+  ano: number;
+  numero_os: string | null;
+  nota_fiscal_id: number;
+  candidatos: Array<{ id: number; numero_os: string | null; mes_referencia: string | null }>;
+}
+
 export default function ImportarNotasPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<FileList | null>(null);
   const [tipo, setTipo] = useState<string>('');
   const [resultado, setResultado] = useState<any>(null);
+  const [pendentesVinculo, setPendentesVinculo] = useState<CandidatoCorpoNota[]>([]);
+  const [vinculandoIdx, setVinculandoIdx] = useState<number | null>(null);
+  const [vinculando, setVinculando] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,8 +53,14 @@ export default function ImportarNotasPage() {
       const response = await api.post('/notas-fiscais/importar-xml', formData);
 
       setResultado(response.data);
-      
-      if (response.data.processados > 0 || response.data.ja_existentes > 0) {
+
+      // Extrai erros que precisam de vínculo manual de corpo de nota
+      const multiplos = (response.data.erros ?? []).filter(
+        (e: any) => e.tipo_erro === 'corpo_nota_multiplos_candidatos'
+      );
+      if (multiplos.length > 0) {
+        setPendentesVinculo(multiplos);
+      } else if (response.data.processados > 0 || response.data.ja_existentes > 0) {
         setTimeout(() => {
           router.push('/notas');
         }, 3000);
@@ -50,6 +70,19 @@ export default function ImportarNotasPage() {
       alert('Erro ao importar notas fiscais');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const vincularCorpoManual = async (corpoId: number, notaId: number) => {
+    setVinculando(true);
+    try {
+      await api.post(`/corpos-nota/${corpoId}/vincular-nota`, { nota_fiscal_id: notaId });
+      setPendentesVinculo(prev => prev.filter(p => p.corpo_nota_id !== corpoId));
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Erro ao vincular nota ao corpo.');
+    } finally {
+      setVinculando(false);
+      setVinculandoIdx(null);
     }
   };
 
@@ -206,10 +239,67 @@ export default function ImportarNotasPage() {
           </form>
         </div>
 
+        {/* Modal: vínculo manual de corpo de nota com múltiplos candidatos */}
+        {pendentesVinculo.length > 0 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-amber-100 dark:bg-amber-500/20 rounded-full flex items-center justify-center text-xl">⚠️</div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Vínculo Manual Necessário</h2>
+                  <p className="text-xs text-slate-500">{pendentesVinculo.length} nota(s) com múltiplos candidatos</p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">
+                As notas abaixo correspondem a múltiplos corpos de nota. Selecione o corpo correto para cada uma.
+              </p>
+              {pendentesVinculo.map((p, idx) => (
+                <div key={p.nota_fiscal_id} className="mb-6 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
+                  <div className="bg-slate-50 dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 uppercase">
+                    Nota #{p.nota_fiscal_id} · {p.tipo_nota} · {p.mes}/{p.ano}
+                  </div>
+                  <div className="p-3 space-y-2">
+                    {p.candidatos.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => { setVinculandoIdx(c.id); vincularCorpoManual(c.id, p.nota_fiscal_id); }}
+                        disabled={vinculando}
+                        className="w-full text-left px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors group disabled:opacity-50"
+                      >
+                        <div className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-400">
+                          Corpo #{c.id}{c.numero_os ? ` · OS ${c.numero_os}` : ''}
+                        </div>
+                        {c.mes_referencia && (
+                          <div className="text-xs text-slate-500 dark:text-slate-400">{c.mes_referencia}</div>
+                        )}
+                        {vinculandoIdx === c.id && <div className="text-xs text-amber-600 animate-pulse mt-1">Vinculando...</div>}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setPendentesVinculo(prev => prev.filter((_, i) => i !== idx))}
+                    className="w-full py-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors border-t border-slate-100 dark:border-slate-800"
+                  >
+                    Ignorar esta nota
+                  </button>
+                </div>
+              ))}
+              {pendentesVinculo.length === 0 && (
+                <button
+                  onClick={() => router.push('/notas')}
+                  className="w-full py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors"
+                >
+                  Concluir e ir para notas
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Resultado da Importação */}
         {resultado && (() => {
           const errosCanceladas = resultado.erros.filter((e: any) => e.tipo_erro === 'cancelada');
-          const errosReais = resultado.erros.filter((e: any) => e.tipo_erro !== 'cancelada');
+          const errosReais = resultado.erros.filter((e: any) => e.tipo_erro !== 'cancelada' && e.tipo_erro !== 'corpo_nota_multiplos_candidatos');
           const temErro = errosReais.length > 0;
           return (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-lg">

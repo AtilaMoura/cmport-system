@@ -19,7 +19,7 @@ def get_db():
         db.close()
 
 
-@router.get("", response_model=List[CicloNotaResponse])
+@router.get("", response_model=List[CicloNotaComCorposResponse])
 def listar_ciclos(
     ano: int,
     mes: int,
@@ -28,7 +28,16 @@ def listar_ciclos(
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    return CicloNotaService.list_by_periodo(db, ano, mes, condominio_id, status)
+    from app.models.corpo_nota_model import CorpoNota
+    ciclos = CicloNotaService.list_by_periodo(db, ano, mes, condominio_id, status)
+    for ciclo in ciclos:
+        corpos_ativos = (
+            db.query(CorpoNota)
+            .filter(CorpoNota.ciclo_id == ciclo.id, CorpoNota.deletado_em.is_(None))
+            .all()
+        )
+        ciclo.corpos = corpos_ativos
+    return ciclos
 
 
 @router.get("/condominio/{condominio_id}", response_model=List[CicloNotaResponse])
