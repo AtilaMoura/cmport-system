@@ -1053,6 +1053,7 @@ class NotaFiscalService:
                             "numero": db_nota.numero_nota,
                             "aviso": "Múltiplos corpos de nota candidatos — vincule manualmente.",
                             "tipo_erro": "corpo_nota_multiplos_candidatos",
+                            "nota_fiscal_id": db_nota.id,
                             "candidatos": candidatos,
                         })
                 except Exception as e:

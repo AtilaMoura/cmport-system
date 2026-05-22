@@ -6,14 +6,11 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
 interface CandidatoCorpoNota {
-  corpo_nota_id: number;
-  condominio_id: number;
-  tipo_nota: string;
-  mes: number;
-  ano: number;
-  numero_os: string | null;
+  arquivo: string;
+  numero: string;
+  tipo_erro: string;
   nota_fiscal_id: number;
-  candidatos: Array<{ id: number; numero_os: string | null; mes_referencia: string | null }>;
+  candidatos: Array<{ corpo_id: number; numero_os: string | null; mes_referencia: string | null; status: string }>;
 }
 
 export default function ImportarNotasPage() {
@@ -77,7 +74,7 @@ export default function ImportarNotasPage() {
     setVinculando(true);
     try {
       await api.post(`/corpos-nota/${corpoId}/vincular-nota`, { nota_fiscal_id: notaId });
-      setPendentesVinculo(prev => prev.filter(p => p.corpo_nota_id !== corpoId));
+      setPendentesVinculo(prev => prev.filter(p => !p.candidatos.some(c => c.corpo_id === corpoId)));
     } catch (e: any) {
       alert(e?.response?.data?.detail || 'Erro ao vincular nota ao corpo.');
     } finally {
@@ -256,23 +253,23 @@ export default function ImportarNotasPage() {
               {pendentesVinculo.map((p, idx) => (
                 <div key={p.nota_fiscal_id} className="mb-6 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
                   <div className="bg-slate-50 dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 uppercase">
-                    Nota #{p.nota_fiscal_id} · {p.tipo_nota} · {p.mes}/{p.ano}
+                    Nota #{p.nota_fiscal_id} · {p.numero}
                   </div>
                   <div className="p-3 space-y-2">
                     {p.candidatos.map(c => (
                       <button
-                        key={c.id}
-                        onClick={() => { setVinculandoIdx(c.id); vincularCorpoManual(c.id, p.nota_fiscal_id); }}
+                        key={c.corpo_id}
+                        onClick={() => { setVinculandoIdx(c.corpo_id); vincularCorpoManual(c.corpo_id, p.nota_fiscal_id); }}
                         disabled={vinculando}
                         className="w-full text-left px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors group disabled:opacity-50"
                       >
                         <div className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-400">
-                          Corpo #{c.id}{c.numero_os ? ` · OS ${c.numero_os}` : ''}
+                          Corpo #{c.corpo_id}{c.numero_os ? ` · OS ${c.numero_os}` : ''}
                         </div>
                         {c.mes_referencia && (
                           <div className="text-xs text-slate-500 dark:text-slate-400">{c.mes_referencia}</div>
                         )}
-                        {vinculandoIdx === c.id && <div className="text-xs text-amber-600 animate-pulse mt-1">Vinculando...</div>}
+                        {vinculandoIdx === c.corpo_id && <div className="text-xs text-amber-600 animate-pulse mt-1">Vinculando...</div>}
                       </button>
                     ))}
                   </div>
