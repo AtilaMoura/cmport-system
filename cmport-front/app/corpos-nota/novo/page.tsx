@@ -432,10 +432,12 @@ export default function NovoCorpoNotaPage() {
               {osResultado && !buscandoOS && (
                 <>
                   {osResultado.lista.length === 0 ? (
-                    <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-                      <div className="font-bold text-amber-700 dark:text-amber-400 text-sm mb-1">Nenhuma OS encontrada</div>
-                      <div className="text-xs text-amber-600 dark:text-amber-500">
-                        Sem OSs de manutenção para este período. Preencha os dados manualmente.
+                    <div className="space-y-3">
+                      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                        <div className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Nenhuma OS sincronizada para este condomínio</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          Digite o número da OS no campo abaixo e prossiga — os dados serão preenchidos manualmente no próximo passo.
+                        </div>
                       </div>
                     </div>
                   ) : osResultado.lista.length === 1 ? (
@@ -479,15 +481,27 @@ export default function NovoCorpoNotaPage() {
               {/* Número OS manual (sempre disponível) */}
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
-                  Número da OS (opcional)
+                  {osResultado?.lista.length === 0
+                    ? 'Número da OS — digite para continuar'
+                    : 'Número da OS (opcional)'}
                 </label>
                 <input
                   type="text"
                   value={numeroOs}
                   onChange={e => setNumeroOs(e.target.value)}
                   placeholder="Ex: 73787278"
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  className={`w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white ${
+                    osResultado?.lista.length === 0
+                      ? 'border-violet-400 dark:border-violet-600 ring-2 ring-violet-100 dark:ring-violet-500/20'
+                      : 'border-slate-200 dark:border-slate-700'
+                  }`}
+                  autoFocus={osResultado?.lista.length === 0}
                 />
+                {osResultado?.lista.length === 0 && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Você pode prosseguir sem OS — os campos serão preenchidos no próximo passo.
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-3">
