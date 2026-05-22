@@ -37,8 +37,12 @@ class ContratoCondominioService:
         if dia_vencimento_padrao is not None and not (1 <= dia_vencimento_padrao <= 28):
             raise HTTPException(status_code=422, detail="dia_vencimento_padrao deve ser entre 1 e 28.")
 
-        contrato = ContratoCondominioRepository.get_by_condominio(db, condominio_id)
+        # Inclui soft-deleted para evitar violação do UNIQUE INDEX em condominio_id
+        contrato = db.query(ContratoCondominio).filter(
+            ContratoCondominio.condominio_id == condominio_id
+        ).first()
         if contrato:
+            contrato.deletado_em = None  # Restaura se estiver soft-deletado
             contrato.ativo = ativo
             contrato.data_inicio = data_inicio
             contrato.data_termino = data_termino

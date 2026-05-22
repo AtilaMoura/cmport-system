@@ -6,6 +6,31 @@ import { useParams, notFound } from 'next/navigation';
 import { api } from '@/lib/api';
 import Link from 'next/link';
 
+interface Servico {
+  id: number;
+  tipo: 'manutencao' | 'assistencia';
+  data_servico: string;
+  descricao: string | null;
+  nota_fiscal_id: number | null;
+  numero_os: string | null;
+  condominio_id: number;
+  orcamento_id: number | null;
+  criado_em: string;
+}
+
+interface NotaFiscal {
+  id: number;
+  numero_nota: string | null;
+  tipo: string;
+  status: string;
+  parcelas: number;
+  valor: number;
+  data_vencimento: string | null;
+  data_pagamento: string | null;
+  cliente_nome: string | null;
+  descricao_servico: string | null;
+}
+
 interface Contrato {
   id: number;
   condominio_id: number;
@@ -58,9 +83,11 @@ export default function DetalhesCondominio() {
   const [condo, setCondo] = useState<any>(null);
   const [orcamentos, setOrcamentos] = useState<any[]>([]);
   const [contrato, setContrato] = useState<Contrato | null>(null);
+  const [servicos, setServicos] = useState<Servico[]>([]);
+  const [notasFiscais, setNotasFiscais] = useState<NotaFiscal[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
-  const [activeTab, setActiveTab] = useState<'contatos' | 'manutencoes' | 'notas' | 'orcamentos' | 'contrato'>('contatos');
+  const [activeTab, setActiveTab] = useState<'contatos' | 'manutencoes' | 'assistencias' | 'notas' | 'orcamentos' | 'contrato'>('contatos');
 
   const [modalContrato, setModalContrato] = useState(false);
   const [formContrato, setFormContrato] = useState<ContratoForm>(formContratoInicial);
@@ -81,11 +108,15 @@ export default function DetalhesCondominio() {
       api.get(`/condominios/${id}`),
       api.get(`/orcamentos/condominio/${id}`),
       api.get(`/contratos/${id}`).catch(() => null),
+      api.get(`/servicos/condominio/${id}`).catch(() => ({ data: [] })),
+      api.get(`/notas-fiscais?condominio_id=${id}`).catch(() => ({ data: [] })),
     ])
-      .then(([rCondo, rOrc, rContrato]) => {
+      .then(([rCondo, rOrc, rContrato, rServicos, rNotas]) => {
         setCondo(rCondo.data);
         setOrcamentos(rOrc.data);
         setContrato(rContrato?.data ?? null);
+        setServicos(rServicos.data ?? []);
+        setNotasFiscais(rNotas.data ?? []);
       })
       .catch(() => setNotFoundState(true))
       .finally(() => setLoading(false));
@@ -329,6 +360,25 @@ export default function DetalhesCondominio() {
                 >
                   <span className="text-base sm:text-lg">🛠️</span>
                   Manutenções
+                  {servicos.filter(s => s.tipo === 'manutencao').length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                      {servicos.filter(s => s.tipo === 'manutencao').length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('assistencias')}
+                  className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 ${
+                    activeTab === 'assistencias' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <span className="text-base sm:text-lg">🔧</span>
+                  Assistências
+                  {servicos.filter(s => s.tipo === 'assistencia').length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                      {servicos.filter(s => s.tipo === 'assistencia').length}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => setActiveTab('notas')}
@@ -338,6 +388,11 @@ export default function DetalhesCondominio() {
                 >
                   <span className="text-base sm:text-lg">📄</span>
                   Notas Fiscais
+                  {notasFiscais.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                      {notasFiscais.length}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => setActiveTab('contrato')}
@@ -468,12 +523,116 @@ export default function DetalhesCondominio() {
                   )
                 )}
 
-                {activeTab === 'manutencoes' && (
-                  <div className="text-center py-12 text-slate-400 italic">Módulo de manutenções em desenvolvimento.</div>
-                )}
+                {(activeTab === 'manutencoes' || activeTab === 'assistencias') && (() => {
+                  const tipo = activeTab === 'manutencoes' ? 'manutencao' : 'assistencia';
+                  const lista = servicos.filter(s => s.tipo === tipo);
+                  if (lista.length === 0) {
+                    return (
+                      <div className="text-center py-12">
+                        <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full">
+                          <span className="text-3xl">{tipo === 'manutencao' ? '🛠️' : '🔧'}</span>
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                          Nenhum registro encontrado
+                        </h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">
+                          {tipo === 'manutencao' ? 'Manutenções preventivas' : 'Assistências técnicas'} aparecerão aqui após sincronização com o Auvo.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-2">
+                      {lista.map(s => (
+                        <Link
+                          key={s.id}
+                          href={`/servicos/${s.id}`}
+                          className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center shrink-0">
+                              <span className="text-base">{tipo === 'manutencao' ? '🛠️' : '🔧'}</span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {s.numero_os && (
+                                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">OS #{s.numero_os}</span>
+                                )}
+                                <span className="text-xs text-slate-500">
+                                  {s.data_servico ? new Date(s.data_servico + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
+                                </span>
+                                {s.nota_fiscal_id && (
+                                  <span className="text-[10px] font-bold bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 px-1.5 py-0.5 rounded-full">NF vinculada</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-700 dark:text-slate-300 mt-0.5 line-clamp-1">
+                                {s.descricao || 'Sem descrição'}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold text-blue-600 uppercase shrink-0 group-hover:underline">Ver →</span>
+                        </Link>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {activeTab === 'notas' && (
-                  <div className="text-center py-12 text-slate-400 italic">Módulo de notas fiscais integrado. Acesse a aba Notas no menu lateral.</div>
+                  notasFiscais.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full">
+                        <span className="text-3xl">📄</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                        Nenhuma nota fiscal encontrada
+                      </h3>
+                      <p className="text-slate-500 dark:text-slate-400 text-sm">
+                        As notas importadas via XML para este condomínio aparecerão aqui.
+                      </p>
+                      <Link href="/notas/importar" className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-colors">
+                        Importar Notas
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {notasFiscais.map(n => (
+                        <Link
+                          key={n.id}
+                          href={`/notas/${n.id}`}
+                          className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center shrink-0">
+                              <span className="text-base">📄</span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {n.numero_nota && <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{n.numero_nota}</span>}
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  n.status === 'autorizada'
+                                    ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
+                                    : n.status === 'cancelada'
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
+                                }`}>{n.status}</span>
+                                <span className="text-xs text-slate-400 capitalize">{n.tipo}</span>
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                Venc: {n.data_vencimento ? new Date(n.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
+                                {n.data_pagamento && ` · Pago: ${new Date(n.data_pagamento + 'T00:00:00').toLocaleDateString('pt-BR')}`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-black text-slate-900 dark:text-white text-sm">
+                              {n.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </p>
+                            <span className="text-[10px] font-bold text-blue-600 uppercase group-hover:underline">Ver →</span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )
                 )}
 
                 {activeTab === 'contrato' && (
@@ -633,11 +792,19 @@ export default function DetalhesCondominio() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Manutenções</span>
-                  <span className="font-bold text-lg text-slate-900 dark:text-white">0</span>
+                  <span className="font-bold text-lg text-slate-900 dark:text-white">
+                    {servicos.filter(s => s.tipo === 'manutencao').length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-600 dark:text-slate-400">Assistências</span>
+                  <span className="font-bold text-lg text-slate-900 dark:text-white">
+                    {servicos.filter(s => s.tipo === 'assistencia').length}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Notas Fiscais</span>
-                  <span className="font-bold text-lg text-slate-900 dark:text-white">0</span>
+                  <span className="font-bold text-lg text-slate-900 dark:text-white">{notasFiscais.length}</span>
                 </div>
                 <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-800 pt-3">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Contrato</span>

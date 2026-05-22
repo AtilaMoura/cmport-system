@@ -39,7 +39,20 @@ def create_nota(nota: NotaFiscalCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=List[NotaFiscalResponse])
-def list_notas(db: Session = Depends(get_db)):
+def list_notas(
+    condominio_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    if condominio_id:
+        from app.models.nota_fiscal_model import NotaFiscal
+        from app.schemas.nota_fiscal_schema import NotaFiscalResponse as NfResp
+        notas = (
+            db.query(NotaFiscal)
+            .filter(NotaFiscal.condominio_id == condominio_id)
+            .order_by(NotaFiscal.data_vencimento.desc())
+            .all()
+        )
+        return [NfResp.model_validate(n) for n in notas]
     return NotaFiscalService.get_all_notas(db)
 
 
