@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -109,7 +109,7 @@ export default function CorposNotaPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
+        <div className="px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-violet-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
@@ -136,7 +136,7 @@ export default function CorposNotaPage() {
 
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3">
+        <div className="px-3 sm:px-6 lg:px-8 py-3">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
             {/* Navegação de mês */}
             <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-1.5">
@@ -172,7 +172,7 @@ export default function CorposNotaPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6">
+      <div className="px-3 sm:px-6 lg:px-8 py-6">
         {loading ? (
           <div className="text-center py-20 text-slate-400 font-semibold">Carregando...</div>
         ) : ciclos.length === 0 ? (

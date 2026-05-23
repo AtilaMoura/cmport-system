@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement,
@@ -832,7 +832,7 @@ export default function ServicosPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
+        <div className="px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 lg:gap-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -855,7 +855,7 @@ export default function ServicosPage() {
 
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 space-y-3">
+        <div className="px-3 sm:px-6 lg:px-8 py-4 space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <input
               type="text"
@@ -934,7 +934,7 @@ export default function ServicosPage() {
 
       {/* Tabs */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="px-3 sm:px-6 lg:px-8">
           <div className="flex gap-1 overflow-x-auto">
             {[
               { key: 'geral',       label: '📊 Visao Geral' },
@@ -954,7 +954,7 @@ export default function ServicosPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
+      <div className="px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
         {/* TAB: Visao Geral */}
         {activeTab === 'geral' && (
           <div className="space-y-4 lg:space-y-8">

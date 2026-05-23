@@ -21,7 +21,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <AuthProvider>
       <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300">
         <Sidebar />
-        <main className="md:ml-56 lg:ml-64 pt-14 md:pt-0 overflow-y-auto">
+        <main className="md:ml-56 lg:ml-64 pt-14 md:pt-0 overflow-x-hidden">
           {children}
         </main>
       </div>

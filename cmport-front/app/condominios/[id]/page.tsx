@@ -207,7 +207,7 @@ export default function DetalhesCondominio() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 lg:py-6">
+        <div className="px-3 sm:px-6 lg:px-8 py-3 lg:py-6">
           <div className="flex items-center justify-between gap-2">
             <Link
               href="/condominios"
@@ -234,9 +234,9 @@ export default function DetalhesCondominio() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
+      <div className="px-3 sm:px-6 lg:px-8 py-4 lg:py-8">
         {/* Hero Card */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl p-4 sm:p-8 mb-4 lg:mb-8 shadow-2xl shadow-blue-500/20 text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-700 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-3xl p-4 sm:p-8 mb-4 lg:mb-8 shadow-xl shadow-slate-500/10 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24" />
 
@@ -250,14 +250,14 @@ export default function DetalhesCondominio() {
                   <h1 className="text-xl sm:text-3xl lg:text-4xl font-black mb-1 sm:mb-2 tracking-tight leading-tight">
                     {condo.nome}
                   </h1>
-                  <p className="text-blue-100 text-sm sm:text-lg font-medium">
+                  <p className="text-slate-300 text-sm sm:text-lg font-medium">
                     {condo.razao_social || 'Sem razão social cadastrada'}
                   </p>
                 </div>
               </div>
 
               <span className={`self-start shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold shadow-lg ${
-                condo.ativo ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                condo.ativo ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
               }`}>
                 {condo.ativo ? '✓ ATIVO' : '⊘ INATIVO'}
               </span>
@@ -265,19 +265,19 @@ export default function DetalhesCondominio() {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3 sm:p-4 border border-white/20">
-                <p className="text-blue-100 text-xs sm:text-sm font-semibold mb-1">CNPJ</p>
+                <p className="text-slate-300 text-xs sm:text-sm font-semibold mb-1">CNPJ</p>
                 <p className="font-mono text-sm sm:text-lg font-bold">
                   {condo.cnpj || 'Não informado'}
                 </p>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3 sm:p-4 border border-white/20">
-                <p className="text-blue-100 text-xs sm:text-sm font-semibold mb-1">ID do Sistema</p>
+                <p className="text-slate-300 text-xs sm:text-sm font-semibold mb-1">ID do Sistema</p>
                 <p className="font-mono text-sm sm:text-lg font-bold">
                   #{condo.id.toString().padStart(6, '0')}
                 </p>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3 sm:p-4 border border-white/20">
-                <p className="text-blue-100 text-xs sm:text-sm font-semibold mb-1">Cadastrado em</p>
+                <p className="text-slate-300 text-xs sm:text-sm font-semibold mb-1">Cadastrado em</p>
                 <p className="text-sm sm:text-lg font-bold">
                   {new Date().toLocaleDateString('pt-BR')}
                 </p>

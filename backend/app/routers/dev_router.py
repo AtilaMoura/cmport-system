@@ -214,6 +214,115 @@ def limpar_corpos_nota(db: Session = Depends(get_db), _: Usuario = Depends(requi
     }
 
 
+@router.post("/criar-contratos-manutencao")
+def criar_contratos_manutencao(db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
+    """
+    Para cada condomínio que tem nota fiscal MANUTENCAO e ainda não tem contrato:
+    - analisa o padrão de valor (moda) e dia de vencimento (moda)
+    - cria contrato com data_inicio=hoje, data_termino=2027-01-01
+    - inclui valor_fixo_mensal e dia_vencimento_padrao se padrão detectado
+    """
+    from collections import Counter
+    from datetime import date
+    from decimal import Decimal
+    from app.models.nota_fiscal_model import NotaFiscal, TipoNota, StatusNota
+    from app.models.contrato_condominio_model import ContratoCondominio
+    from app.models.condominio_model import Condominio
+    from app.services.contrato_condominio_service import ContratoCondominioService
+
+    hoje = date.today()
+    data_termino = date(2027, 1, 1)
+
+    # Condominios com pelo menos uma nota MANUTENCAO AUTORIZADA
+    condominios_com_nota = (
+        db.query(NotaFiscal.condominio_id)
+        .filter(
+            NotaFiscal.tipo == TipoNota.MANUTENCAO,
+            NotaFiscal.status == StatusNota.AUTORIZADA,
+            NotaFiscal.condominio_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    ids_com_nota = [r[0] for r in condominios_com_nota]
+
+    # IDs que já têm contrato ativo (inclui soft-deleted para não recriar)
+    ids_com_contrato = set(
+        r[0] for r in db.query(ContratoCondominio.condominio_id)
+        .filter(ContratoCondominio.deletado_em.is_(None))
+        .all()
+    )
+
+    criados = []
+    ignorados = []
+
+    for cond_id in ids_com_nota:
+        if cond_id in ids_com_contrato:
+            ignorados.append({"condominio_id": cond_id, "motivo": "já tem contrato"})
+            continue
+
+        # Busca todas as notas MANUTENCAO deste condomínio
+        notas = (
+            db.query(NotaFiscal)
+            .filter(
+                NotaFiscal.condominio_id == cond_id,
+                NotaFiscal.tipo == TipoNota.MANUTENCAO,
+                NotaFiscal.status == StatusNota.AUTORIZADA,
+            )
+            .all()
+        )
+
+        # Detecta padrão de valor (arredondado para 2 casas, moda)
+        valores = [round(n.valor, 2) for n in notas if n.valor]
+        valor_padrao = None
+        if valores:
+            moda_valor = Counter(valores).most_common(1)[0]
+            # Usa a moda se ela aparece em ≥50% das notas
+            if moda_valor[1] >= max(1, len(valores) // 2):
+                valor_padrao = Decimal(str(moda_valor[0]))
+
+        # Detecta padrão de dia de vencimento (moda)
+        dias = [n.data_vencimento.day for n in notas if n.data_vencimento]
+        dia_padrao = None
+        if dias:
+            moda_dia = Counter(dias).most_common(1)[0]
+            if moda_dia[1] >= max(1, len(dias) // 2):
+                d = moda_dia[0]
+                if 1 <= d <= 28:
+                    dia_padrao = d
+
+        condominio = db.query(Condominio).filter(Condominio.id == cond_id).first()
+        nome = condominio.nome if condominio else f"#{cond_id}"
+
+        ContratoCondominioService.criar_ou_atualizar(
+            db=db,
+            condominio_id=cond_id,
+            ativo=True,
+            data_inicio=hoje,
+            data_termino=data_termino,
+            dia_vencimento_padrao=dia_padrao,
+            valor_fixo_mensal=valor_padrao,
+            descricao_padrao_servico=None,
+            observacoes_contrato=None,
+            usuario="DEV/auto",
+        )
+
+        criados.append({
+            "condominio_id": cond_id,
+            "nome": nome,
+            "valor_detectado": float(valor_padrao) if valor_padrao else None,
+            "dia_vencimento_detectado": dia_padrao,
+            "total_notas_analisadas": len(notas),
+        })
+
+    return {
+        "criados": len(criados),
+        "ignorados_ja_tinham_contrato": len(ignorados),
+        "detalhes": criados,
+        "mensagem": f"{len(criados)} contratos criados, {len(ignorados)} condomínios já tinham contrato.",
+    }
+
+
 @router.post("/seed", response_model=SeedResponse)
 def seed_dados_teste(
     gerar_nota: bool = True,
