@@ -747,7 +747,7 @@ export default function DetalhesCondominio() {
           {/* Sidebar */}
           <div className="space-y-4 lg:space-y-6">
             {/* Ações Rápidas */}
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-4 sm:p-6 shadow-xl shadow-blue-500/20 text-white">
+            <div className="bg-gradient-to-br from-slate-700 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-4 sm:p-6 shadow-xl shadow-slate-500/10 text-white">
               <h3 className="font-bold text-base sm:text-lg mb-3 sm:mb-4 flex items-center gap-2">
                 <span className="text-xl">⚡</span>
                 Ações Rápidas
