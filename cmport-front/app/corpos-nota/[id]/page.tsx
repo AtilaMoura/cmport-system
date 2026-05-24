@@ -36,6 +36,11 @@ interface CorpoNota {
   atualizado_em: string | null;
 }
 
+interface Condominio {
+  id: number;
+  nome: string;
+}
+
 interface NotaFiscalCandidato {
   id: number;
   numero_nota: string;
@@ -86,8 +91,10 @@ export default function DetalheCorpoNotaPage() {
   const id = params.id as string;
 
   const [corpo, setCorpo] = useState<CorpoNota | null>(null);
+  const [condominio, setCondominio] = useState<Condominio | null>(null);
   const [loading, setLoading] = useState(true);
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   // Edição inline
   const [editando, setEditando] = useState(false);
@@ -118,11 +125,23 @@ export default function DetalheCorpoNotaPage() {
         data_servico: r.data.data_servico ?? '',
         observacoes: r.data.observacoes ?? '',
       });
+      try {
+        const rCond = await api.get(`/condominios/${r.data.condominio_id}`);
+        setCondominio(rCond.data);
+      } catch { /* silencioso */ }
     } catch {
       router.push('/corpos-nota');
     } finally {
       setLoading(false);
     }
+  };
+
+  const copiarConteudo = async () => {
+    if (!corpo?.conteudo_gerado) return;
+    const nomeHeader = condominio ? `Condomínio: ${condominio.nome}\n\n` : '';
+    await navigator.clipboard.writeText(nomeHeader + corpo.conteudo_gerado);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
   };
 
   useEffect(() => { carregar(); }, [id]);
@@ -254,17 +273,24 @@ export default function DetalheCorpoNotaPage() {
 
         {/* Card principal */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${statusConf.dot}`} />
-              <div>
-                <span className="font-black text-slate-900 dark:text-white">
-                  {corpo.numero_referencia ?? `Corpo #${corpo.id}`}
-                </span>
-                <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{corpo.tipo_nota}</span>
+          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`w-3 h-3 rounded-full shrink-0 ${statusConf.dot}`} />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-slate-900 dark:text-white">
+                    {corpo.numero_referencia ?? `Corpo #${corpo.id}`}
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{corpo.tipo_nota}</span>
+                </div>
+                {condominio && (
+                  <div className="text-sm font-semibold text-violet-700 dark:text-violet-400 truncate mt-0.5">
+                    {condominio.nome}
+                  </div>
+                )}
               </div>
             </div>
-            <span className="text-xs text-slate-400">{corpo.mes_referencia ?? '—'}</span>
+            <span className="text-xs text-slate-400 shrink-0">{corpo.mes_referencia ?? '—'}</span>
           </div>
 
           <div className="p-6 space-y-4">
@@ -365,7 +391,33 @@ export default function DetalheCorpoNotaPage() {
         {/* Conteúdo gerado */}
         {corpo.conteudo_gerado && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-            <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-3">Corpo da Nota Gerado</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">Corpo da Nota Gerado</h3>
+              <button
+                onClick={copiarConteudo}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  copiado
+                    ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 hover:text-violet-700 dark:hover:text-violet-400'
+                }`}
+              >
+                {copiado ? (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copiado!
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copiar
+                  </>
+                )}
+              </button>
+            </div>
             <pre className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-mono">
               {corpo.conteudo_gerado}
             </pre>
