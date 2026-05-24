@@ -214,6 +214,20 @@ def limpar_corpos_nota(db: Session = Depends(get_db), _: Usuario = Depends(requi
     }
 
 
+@router.delete("/corpos-nota/{corpo_id}")
+def force_deletar_corpo(corpo_id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
+    """Force soft-delete de um corpo de nota específico, independente do status (inclusive PAGO)."""
+    from app.models.corpo_nota_model import CorpoNota
+    from datetime import datetime
+
+    corpo = db.query(CorpoNota).filter(CorpoNota.id == corpo_id, CorpoNota.deletado_em.is_(None)).first()
+    if not corpo:
+        raise HTTPException(status_code=404, detail=f"Corpo {corpo_id} não encontrado ou já deletado.")
+    corpo.deletado_em = datetime.utcnow()
+    db.commit()
+    return {"deletado": corpo_id, "status_era": corpo.status.value}
+
+
 @router.post("/criar-contratos-manutencao")
 def criar_contratos_manutencao(db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
     """
