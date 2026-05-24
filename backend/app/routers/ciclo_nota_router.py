@@ -30,14 +30,18 @@ def listar_ciclos(
 ):
     from app.models.corpo_nota_model import CorpoNota
     ciclos = CicloNotaService.list_by_periodo(db, ano, mes, condominio_id, status)
+    resultado = []
     for ciclo in ciclos:
         corpos_ativos = (
             db.query(CorpoNota)
             .filter(CorpoNota.ciclo_id == ciclo.id, CorpoNota.deletado_em.is_(None))
             .all()
         )
+        if not corpos_ativos:
+            continue  # Ciclo sem corpos ativos não aparece na lista
         ciclo.corpos = corpos_ativos
-    return ciclos
+        resultado.append(ciclo)
+    return resultado
 
 
 @router.get("/condominio/{condominio_id}", response_model=List[CicloNotaResponse])
