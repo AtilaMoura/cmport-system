@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
@@ -30,8 +30,8 @@ interface OSResultado {
   preenchimento_manual: boolean;
 }
 
-const LABELS_STEP = ['Tipo', 'Período', 'Condomínio', 'Ordem de Serviço', 'Dados', 'Confirmar'];
-const TOTAL_STEPS = 6;
+const LABELS_STEP = ['Tipo', 'Condomínio', 'Ordem de Serviço', 'Dados', 'Confirmar'];
+const TOTAL_STEPS = 5;
 
 function StepIndicator({ atual }: { atual: number }) {
   return (
@@ -64,32 +64,39 @@ function StepIndicator({ atual }: { atual: number }) {
   );
 }
 
-export default function NovoCorpoNotaPage() {
+function NovoCorpoNotaContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const now = new Date();
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  // Step 1 — Tipo
+  // Step 1 — Tipo + Período
   const [tipoNota, setTipoNota] = useState('MANUTENCAO');
+  const [mes, setMes] = useState(() => {
+    const p = searchParams.get('mes');
+    return p ? Number(p) : now.getMonth() + 1;
+  });
+  const [ano, setAno] = useState(() => {
+    const p = searchParams.get('ano');
+    return p ? Number(p) : now.getFullYear();
+  });
 
-  // Step 2 — Período
-  const now = new Date();
-  const [mes, setMes] = useState(now.getMonth() + 1);
-  const [ano, setAno] = useState(now.getFullYear());
-
-  // Step 3 — Condomínio
+  // Step 2 — Condomínio
   const [condsPendentes, setCondsPendentes] = useState<CondPendente[]>([]);
   const [buscandoConds, setBuscandoConds] = useState(false);
   const [condSelecionado, setCondSelecionado] = useState<CondPendente | null>(null);
+  const [filtroCond, setFiltroCond] = useState('');
 
-  // Step 4 — OS
+  // Step 3 — OS
   const [osResultado, setOsResultado] = useState<OSResultado | null>(null);
   const [buscandoOS, setBuscandoOS] = useState(false);
   const [osSelecionada, setOsSelecionada] = useState<OSItem | null>(null);
   const [servicoId, setServicoId] = useState<number | null>(null);
 
-  // Step 5 — Dados financeiros
+  // Step 4 — Dados financeiros
   const [numeroOs, setNumeroOs] = useState('');
   const [dataServico, setDataServico] = useState('');
   const [descricaoServico, setDescricaoServico] = useState('');
@@ -97,7 +104,7 @@ export default function NovoCorpoNotaPage() {
   const [dataVencimento, setDataVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
 
-  // Step 6 — Preview
+  // Step 5 — Preview
   const [preview, setPreview] = useState<{
     conteudo_gerado: string;
     impostos_calculados: { valor_liquido: number; percentual_iss?: number } | null;
@@ -105,7 +112,6 @@ export default function NovoCorpoNotaPage() {
   const [gerandoPreview, setGerandoPreview] = useState(false);
   const [proximoNumero, setProximoNumero] = useState<string | null>(null);
 
-  // Busca o próximo número ao avançar do step 1
   const buscarProximoNumero = async (tipo: string, anoRef: number) => {
     try {
       const r = await api.get('/corpos-nota/proximo-numero', { params: { tipo_nota: tipo, ano: anoRef } });
@@ -115,22 +121,14 @@ export default function NovoCorpoNotaPage() {
     }
   };
 
-  // ── Step 1 → 2: tipo selecionado ────────────────────────────────────────────
-  const avancarStep1 = () => {
-    setErro(null);
-    buscarProximoNumero(tipoNota, ano);
-    setStep(2);
-  };
-
-  // ── Step 2 → 3: busca condomínios pendentes ──────────────────────────────────
-  const avancarStep2 = async () => {
-    setErro(null);
+  const buscarCondominios = async (tipoRef: string, anoRef: number, mesRef: number) => {
     setBuscandoConds(true);
     setCondsPendentes([]);
     setCondSelecionado(null);
+    setFiltroCond('');
     try {
       const r = await api.get('/corpos-nota/condominios-pendentes', {
-        params: { tipo_nota: tipoNota, ano, mes },
+        params: { tipo_nota: tipoRef, ano: anoRef, mes: mesRef },
       });
       setCondsPendentes(r.data);
     } catch {
@@ -138,15 +136,28 @@ export default function NovoCorpoNotaPage() {
     } finally {
       setBuscandoConds(false);
     }
-    setStep(3);
   };
 
-  // ── Step 3 → 4: condomínio selecionado, busca OSs ────────────────────────────
-  const avancarStep3 = async (cond: CondPendente) => {
+  // Re-busca condomínios quando estiver no step 2 e mudar período ou tipo
+  useEffect(() => {
+    if (step === 2) {
+      buscarCondominios(tipoNota, ano, mes);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, mes, ano, tipoNota]);
+
+  // ── Step 1 → 2 ──────────────────────────────────────────────────────────────
+  const avancarStep1 = () => {
+    setErro(null);
+    buscarProximoNumero(tipoNota, ano);
+    setStep(2);
+  };
+
+  // ── Step 2 → 3: condomínio selecionado, busca OSs ────────────────────────────
+  const avancarStep2 = async (cond: CondPendente) => {
     setCondSelecionado(cond);
     setErro(null);
 
-    // Pré-preenche a partir do contrato
     if (cond.descricao_padrao_servico) setDescricaoServico(cond.descricao_padrao_servico);
     if (cond.valor_fixo_mensal) setValorBruto(String(cond.valor_fixo_mensal));
     if (cond.dia_vencimento_padrao) {
@@ -164,7 +175,6 @@ export default function NovoCorpoNotaPage() {
         params: { condominio_id: cond.condominio_id, mes, ano },
       });
       setOsResultado(r.data);
-      // Auto-seleciona se apenas 1 OS
       if (r.data.lista?.length === 1) {
         const os = r.data.lista[0];
         setOsSelecionada(os);
@@ -178,10 +188,10 @@ export default function NovoCorpoNotaPage() {
     } finally {
       setBuscandoOS(false);
     }
-    setStep(4);
+    setStep(3);
   };
 
-  // ── Step 4 → 5: OS confirmada ────────────────────────────────────────────────
+  // ── Step 3 → 4 ──────────────────────────────────────────────────────────────
   const selecionarOS = (os: OSItem) => {
     setOsSelecionada(os);
     setServicoId(os.servico_id);
@@ -190,12 +200,12 @@ export default function NovoCorpoNotaPage() {
     if (os.descricao_completa) setDescricaoServico(os.descricao_completa);
   };
 
-  const avancarStep4 = () => {
+  const avancarStep3 = () => {
     setErro(null);
-    setStep(5);
+    setStep(4);
   };
 
-  // ── Step 5 → 6: gera preview ─────────────────────────────────────────────────
+  // ── Step 4 → 5: gera preview ─────────────────────────────────────────────────
   const gerarPreview = async () => {
     if (!valorBruto || !dataVencimento || !descricaoServico) {
       setErro('Preencha valor bruto, data de vencimento e descrição do serviço.');
@@ -217,7 +227,7 @@ export default function NovoCorpoNotaPage() {
         observacoes: observacoes || null,
       });
       setPreview(r.data);
-      setStep(6);
+      setStep(5);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setErro(msg || 'Erro ao gerar preview.');
@@ -226,7 +236,7 @@ export default function NovoCorpoNotaPage() {
     }
   };
 
-  // ── Step 6: confirma criação ─────────────────────────────────────────────────
+  // ── Step 5: confirma criação ─────────────────────────────────────────────────
   const confirmar = async () => {
     setLoading(true);
     setErro(null);
@@ -258,6 +268,10 @@ export default function NovoCorpoNotaPage() {
   const fmtValor = (v: number) =>
     v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  const condsFiltrados = condsPendentes.filter(c =>
+    filtroCond === '' || c.nome.toLowerCase().includes(filtroCond.toLowerCase())
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
@@ -283,16 +297,15 @@ export default function NovoCorpoNotaPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm">
           <StepIndicator atual={step} />
 
-          {/* ── STEP 1 — Tipo de nota ─────────────────────────────────────────── */}
+          {/* ── STEP 1 — Tipo de nota + Período ──────────────────────────────── */}
           {step === 1 && (
             <div className="space-y-6">
               <h2 className="text-lg font-black text-slate-800 dark:text-white">Tipo de Nota</h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {/* Manutenção — ativo */}
                 <button
                   type="button"
-                  onClick={() => { setTipoNota('MANUTENCAO'); }}
+                  onClick={() => setTipoNota('MANUTENCAO')}
                   className={`p-5 rounded-2xl border-2 text-left transition-all ${
                     tipoNota === 'MANUTENCAO'
                       ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
@@ -306,18 +319,40 @@ export default function NovoCorpoNotaPage() {
                   <div className="text-xs text-slate-500 mt-1">Serviços mensais de manutenção predial</div>
                 </button>
 
-                {/* Serviço — em breve */}
                 <div className="p-5 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 opacity-50 cursor-not-allowed">
                   <div className="text-2xl mb-2">🔧</div>
                   <div className="font-bold text-sm text-slate-500">Serviço</div>
                   <div className="text-xs text-slate-400 mt-1">Em breve</div>
                 </div>
 
-                {/* Produto — em breve */}
                 <div className="p-5 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 opacity-50 cursor-not-allowed">
                   <div className="text-2xl mb-2">📦</div>
                   <div className="font-bold text-sm text-slate-500">Produto</div>
                   <div className="text-xs text-slate-400 mt-1">Em breve</div>
+                </div>
+              </div>
+
+              {/* Período de referência */}
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+                  Período de Referência
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <select
+                    value={mes}
+                    onChange={e => setMes(Number(e.target.value))}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  >
+                    {MESES_NOMES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                  </select>
+                  <input
+                    type="number"
+                    value={ano}
+                    onChange={e => setAno(Number(e.target.value))}
+                    min={2020}
+                    max={2099}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  />
                 </div>
               </div>
 
@@ -330,55 +365,57 @@ export default function NovoCorpoNotaPage() {
             </div>
           )}
 
-          {/* ── STEP 2 — Período ─────────────────────────────────────────────── */}
+          {/* ── STEP 2 — Condomínio pendente ──────────────────────────────────── */}
           {step === 2 && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-black text-slate-800 dark:text-white">Período de Referência</h2>
-              <p className="text-sm text-slate-500">Selecione o mês e ano que serão faturados.</p>
-
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Mês</label>
+                  <h2 className="text-lg font-black text-slate-800 dark:text-white">Selecionar Condomínio</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Com contrato ativo sem corpo em {MESES_NOMES[mes - 1]}/{ano}
+                  </p>
+                </div>
+                {/* Alteração rápida de período */}
+                <div className="flex items-center gap-2 shrink-0">
                   <select
                     value={mes}
                     onChange={e => setMes(Number(e.target.value))}
-                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                   >
-                    {MESES_NOMES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                    {MESES_NOMES.map((m, i) => <option key={i + 1} value={i + 1}>{m.slice(0, 3)}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Ano</label>
                   <input
                     type="number"
                     value={ano}
                     onChange={e => setAno(Number(e.target.value))}
                     min={2020}
                     max={2099}
-                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    className="w-[5.5rem] px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <button onClick={voltar} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">
-                  ← Voltar
-                </button>
-                <button onClick={avancarStep2} className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors">
-                  Próximo →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── STEP 3 — Condomínio pendente ──────────────────────────────────── */}
-          {step === 3 && (
-            <div className="space-y-5">
-              <div>
-                <h2 className="text-lg font-black text-slate-800 dark:text-white">Selecionar Condomínio</h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Condomínios com contrato ativo sem corpo de nota em {MESES_NOMES[mes - 1]}/{ano}
-                </p>
+              {/* Filtro por nome */}
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={filtroCond}
+                  onChange={e => setFiltroCond(e.target.value)}
+                  placeholder="Filtrar por nome do condomínio..."
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  autoFocus
+                />
+                {filtroCond && (
+                  <button
+                    onClick={() => setFiltroCond('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
               {buscandoConds ? (
@@ -391,32 +428,41 @@ export default function NovoCorpoNotaPage() {
                   </div>
                   <div className="text-sm text-slate-500">Ou não há contratos ativos cadastrados.</div>
                 </div>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {condsPendentes.map(c => (
-                    <button
-                      key={c.condominio_id}
-                      type="button"
-                      onClick={() => avancarStep3(c)}
-                      className="p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-500 text-left transition-all group"
-                    >
-                      <div className="font-bold text-slate-900 dark:text-white group-hover:text-violet-700 dark:group-hover:text-violet-400 transition-colors">
-                        {c.nome}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1 flex gap-3 flex-wrap">
-                        {c.data_inicio_contrato && (
-                          <span>Contrato desde {c.data_inicio_contrato.slice(0, 7).split('-').reverse().join('/')}</span>
-                        )}
-                        {c.valor_fixo_mensal && (
-                          <span className="text-violet-600 font-semibold">{fmtValor(c.valor_fixo_mensal)}</span>
-                        )}
-                        {c.dia_vencimento_padrao && (
-                          <span>Vence dia {c.dia_vencimento_padrao}</span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+              ) : condsFiltrados.length === 0 ? (
+                <div className="text-center py-6 text-slate-400 text-sm">
+                  Nenhum condomínio encontrado para &quot;{filtroCond}&quot;
                 </div>
+              ) : (
+                <>
+                  <div className="text-xs text-slate-500 font-medium">
+                    {condsFiltrados.length} de {condsPendentes.length} condomínio(s)
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {condsFiltrados.map(c => (
+                      <button
+                        key={c.condominio_id}
+                        type="button"
+                        onClick={() => avancarStep2(c)}
+                        className="p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-500 text-left transition-all group"
+                      >
+                        <div className="font-bold text-slate-900 dark:text-white group-hover:text-violet-700 dark:group-hover:text-violet-400 transition-colors">
+                          {c.nome}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1 flex gap-3 flex-wrap">
+                          {c.data_inicio_contrato && (
+                            <span>Desde {c.data_inicio_contrato.slice(0, 7).split('-').reverse().join('/')}</span>
+                          )}
+                          {c.valor_fixo_mensal && (
+                            <span className="text-violet-600 font-semibold">{fmtValor(c.valor_fixo_mensal)}</span>
+                          )}
+                          {c.dia_vencimento_padrao && (
+                            <span>Vence dia {c.dia_vencimento_padrao}</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
 
               <div className="flex gap-3">
@@ -427,8 +473,8 @@ export default function NovoCorpoNotaPage() {
             </div>
           )}
 
-          {/* ── STEP 4 — Ordem de Serviço ─────────────────────────────────────── */}
-          {step === 4 && (
+          {/* ── STEP 3 — Ordem de Serviço ─────────────────────────────────────── */}
+          {step === 3 && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-lg font-black text-slate-800 dark:text-white">Ordem de Serviço</h2>
@@ -444,12 +490,10 @@ export default function NovoCorpoNotaPage() {
               {osResultado && !buscandoOS && (
                 <>
                   {osResultado.lista.length === 0 ? (
-                    <div className="space-y-3">
-                      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-                        <div className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Nenhuma OS sincronizada para este condomínio</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          Digite o número da OS no campo abaixo e prossiga — os dados serão preenchidos manualmente no próximo passo.
-                        </div>
+                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                      <div className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Nenhuma OS sincronizada para este condomínio</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        Digite o número da OS no campo abaixo e prossiga — os dados serão preenchidos manualmente no próximo passo.
                       </div>
                     </div>
                   ) : osResultado.lista.length === 1 ? (
@@ -490,7 +534,6 @@ export default function NovoCorpoNotaPage() {
                 </>
               )}
 
-              {/* Número OS manual (sempre disponível) */}
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
                   {osResultado?.lista.length === 0
@@ -520,15 +563,15 @@ export default function NovoCorpoNotaPage() {
                 <button onClick={voltar} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">
                   ← Voltar
                 </button>
-                <button onClick={avancarStep4} className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors">
+                <button onClick={avancarStep3} className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors">
                   Próximo →
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 5 — Dados financeiros ────────────────────────────────────── */}
-          {step === 5 && (
+          {/* ── STEP 4 — Dados financeiros ────────────────────────────────────── */}
+          {step === 4 && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-lg font-black text-slate-800 dark:text-white">Dados do Corpo de Nota</h2>
@@ -620,8 +663,8 @@ export default function NovoCorpoNotaPage() {
             </div>
           )}
 
-          {/* ── STEP 6 — Preview e confirmação ───────────────────────────────── */}
-          {step === 6 && preview && (
+          {/* ── STEP 5 — Preview e confirmação ───────────────────────────────── */}
+          {step === 5 && preview && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-black text-slate-800 dark:text-white">Confirmar Corpo de Nota</h2>
@@ -632,7 +675,6 @@ export default function NovoCorpoNotaPage() {
                 )}
               </div>
 
-              {/* Resumo financeiro */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
                   <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-1">Valor Bruto</div>
@@ -650,7 +692,6 @@ export default function NovoCorpoNotaPage() {
                 </div>
               </div>
 
-              {/* Preview do conteúdo */}
               <div>
                 <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">
                   Corpo da Nota (prévia)
@@ -679,5 +720,17 @@ export default function NovoCorpoNotaPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function NovoCorpoNotaPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-400">
+        Carregando...
+      </div>
+    }>
+      <NovoCorpoNotaContent />
+    </Suspense>
   );
 }

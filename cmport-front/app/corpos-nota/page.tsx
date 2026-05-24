@@ -9,6 +9,11 @@ interface Condominio {
   nome: string;
 }
 
+interface CondPendente {
+  condominio_id: number;
+  nome: string;
+}
+
 interface CorpoResumo {
   id: number;
   tipo_nota: string;
@@ -62,6 +67,15 @@ function fmtValor(v: number | null) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function StatCard({ label, value, color }: { label: string; value: number | string; color: string }) {
+  return (
+    <div className={`rounded-2xl px-4 py-3 border ${color}`}>
+      <div className="text-2xl font-black">{value}</div>
+      <div className="text-xs font-semibold uppercase tracking-wide mt-0.5 opacity-80">{label}</div>
+    </div>
+  );
+}
+
 export default function CorposNotaPage() {
   const now = new Date();
   const [ano, setAno] = useState(now.getFullYear());
@@ -70,6 +84,7 @@ export default function CorposNotaPage() {
   const [statusFiltro, setStatusFiltro] = useState('');
   const [ciclos, setCiclos] = useState<Ciclo[]>([]);
   const [condominios, setCondominios] = useState<Condominio[]>([]);
+  const [pendentes, setPendentes] = useState<CondPendente[]>([]);
   const [loading, setLoading] = useState(true);
 
   const carregar = async () => {
@@ -78,12 +93,14 @@ export default function CorposNotaPage() {
       const params: Record<string, string | number> = { ano, mes };
       if (condominioId) params.condominio_id = condominioId;
       if (statusFiltro) params.status = statusFiltro;
-      const [rCiclos, rCond] = await Promise.all([
+      const [rCiclos, rCond, rPendentes] = await Promise.all([
         api.get('/ciclos-nota', { params }),
         api.get('/condominios'),
+        api.get('/corpos-nota/condominios-pendentes', { params: { tipo_nota: 'MANUTENCAO', ano, mes } }),
       ]);
       setCiclos(rCiclos.data);
       setCondominios(rCond.data);
+      setPendentes(rPendentes.data);
     } catch {
       // silencioso — tabela pode não ter dados ainda
     } finally {
@@ -125,7 +142,7 @@ export default function CorposNotaPage() {
               </div>
             </div>
             <Link
-              href="/corpos-nota/novo"
+              href={`/corpos-nota/novo?mes=${mes}&ano=${ano}`}
               className="px-4 py-2 bg-violet-600 text-white rounded-xl font-bold text-sm shadow hover:bg-violet-700 transition-colors text-center"
             >
               + Novo Corpo de Nota
@@ -133,6 +150,35 @@ export default function CorposNotaPage() {
           </div>
         </div>
       </div>
+
+      {/* Stats de manutenção */}
+      {!loading && (() => {
+        const criados = ciclos.filter(c => c.tipo_nota === 'MANUTENCAO').length;
+        const totalComContrato = criados + pendentes.length;
+        return (
+          <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+            <div className="px-3 sm:px-6 lg:px-8 py-3">
+              <div className="grid grid-cols-3 gap-3">
+                <StatCard
+                  label="Com contrato"
+                  value={totalComContrato}
+                  color="border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                />
+                <StatCard
+                  label="Pendentes"
+                  value={pendentes.length}
+                  color="border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/5"
+                />
+                <StatCard
+                  label="Criados"
+                  value={criados}
+                  color="border-violet-200 dark:border-violet-800/50 text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/5"
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
