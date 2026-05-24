@@ -150,6 +150,24 @@ def condominios_pendentes(
     ]
 
 
+@router.get("/proximo-numero")
+def proximo_numero(
+    tipo_nota: str,
+    ano: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Retorna o próximo numero_referencia que seria gerado para o tipo/ano informado."""
+    try:
+        tipo_enum = TipoNotaCorpo(tipo_nota)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"tipo_nota inválido: {tipo_nota}")
+
+    from app.services.corpo_nota_service import CorpoNotaService
+    numero = CorpoNotaService._gerar_numero_referencia(db, tipo_enum, ano)
+    return {"numero_referencia": numero}
+
+
 @router.post("/preview", response_model=CorpoNotaPreviewResponse)
 def preview_corpo(
     payload: CorpoNotaPreviewRequest,

@@ -103,10 +103,22 @@ export default function NovoCorpoNotaPage() {
     impostos_calculados: { valor_liquido: number; percentual_iss?: number } | null;
   } | null>(null);
   const [gerandoPreview, setGerandoPreview] = useState(false);
+  const [proximoNumero, setProximoNumero] = useState<string | null>(null);
+
+  // Busca o próximo número ao avançar do step 1
+  const buscarProximoNumero = async (tipo: string, anoRef: number) => {
+    try {
+      const r = await api.get('/corpos-nota/proximo-numero', { params: { tipo_nota: tipo, ano: anoRef } });
+      setProximoNumero(r.data.numero_referencia);
+    } catch {
+      setProximoNumero(null);
+    }
+  };
 
   // ── Step 1 → 2: tipo selecionado ────────────────────────────────────────────
   const avancarStep1 = () => {
     setErro(null);
+    buscarProximoNumero(tipoNota, ano);
     setStep(2);
   };
 
@@ -611,7 +623,14 @@ export default function NovoCorpoNotaPage() {
           {/* ── STEP 6 — Preview e confirmação ───────────────────────────────── */}
           {step === 6 && preview && (
             <div className="space-y-5">
-              <h2 className="text-lg font-black text-slate-800 dark:text-white">Confirmar Corpo de Nota</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-black text-slate-800 dark:text-white">Confirmar Corpo de Nota</h2>
+                {proximoNumero && (
+                  <span className="px-3 py-1.5 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 text-xs font-black rounded-lg tracking-widest">
+                    {proximoNumero}
+                  </span>
+                )}
+              </div>
 
               {/* Resumo financeiro */}
               <div className="grid grid-cols-2 gap-4">

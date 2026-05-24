@@ -509,6 +509,7 @@ class CorpoNotaService:
             cnpj_cond=cnpj_cond,
             razao_social_cond=razao_social_cond,
             contrato_inicio=contrato_inicio,
+            numero_referencia=corpo.numero_referencia,
         )
 
     @staticmethod
@@ -568,6 +569,7 @@ class CorpoNotaService:
         cnpj_cond: Optional[str] = None,
         razao_social_cond: Optional[str] = None,
         contrato_inicio: Optional[date] = None,
+        numero_referencia: Optional[str] = None,
     ) -> str:
         def fmt_valor(v: Optional[float]) -> str:
             if v is None:
@@ -610,6 +612,8 @@ class CorpoNotaService:
 
         # Linha de sumário
         sumario = [f"Serviço: Manutenção Preventiva Mensal", f"Período: {periodo}"]
+        if numero_referencia:
+            sumario.append(f"Referência: {numero_referencia}")
         if data_servico:
             sumario.append(f"Data de execução: {fmt_data_pontos(data_servico)}")
         if numero_os:
