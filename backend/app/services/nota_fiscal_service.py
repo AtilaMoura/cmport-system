@@ -58,6 +58,8 @@ def detectar_tipo_automatico(tipo_fornecido: Optional[str], descricao: str) -> T
         return TipoNota.MANUTENCAO
     if desc_upper.startswith("SERVICOS PRESTADOS"):
         return TipoNota.ASSISTENCIA
+    if desc_upper.startswith("SERVICOS EXECUTADOS"):
+        return TipoNota.ASSISTENCIA
     # Formato novo: "Segue abaixo a cobrança referente à manutenção preventiva mensal..."
     if "MANUTENCAO PREVENTIVA" in desc_upper:
         return TipoNota.MANUTENCAO
@@ -375,7 +377,7 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
     elif serie == '2':
         tipo = TipoNota.ASSISTENCIA
     else:
-        tipo = TipoNota.OUTROS
+        tipo = detectar_tipo_automatico(None, inf_compl)
 
     # Parcelas: conta vencimentos listados; fallback campo "Quantidade parcelas"
     lista_vencimentos = _extrair_lista_vencimentos(inf_compl)
