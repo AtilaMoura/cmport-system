@@ -97,6 +97,7 @@ interface Boleto {
   forma_pagamento: string;
   banco_pagamento: string | null;
   observacao: string | null;
+  pdf_object_key?: string | null;
 }
 
 interface OrdemServico {
@@ -219,6 +220,8 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [desvinculandoNota, setDesvinculandoNota] = useState(false);
   const [deletandoBoletoId, setDeletandoBoletoId] = useState<number | null>(null);
   const [cancelandoBoletoId, setCancelandoBoletoId] = useState<number | null>(null);
+  const [uploadingPdfBoletoId, setUploadingPdfBoletoId] = useState<number | null>(null);
+  const [deletingPdfBoletoId, setDeletingPdfBoletoId] = useState<number | null>(null);
   const [baixandoPdf, setBaixandoPdf] = useState<string | null>(null);
 
   // Modal envio de email
@@ -532,6 +535,33 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       alert('Erro ao remover boleto.');
     } finally {
       setDeletandoBoletoId(null);
+    }
+  };
+
+  const handleUploadPdfBoleto = async (boletoId: number, file: File) => {
+    setUploadingPdfBoletoId(boletoId);
+    try {
+      const formData = new FormData();
+      formData.append('arquivo', file);
+      await api.post(`/boletos/${boletoId}/pdf`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setBoletos(prev => prev.map(b => b.id === boletoId ? { ...b, pdf_object_key: 'uploaded' } : b));
+    } catch {
+      alert('Erro ao fazer upload do PDF do boleto.');
+    } finally {
+      setUploadingPdfBoletoId(null);
+    }
+  };
+
+  const handleDeletePdfBoleto = async (boletoId: number) => {
+    if (!confirm('Remover o PDF deste boleto?')) return;
+    setDeletingPdfBoletoId(boletoId);
+    try {
+      await api.delete(`/boletos/${boletoId}/pdf`);
+      setBoletos(prev => prev.map(b => b.id === boletoId ? { ...b, pdf_object_key: null } : b));
+    } catch {
+      alert('Erro ao remover PDF do boleto.');
+    } finally {
+      setDeletingPdfBoletoId(null);
     }
   };
 
@@ -2131,6 +2161,43 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                       📧 Enviar
                                     </button>
                                   </>
+                                )}
+                                {!boleto.codigo_solicitacao && (
+                                  boleto.pdf_object_key ? (
+                                    <>
+                                      <span className="text-xs font-bold text-green-600 dark:text-green-400 flex items-center gap-1">
+                                        <span>📄</span> PDF carregado
+                                      </span>
+                                      <button
+                                        onClick={() => handleDeletePdfBoleto(boleto.id)}
+                                        disabled={deletingPdfBoletoId === boleto.id}
+                                        className="px-3 py-1.5 text-xs font-bold bg-red-100 text-red-600 dark:bg-red-500/10 dark:text-red-400 rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                                        title="Remover PDF"
+                                      >
+                                        {deletingPdfBoletoId === boleto.id ? '...' : '🗑️ PDF'}
+                                      </button>
+                                      <button
+                                        onClick={() => abrirModalEmail(boleto)}
+                                        className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg hover:brightness-110 transition-all"
+                                        title="Enviar por Email"
+                                      >
+                                        📧 Enviar
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <label className="cursor-pointer px-3 py-1.5 text-xs font-bold bg-violet-600 text-white rounded-lg hover:brightness-110 transition-all flex items-center gap-1">
+                                      {uploadingPdfBoletoId === boleto.id
+                                        ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                                        : <><span>📎</span> Subir PDF</>}
+                                      <input
+                                        type="file"
+                                        accept=".pdf"
+                                        className="hidden"
+                                        disabled={uploadingPdfBoletoId === boleto.id}
+                                        onChange={e => { if (e.target.files?.[0]) handleUploadPdfBoleto(boleto.id, e.target.files[0]); e.target.value = ''; }}
+                                      />
+                                    </label>
+                                  )
                                 )}
                                 <button
                                   onClick={() => {
