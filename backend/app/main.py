@@ -89,6 +89,8 @@ def _run_migrations():
         # CorpoNota — número de referência sequencial interno
         "ALTER TABLE corpos_nota ADD COLUMN numero_referencia VARCHAR(20) NULL",
         "ALTER TABLE corpos_nota ADD UNIQUE INDEX uq_corpo_numero_referencia (numero_referencia)",
+        # Boleto — PDF manual para boletos sem API Inter
+        "ALTER TABLE boletos ADD COLUMN pdf_object_key VARCHAR(500) NULL",
     ]
     try:
         for stmt in stmts:

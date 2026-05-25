@@ -379,13 +379,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       }
 
       if (s.nota_fiscal_id) {
-        const [notaRes, boletosRes] = await Promise.all([
-          api.get(`/notas-fiscais/${s.nota_fiscal_id}`),
-          api.get(`/boletos/nota/${s.nota_fiscal_id}`),
-        ]);
+        const notaRes = await api.get(`/notas-fiscais/${s.nota_fiscal_id}`);
         const nota: NotaFiscal = notaRes.data;
         setNotaFiscal(nota);
-        setBoletos(boletosRes.data || []);
+        try {
+          const boletosRes = await api.get(`/boletos/nota/${s.nota_fiscal_id}`);
+          setBoletos(boletosRes.data || []);
+        } catch {
+          setBoletos([]);
+        }
         if (nota.nota_vinculada_id) {
           try {
             const { data: vinc } = await api.get(`/notas-fiscais/${nota.nota_vinculada_id}`);
