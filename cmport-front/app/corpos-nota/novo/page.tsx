@@ -511,11 +511,11 @@ function NovoCorpoNotaContent() {
                       </div>
                       {osResultado.lista.map(os => (
                         <button
-                          key={os.servico_id}
+                          key={os.numero_os ?? os.servico_id}
                           type="button"
                           onClick={() => selecionarOS(os)}
                           className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                            osSelecionada?.servico_id === os.servico_id
+                            osSelecionada?.numero_os === os.numero_os
                               ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
                               : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
                           }`}
