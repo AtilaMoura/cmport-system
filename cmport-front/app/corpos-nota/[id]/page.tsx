@@ -45,10 +45,17 @@ interface NotaFiscalCandidato {
   id: number;
   numero_nota: string;
   tipo: string;
+  status: string;
   valor: number;
   data_vencimento: string | null;
   cliente_nome: string | null;
 }
+
+const STATUS_NOTA_CONFIG: Record<string, { label: string; cls: string }> = {
+  AUTORIZADA:   { label: 'Autorizada',   cls: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' },
+  CANCELADA:    { label: 'Cancelada',    cls: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' },
+  DESCONHECIDO: { label: 'Desconhecido', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400' },
+};
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
   PENDENTE:      { label: 'Pendente',      cls: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',       dot: 'bg-slate-400' },
@@ -479,22 +486,31 @@ export default function DetalheCorpoNotaPage() {
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
                   {candidatos.length} candidato(s) encontrado(s). Selecione a nota correta:
                 </p>
-                {candidatos.map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => vincularNota(c.id)}
-                    disabled={vinculando}
-                    className="w-full text-left px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 transition-colors group disabled:opacity-50"
-                  >
-                    <div className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-cyan-700 dark:group-hover:text-cyan-400">
-                      NF #{c.numero_nota} · {c.tipo}
-                    </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      {c.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      {c.cliente_nome ? ` · ${c.cliente_nome}` : ''}
-                    </div>
-                  </button>
-                ))}
+                {candidatos.map(c => {
+                  const stNota = STATUS_NOTA_CONFIG[c.status] ?? STATUS_NOTA_CONFIG.DESCONHECIDO;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => vincularNota(c.id)}
+                      disabled={vinculando}
+                      className="w-full text-left px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 transition-colors group disabled:opacity-50"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-cyan-700 dark:group-hover:text-cyan-400">
+                          NF #{c.numero_nota} · {c.tipo}
+                        </div>
+                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold ${stNota.cls}`}>
+                          {stNota.label}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {c.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {c.cliente_nome ? ` · ${c.cliente_nome}` : ''}
+                        {c.data_vencimento ? ` · Venc. ${fmt(c.data_vencimento)}` : ''}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
 

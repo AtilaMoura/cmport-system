@@ -285,6 +285,7 @@ def listar_candidatos_nota(
             "id": n.id,
             "numero_nota": n.numero_nota,
             "tipo": n.tipo.value if hasattr(n.tipo, "value") else n.tipo,
+            "status": n.status.value if hasattr(n.status, "value") else n.status,
             "valor": float(n.valor) if n.valor else 0.0,
             "data_vencimento": n.data_vencimento.isoformat() if n.data_vencimento else None,
             "cliente_nome": n.cliente_nome,
