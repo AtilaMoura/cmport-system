@@ -54,37 +54,43 @@ def buscar_os_para_corpo(
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    """Retorna OSs de manutenção do condomínio para seleção.
+    """Retorna OSs do condomínio para seleção ao criar corpo de nota.
 
-    Mostra as 30 mais recentes sem filtro de data — o mês/ano de referência do
-    boleto não precisa coincidir com a data de execução da OS.
+    Lê direto de ordens_servico (sync do Auvo), filtrando por finished=True
+    e task_type_description contendo 'Manuten'. Retorna as 50 mais recentes.
     """
-    from app.models.servico_model import ManutencaoAssistencia, TipoServico
+    from app.models.ordem_servico_model import OrdemServico
+    from app.models.condominio_model import Condominio
 
-    servicos = (
-        db.query(ManutencaoAssistencia)
+    condo = db.query(Condominio).filter(Condominio.id == condominio_id).first()
+    if not condo or not condo.auvo_id:
+        return {"lista": [], "preenchimento_manual": True}
+
+    ordens = (
+        db.query(OrdemServico)
         .filter(
-            ManutencaoAssistencia.condominio_id == condominio_id,
-            ManutencaoAssistencia.tipo == TipoServico.MANUTENCAO,
+            OrdemServico.customer_id == condo.auvo_id,
+            OrdemServico.finished == True,
+            OrdemServico.task_type_description.ilike("%Manuten%"),
         )
-        .order_by(ManutencaoAssistencia.data_servico.desc())
-        .limit(30)
+        .order_by(OrdemServico.task_date.desc())
+        .limit(50)
         .all()
     )
 
-    if not servicos:
+    if not ordens:
         return {"lista": [], "preenchimento_manual": True}
 
     return {
         "lista": [
             {
-                "servico_id": s.id,
-                "numero_os": s.numero_os,
-                "data_servico": s.data_servico.isoformat() if s.data_servico else None,
-                "descricao_preview": (s.descricao or "")[:60],
-                "descricao_completa": s.descricao,
+                "servico_id": None,
+                "numero_os": str(o.task_id),
+                "data_servico": o.task_date.date().isoformat() if o.task_date else None,
+                "descricao_preview": (o.task_type_description or "")[:60].strip(),
+                "descricao_completa": o.orientation or o.task_type_description,
             }
-            for s in servicos
+            for o in ordens
         ],
         "preenchimento_manual": False,
     }
