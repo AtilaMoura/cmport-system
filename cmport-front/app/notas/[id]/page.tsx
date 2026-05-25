@@ -153,6 +153,8 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   const [deletandoBoletoId, setDeletandoBoletoId] = useState<number | null>(null);
   const [notaVinculada, setNotaVinculada] = useState<NotaFiscal | null>(null);
   const [desvinculando, setDesvinculando] = useState(false);
+  const [reprocessando, setReprocessando] = useState(false);
+  const [reprocessarMsg, setReprocessarMsg] = useState<{ avisos: string[]; erro?: string } | null>(null);
 
   const [dataVencimento, setDataVencimento] = useState('');
   const [dataPagamento, setDataPagamento] = useState('');
@@ -252,6 +254,21 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       alert('Erro ao desvincular notas.');
     } finally {
       setDesvinculando(false);
+    }
+  };
+
+  const handleReprocessar = async () => {
+    if (!nota) return;
+    setReprocessando(true);
+    setReprocessarMsg(null);
+    try {
+      const res = await api.post(`/notas-fiscais/${nota.id}/reprocessar`);
+      setReprocessarMsg({ avisos: res.data.avisos ?? [] });
+      await carregarDados();
+    } catch (e: any) {
+      setReprocessarMsg({ avisos: [], erro: e?.response?.data?.detail || 'Erro ao reprocessar.' });
+    } finally {
+      setReprocessando(false);
     }
   };
 
@@ -544,6 +561,16 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
               {!editando ? (
                 <>
                   <button
+                    onClick={handleReprocessar}
+                    disabled={reprocessando}
+                    className="px-5 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-bold shadow-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2"
+                    title="Reprocessar o XML salvo no banco, atualizando tipo, condomínio e serviço sem alterar o PDF"
+                  >
+                    {reprocessando
+                      ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Reprocessando...</>
+                      : <><span>🔄</span> Reprocessar XML</>}
+                  </button>
+                  <button
                     onClick={() => setEditando(true)}
                     className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-sm hover:brightness-110 transition-all flex items-center gap-2"
                   >
@@ -591,6 +618,26 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
       </div>
+
+      {/* Banner reprocessar */}
+      {reprocessarMsg && (
+        <div className={`border-b px-3 sm:px-6 lg:px-8 py-3 flex items-start justify-between gap-4 ${reprocessarMsg.erro ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-800' : 'bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-800'}`}>
+          <div>
+            {reprocessarMsg.erro
+              ? <p className="text-sm font-bold text-red-700 dark:text-red-400">❌ {reprocessarMsg.erro}</p>
+              : <>
+                  <p className="text-sm font-bold text-violet-700 dark:text-violet-400 mb-1">✅ Nota reprocessada com sucesso</p>
+                  {reprocessarMsg.avisos.map((a, i) => (
+                    <p key={i} className="text-xs text-violet-600 dark:text-violet-300">• {a}</p>
+                  ))}
+                  {reprocessarMsg.avisos.length === 0 && (
+                    <p className="text-xs text-violet-600 dark:text-violet-300">Nenhuma alteração de condomínio ou serviço necessária.</p>
+                  )}
+                </>}
+          </div>
+          <button onClick={() => setReprocessarMsg(null)} className="text-slate-400 hover:text-slate-600 text-lg shrink-0">×</button>
+        </div>
+      )}
 
       {/* Main content */}
       <div className="px-3 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-4 lg:space-y-8">

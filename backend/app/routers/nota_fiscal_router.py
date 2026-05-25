@@ -195,6 +195,11 @@ async def importar_xmls(
         raise HTTPException(status_code=500, detail=f"Erro ao importar XMLs: {str(e)}")
 
 
+@router.post("/{id}/reprocessar")
+def reprocessar_nota(id: int, db: Session = Depends(get_db)):
+    return NotaFiscalService.reprocessar_nota(db, id)
+
+
 @router.put("/{id}", response_model=NotaFiscalResponse)
 def update_nota(id: int, nota_update: NotaFiscalUpdate, db: Session = Depends(get_db)):
     updated = NotaFiscalService.update_nota(db, id, nota_update)

@@ -641,6 +641,68 @@ def corrigir_datas_servico(db: Session) -> dict:
 class NotaFiscalService:
 
     @staticmethod
+    def reprocessar_nota(db: Session, nota_id: int) -> dict:
+        from app.models.nota_fiscal_model import NotaFiscal
+        from app.models.servico_model import ManutencaoAssistencia
+
+        nota = db.get(NotaFiscal, nota_id)
+        if not nota:
+            raise HTTPException(status_code=404, detail="Nota não encontrada")
+        if not nota.xml_original:
+            raise HTTPException(status_code=400, detail="Nota não possui XML armazenado")
+
+        tipo_xml = detectar_tipo_xml(nota.xml_original)
+        if tipo_xml == 'NFSe':
+            dados = extrair_dados_nfse(nota.xml_original, db, None)
+        elif tipo_xml == 'NFe':
+            dados = extrair_dados_nfe(nota.xml_original, db, None)
+        else:
+            raise HTTPException(status_code=400, detail=f"Tipo de XML não suportado: {tipo_xml}")
+
+        aviso_condo = dados.pop('_aviso', None)
+
+        campos_atualizaveis = {
+            'tipo', 'status', 'parcelas', 'valor', 'valor_boleto_parcela',
+            'parcelas_json', 'data_vencimento', 'cliente_nome', 'cnpj_emitente',
+            'observacao', 'descricao_servico', 'condominio_id',
+            'iss', 'pis', 'cofins', 'inss', 'csll', 'icms', 'prev',
+        }
+        for campo in campos_atualizaveis:
+            if campo in dados:
+                setattr(nota, campo, dados[campo])
+
+        _validar_impostos_vs_config(db, nota)
+        db.commit()
+        db.refresh(nota)
+
+        aviso_servico = None
+        if nota.condominio_id and nota.tipo in [TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]:
+            servico_existente = db.query(ManutencaoAssistencia).filter_by(nota_fiscal_id=nota.id).first()
+            if not servico_existente:
+                try:
+                    tipo_servico_str = "assistencia" if nota.tipo == TipoNota.ASSISTENCIA else "manutencao"
+                    servico = ServicoCreate(
+                        condominio_id=nota.condominio_id,
+                        tipo=tipo_servico_str,
+                        data_servico=dados.get('data_servico') or dados.get('data_emissao'),
+                        descricao=dados.get('descricao_servico'),
+                        nota_fiscal_id=nota.id,
+                        numero_os=dados.get('numero_os'),
+                    )
+                    ServicoService.create_servico(db, servico)
+                    aviso_servico = f"Serviço '{tipo_servico_str}' criado automaticamente"
+                    print(f"[Reprocessar] Servico criado para nota {nota.numero_nota}")
+                except Exception as e:
+                    aviso_servico = f"Nota reprocessada, mas erro ao criar serviço: {e}"
+                    print(f"[Reprocessar] Erro ao criar servico: {e}")
+
+        avisos = [a for a in [aviso_condo, aviso_servico] if a]
+        return {
+            "nota": NotaFiscalResponse.model_validate(nota),
+            "avisos": avisos,
+        }
+
+    @staticmethod
     def create_nota(db: Session, nota: NotaFiscalCreate):
         db_nota = NotaFiscalRepository.create(db, nota)
         return NotaFiscalResponse.model_validate(db_nota)
