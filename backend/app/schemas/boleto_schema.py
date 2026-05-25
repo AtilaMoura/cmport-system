@@ -25,6 +25,7 @@ class BoletoResponse(BaseModel):
     forma_pagamento: FormaPagamento
     banco_pagamento: Optional[str] = None
     observacao: Optional[str] = None
+    pdf_object_key: Optional[str] = None
     criado_em: datetime
 
     model_config = {"from_attributes": True}

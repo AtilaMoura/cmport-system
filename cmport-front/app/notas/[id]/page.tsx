@@ -64,6 +64,7 @@ interface Boleto {
   forma_pagamento: string;
   banco_pagamento?: string | null;
   observacao?: string | null;
+  pdf_object_key?: string | null;
 }
 
 const SITUACAO_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
@@ -155,6 +156,8 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   const [desvinculando, setDesvinculando] = useState(false);
   const [reprocessando, setReprocessando] = useState(false);
   const [reprocessarMsg, setReprocessarMsg] = useState<{ avisos: string[]; erro?: string } | null>(null);
+  const [uploadingPdfBoletoId, setUploadingPdfBoletoId] = useState<number | null>(null);
+  const [deletingPdfBoletoId, setDeletingPdfBoletoId] = useState<number | null>(null);
 
   const [dataVencimento, setDataVencimento] = useState('');
   const [dataPagamento, setDataPagamento] = useState('');
@@ -254,6 +257,33 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       alert('Erro ao desvincular notas.');
     } finally {
       setDesvinculando(false);
+    }
+  };
+
+  const handleUploadPdfBoleto = async (boletoId: number, file: File) => {
+    setUploadingPdfBoletoId(boletoId);
+    try {
+      const formData = new FormData();
+      formData.append('arquivo', file);
+      await api.post(`/boletos/${boletoId}/pdf`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await carregarDados();
+    } catch {
+      alert('Erro ao fazer upload do PDF do boleto.');
+    } finally {
+      setUploadingPdfBoletoId(null);
+    }
+  };
+
+  const handleDeletePdfBoleto = async (boletoId: number) => {
+    if (!confirm('Remover o PDF deste boleto?')) return;
+    setDeletingPdfBoletoId(boletoId);
+    try {
+      await api.delete(`/boletos/${boletoId}/pdf`);
+      await carregarDados();
+    } catch {
+      alert('Erro ao remover PDF do boleto.');
+    } finally {
+      setDeletingPdfBoletoId(null);
     }
   };
 
@@ -722,6 +752,42 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                         <span className="inline-block text-xs font-mono font-bold px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
                           {FORMA_PAGAMENTO_ICONS[boleto.forma_pagamento as FormaPagamento] ?? boleto.forma_pagamento}
                         </span>
+                      </div>
+                    )}
+
+                    {/* PDF do boleto manual */}
+                    {boleto && !boleto.codigo_solicitacao && (
+                      <div className="flex items-center gap-2 pt-1">
+                        {boleto.pdf_object_key ? (
+                          <>
+                            <span className="text-xs font-bold text-green-600 dark:text-green-400 flex items-center gap-1">
+                              <span>📄</span> PDF carregado
+                            </span>
+                            <button
+                              onClick={() => handleDeletePdfBoleto(boleto.id)}
+                              disabled={deletingPdfBoletoId === boleto.id}
+                              className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                              title="Remover PDF"
+                            >
+                              {deletingPdfBoletoId === boleto.id ? '...' : '🗑️'}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <label className="cursor-pointer text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-2 py-1 rounded-lg hover:bg-violet-100 transition-all flex items-center gap-1">
+                              {uploadingPdfBoletoId === boleto.id
+                                ? <><div className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                                : <><span>📎</span> Subir PDF</>}
+                              <input
+                                type="file"
+                                accept=".pdf"
+                                className="hidden"
+                                disabled={uploadingPdfBoletoId === boleto.id}
+                                onChange={e => { if (e.target.files?.[0]) handleUploadPdfBoleto(boleto.id, e.target.files[0]); e.target.value = ''; }}
+                              />
+                            </label>
+                          </>
+                        )}
                       </div>
                     )}
 

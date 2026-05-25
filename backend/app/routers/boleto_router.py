@@ -229,6 +229,42 @@ async def enviar_email_servico(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/{boleto_id}/pdf")
+async def upload_pdf_boleto(
+    boleto_id: int,
+    arquivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client),
+):
+    """Faz upload do PDF de um boleto manual (sem código Inter)."""
+    pdf_bytes = await arquivo.read()
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="Arquivo vazio")
+    try:
+        key = BoletoService.upload_pdf_boleto(db, boleto_id, pdf_bytes, storage)
+        return {"pdf_object_key": key}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{boleto_id}/pdf")
+def delete_pdf_boleto(
+    boleto_id: int,
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client),
+):
+    """Remove o PDF manual de um boleto."""
+    try:
+        BoletoService.delete_pdf_boleto(db, boleto_id, storage)
+        return {"removido": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/{codigo}/pdf")
 def baixar_pdf(codigo: str, db: Session = Depends(get_db)):
     """Faz download do PDF do boleto."""

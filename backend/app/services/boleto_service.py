@@ -808,6 +808,33 @@ class BoletoService:
         return client.baixar_pdf(codigo_solicitacao)
 
     @staticmethod
+    def upload_pdf_boleto(db: Session, boleto_id: int, pdf_bytes: bytes, storage: StorageClient) -> str:
+        from app.core.config import settings
+        boleto = BoletoRepository.get_by_id(db, boleto_id)
+        if not boleto:
+            raise HTTPException(status_code=404, detail="Boleto não encontrado")
+        object_key = f"boletos/{boleto_id}/boleto_{boleto_id}.pdf"
+        storage.upload(settings.STORAGE_BUCKET, object_key, pdf_bytes, content_type="application/pdf")
+        boleto.pdf_object_key = object_key
+        db.commit()
+        print(f"[Boleto] PDF manual salvo: {object_key}")
+        return object_key
+
+    @staticmethod
+    def delete_pdf_boleto(db: Session, boleto_id: int, storage: StorageClient):
+        from app.core.config import settings
+        boleto = BoletoRepository.get_by_id(db, boleto_id)
+        if not boleto:
+            raise HTTPException(status_code=404, detail="Boleto não encontrado")
+        if boleto.pdf_object_key:
+            try:
+                storage.delete(settings.STORAGE_BUCKET, boleto.pdf_object_key)
+            except Exception as e:
+                print(f"[Boleto] Aviso ao deletar PDF do storage: {e}")
+            boleto.pdf_object_key = None
+            db.commit()
+
+    @staticmethod
     def sincronizar_status(db: Session) -> SincronizarResponse:
         pendentes = BoletoRepository.get_pendentes(db)
         atualizados = 0
@@ -1318,8 +1345,8 @@ class BoletoService:
         boleto = BoletoRepository.get_by_id(db, boleto_id)
         if not boleto:
             raise Exception("Boleto não encontrado.")
-        if not boleto.codigo_solicitacao:
-            raise Exception("Este boleto não possui código Inter para download de PDF.")
+        if not boleto.codigo_solicitacao and not boleto.pdf_object_key:
+            raise Exception("Este boleto não possui PDF disponível. Faça upload do PDF antes de enviar o email.")
 
         nota = NotaFiscalRepository.get_by_id(db, boleto.nota_fiscal_id)
         if not nota:
@@ -1330,22 +1357,23 @@ class BoletoService:
             (condominio.razao_social or condominio.nome) if condominio else "Condomínio"
         )
 
-        # Cliente Inter correto para a nota deste boleto
-        client_email = _get_inter_client(nota, db)
-
-        # Baixa PDF do boleto via Inter
-        pdf_bytes = client_email.baixar_pdf(boleto.codigo_solicitacao)
-
-        # Tenta obter linha digitável consultando o Inter
+        # Baixa PDF: do Inter se tiver codigo, do storage se for manual
         linha_digitavel = None
-        try:
-            detalhe = client_email.consultar_boleto(boleto.codigo_solicitacao)
-            linha_digitavel = (
-                detalhe.get("linhaDigitavel")
-                or detalhe.get("cobranca", {}).get("linhaDigitavel")
-            )
-        except Exception:
-            pass
+        if boleto.codigo_solicitacao:
+            client_email = _get_inter_client(nota, db)
+            pdf_bytes = client_email.baixar_pdf(boleto.codigo_solicitacao)
+            try:
+                detalhe = client_email.consultar_boleto(boleto.codigo_solicitacao)
+                linha_digitavel = (
+                    detalhe.get("linhaDigitavel")
+                    or detalhe.get("cobranca", {}).get("linhaDigitavel")
+                )
+            except Exception:
+                pass
+        else:
+            from app.core.config import settings
+            pdf_bytes = storage.download(settings.STORAGE_BUCKET, boleto.pdf_object_key)
+            print(f"[Email] PDF do boleto carregado do storage: {boleto.pdf_object_key}")
 
         # Determina se usa template de manutenção
         dados_manutencao = dados_manutencao_manual or BoletoService._preparar_dados_manutencao(db, nota, boleto, nome_condominio)
