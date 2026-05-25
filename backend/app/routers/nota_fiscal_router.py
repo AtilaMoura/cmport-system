@@ -186,7 +186,8 @@ async def importar_xmls(
             processados=resultado["processados"],
             ja_existentes=resultado.get("ja_existentes", 0),
             canceladas=resultado.get("canceladas", 0),
-            erros=resultado["erros"]
+            erros=resultado["erros"],
+            avisos=resultado.get("avisos", [])
         )
     except Exception as e:
         import traceback

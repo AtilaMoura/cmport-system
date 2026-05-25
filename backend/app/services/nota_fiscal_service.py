@@ -22,6 +22,11 @@ def limpar_cnpj(cnpj: str) -> str:
     return "".join(filter(str.isdigit, cnpj or ""))
 
 
+def _formatar_cnpj(cnpj: str) -> str:
+    c = "".join(filter(str.isdigit, cnpj or ""))
+    return f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:14]}" if len(c) == 14 else cnpj
+
+
 def parse_date(data_str: str) -> date:
     if not data_str:
         return date.today()
@@ -275,6 +280,34 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
         else:
             print(f"[NFSe] Nome '{razao_dest}' nao encontrou condominio")
 
+    aviso_condo = None
+    if not condominio_id and cnpj_dest:
+        from app.services.auvo_client import auvo_client as _auvo_client
+        from app.services.auvo_service import AuvoSyncService
+        customer_auvo = _auvo_client.get_customer_by_cnpj(cnpj_dest)
+        if customer_auvo:
+            novo_condo = AuvoSyncService.sync_single_customer(db, customer_auvo)
+            if novo_condo:
+                condominio_id = novo_condo.id
+                aviso_condo = f"Condomínio sincronizado do Auvo: {novo_condo.nome}"
+                print(f"[NFSe] {aviso_condo}")
+        else:
+            from app.models.condominio_model import Condominio
+            cnpj_fmt = _formatar_cnpj(cnpj_dest)
+            novo_condo = Condominio(
+                nome=razao_dest or cnpj_fmt,
+                cnpj=cnpj_fmt,
+                razao_social=razao_dest,
+                observacao="Criado automaticamente via importação NFSe (não encontrado no Auvo)",
+                ativo=True,
+            )
+            db.add(novo_condo)
+            db.commit()
+            db.refresh(novo_condo)
+            condominio_id = novo_condo.id
+            aviso_condo = f"Condomínio criado (não encontrado no Auvo): {novo_condo.nome}"
+            print(f"[NFSe] {aviso_condo}")
+
     descricao_limpa = limpar_descricao(discriminacao)
     data_servico_real = extrair_data_servico(discriminacao) or data_emissao
     numero_os = extrair_numero_os(discriminacao)
@@ -296,6 +329,7 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
         'observacao': f"Emitente: {razao_emit} | CNPJ: {cnpj_emit}",
         'descricao_servico': descricao_limpa,
         'condominio_id': condominio_id,
+        '_aviso': aviso_condo,
         'xml_original': xml_str,
         # impostos
         'iss': iss or None,
@@ -397,6 +431,34 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
         else:
             print(f"[NFe] Nome '{razao_dest}' nao encontrou condominio")
 
+    aviso_condo = None
+    if not condominio_id and cnpj_dest:
+        from app.services.auvo_client import auvo_client as _auvo_client
+        from app.services.auvo_service import AuvoSyncService
+        customer_auvo = _auvo_client.get_customer_by_cnpj(cnpj_dest)
+        if customer_auvo:
+            novo_condo = AuvoSyncService.sync_single_customer(db, customer_auvo)
+            if novo_condo:
+                condominio_id = novo_condo.id
+                aviso_condo = f"Condomínio sincronizado do Auvo: {novo_condo.nome}"
+                print(f"[NFe] {aviso_condo}")
+        else:
+            from app.models.condominio_model import Condominio
+            cnpj_fmt = _formatar_cnpj(cnpj_dest)
+            novo_condo = Condominio(
+                nome=razao_dest or cnpj_fmt,
+                cnpj=cnpj_fmt,
+                razao_social=razao_dest,
+                observacao="Criado automaticamente via importação NFe (não encontrado no Auvo)",
+                ativo=True,
+            )
+            db.add(novo_condo)
+            db.commit()
+            db.refresh(novo_condo)
+            condominio_id = novo_condo.id
+            aviso_condo = f"Condomínio criado (não encontrado no Auvo): {novo_condo.nome}"
+            print(f"[NFe] {aviso_condo}")
+
     descricao_limpa = limpar_descricao(inf_compl)
     data_servico_real = extrair_data_servico(inf_compl) or data_emissao
     numero_os = extrair_numero_os(inf_compl)
@@ -418,6 +480,7 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
         'numero_os': numero_os,
         'descricao_servico': descricao_limpa,
         'condominio_id': condominio_id,
+        '_aviso': aviso_condo,
         'xml_original': xml_str,
         # impostos
         'icms':   icms,
@@ -928,6 +991,7 @@ class NotaFiscalService:
         ja_existentes = 0
         canceladas = 0
         erros = []
+        avisos = []
         xmls_para_processar = []
         pdfs_no_zip: dict[str, bytes] = {}  # nome_base_lower -> bytes
 
@@ -986,6 +1050,10 @@ class NotaFiscalService:
                     dados_nota = extrair_dados_nfse(xml_str, db, tipo_fornecido)
                 else:
                     dados_nota = extrair_dados_nfe(xml_str, db, tipo_fornecido)
+
+                _aviso = dados_nota.pop('_aviso', None)
+                if _aviso:
+                    avisos.append(_aviso)
 
                 print(f"[IMPORT] Nota {dados_nota['numero_nota']} | tipo={dados_nota['tipo']} | status={dados_nota['status']} | condominio_id={dados_nota['condominio_id']}")
 
@@ -1088,7 +1156,7 @@ class NotaFiscalService:
                 erros.append({"arquivo": filename, "erro": str(e)})
 
         print(f"[IMPORT] <<< Resultado: {processados} importadas | {ja_existentes} ja existentes | {canceladas} canceladas | {len(erros)} erros\n")
-        return {"processados": processados, "ja_existentes": ja_existentes, "canceladas": canceladas, "erros": erros}
+        return {"processados": processados, "ja_existentes": ja_existentes, "canceladas": canceladas, "erros": erros, "avisos": avisos}
 
     @staticmethod
     def vincular_notas(db: Session, nota_a_id: int, nota_b_id: int) -> dict:

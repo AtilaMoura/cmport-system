@@ -75,3 +75,31 @@ class AuvoSyncService:
                 )
 
         return relatorio
+
+    @staticmethod
+    def sync_single_customer(db: Session, customer_data: dict):
+        """Cria um único cliente Auvo no banco se ainda não existir. Nunca modifica existentes."""
+        auvo_id = customer_data.get("id")
+        if not auvo_id:
+            return None
+
+        existing = CondominioRepository.get_by_auvo_id(db, auvo_id)
+        if existing:
+            return existing
+
+        condo_data = AuvoMapper.to_condominio_create(customer_data)
+        if not condo_data.nome or len(condo_data.nome.strip()) < 3:
+            return None
+
+        try:
+            novo = CondominioRepository.create_with_auvo(db, condo_data, auvo_id)
+            try:
+                addr_data = AuvoMapper.to_endereco_create(customer_data, novo.id)
+                EnderecoService.create_endereco(db, addr_data)
+            except Exception as e:
+                print(f"[AuvoSync] Erro ao sincronizar endereço: {e}")
+            return novo
+        except Exception as e:
+            db.rollback()
+            print(f"[AuvoSync] Erro ao criar condomínio Auvo ID={auvo_id}: {e}")
+            return None

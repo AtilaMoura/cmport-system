@@ -172,6 +172,24 @@ class AuvoClient:
             page += 1
         return todos
 
+    def get_customer_by_cnpj(self, cnpj: str) -> Optional[Dict]:
+        """Pagina clientes Auvo parando na primeira ocorrência do CNPJ. O(n) no pior caso."""
+        cnpj_limpo = re.sub(r'\D', '', cnpj or '')
+        if not cnpj_limpo:
+            return None
+        page = 1
+        while True:
+            customers = self.get_customers(page=page, page_size=100)
+            if not customers:
+                break
+            for c in customers:
+                if re.sub(r'\D', '', c.get('cpfCnpj', '')) == cnpj_limpo:
+                    return c
+            if len(customers) < 100:
+                break
+            page += 1
+        return None
+
     def get_products(self, page: int = 1, page_size: int = 100, ativo: bool = True) -> List[Dict]:
         """Busca produtos paginados. Endpoint: GET /products/"""
         # Auvo API v2 usa paramFilter JSON para filtrar por ativo

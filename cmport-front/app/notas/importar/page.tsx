@@ -334,6 +334,20 @@ export default function ImportarNotasPage() {
               </div>
             )}
 
+            {resultado.avisos && resultado.avisos.length > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-4">
+                <div className="font-bold text-amber-700 dark:text-amber-400 mb-2">
+                  ⚠️ {resultado.avisos.length} aviso(s) de condomínio:
+                </div>
+                {resultado.avisos.map((aviso: string, i: number) => (
+                  <div key={i} className="text-sm text-amber-700 dark:text-amber-300 flex items-start gap-1.5 mb-1">
+                    <span className="mt-0.5 shrink-0">•</span>
+                    <span>{aviso}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {errosCanceladas.length > 0 && (
               <div className="mb-3">
                 <div className="font-bold text-sm text-amber-700 dark:text-amber-400 mb-2">

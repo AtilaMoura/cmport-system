@@ -89,6 +89,7 @@ class ImportacaoResponse(BaseModel):
     ja_existentes: int = 0
     canceladas: int = 0
     erros: list[dict]
+    avisos: list[str] = []
 
 
 class NotaFiscalUpdate(BaseModel):
