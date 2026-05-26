@@ -221,24 +221,29 @@ export default function ConfiguracoesPage() {
   };
 
   const salvarInter = async () => {
-    if (!interForm.cnpj || !interForm.client_id || !interForm.conta_corrente || !interForm.cert_path) {
-      alert('Preencha CNPJ, Client ID, Conta Corrente e Caminho do Certificado.'); return;
-    }
-    if (modalInter === 'novo' && !interForm.client_secret) {
-      alert('Informe o Client Secret.'); return;
+    if (!interForm.cnpj) {
+      alert('Preencha o CNPJ.'); return;
     }
     setSalvandoInter(true);
     try {
       if (modalInter === 'novo') {
-        await api.post('/configuracoes/inter', interForm);
+        await api.post('/configuracoes/inter', {
+          cnpj:           interForm.cnpj,
+          razao_social:   interForm.razao_social || null,
+          client_id:      interForm.client_id || null,
+          client_secret:  interForm.client_secret || null,
+          conta_corrente: interForm.conta_corrente || null,
+          cert_path:      interForm.cert_path || null,
+          ativo:          interForm.ativo,
+        });
       } else {
         const payload: Record<string, unknown> = {
-          cnpj:          interForm.cnpj,
-          razao_social:  interForm.razao_social || null,
-          client_id:     interForm.client_id,
-          conta_corrente: interForm.conta_corrente,
-          cert_path:     interForm.cert_path,
-          ativo:         interForm.ativo,
+          cnpj:           interForm.cnpj,
+          razao_social:   interForm.razao_social || null,
+          client_id:      interForm.client_id || null,
+          conta_corrente: interForm.conta_corrente || null,
+          cert_path:      interForm.cert_path || null,
+          ativo:          interForm.ativo,
         };
         if (interForm.client_secret) payload.client_secret = interForm.client_secret;
         await api.put(`/configuracoes/inter/${(modalInter as ContaInter).id}`, payload);
@@ -483,14 +488,14 @@ export default function ConfiguracoesPage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-black text-slate-800 dark:text-white">🏦 Contas Banco Inter</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Uma conta por CNPJ emitente — o boleto usa a conta do CNPJ da nota</p>
+            <h2 className="text-lg font-black text-slate-800 dark:text-white">🏦 Emitentes (CNPJ)</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Cadastre cada CNPJ emitente. Credenciais Banco Inter são opcionais — só necessárias para gerar boleto.</p>
           </div>
           <button
             onClick={abrirNovaInter}
             className="px-4 py-2 bg-orange-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all"
           >
-            + Adicionar conta
+            + Adicionar CNPJ
           </button>
         </div>
 
@@ -498,8 +503,8 @@ export default function ConfiguracoesPage() {
           <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : contasInter.length === 0 ? (
           <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
-            <p className="text-slate-400 text-sm">Nenhuma conta Inter cadastrada.</p>
-            <p className="text-slate-400 text-xs mt-1">Sem configuração, o sistema usa as variáveis de ambiente (.env).</p>
+            <p className="text-slate-400 text-sm">Nenhum CNPJ emitente cadastrado.</p>
+            <p className="text-slate-400 text-xs mt-1">Clique em "+ Adicionar CNPJ" para cadastrar o emitente das notas.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -515,7 +520,10 @@ export default function ConfiguracoesPage() {
                       }
                     </div>
                     {c.razao_social && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.razao_social}</p>}
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-mono">{c.client_id.substring(0, 8)}…</p>
+                    {c.client_id
+                      ? <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-mono">{c.client_id.substring(0, 8)}… <span className="text-green-500">● Inter</span></p>
+                      : <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Sem credenciais Inter (só emitente)</p>
+                    }
                   </div>
 
                   <div className="flex gap-1.5 flex-wrap justify-end shrink-0">
@@ -547,7 +555,7 @@ export default function ConfiguracoesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
             <h2 className="text-lg font-black text-slate-900 dark:text-white mb-5">
-              {modalInter === 'novo' ? '+ Nova Conta Banco Inter' : '✏️ Editar Conta Inter'}
+              {modalInter === 'novo' ? '+ Novo Emitente (CNPJ)' : '✏️ Editar Emitente'}
             </h2>
 
             <div className="space-y-4">
@@ -646,7 +654,7 @@ export default function ConfiguracoesPage() {
               </button>
               <button
                 onClick={salvarInter}
-                disabled={salvandoInter || !interForm.cnpj || !interForm.client_id || !interForm.conta_corrente || !interForm.cert_path}
+                disabled={salvandoInter || !interForm.cnpj}
                 className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {salvandoInter
