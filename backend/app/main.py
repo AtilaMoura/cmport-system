@@ -33,6 +33,9 @@ import app.models.termo_garantia_model     # termos de garantia
 import app.models.contrato_condominio_model  # contratos simples por condomínio
 import app.models.ciclo_nota_model           # ciclos mensais de faturamento
 import app.models.corpo_nota_model           # corpo da nota (pré-nota)
+import app.models.fin_categoria_model        # financeiro — categorias
+import app.models.fin_movimentacao_model     # financeiro — movimentações
+import app.models.fin_saldo_inicial_model    # financeiro — saldo inicial mensal
 
 # Importar todos os routers
 from app.routers.auth_router import router as auth_router
@@ -53,6 +56,8 @@ from app.routers.termo_garantia_router import router as termo_garantia_router
 from app.routers.contrato_router import router as contratos_router
 from app.routers.ciclo_nota_router import router as ciclos_nota_router
 from app.routers.corpo_nota_router import router as corpos_nota_router
+from app.routers.fin_movimentacao_router import router as fin_mov_router
+from app.routers.fin_categoria_router    import router as fin_cat_router
 
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
@@ -226,6 +231,57 @@ def _seed_emitentes_inter():
 _seed_emitentes_inter()
 
 
+def _seed_categorias_financeiras():
+    """Insere 49 categorias padrão se a tabela estiver vazia."""
+    from app.core.database import SessionLocal
+    from app.models.fin_categoria_model import CategoriaFinanceira
+    FIN_CATEGORIAS_SEED = [
+        # RECEITAS
+        ("Contrato Manutenção","RECEITA","ENTRADA",1), ("Assistência","RECEITA","ENTRADA",2),
+        ("Juros","RECEITA","ENTRADA",3), ("Rendimento","RECEITA","ENTRADA",4),
+        ("Ajustes","RECEITA","ENTRADA",5), ("Outros Recebimentos","RECEITA","ENTRADA",6),
+        # FORNECEDORES
+        ("Center G","FORNECEDOR","SAIDA",1), ("Depósito Iracema","FORNECEDOR","SAIDA",2),
+        ("Tugumi","FORNECEDOR","SAIDA",3), ("JT Thenário","FORNECEDOR","SAIDA",4),
+        ("M&L","FORNECEDOR","SAIDA",5), ("ZN Distribuidora","FORNECEDOR","SAIDA",6),
+        ("Porto Seg","FORNECEDOR","SAIDA",7), ("Speed Door","FORNECEDOR","SAIDA",8),
+        ("Telman","FORNECEDOR","SAIDA",9), ("NSA","FORNECEDOR","SAIDA",10),
+        ("Islene","FORNECEDOR","SAIDA",11), ("Mauricio Motores","FORNECEDOR","SAIDA",12),
+        ("Metais Silva","FORNECEDOR","SAIDA",13), ("Linear","FORNECEDOR","SAIDA",14),
+        ("Interseg","FORNECEDOR","SAIDA",15), ("Paulo Port","FORNECEDOR","SAIDA",16),
+        ("LM Distribuidora","FORNECEDOR","SAIDA",17), ("PPA Leste","FORNECEDOR","SAIDA",18),
+        ("Sinapar","FORNECEDOR","SAIDA",19), ("Aquarios","FORNECEDOR","SAIDA",20),
+        ("2M2N","FORNECEDOR","SAIDA",21), ("Outros Fornecedores","FORNECEDOR","SAIDA",22),
+        # DESPESAS
+        ("Salários","DESPESA","SAIDA",1), ("Adiantamento de Salário","DESPESA","SAIDA",2),
+        ("Combustível — André","DESPESA","SAIDA",3), ("Combustível — Outro","DESPESA","SAIDA",4),
+        ("Celular","DESPESA","SAIDA",5), ("Telefone/Fone","DESPESA","SAIDA",6),
+        ("Internet","DESPESA","SAIDA",7), ("Contabilidade","DESPESA","SAIDA",8),
+        ("Sindical","DESPESA","SAIDA",9), ("Impostos (FGTS/GPS/ISS)","DESPESA","SAIDA",10),
+        ("Convênio","DESPESA","SAIDA",11), ("Sistema da Empresa","DESPESA","SAIDA",12),
+        ("Seguro","DESPESA","SAIDA",13), ("Água/Luz","DESPESA","SAIDA",14),
+        ("Aluguel","DESPESA","SAIDA",15), ("Escritório","DESPESA","SAIDA",16),
+        ("Estacionamento/Zona Azul","DESPESA","SAIDA",17), ("Alimentação","DESPESA","SAIDA",18),
+        ("Tarifa Bancária","DESPESA","SAIDA",19), ("Uber","DESPESA","SAIDA",20),
+        ("Diversos","DESPESA","SAIDA",21),
+    ]
+    db = SessionLocal()
+    try:
+        if db.query(CategoriaFinanceira).count() == 0:
+            for nome, grupo, tipo, ordem in FIN_CATEGORIAS_SEED:
+                db.add(CategoriaFinanceira(nome=nome, grupo=grupo, tipo=tipo, ordem=ordem))
+            db.commit()
+            print(f"[seed] {len(FIN_CATEGORIAS_SEED)} categorias financeiras criadas.")
+    except Exception as e:
+        db.rollback()
+        print(f"[seed_categorias_financeiras] erro: {e}")
+    finally:
+        db.close()
+
+
+_seed_categorias_financeiras()
+
+
 # ── Sincronização automática de boletos ──────────────────────────────────────
 
 def _sincronizar_boletos_auto():
@@ -324,6 +380,8 @@ app.include_router(termo_garantia_router, prefix="/api/v1/termos-garantia", tags
 app.include_router(contratos_router,    prefix="/api/v1/contratos",     tags=["Contratos"],          dependencies=_auth)
 app.include_router(ciclos_nota_router,  prefix="/api/v1/ciclos-nota",   tags=["Ciclos de Nota"],     dependencies=_auth)
 app.include_router(corpos_nota_router,  prefix="/api/v1/corpos-nota",   tags=["Corpo da Nota"],      dependencies=_auth)
+app.include_router(fin_mov_router,      prefix="/api/v1/financeiro",              tags=["Financeiro"],         dependencies=_auth)
+app.include_router(fin_cat_router,      prefix="/api/v1/categorias-financeiras",  tags=["Financeiro"],         dependencies=_auth)
 
 
 @app.get("/", tags=["Root"])
