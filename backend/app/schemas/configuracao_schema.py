@@ -100,7 +100,7 @@ class ConfiguracaoInterResponse(BaseModel):
     cnpj:          str
     razao_social:  Optional[str] = None
     client_id:     Optional[str] = None
-    client_secret: str = "***"
+    client_secret: Optional[str] = None   # sempre retornado como None (nunca expõe o valor real)
     ativo:         bool
     tipo_nota:     str = "SERVICO"
     criado_em:     datetime
@@ -110,5 +110,5 @@ class ConfiguracaoInterResponse(BaseModel):
     @classmethod
     def model_validate(cls, obj, *args, **kwargs):
         instance = super().model_validate(obj, *args, **kwargs)
-        instance.client_secret = "***"
+        instance.client_secret = None   # nunca expõe o secret
         return instance

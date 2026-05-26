@@ -26,7 +26,8 @@ interface ContaInter {
   id: number;
   cnpj: string;
   razao_social: string | null;
-  client_id: string;
+  client_id: string | null;
+  tipo_nota: string;
   ativo: boolean;
   criado_em: string;
 }
@@ -210,7 +211,7 @@ export default function ConfiguracoesPage() {
     setInterForm({
       cnpj:           c.cnpj,
       razao_social:   c.razao_social ?? '',
-      client_id:      c.client_id,
+      client_id:      c.client_id ?? '',
       client_secret:  '',
       conta_corrente: '',
       cert_path:      '',
