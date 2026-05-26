@@ -194,11 +194,12 @@ def _seed_emitentes_inter():
     db = SessionLocal()
     try:
         cnpjs_existentes = {c.cnpj for c in db.query(ConfiguracaoInter).all()}
-        # Busca cnpj+observacao de uma nota representativa por cnpj
+        # GROUP BY para pegar um representativo por CNPJ (MySQL-compatible)
+        from sqlalchemy import func
         notas = (
-            db.query(NotaFiscal.cnpj_emitente, NotaFiscal.observacao)
+            db.query(NotaFiscal.cnpj_emitente, func.max(NotaFiscal.observacao).label("observacao"))
             .filter(NotaFiscal.cnpj_emitente != None)  # noqa
-            .distinct(NotaFiscal.cnpj_emitente)
+            .group_by(NotaFiscal.cnpj_emitente)
             .all()
         )
         novos = 0
