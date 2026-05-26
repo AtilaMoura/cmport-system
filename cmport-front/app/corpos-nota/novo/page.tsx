@@ -60,7 +60,7 @@ interface Orcamento {
   itens: OrcamentoItem[];
 }
 
-const LABELS_STEP = ['Conta', 'Condomínio', 'Origem', 'Dados', 'Confirmar'];
+const LABELS_STEP = ['Emitente', 'Condomínio', 'Origem', 'Dados', 'Confirmar'];
 const TOTAL_STEPS = 5;
 
 function StepIndicator({ atual }: { atual: number }) {
@@ -208,7 +208,7 @@ function NovoCorpoNotaContent() {
   // ── Step 1 → 2 ──────────────────────────────────────────────────────────────
   const avancarStep1 = () => {
     if (!cnpjSelecionado) {
-      setErro('Selecione uma conta (CNPJ) para continuar.');
+      setErro('Selecione o emitente (CNPJ) para continuar.');
       return;
     }
     setErro(null);
@@ -435,19 +435,19 @@ function NovoCorpoNotaContent() {
 
               {/* Seleção de CNPJ */}
               <div>
-                <h2 className="text-lg font-black text-slate-800 dark:text-white mb-1">Conta (CNPJ)</h2>
-                <p className="text-sm text-slate-500 mb-3">Selecione qual conta emitirá o boleto</p>
+                <h2 className="text-lg font-black text-slate-800 dark:text-white mb-1">Emitente da Nota</h2>
+                <p className="text-sm text-slate-500 mb-3">Selecione o CNPJ que aparecerá como emitente</p>
 
                 {carregandoInter ? (
-                  <div className="text-slate-400 text-sm animate-pulse">Carregando contas...</div>
+                  <div className="text-slate-400 text-sm animate-pulse">Carregando emitentes...</div>
                 ) : configuracaosInter.length === 0 ? (
                   <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-700 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-400">
-                    Nenhuma conta Inter cadastrada. Configure em Configurações → Banco Inter.
+                    Nenhum emitente cadastrado. Importe uma nota fiscal ou cadastre em Configurações → Banco Inter.
                   </div>
                 ) : configuracaosInter.length === 1 ? (
                   <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700 rounded-xl p-4">
                     <div className="font-bold text-violet-700 dark:text-violet-400 text-sm">
-                      {configuracaosInter[0].razao_social || 'Conta Inter'}
+                      {configuracaosInter[0].razao_social || configuracaosInter[0].cnpj}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">{configuracaosInter[0].cnpj}</div>
                   </div>
@@ -465,7 +465,7 @@ function NovoCorpoNotaContent() {
                         }`}
                       >
                         <div className={`font-bold text-sm ${cnpjSelecionado?.id === c.id ? 'text-violet-700 dark:text-violet-400' : 'text-slate-800 dark:text-white'}`}>
-                          {c.razao_social || 'Conta Inter'}
+                          {c.razao_social || c.cnpj}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">{c.cnpj}</div>
                         {c.tipo_nota === 'PRODUTO' && (
@@ -1020,8 +1020,8 @@ function NovoCorpoNotaContent() {
               {cnpjSelecionado && (
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 flex items-center justify-between">
                   <div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-0.5">Conta Inter</div>
-                    <div className="font-semibold text-sm text-slate-800 dark:text-white">{cnpjSelecionado.razao_social || 'Conta Inter'}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-0.5">Emitente</div>
+                    <div className="font-semibold text-sm text-slate-800 dark:text-white">{cnpjSelecionado.razao_social || cnpjSelecionado.cnpj}</div>
                     <div className="text-xs text-slate-500">{cnpjSelecionado.cnpj}</div>
                   </div>
                 </div>

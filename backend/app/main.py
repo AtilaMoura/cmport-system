@@ -91,6 +91,23 @@ def _run_migrations():
         "ALTER TABLE corpos_nota ADD UNIQUE INDEX uq_corpo_numero_referencia (numero_referencia)",
         # Boleto — PDF manual para boletos sem API Inter
         "ALTER TABLE boletos ADD COLUMN pdf_object_key VARCHAR(500) NULL",
+        # ConfiguracaoInter — campos bancários agora opcionais (emitente sem Inter)
+        "ALTER TABLE configuracao_inter MODIFY client_id VARCHAR(300) NULL",
+        "ALTER TABLE configuracao_inter MODIFY client_secret VARCHAR(300) NULL",
+        "ALTER TABLE configuracao_inter MODIFY conta_corrente VARCHAR(50) NULL",
+        "ALTER TABLE configuracao_inter MODIFY cert_path VARCHAR(500) NULL",
+        # ConfiguracaoInter — tipo_nota e razao_social
+        "ALTER TABLE configuracao_inter ADD COLUMN tipo_nota VARCHAR(20) NOT NULL DEFAULT 'SERVICO'",
+        "ALTER TABLE configuracao_inter ADD COLUMN razao_social VARCHAR(255) NULL",
+        # CorpoNota — novos campos para tipo SERVICO
+        "ALTER TABLE corpos_nota ADD COLUMN configuracao_inter_id INT NULL",
+        "ALTER TABLE corpos_nota ADD CONSTRAINT fk_corpo_config_inter FOREIGN KEY (configuracao_inter_id) REFERENCES configuracao_inter(id) ON DELETE SET NULL",
+        "ALTER TABLE corpos_nota ADD COLUMN orcamento_id INT NULL",
+        "ALTER TABLE corpos_nota ADD CONSTRAINT fk_corpo_orcamento FOREIGN KEY (orcamento_id) REFERENCES orcamentos(id) ON DELETE SET NULL",
+        "ALTER TABLE corpos_nota ADD COLUMN data_servico_texto VARCHAR(200) NULL",
+        "ALTER TABLE corpos_nota ADD COLUMN descricao_garantia TEXT NULL",
+        "ALTER TABLE corpos_nota ADD COLUMN valor_nota_produto DECIMAL(10,2) NULL",
+        "ALTER TABLE corpos_nota MODIFY numero_os VARCHAR(200) NULL",
     ]
     try:
         for stmt in stmts:
@@ -162,6 +179,51 @@ def _seed_usuarios():
 
 _seed_configuracao_impostos()
 _seed_usuarios()
+
+
+def _seed_emitentes_inter():
+    """Auto-cadastra CNPJs emitentes das notas fiscais no ConfiguracaoInter (sem credenciais bancárias)."""
+    from app.core.database import SessionLocal
+    from app.models.nota_fiscal_model import NotaFiscal
+    from app.models.configuracao_model import ConfiguracaoInter
+    db = SessionLocal()
+    try:
+        cnpjs_existentes = {c.cnpj for c in db.query(ConfiguracaoInter).all()}
+        # Busca cnpj+observacao de uma nota representativa por cnpj
+        notas = (
+            db.query(NotaFiscal.cnpj_emitente, NotaFiscal.observacao)
+            .filter(NotaFiscal.cnpj_emitente != None)  # noqa
+            .distinct(NotaFiscal.cnpj_emitente)
+            .all()
+        )
+        novos = 0
+        for cnpj_emit, observacao in notas:
+            if not cnpj_emit or cnpj_emit in cnpjs_existentes:
+                continue
+            razao_social = None
+            if observacao and observacao.startswith("Emitente:"):
+                partes = observacao.split(" | CNPJ:")
+                if partes:
+                    razao_social = partes[0].replace("Emitente: ", "").strip() or None
+            db.add(ConfiguracaoInter(
+                cnpj=cnpj_emit,
+                razao_social=razao_social,
+                tipo_nota="SERVICO",
+                ativo=True,
+            ))
+            cnpjs_existentes.add(cnpj_emit)
+            novos += 1
+        if novos:
+            db.commit()
+            print(f"[seed] {novos} emitente(s) auto-cadastrado(s) em ConfiguracaoInter.")
+    except Exception as e:
+        db.rollback()
+        print(f"[seed_emitentes_inter] erro: {e}")
+    finally:
+        db.close()
+
+
+_seed_emitentes_inter()
 
 
 # ── Sincronização automática de boletos ──────────────────────────────────────

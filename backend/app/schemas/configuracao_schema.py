@@ -77,10 +77,10 @@ class TestarEmailResponse(BaseModel):
 class ConfiguracaoInterCreate(BaseModel):
     cnpj:           str
     razao_social:   Optional[str] = None
-    client_id:      str
-    client_secret:  str
-    conta_corrente: str
-    cert_path:      str
+    client_id:      Optional[str] = None
+    client_secret:  Optional[str] = None
+    conta_corrente: Optional[str] = None
+    cert_path:      Optional[str] = None
     tipo_nota:      str = "SERVICO"  # "SERVICO" ou "PRODUTO"
 
 
@@ -99,7 +99,7 @@ class ConfiguracaoInterResponse(BaseModel):
     id:            int
     cnpj:          str
     razao_social:  Optional[str] = None
-    client_id:     str
+    client_id:     Optional[str] = None
     client_secret: str = "***"
     ativo:         bool
     tipo_nota:     str = "SERVICO"
