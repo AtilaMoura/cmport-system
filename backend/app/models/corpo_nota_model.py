@@ -35,12 +35,20 @@ class CorpoNota(Base):
 
     tipo_nota = Column(Enum(TipoNotaCorpo), nullable=False)
 
+    # CNPJ selecionado antes de criar (determina qual conta Inter para boleto)
+    configuracao_inter_id = Column(Integer, ForeignKey("configuracao_inter.id", ondelete="SET NULL"), nullable=True)
+    configuracao_inter = relationship("ConfiguracaoInter")
+
     # OS vinculada (preenchimento automático)
     servico_id = Column(Integer, ForeignKey("manutencoes_assistencias.id", ondelete="SET NULL"), nullable=True, index=True)
     servico = relationship("ManutencaoAssistencia")
 
+    # Orçamento vinculado (quando o corpo vem de um orçamento Auvo)
+    orcamento_id = Column(Integer, ForeignKey("orcamentos.id", ondelete="SET NULL"), nullable=True)
+    orcamento = relationship("Orcamento")
+
     # Dados do serviço (auto-fill ou manual)
-    numero_os = Column(String(50), nullable=True)
+    numero_os = Column(String(200), nullable=True)  # Expandido para múltiplos números (SERVIÇO)
     data_servico = Column(Date, nullable=True)
     descricao_servico = Column(Text, nullable=True)
 
@@ -55,6 +63,11 @@ class CorpoNota(Base):
     valor_pis = Column(Numeric(10, 2), nullable=True)
     valor_csll = Column(Numeric(10, 2), nullable=True)
     valor_liquido = Column(Numeric(10, 2), nullable=True)
+
+    # Campos específicos para tipo SERVIÇO
+    data_servico_texto = Column(String(200), nullable=True)  # Texto livre: "06.05.2026 e 07.05.2026"
+    descricao_garantia = Column(Text, nullable=True)         # Ex: "06 meses" ou "Motor: 3 meses"
+    valor_nota_produto = Column(Numeric(10, 2), nullable=True)  # Valor NF produto (boleto consolidado)
 
     data_vencimento = Column(Date, nullable=True)
     mes_referencia = Column(String(7), nullable=True)   # ex: "05/2026"

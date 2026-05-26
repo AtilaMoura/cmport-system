@@ -81,6 +81,7 @@ class ConfiguracaoInterCreate(BaseModel):
     client_secret:  str
     conta_corrente: str
     cert_path:      str
+    tipo_nota:      str = "SERVICO"  # "SERVICO" ou "PRODUTO"
 
 
 class ConfiguracaoInterUpdate(BaseModel):
@@ -91,6 +92,7 @@ class ConfiguracaoInterUpdate(BaseModel):
     conta_corrente: Optional[str] = None
     cert_path:      Optional[str] = None
     ativo:          Optional[bool] = None
+    tipo_nota:      Optional[str] = None
 
 
 class ConfiguracaoInterResponse(BaseModel):
@@ -100,6 +102,7 @@ class ConfiguracaoInterResponse(BaseModel):
     client_id:     str
     client_secret: str = "***"
     ativo:         bool
+    tipo_nota:     str = "SERVICO"
     criado_em:     datetime
 
     model_config = {"from_attributes": True}

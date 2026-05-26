@@ -19,6 +19,12 @@ class CorpoNotaCreate(BaseModel):
     data_vencimento: Optional[date] = None
     observacoes: Optional[str] = None
     tem_garantia: bool = False
+    # Novos campos SERVIÇO
+    configuracao_inter_id: Optional[int] = None
+    orcamento_id: Optional[int] = None
+    data_servico_texto: Optional[str] = None
+    descricao_garantia: Optional[str] = None
+    valor_nota_produto: Optional[float] = None
 
     @field_validator("mes")
     @classmethod
@@ -48,6 +54,12 @@ class CorpoNotaUpdate(BaseModel):
     percentual_csll: Optional[float] = None
     tem_garantia: Optional[bool] = None
     termo_garantia_id: Optional[int] = None
+    # Novos campos SERVIÇO
+    configuracao_inter_id: Optional[int] = None
+    orcamento_id: Optional[int] = None
+    data_servico_texto: Optional[str] = None
+    descricao_garantia: Optional[str] = None
+    valor_nota_produto: Optional[float] = None
 
 
 class CorpoNotaStatusUpdate(BaseModel):
@@ -73,6 +85,10 @@ class CorpoNotaPreviewRequest(BaseModel):
     pct_cofins: Optional[float] = None
     pct_pis: Optional[float] = None
     pct_csll: Optional[float] = None
+    # Novos campos SERVIÇO
+    data_servico_texto: Optional[str] = None
+    descricao_garantia: Optional[str] = None
+    valor_nota_produto: Optional[float] = None
 
 
 class ImpostosCalculadosResponse(BaseModel):
@@ -131,5 +147,11 @@ class CorpoNotaResponse(CorpoNotaResumoResponse):
     termo_garantia_id: Optional[int] = None
     conteudo_gerado: Optional[str] = None
     criado_por: Optional[str] = None
+    # Novos campos SERVIÇO
+    configuracao_inter_id: Optional[int] = None
+    orcamento_id: Optional[int] = None
+    data_servico_texto: Optional[str] = None
+    descricao_garantia: Optional[str] = None
+    valor_nota_produto: Optional[float] = None
 
     model_config = {"from_attributes": True}

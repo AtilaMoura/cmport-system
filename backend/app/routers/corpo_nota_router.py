@@ -51,13 +51,14 @@ def buscar_os_para_corpo(
     condominio_id: int,
     mes: int,
     ano: int,
+    tipo_nota: Optional[str] = None,
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
     """Retorna OSs do condomínio para seleção ao criar corpo de nota.
 
-    Lê direto de ordens_servico (sync do Auvo), filtrando por finished=True
-    e task_type_description contendo 'Manuten'. Retorna as 50 mais recentes.
+    Para MANUTENCAO filtra task_type_description ILIKE '%Manuten%'.
+    Para SERVICO retorna todas as OS (sem filtro de tipo).
     """
     from app.models.ordem_servico_model import OrdemServico
     from app.models.condominio_model import Condominio
@@ -66,17 +67,15 @@ def buscar_os_para_corpo(
     if not condo or not condo.auvo_id:
         return {"lista": [], "preenchimento_manual": True}
 
-    ordens = (
-        db.query(OrdemServico)
-        .filter(
-            OrdemServico.customer_id == condo.auvo_id,
-            OrdemServico.finished == True,
-            OrdemServico.task_type_description.ilike("%Manuten%"),
-        )
-        .order_by(OrdemServico.task_date.desc())
-        .limit(50)
-        .all()
+    query = db.query(OrdemServico).filter(
+        OrdemServico.customer_id == condo.auvo_id,
+        OrdemServico.finished == True,
     )
+
+    if tipo_nota != "SERVICO":
+        query = query.filter(OrdemServico.task_type_description.ilike("%Manuten%"))
+
+    ordens = query.order_by(OrdemServico.task_date.desc()).limit(50).all()
 
     if not ordens:
         return {"lista": [], "preenchimento_manual": True}
@@ -94,6 +93,60 @@ def buscar_os_para_corpo(
         ],
         "preenchimento_manual": False,
     }
+
+
+@router.get("/buscar-orcamentos")
+def buscar_orcamentos_para_corpo(
+    condominio_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Retorna orçamentos Auvo do condomínio não cancelados, ordenados por data."""
+    from app.models.orcamento_model import Orcamento, OrcamentoItem, OrcamentoTaskId
+    from app.models.condominio_model import Condominio
+    from sqlalchemy.orm import joinedload
+
+    condo = db.query(Condominio).filter(Condominio.id == condominio_id).first()
+    if not condo or not condo.auvo_id:
+        return []
+
+    orcamentos = (
+        db.query(Orcamento)
+        .options(joinedload(Orcamento.itens), joinedload(Orcamento.task_ids))
+        .filter(
+            Orcamento.condominio_id == condominio_id,
+            Orcamento.is_cancelled == False,
+        )
+        .order_by(Orcamento.request_date.desc())
+        .limit(30)
+        .all()
+    )
+
+    return [
+        {
+            "id": o.id,
+            "auvo_public_id": o.auvo_public_id,
+            "observations": o.observations,
+            "request_date": o.request_date.isoformat() if o.request_date else None,
+            "current_stage_description": o.current_stage_description,
+            "total_services": float(o.total_services or 0),
+            "total_products": float(o.total_products or 0),
+            "gross_total_value": float(o.gross_total_value or 0),
+            "task_ids": [t.task_id for t in o.task_ids],
+            "itens": [
+                {
+                    "tipo": item.tipo.value,
+                    "nome": item.nome,
+                    "descricao": item.descricao,
+                    "quantidade": float(item.quantidade or 1),
+                    "valor_unitario": float(item.valor_unitario or 0),
+                    "valor_total": float(item.valor_total or 0),
+                }
+                for item in o.itens
+            ],
+        }
+        for o in orcamentos
+    ]
 
 
 @router.get("/condominios-pendentes")
@@ -200,6 +253,9 @@ def preview_corpo(
         mes_referencia=payload.mes_referencia,
         observacoes=payload.observacoes,
         percentuais_override=percentuais,
+        data_servico_texto=payload.data_servico_texto,
+        descricao_garantia=payload.descricao_garantia,
+        valor_nota_produto=payload.valor_nota_produto,
     )
     impostos_resp = None
     if resultado["impostos_calculados"]:
@@ -244,6 +300,11 @@ def criar_corpo(
         observacoes=payload.observacoes,
         tem_garantia=payload.tem_garantia,
         usuario=getattr(usuario, "nome", None),
+        configuracao_inter_id=payload.configuracao_inter_id,
+        orcamento_id=payload.orcamento_id,
+        data_servico_texto=payload.data_servico_texto,
+        descricao_garantia=payload.descricao_garantia,
+        valor_nota_produto=payload.valor_nota_produto,
     )
 
 
@@ -327,6 +388,11 @@ def atualizar_corpo(
         percentuais_override=percentuais,
         tem_garantia=payload.tem_garantia,
         termo_garantia_id=payload.termo_garantia_id,
+        configuracao_inter_id=payload.configuracao_inter_id,
+        orcamento_id=payload.orcamento_id,
+        data_servico_texto=payload.data_servico_texto,
+        descricao_garantia=payload.descricao_garantia,
+        valor_nota_produto=payload.valor_nota_produto,
     )
 
 

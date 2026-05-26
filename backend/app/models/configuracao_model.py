@@ -49,4 +49,6 @@ class ConfiguracaoInter(Base):
     conta_corrente = Column(String(50), nullable=False)
     cert_path      = Column(String(500), nullable=False)
     ativo          = Column(Boolean, default=True)
+    # "SERVICO" (padrão) ou "PRODUTO" — usado para classificar notas no import
+    tipo_nota      = Column(String(20), nullable=False, default="SERVICO")
     criado_em      = Column(DateTime, default=datetime.utcnow)

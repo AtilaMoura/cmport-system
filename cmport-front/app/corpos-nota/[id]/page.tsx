@@ -34,6 +34,12 @@ interface CorpoNota {
   conteudo_gerado: string | null;
   criado_em: string;
   atualizado_em: string | null;
+  // Novos campos SERVIÇO
+  configuracao_inter_id: number | null;
+  orcamento_id: number | null;
+  data_servico_texto: string | null;
+  descricao_garantia: string | null;
+  valor_nota_produto: number | null;
 }
 
 interface Condominio {
@@ -368,10 +374,14 @@ export default function DetalheCorpoNotaPage() {
                 <InfoItem label="Nº Referência" value={corpo.numero_referencia ?? '—'} />
                 <InfoItem label="OS" value={corpo.numero_os ?? '—'} />
                 <InfoItem label="Mês de Referência" value={corpo.mes_referencia ?? '—'} />
-                <InfoItem label="Data do Serviço" value={fmt(corpo.data_servico)} />
+                {corpo.data_servico_texto
+                  ? <InfoItem label="Data(s) do Serviço" value={corpo.data_servico_texto} />
+                  : <InfoItem label="Data do Serviço" value={fmt(corpo.data_servico)} />}
                 <InfoItem label="Vencimento" value={fmt(corpo.data_vencimento)} />
                 <InfoItem label="Nota Fiscal" value={corpo.nota_fiscal_id ? `#${corpo.nota_fiscal_id}` : '—'} />
                 <InfoItem label="Preenchimento" value={corpo.preenchimento_manual ? 'Manual' : 'Automático (OS)'} />
+                {corpo.orcamento_id && <InfoItem label="Orçamento" value={`#${corpo.orcamento_id}`} />}
+                {corpo.descricao_garantia && <InfoItem label="Garantia" value={corpo.descricao_garantia} className="sm:col-span-2" />}
                 {corpo.observacoes && <InfoItem label="Observações" value={corpo.observacoes} className="sm:col-span-2" />}
                 {corpo.descricao_servico && (
                   <div className="sm:col-span-2">
@@ -388,11 +398,23 @@ export default function DetalheCorpoNotaPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
           <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-4">Valores e Impostos</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-            <ValorCard label="Bruto" value={fmtValor(corpo.valor_bruto)} accent={false} />
+            <ValorCard label="Bruto (Serv.)" value={fmtValor(corpo.valor_bruto)} accent={false} />
             <ValorCard label="INSS" value={fmtValor(corpo.valor_inss)} sub={fmtPct(corpo.percentual_inss)} accent={false} />
             <ValorCard label="COFINS+PIS+CSLL" value={fmtValor(corpo.valor_cofins + corpo.valor_pis + corpo.valor_csll)} sub={fmtPct(corpo.percentual_cofins + corpo.percentual_pis + corpo.percentual_csll)} accent={false} />
-            <ValorCard label="Líquido" value={fmtValor(corpo.valor_liquido)} accent={true} />
+            <ValorCard label="Líquido (Serv.)" value={fmtValor(corpo.valor_liquido)} accent={true} />
           </div>
+          {corpo.valor_nota_produto != null && corpo.valor_nota_produto > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <ValorCard label="Nota de Produto" value={fmtValor(corpo.valor_nota_produto)} accent={false} />
+                <ValorCard
+                  label="Total do Boleto"
+                  value={fmtValor((corpo.valor_liquido ?? 0) + corpo.valor_nota_produto)}
+                  accent={true}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Conteúdo gerado */}

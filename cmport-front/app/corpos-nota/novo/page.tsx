@@ -8,6 +8,14 @@ import { api } from '@/lib/api';
 const MESES_NOMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
+interface ConfiguracaoInter {
+  id: number;
+  cnpj: string;
+  razao_social: string | null;
+  tipo_nota: string;
+  ativo: boolean;
+}
+
 interface CondPendente {
   condominio_id: number;
   nome: string;
@@ -18,7 +26,7 @@ interface CondPendente {
 }
 
 interface OSItem {
-  servico_id: number;
+  servico_id: number | null;
   numero_os: string | null;
   data_servico: string | null;
   descricao_preview: string;
@@ -30,7 +38,29 @@ interface OSResultado {
   preenchimento_manual: boolean;
 }
 
-const LABELS_STEP = ['Tipo', 'Condomínio', 'Ordem de Serviço', 'Dados', 'Confirmar'];
+interface OrcamentoItem {
+  tipo: string;
+  nome: string | null;
+  descricao: string | null;
+  quantidade: number;
+  valor_unitario: number;
+  valor_total: number;
+}
+
+interface Orcamento {
+  id: number;
+  auvo_public_id: number;
+  observations: string | null;
+  request_date: string | null;
+  current_stage_description: string | null;
+  total_services: number;
+  total_products: number;
+  gross_total_value: number;
+  task_ids: number[];
+  itens: OrcamentoItem[];
+}
+
+const LABELS_STEP = ['Conta', 'Condomínio', 'Origem', 'Dados', 'Confirmar'];
 const TOTAL_STEPS = 5;
 
 function StepIndicator({ atual }: { atual: number }) {
@@ -73,7 +103,10 @@ function NovoCorpoNotaContent() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  // Step 1 — Tipo + Período
+  // Step 1 — Conta Inter + Tipo + Período
+  const [configuracaosInter, setConfiguracaosInter] = useState<ConfiguracaoInter[]>([]);
+  const [cnpjSelecionado, setCnpjSelecionado] = useState<ConfiguracaoInter | null>(null);
+  const [carregandoInter, setCarregandoInter] = useState(false);
   const [tipoNota, setTipoNota] = useState('MANUTENCAO');
   const [mes, setMes] = useState(() => {
     const p = searchParams.get('mes');
@@ -90,11 +123,15 @@ function NovoCorpoNotaContent() {
   const [condSelecionado, setCondSelecionado] = useState<CondPendente | null>(null);
   const [filtroCond, setFiltroCond] = useState('');
 
-  // Step 3 — OS
+  // Step 3 — OS / Orçamento / Manual
+  const [abaOS, setAbaOS] = useState<'OS' | 'ORCAMENTO' | 'MANUAL'>('OS');
   const [osResultado, setOsResultado] = useState<OSResultado | null>(null);
   const [buscandoOS, setBuscandoOS] = useState(false);
   const [osSelecionada, setOsSelecionada] = useState<OSItem | null>(null);
   const [servicoId, setServicoId] = useState<number | null>(null);
+  const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
+  const [buscandoOrcamentos, setBuscandoOrcamentos] = useState(false);
+  const [orcamentoSelecionado, setOrcamentoSelecionado] = useState<Orcamento | null>(null);
 
   // Step 4 — Dados financeiros
   const [numeroOs, setNumeroOs] = useState('');
@@ -103,6 +140,10 @@ function NovoCorpoNotaContent() {
   const [valorBruto, setValorBruto] = useState('');
   const [dataVencimento, setDataVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  // Campos específicos SERVIÇO
+  const [dataServicoTexto, setDataServicoTexto] = useState('');
+  const [descricaoGarantia, setDescricaoGarantia] = useState('');
+  const [valorNotaProduto, setValorNotaProduto] = useState('');
 
   // Step 5 — Preview
   const [preview, setPreview] = useState<{
@@ -111,6 +152,24 @@ function NovoCorpoNotaContent() {
   } | null>(null);
   const [gerandoPreview, setGerandoPreview] = useState(false);
   const [proximoNumero, setProximoNumero] = useState<string | null>(null);
+
+  // Carrega contas Inter na montagem
+  useEffect(() => {
+    const carregarInter = async () => {
+      setCarregandoInter(true);
+      try {
+        const r = await api.get('/configuracoes/inter');
+        const ativas = (r.data as ConfiguracaoInter[]).filter(c => c.ativo);
+        setConfiguracaosInter(ativas);
+        if (ativas.length === 1) setCnpjSelecionado(ativas[0]);
+      } catch {
+        setConfiguracaosInter([]);
+      } finally {
+        setCarregandoInter(false);
+      }
+    };
+    carregarInter();
+  }, []);
 
   const buscarProximoNumero = async (tipo: string, anoRef: number) => {
     try {
@@ -148,6 +207,10 @@ function NovoCorpoNotaContent() {
 
   // ── Step 1 → 2 ──────────────────────────────────────────────────────────────
   const avancarStep1 = () => {
+    if (!cnpjSelecionado) {
+      setErro('Selecione uma conta (CNPJ) para continuar.');
+      return;
+    }
     setErro(null);
     buscarProximoNumero(tipoNota, ano);
     setStep(2);
@@ -166,13 +229,20 @@ function NovoCorpoNotaContent() {
       setDataVencimento(`${ano}-${mesStr}-${dia}`);
     }
 
+    // Inicia com aba OS por padrão e busca as OSs
+    setAbaOS('OS');
+    await buscarOSsParaCond(cond);
+    setStep(3);
+  };
+
+  const buscarOSsParaCond = async (cond: CondPendente) => {
     setBuscandoOS(true);
     setOsResultado(null);
     setOsSelecionada(null);
     setServicoId(null);
     try {
       const r = await api.get('/corpos-nota/buscar-os', {
-        params: { condominio_id: cond.condominio_id, mes, ano },
+        params: { condominio_id: cond.condominio_id, mes, ano, tipo_nota: tipoNota },
       });
       setOsResultado(r.data);
       if (r.data.lista?.length === 1) {
@@ -180,7 +250,12 @@ function NovoCorpoNotaContent() {
         setOsSelecionada(os);
         setServicoId(os.servico_id);
         if (os.numero_os) setNumeroOs(os.numero_os);
-        if (os.data_servico) setDataServico(os.data_servico);
+        if (os.data_servico) {
+          setDataServico(os.data_servico);
+          if (tipoNota === 'SERVICO' && !dataServicoTexto) {
+            setDataServicoTexto(os.data_servico.split('-').reverse().join('.'));
+          }
+        }
         if (os.descricao_completa && !descricaoServico) setDescricaoServico(os.descricao_completa);
       }
     } catch {
@@ -188,16 +263,65 @@ function NovoCorpoNotaContent() {
     } finally {
       setBuscandoOS(false);
     }
-    setStep(3);
   };
 
-  // ── Step 3 → 4 ──────────────────────────────────────────────────────────────
+  const buscarOrcamentos = async (condId: number) => {
+    setBuscandoOrcamentos(true);
+    setOrcamentos([]);
+    try {
+      const r = await api.get('/corpos-nota/buscar-orcamentos', {
+        params: { condominio_id: condId },
+      });
+      setOrcamentos(r.data);
+    } catch {
+      setOrcamentos([]);
+    } finally {
+      setBuscandoOrcamentos(false);
+    }
+  };
+
+  const onAbaChange = (aba: 'OS' | 'ORCAMENTO' | 'MANUAL') => {
+    setAbaOS(aba);
+    if (aba === 'ORCAMENTO' && condSelecionado && orcamentos.length === 0 && !buscandoOrcamentos) {
+      buscarOrcamentos(condSelecionado.condominio_id);
+    }
+  };
+
+  // ── Step 3 — selecionar OS ──────────────────────────────────────────────────
   const selecionarOS = (os: OSItem) => {
     setOsSelecionada(os);
     setServicoId(os.servico_id);
     if (os.numero_os) setNumeroOs(os.numero_os);
-    if (os.data_servico) setDataServico(os.data_servico);
+    if (os.data_servico) {
+      setDataServico(os.data_servico);
+      if (tipoNota === 'SERVICO') {
+        setDataServicoTexto(os.data_servico.split('-').reverse().join('.'));
+      }
+    }
     if (os.descricao_completa) setDescricaoServico(os.descricao_completa);
+    setOrcamentoSelecionado(null);
+  };
+
+  // ── Step 3 — selecionar Orçamento ──────────────────────────────────────────
+  const selecionarOrcamento = (orc: Orcamento) => {
+    setOrcamentoSelecionado(orc);
+    setOsSelecionada(null);
+
+    // Pré-preenche campos
+    if (orc.task_ids.length > 0) {
+      setNumeroOs(orc.task_ids.map(id => `OS nº ${id}`).join(' e '));
+    }
+    const descItens = orc.itens
+      .filter(i => i.tipo === 'SERVICO')
+      .map(i => i.nome || i.descricao || '')
+      .filter(Boolean)
+      .join(', ');
+    if (descItens) setDescricaoServico(descItens);
+    if (orc.total_services > 0) setValorBruto(String(orc.total_services));
+    if (orc.request_date) {
+      const dt = orc.request_date.split('-').reverse().join('.');
+      setDataServicoTexto(dt);
+    }
   };
 
   const avancarStep3 = () => {
@@ -225,6 +349,9 @@ function NovoCorpoNotaContent() {
         valor_bruto: Number(valorBruto),
         data_vencimento: dataVencimento,
         observacoes: observacoes || null,
+        data_servico_texto: tipoNota === 'SERVICO' ? (dataServicoTexto || null) : null,
+        descricao_garantia: tipoNota === 'SERVICO' ? (descricaoGarantia || null) : null,
+        valor_nota_produto: tipoNota === 'SERVICO' && valorNotaProduto ? Number(valorNotaProduto) : null,
       });
       setPreview(r.data);
       setStep(5);
@@ -253,6 +380,11 @@ function NovoCorpoNotaContent() {
         valor_bruto: Number(valorBruto),
         data_vencimento: dataVencimento,
         observacoes: observacoes || null,
+        configuracao_inter_id: cnpjSelecionado?.id ?? null,
+        orcamento_id: orcamentoSelecionado?.id ?? null,
+        data_servico_texto: tipoNota === 'SERVICO' ? (dataServicoTexto || null) : null,
+        descricao_garantia: tipoNota === 'SERVICO' ? (descricaoGarantia || null) : null,
+        valor_nota_produto: tipoNota === 'SERVICO' && valorNotaProduto ? Number(valorNotaProduto) : null,
       });
       router.push(`/corpos-nota/${r.data.id}`);
     } catch (e: unknown) {
@@ -297,38 +429,95 @@ function NovoCorpoNotaContent() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm">
           <StepIndicator atual={step} />
 
-          {/* ── STEP 1 — Tipo de nota + Período ──────────────────────────────── */}
+          {/* ── STEP 1 — Conta Inter + Tipo de nota + Período ──────────────── */}
           {step === 1 && (
             <div className="space-y-6">
-              <h2 className="text-lg font-black text-slate-800 dark:text-white">Tipo de Nota</h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setTipoNota('MANUTENCAO')}
-                  className={`p-5 rounded-2xl border-2 text-left transition-all ${
-                    tipoNota === 'MANUTENCAO'
-                      ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">🛠️</div>
-                  <div className={`font-bold text-sm ${tipoNota === 'MANUTENCAO' ? 'text-violet-700 dark:text-violet-400' : 'text-slate-800 dark:text-white'}`}>
-                    Manutenção
+              {/* Seleção de CNPJ */}
+              <div>
+                <h2 className="text-lg font-black text-slate-800 dark:text-white mb-1">Conta (CNPJ)</h2>
+                <p className="text-sm text-slate-500 mb-3">Selecione qual conta emitirá o boleto</p>
+
+                {carregandoInter ? (
+                  <div className="text-slate-400 text-sm animate-pulse">Carregando contas...</div>
+                ) : configuracaosInter.length === 0 ? (
+                  <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-700 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-400">
+                    Nenhuma conta Inter cadastrada. Configure em Configurações → Banco Inter.
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">Serviços mensais de manutenção predial</div>
-                </button>
+                ) : configuracaosInter.length === 1 ? (
+                  <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700 rounded-xl p-4">
+                    <div className="font-bold text-violet-700 dark:text-violet-400 text-sm">
+                      {configuracaosInter[0].razao_social || 'Conta Inter'}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">{configuracaosInter[0].cnpj}</div>
+                  </div>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {configuracaosInter.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setCnpjSelecionado(c)}
+                        className={`p-4 rounded-xl border-2 text-left transition-all ${
+                          cnpjSelecionado?.id === c.id
+                            ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
+                        }`}
+                      >
+                        <div className={`font-bold text-sm ${cnpjSelecionado?.id === c.id ? 'text-violet-700 dark:text-violet-400' : 'text-slate-800 dark:text-white'}`}>
+                          {c.razao_social || 'Conta Inter'}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">{c.cnpj}</div>
+                        {c.tipo_nota === 'PRODUTO' && (
+                          <span className="mt-1 inline-block px-2 py-0.5 bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 text-xs rounded-full font-bold">Produto</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-                <div className="p-5 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 opacity-50 cursor-not-allowed">
-                  <div className="text-2xl mb-2">🔧</div>
-                  <div className="font-bold text-sm text-slate-500">Serviço</div>
-                  <div className="text-xs text-slate-400 mt-1">Em breve</div>
-                </div>
+              {/* Tipo de Nota */}
+              <div>
+                <h2 className="text-lg font-black text-slate-800 dark:text-white mb-3">Tipo de Nota</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setTipoNota('MANUTENCAO')}
+                    className={`p-5 rounded-2xl border-2 text-left transition-all ${
+                      tipoNota === 'MANUTENCAO'
+                        ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
+                    }`}
+                  >
+                    <div className="text-2xl mb-2">🛠️</div>
+                    <div className={`font-bold text-sm ${tipoNota === 'MANUTENCAO' ? 'text-violet-700 dark:text-violet-400' : 'text-slate-800 dark:text-white'}`}>
+                      Manutenção
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">Serviços mensais de manutenção predial</div>
+                  </button>
 
-                <div className="p-5 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 opacity-50 cursor-not-allowed">
-                  <div className="text-2xl mb-2">📦</div>
-                  <div className="font-bold text-sm text-slate-500">Produto</div>
-                  <div className="text-xs text-slate-400 mt-1">Em breve</div>
+                  <button
+                    type="button"
+                    onClick={() => setTipoNota('SERVICO')}
+                    className={`p-5 rounded-2xl border-2 text-left transition-all ${
+                      tipoNota === 'SERVICO'
+                        ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
+                    }`}
+                  >
+                    <div className="text-2xl mb-2">🔧</div>
+                    <div className={`font-bold text-sm ${tipoNota === 'SERVICO' ? 'text-violet-700 dark:text-violet-400' : 'text-slate-800 dark:text-white'}`}>
+                      Serviço
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">Serviços executados sob demanda</div>
+                  </button>
+
+                  <div className="p-5 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 opacity-50 cursor-not-allowed">
+                    <div className="text-2xl mb-2">📦</div>
+                    <div className="font-bold text-sm text-slate-500">Produto</div>
+                    <div className="text-xs text-slate-400 mt-1">Em breve</div>
+                  </div>
                 </div>
               </div>
 
@@ -355,6 +544,8 @@ function NovoCorpoNotaContent() {
                   />
                 </div>
               </div>
+
+              {erro && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 rounded-xl p-3">{erro}</p>}
 
               <button
                 onClick={avancarStep1}
@@ -473,91 +664,174 @@ function NovoCorpoNotaContent() {
             </div>
           )}
 
-          {/* ── STEP 3 — Ordem de Serviço ─────────────────────────────────────── */}
+          {/* ── STEP 3 — Origem: OS / Orçamento / Manual ─────────────────────── */}
           {step === 3 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-lg font-black text-slate-800 dark:text-white">Ordem de Serviço</h2>
+                <h2 className="text-lg font-black text-slate-800 dark:text-white">
+                  {tipoNota === 'SERVICO' ? 'Origem dos Dados' : 'Ordem de Serviço'}
+                </h2>
                 <p className="text-sm text-slate-500 mt-1">
                   {condSelecionado?.nome} · {MESES_NOMES[mes - 1]}/{ano}
                 </p>
               </div>
 
-              {buscandoOS && (
-                <div className="text-slate-400 text-sm animate-pulse py-4 text-center">Buscando OSs do período...</div>
+              {/* Abas — somente para SERVIÇO */}
+              {tipoNota === 'SERVICO' && (
+                <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                  {(['OS', 'ORCAMENTO', 'MANUAL'] as const).map(aba => (
+                    <button
+                      key={aba}
+                      type="button"
+                      onClick={() => onAbaChange(aba)}
+                      className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                        abaOS === aba
+                          ? 'bg-white dark:bg-slate-700 text-violet-700 dark:text-violet-400 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      {aba === 'OS' ? 'Via OS' : aba === 'ORCAMENTO' ? 'Via Orçamento' : 'Manual'}
+                    </button>
+                  ))}
+                </div>
               )}
 
-              {osResultado && !buscandoOS && (
+              {/* Conteúdo da aba OS (ou único conteúdo para MANUTENCAO) */}
+              {(tipoNota === 'MANUTENCAO' || abaOS === 'OS') && (
                 <>
-                  {osResultado.lista.length === 0 ? (
-                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-                      <div className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Nenhuma OS sincronizada para este condomínio</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
-                        Digite o número da OS no campo abaixo e prossiga — os dados serão preenchidos manualmente no próximo passo.
-                      </div>
-                    </div>
-                  ) : osResultado.lista.length === 1 ? (
-                    <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800 rounded-xl p-4">
-                      <div className="font-bold text-green-700 dark:text-green-400 text-sm mb-2">OS selecionada automaticamente</div>
-                      <div className="text-sm font-semibold text-slate-800 dark:text-white">
-                        OS #{osResultado.lista[0].numero_os}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1">{osResultado.lista[0].descricao_preview}</div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                        {osResultado.lista.length} OSs encontradas — selecione uma:
-                      </div>
-                      {osResultado.lista.map(os => (
-                        <button
-                          key={os.numero_os ?? os.servico_id}
-                          type="button"
-                          onClick={() => selecionarOS(os)}
-                          className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                            osSelecionada?.numero_os === os.numero_os
-                              ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
-                              : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
-                          }`}
-                        >
-                          <div className="font-bold text-sm text-slate-900 dark:text-white">
-                            OS #{os.numero_os ?? '—'}
+                  {buscandoOS && (
+                    <div className="text-slate-400 text-sm animate-pulse py-4 text-center">Buscando OSs...</div>
+                  )}
+
+                  {osResultado && !buscandoOS && (
+                    <>
+                      {osResultado.lista.length === 0 ? (
+                        <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                          <div className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Nenhuma OS sincronizada para este condomínio</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            Digite o número da OS no campo abaixo e prossiga.
                           </div>
-                          <div className="text-xs text-slate-500 mt-1 flex gap-3">
-                            {os.data_servico && <span>{os.data_servico.split('-').reverse().join('/')}</span>}
-                            <span>{os.descricao_preview}</span>
+                        </div>
+                      ) : osResultado.lista.length === 1 ? (
+                        <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800 rounded-xl p-4">
+                          <div className="font-bold text-green-700 dark:text-green-400 text-sm mb-2">OS selecionada automaticamente</div>
+                          <div className="text-sm font-semibold text-slate-800 dark:text-white">
+                            OS #{osResultado.lista[0].numero_os}
                           </div>
-                        </button>
-                      ))}
+                          <div className="text-xs text-slate-500 mt-1">{osResultado.lista[0].descricao_preview}</div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                            {osResultado.lista.length} OSs encontradas — selecione {tipoNota === 'SERVICO' ? 'uma ou mais' : 'uma'}:
+                          </div>
+                          {osResultado.lista.map(os => (
+                            <button
+                              key={os.numero_os ?? String(os.servico_id)}
+                              type="button"
+                              onClick={() => selecionarOS(os)}
+                              className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                                osSelecionada?.numero_os === os.numero_os
+                                  ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
+                                  : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
+                              }`}
+                            >
+                              <div className="font-bold text-sm text-slate-900 dark:text-white">
+                                OS #{os.numero_os ?? '—'}
+                              </div>
+                              <div className="text-xs text-slate-500 mt-1 flex gap-3">
+                                {os.data_servico && <span>{os.data_servico.split('-').reverse().join('/')}</span>}
+                                <span>{os.descricao_preview}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {tipoNota === 'MANUTENCAO' && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                        {osResultado?.lista.length === 0 ? 'Número da OS — digite para continuar' : 'Número da OS (opcional)'}
+                      </label>
+                      <input
+                        type="text"
+                        value={numeroOs}
+                        onChange={e => setNumeroOs(e.target.value)}
+                        placeholder="Ex: 73787278"
+                        className={`w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white ${
+                          osResultado?.lista.length === 0
+                            ? 'border-violet-400 dark:border-violet-600 ring-2 ring-violet-100 dark:ring-violet-500/20'
+                            : 'border-slate-200 dark:border-slate-700'
+                        }`}
+                        autoFocus={osResultado?.lista.length === 0}
+                      />
                     </div>
                   )}
                 </>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
-                  {osResultado?.lista.length === 0
-                    ? 'Número da OS — digite para continuar'
-                    : 'Número da OS (opcional)'}
-                </label>
-                <input
-                  type="text"
-                  value={numeroOs}
-                  onChange={e => setNumeroOs(e.target.value)}
-                  placeholder="Ex: 73787278"
-                  className={`w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white ${
-                    osResultado?.lista.length === 0
-                      ? 'border-violet-400 dark:border-violet-600 ring-2 ring-violet-100 dark:ring-violet-500/20'
-                      : 'border-slate-200 dark:border-slate-700'
-                  }`}
-                  autoFocus={osResultado?.lista.length === 0}
-                />
-                {osResultado?.lista.length === 0 && (
-                  <p className="text-xs text-slate-500 mt-1">
-                    Você pode prosseguir sem OS — os campos serão preenchidos no próximo passo.
-                  </p>
-                )}
-              </div>
+              {/* Aba Orçamento — somente SERVIÇO */}
+              {tipoNota === 'SERVICO' && abaOS === 'ORCAMENTO' && (
+                <div className="space-y-3">
+                  {buscandoOrcamentos && (
+                    <div className="text-slate-400 text-sm animate-pulse py-4 text-center">Buscando orçamentos...</div>
+                  )}
+                  {!buscandoOrcamentos && orcamentos.length === 0 && (
+                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-sm text-slate-500">
+                      Nenhum orçamento encontrado para este condomínio.
+                    </div>
+                  )}
+                  {orcamentos.map(orc => (
+                    <button
+                      key={orc.id}
+                      type="button"
+                      onClick={() => selecionarOrcamento(orc)}
+                      className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                        orcamentoSelecionado?.id === orc.id
+                          ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-bold text-sm text-slate-900 dark:text-white">
+                          Orç. #{orc.auvo_public_id}
+                        </div>
+                        <div className="text-sm font-black text-violet-700 dark:text-violet-400">
+                          {fmtValor(orc.total_services)}
+                        </div>
+                      </div>
+                      {orc.observations && (
+                        <div className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2">{orc.observations}</div>
+                      )}
+                      <div className="text-xs text-slate-400 mt-1 flex gap-3">
+                        {orc.request_date && <span>{orc.request_date.split('-').reverse().join('/')}</span>}
+                        {orc.current_stage_description && <span>{orc.current_stage_description}</span>}
+                        {orc.task_ids.length > 0 && <span>{orc.task_ids.length} OS(s)</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Aba Manual — somente SERVIÇO */}
+              {tipoNota === 'SERVICO' && abaOS === 'MANUAL' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                    Número(s) da OS — texto livre
+                  </label>
+                  <input
+                    type="text"
+                    value={numeroOs}
+                    onChange={e => setNumeroOs(e.target.value)}
+                    placeholder="Ex: OS nº 73787278 e OS nº 74220219"
+                    className="w-full px-4 py-3 border border-violet-400 dark:border-violet-600 ring-2 ring-violet-100 dark:ring-violet-500/20 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    autoFocus
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Você pode digitar múltiplos números separados por &quot;e&quot;.</p>
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button onClick={voltar} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">
@@ -583,17 +857,33 @@ function NovoCorpoNotaContent() {
                 </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
-                  Data do Serviço
-                </label>
-                <input
-                  type="date"
-                  value={dataServico}
-                  onChange={e => setDataServico(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                />
-              </div>
+              {/* Data do Serviço — MANUTENCAO usa date picker; SERVIÇO usa texto livre */}
+              {tipoNota === 'SERVICO' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                    Data(s) do Serviço (texto)
+                  </label>
+                  <input
+                    type="text"
+                    value={dataServicoTexto}
+                    onChange={e => setDataServicoTexto(e.target.value)}
+                    placeholder="Ex: 06.05.2026 e 07.05.2026"
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                    Data do Serviço
+                  </label>
+                  <input
+                    type="date"
+                    value={dataServico}
+                    onChange={e => setDataServico(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
@@ -635,6 +925,40 @@ function NovoCorpoNotaContent() {
                   />
                 </div>
               </div>
+
+              {/* Campos extras para SERVIÇO */}
+              {tipoNota === 'SERVICO' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                      Garantia (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={descricaoGarantia}
+                      onChange={e => setDescricaoGarantia(e.target.value)}
+                      placeholder="Ex: 06 meses · Motor: 3 meses / Placa: 1 ano"
+                      className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                      Valor da Nota de Produto (R$) — opcional
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={valorNotaProduto}
+                      onChange={e => setValorNotaProduto(e.target.value)}
+                      placeholder="0,00 — deixe em branco se não houver"
+                      className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Preencha quando a nota de serviço vier acompanhada de uma nota de produto para o mesmo boleto.</p>
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Observações</label>
@@ -691,6 +1015,17 @@ function NovoCorpoNotaContent() {
                   </div>
                 </div>
               </div>
+
+              {/* Conta selecionada */}
+              {cnpjSelecionado && (
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-0.5">Conta Inter</div>
+                    <div className="font-semibold text-sm text-slate-800 dark:text-white">{cnpjSelecionado.razao_social || 'Conta Inter'}</div>
+                    <div className="text-xs text-slate-500">{cnpjSelecionado.cnpj}</div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">

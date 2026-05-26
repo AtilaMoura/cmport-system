@@ -67,6 +67,19 @@ def detectar_tipo_automatico(tipo_fornecido: Optional[str], descricao: str) -> T
     return TipoNota.OUTROS
 
 
+def _cnpj_e_produto(db: Session, cnpj_emit: Optional[str]) -> bool:
+    """Retorna True se o CNPJ emitente pertence a uma conta Inter marcada como PRODUTO."""
+    if not db or not cnpj_emit:
+        return False
+    from app.models.configuracao_model import ConfiguracaoInter
+    cnpj_limpo = "".join(filter(str.isdigit, cnpj_emit))
+    contas = db.query(ConfiguracaoInter).filter(ConfiguracaoInter.ativo == True).all()
+    for conta in contas:
+        if "".join(filter(str.isdigit, conta.cnpj or "")) == cnpj_limpo:
+            return (conta.tipo_nota or "SERVICO").upper() == "PRODUTO"
+    return False
+
+
 def limpar_descricao(descricao: str) -> str:
     if not descricao:
         return None
@@ -237,6 +250,8 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
     discriminacao = get('Discriminacao') or ''
     data_emissao = parse_date(data_emissao_str)
     tipo = detectar_tipo_automatico(tipo_fornecido, discriminacao)
+    if _cnpj_e_produto(db, cnpj_emit):
+        tipo = TipoNota.OUTROS
     status_xml = get('StatusNFe')
     status = detectar_status_nfse(status_xml)
 
@@ -378,6 +393,9 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
         tipo = TipoNota.ASSISTENCIA
     else:
         tipo = detectar_tipo_automatico(None, inf_compl)
+    # Se o CNPJ emitente pertence a conta marcada como PRODUTO, força OUTROS
+    if _cnpj_e_produto(db, cnpj_emit):
+        tipo = TipoNota.OUTROS
 
     # Parcelas: conta vencimentos listados; fallback campo "Quantidade parcelas"
     lista_vencimentos = _extrair_lista_vencimentos(inf_compl)
