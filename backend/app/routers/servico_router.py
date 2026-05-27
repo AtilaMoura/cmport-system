@@ -32,6 +32,16 @@ def list_all_servicos(condominio_id: Optional[int] = Query(None), db: Session = 
     return ServicoService.list_all_servicos(db, condominio_id)
 
 
+@router.get("/resumo-financeiro")
+def resumo_financeiro(
+    mes: Optional[int] = Query(None, ge=1, le=12),
+    ano: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Totais PAGO e PENDENTE por data de pagamento (visão caixa)."""
+    return ServicoService.resumo_financeiro(db, mes, ano)
+
+
 @router.get("/{servico_id}", response_model=ServicoResponse)
 def get_servico(servico_id: int, db: Session = Depends(get_db)):
     servico = ServicoService.get_servico_by_id(db, servico_id)

@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Optional, List
 
 from app.repositories.servico_repository import ServicoRepository
@@ -121,8 +122,46 @@ class ServicoService:
         if not servico:
             return None
         servico.ordem_servico_id = None
-        # Opcional: limpar numero_os se quiser desvincular totalmente a referência
-        # servico.numero_os = None 
         db.commit()
         db.refresh(servico)
         return servico
+
+    @staticmethod
+    def resumo_financeiro(db: Session, mes: Optional[int] = None, ano: Optional[int] = None) -> dict:
+        """Resumo PAGO/PENDENTE por data de pagamento (visão caixa — igual à planilha)."""
+        from app.models.boleto_model import Boleto, SituacaoBoleto
+
+        q_pago = db.query(
+            func.count(Boleto.id).label("qtd"),
+            func.coalesce(func.sum(Boleto.valor_nominal), 0).label("valor"),
+        ).filter(Boleto.situacao.in_([SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO]))
+
+        q_pend = db.query(
+            func.count(Boleto.id).label("qtd"),
+            func.coalesce(func.sum(Boleto.valor_nominal), 0).label("valor"),
+        ).filter(Boleto.situacao.in_([SituacaoBoleto.EMABERTO, SituacaoBoleto.VENCIDO]))
+
+        if mes and ano:
+            # PAGO: filtra pela data real de pagamento (visão caixa)
+            q_pago = q_pago.filter(
+                func.year(Boleto.data_pagamento) == ano,
+                func.month(Boleto.data_pagamento) == mes,
+            )
+            # PENDENTE: filtra pela data de vencimento
+            q_pend = q_pend.filter(
+                func.year(Boleto.data_vencimento) == ano,
+                func.month(Boleto.data_vencimento) == mes,
+            )
+        elif ano:
+            q_pago = q_pago.filter(func.year(Boleto.data_pagamento) == ano)
+            q_pend = q_pend.filter(func.year(Boleto.data_vencimento) == ano)
+
+        r_pago = q_pago.one()
+        r_pend = q_pend.one()
+
+        return {
+            "valor_pago":     float(r_pago.valor),
+            "qtd_pago":       int(r_pago.qtd),
+            "valor_pendente": float(r_pend.valor),
+            "qtd_pendente":   int(r_pend.qtd),
+        }

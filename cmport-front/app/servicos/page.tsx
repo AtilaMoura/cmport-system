@@ -157,7 +157,25 @@ export default function ServicosPage() {
   const [massaItems, setMassaItems] = useState<MassaItem[]>([]);
   const [massaGerando, setMassaGerando] = useState(false);
 
+  // Resumo financeiro do backend (visão caixa por data_pagamento)
+  const [resumoBackend, setResumoBackend] = useState<{
+    valor_pago: number; qtd_pago: number;
+    valor_pendente: number; qtd_pendente: number;
+  } | null>(null);
+
   useEffect(() => { carregarDados(); }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filtroMes) {
+      const [ano, mes] = filtroMes.split('-');
+      params.set('mes', mes);
+      params.set('ano', ano);
+    }
+    api.get(`/servicos/resumo-financeiro?${params}`)
+      .then(r => setResumoBackend(r.data))
+      .catch(() => setResumoBackend(null));
+  }, [filtroMes]);
 
   const carregarDados = async () => {
     try {
@@ -607,6 +625,24 @@ export default function ServicosPage() {
     return acc;
   }, 0);
 
+  const resumoFinanceiro = useMemo(() => {
+    let valorPago = 0, qtdPago = 0, valorPendente = 0, qtdPendente = 0;
+    for (const s of servicosFiltrados) {
+      if (!s.nota_fiscal_id) continue;
+      const boletos = boletosPorNota[s.nota_fiscal_id] ?? [];
+      for (const b of boletos) {
+        if (b.situacao === 'PAGO' || b.situacao === 'BAIXADO') {
+          valorPago += b.valor_nominal ?? 0;
+          qtdPago++;
+        } else if (b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO') {
+          valorPendente += b.valor_nominal ?? 0;
+          qtdPendente++;
+        }
+      }
+    }
+    return { valorPago, qtdPago, valorPendente, qtdPendente };
+  }, [servicosFiltrados, boletosPorNota]);
+
   // Helper: parcelas display for a nota
   function getParcelasDisplay(nota: NotaFiscal): Array<{ parcela: number; valor: number; data: string | null }> {
     if (nota.parcelas_json && nota.parcelas_json.length > 0) return nota.parcelas_json;
@@ -995,7 +1031,7 @@ export default function ServicosPage() {
             </div>
 
             {/* Financial cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 lg:gap-6">
               <div className="bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-950/30 dark:to-teal-950/30 p-4 lg:p-6 rounded-2xl border border-green-200 dark:border-green-800/50 shadow-sm">
                 <div className="flex items-center justify-between mb-3 lg:mb-4">
                   <div className="p-2 lg:p-3 bg-green-100 dark:bg-green-500/20 rounded-xl"><span className="text-xl lg:text-2xl">💰</span></div>
@@ -1011,6 +1047,22 @@ export default function ServicosPage() {
                 </div>
                 <p className="text-xl sm:text-3xl font-black text-blue-900 dark:text-blue-400 mb-1">{brl(valorCobrado)}</p>
                 <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-500 font-semibold">Soma dos boletos emitidos</p>
+              </div>
+              <div className="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 p-4 lg:p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-emerald-100 dark:bg-emerald-500/20 rounded-xl"><span className="text-xl lg:text-2xl">✅</span></div>
+                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">PAGO</span>
+                </div>
+                <p className="text-xl sm:text-3xl font-black text-emerald-900 dark:text-emerald-400 mb-1">{brl(resumoBackend?.valor_pago ?? resumoFinanceiro.valorPago)}</p>
+                <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-500 font-semibold">{resumoBackend?.qtd_pago ?? resumoFinanceiro.qtdPago} boletos pagos</p>
+              </div>
+              <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 p-4 lg:p-6 rounded-2xl border border-orange-200 dark:border-orange-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <div className="p-2 lg:p-3 bg-orange-100 dark:bg-orange-500/20 rounded-xl"><span className="text-xl lg:text-2xl">⏳</span></div>
+                  <span className="text-xs font-bold text-orange-700 dark:text-orange-400">PENDENTE</span>
+                </div>
+                <p className="text-xl sm:text-3xl font-black text-orange-900 dark:text-orange-400 mb-1">{brl(resumoBackend?.valor_pendente ?? resumoFinanceiro.valorPendente)}</p>
+                <p className="text-xs sm:text-sm text-orange-700 dark:text-orange-500 font-semibold">{resumoBackend?.qtd_pendente ?? resumoFinanceiro.qtdPendente} boletos em aberto</p>
               </div>
             </div>
 
