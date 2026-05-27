@@ -594,6 +594,24 @@ export default function ServicosPage() {
     };
   }, [condominios, servicosFiltrados, notas]);
 
+  const resumoFinanceiro = useMemo(() => {
+    let valorPago = 0, qtdPago = 0, valorPendente = 0, qtdPendente = 0;
+    for (const s of servicosFiltrados) {
+      if (!s.nota_fiscal_id) continue;
+      const boletos = boletosPorNota[s.nota_fiscal_id] ?? [];
+      for (const b of boletos) {
+        if (b.situacao === 'PAGO' || b.situacao === 'BAIXADO') {
+          valorPago += b.valor_nominal ?? 0;
+          qtdPago++;
+        } else if (b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO') {
+          valorPendente += b.valor_nominal ?? 0;
+          qtdPendente++;
+        }
+      }
+    }
+    return { valorPago, qtdPago, valorPendente, qtdPendente };
+  }, [servicosFiltrados, boletosPorNota]);
+
   const getTipoColor = (tipo: string) => tipo === 'manutencao'
     ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400'
     : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
@@ -624,24 +642,6 @@ export default function ServicosPage() {
     }
     return acc;
   }, 0);
-
-  const resumoFinanceiro = useMemo(() => {
-    let valorPago = 0, qtdPago = 0, valorPendente = 0, qtdPendente = 0;
-    for (const s of servicosFiltrados) {
-      if (!s.nota_fiscal_id) continue;
-      const boletos = boletosPorNota[s.nota_fiscal_id] ?? [];
-      for (const b of boletos) {
-        if (b.situacao === 'PAGO' || b.situacao === 'BAIXADO') {
-          valorPago += b.valor_nominal ?? 0;
-          qtdPago++;
-        } else if (b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO') {
-          valorPendente += b.valor_nominal ?? 0;
-          qtdPendente++;
-        }
-      }
-    }
-    return { valorPago, qtdPago, valorPendente, qtdPendente };
-  }, [servicosFiltrados, boletosPorNota]);
 
   // Helper: parcelas display for a nota
   function getParcelasDisplay(nota: NotaFiscal): Array<{ parcela: number; valor: number; data: string | null }> {
