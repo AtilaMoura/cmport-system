@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -60,6 +60,65 @@ interface Orcamento {
   gross_total_value: number;
   task_ids: number[];
   itens: OrcamentoItem[];
+}
+
+// ── Autocomplete de produto (busca na tabela de produtos Auvo) ─────────────────
+function AutocompleteProduto({
+  value,
+  onChange,
+  placeholder = 'Nome do produto',
+}: {
+  value: string;
+  onChange: (nome: string) => void;
+  placeholder?: string;
+}) {
+  const [sugestoes, setSugestoes] = useState<string[]>([]);
+  const [aberto, setAberto] = useState(false);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const buscar = (q: string) => {
+    onChange(q);
+    if (debounce.current) clearTimeout(debounce.current);
+    if (q.length < 2) { setSugestoes([]); setAberto(false); return; }
+    debounce.current = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/produtos?search=${encodeURIComponent(q)}&page_size=8`);
+        const nomes: string[] = (data.items || []).map((p: { nome: string }) => p.nome);
+        setSugestoes(nomes);
+        setAberto(nomes.length > 0);
+      } catch {
+        setSugestoes([]); setAberto(false);
+      }
+    }, 300);
+  };
+
+  return (
+    <div className="relative flex-1">
+      <input
+        type="text"
+        value={value}
+        onChange={e => buscar(e.target.value)}
+        onBlur={() => setTimeout(() => setAberto(false), 150)}
+        onKeyDown={e => { if (e.key === 'Escape') setAberto(false); }}
+        placeholder={placeholder}
+        autoComplete="off"
+        className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+      />
+      {aberto && sugestoes.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+          {sugestoes.map(nome => (
+            <li
+              key={nome}
+              onMouseDown={() => { onChange(nome); setSugestoes([]); setAberto(false); }}
+              className="px-3 py-2 text-sm text-slate-800 dark:text-slate-200 hover:bg-violet-50 dark:hover:bg-violet-500/10 cursor-pointer"
+            >
+              {nome}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 const LABELS_STEP_MANUT = ['Emitente', 'Condomínio', 'Origem', 'Dados', 'Confirmar'];
@@ -1089,19 +1148,16 @@ function NovoCorpoNotaContent() {
                       {produtos.map((p, i) => (
                         <div key={i} className="flex gap-2 items-center">
                           <input
-                            type="text"
-                            value={p.nome}
-                            onChange={e => setProdutos(prev => prev.map((x,j) => j===i ? {...x,nome:e.target.value} : x))}
-                            placeholder="Nome do produto"
-                            className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                          />
-                          <input
                             type="number"
                             min="1"
                             value={p.quantidade}
                             onChange={e => setProdutos(prev => prev.map((x,j) => j===i ? {...x,quantidade:e.target.value} : x))}
                             placeholder="Qtd"
                             className="w-16 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white text-center"
+                          />
+                          <AutocompleteProduto
+                            value={p.nome}
+                            onChange={nome => setProdutos(prev => prev.map((x,j) => j===i ? {...x,nome} : x))}
                           />
                           <button type="button" onClick={() => setProdutos(prev => prev.filter((_,j) => j!==i))}
                             className="text-red-400 hover:text-red-600 text-lg font-bold w-8 shrink-0">×</button>
