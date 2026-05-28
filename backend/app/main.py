@@ -113,6 +113,12 @@ def _run_migrations():
         "ALTER TABLE corpos_nota ADD COLUMN descricao_garantia TEXT NULL",
         "ALTER TABLE corpos_nota ADD COLUMN valor_nota_produto DECIMAL(10,2) NULL",
         "ALTER TABLE corpos_nota MODIFY numero_os VARCHAR(200) NULL",
+        # CorpoNota — número NF e parcelas
+        "ALTER TABLE corpos_nota ADD COLUMN numero_nf INT NULL",
+        "ALTER TABLE corpos_nota ADD COLUMN numero_parcelas SMALLINT NULL DEFAULT 1",
+        # ConfiguracaoInter — sequências de numeração NF por CNPJ
+        "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_servico INT NULL",
+        "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_produto INT NULL",
     ]
     try:
         for stmt in stmts:
@@ -185,51 +191,6 @@ def _seed_usuarios():
 _seed_configuracao_impostos()
 _seed_usuarios()
 
-
-def _seed_emitentes_inter():
-    """Auto-cadastra CNPJs emitentes das notas fiscais no ConfiguracaoInter (sem credenciais bancárias)."""
-    from app.core.database import SessionLocal
-    from app.models.nota_fiscal_model import NotaFiscal
-    from app.models.configuracao_model import ConfiguracaoInter
-    db = SessionLocal()
-    try:
-        cnpjs_existentes = {c.cnpj for c in db.query(ConfiguracaoInter).all()}
-        # GROUP BY para pegar um representativo por CNPJ (MySQL-compatible)
-        from sqlalchemy import func
-        notas = (
-            db.query(NotaFiscal.cnpj_emitente, func.max(NotaFiscal.observacao).label("observacao"))
-            .filter(NotaFiscal.cnpj_emitente != None)  # noqa
-            .group_by(NotaFiscal.cnpj_emitente)
-            .all()
-        )
-        novos = 0
-        for cnpj_emit, observacao in notas:
-            if not cnpj_emit or cnpj_emit in cnpjs_existentes:
-                continue
-            razao_social = None
-            if observacao and observacao.startswith("Emitente:"):
-                partes = observacao.split(" | CNPJ:")
-                if partes:
-                    razao_social = partes[0].replace("Emitente: ", "").strip() or None
-            db.add(ConfiguracaoInter(
-                cnpj=cnpj_emit,
-                razao_social=razao_social,
-                tipo_nota="SERVICO",
-                ativo=True,
-            ))
-            cnpjs_existentes.add(cnpj_emit)
-            novos += 1
-        if novos:
-            db.commit()
-            print(f"[seed] {novos} emitente(s) auto-cadastrado(s) em ConfiguracaoInter.")
-    except Exception as e:
-        db.rollback()
-        print(f"[seed_emitentes_inter] erro: {e}")
-    finally:
-        db.close()
-
-
-_seed_emitentes_inter()
 
 
 def _seed_categorias_financeiras():

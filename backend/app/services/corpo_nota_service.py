@@ -72,6 +72,7 @@ class CorpoNotaService:
         data_servico_texto: Optional[str] = None,
         descricao_garantia: Optional[str] = None,
         valor_nota_produto: Optional[float] = None,
+        numero_parcelas: Optional[int] = 1,
     ) -> CorpoNota:
         if mes < 1 or mes > 12:
             raise HTTPException(status_code=422, detail="mes deve ser entre 1 e 12.")
@@ -134,6 +135,27 @@ class CorpoNotaService:
 
         numero_referencia = CorpoNotaService._gerar_numero_referencia(db, tipo_nota, ano)
 
+        # Atribui e incrementa número sequencial de NF da conta Inter
+        numero_nf_atribuido = None
+        if configuracao_inter_id:
+            from app.models.configuracao_model import ConfiguracaoInter
+            conta = (
+                db.query(ConfiguracaoInter)
+                .filter(ConfiguracaoInter.id == configuracao_inter_id)
+                .with_for_update()
+                .first()
+            )
+            if conta:
+                if tipo_nota == TipoNotaCorpo.PRODUTO:
+                    numero_nf_atribuido = conta.numero_nf_produto
+                    if numero_nf_atribuido:
+                        conta.numero_nf_produto = numero_nf_atribuido + 1
+                else:
+                    numero_nf_atribuido = conta.numero_nf_servico
+                    if numero_nf_atribuido:
+                        conta.numero_nf_servico = numero_nf_atribuido + 1
+                db.add(conta)
+
         corpo = CorpoNota(
             ciclo_id=ciclo.id,
             condominio_id=condominio_id,
@@ -165,6 +187,8 @@ class CorpoNotaService:
             data_servico_texto=data_servico_texto,
             descricao_garantia=descricao_garantia,
             valor_nota_produto=valor_nota_produto,
+            numero_parcelas=numero_parcelas or 1,
+            numero_nf=numero_nf_atribuido,
         )
         # Salva ISS se disponível no modelo (coluna adicionada via migration)
         if impostos and hasattr(corpo, "percentual_iss"):
@@ -199,6 +223,8 @@ class CorpoNotaService:
         data_servico_texto: Optional[str] = None,
         descricao_garantia: Optional[str] = None,
         valor_nota_produto: Optional[float] = None,
+        numero_parcelas: Optional[int] = None,
+        numero_nf: Optional[int] = None,
     ) -> CorpoNota:
         corpo = CorpoNotaService.get_by_id(db, corpo_id)
 
@@ -230,6 +256,10 @@ class CorpoNotaService:
             corpo.descricao_garantia = descricao_garantia
         if valor_nota_produto is not None:
             corpo.valor_nota_produto = valor_nota_produto
+        if numero_parcelas is not None:
+            corpo.numero_parcelas = numero_parcelas
+        if numero_nf is not None:
+            corpo.numero_nf = numero_nf
 
         if not financeiro_bloqueado:
             if valor_bruto is not None:
@@ -304,6 +334,8 @@ class CorpoNotaService:
         data_servico_texto: Optional[str] = None,
         descricao_garantia: Optional[str] = None,
         valor_nota_produto: Optional[float] = None,
+        numero_parcelas: Optional[int] = 1,
+        numero_nf: Optional[int] = None,
     ) -> dict:
         impostos = None
         if valor_bruto:
@@ -321,7 +353,21 @@ class CorpoNotaService:
         contrato = ContratoCondominioRepository.get_by_condominio(db, condominio_id)
         contrato_inicio = contrato.data_inicio if contrato else None
 
-        if tipo_nota == TipoNotaCorpo.SERVICO:
+        if tipo_nota == TipoNotaCorpo.PRODUTO:
+            texto = CorpoNotaService._montar_texto_produto(
+                nome_cond=nome_cond,
+                descricao_servico=descricao_servico or "",
+                numero_os=numero_os,
+                data_servico_texto=data_servico_texto,
+                data_servico=data_servico,
+                valor_bruto=valor_bruto,
+                data_vencimento=data_vencimento,
+                numero_parcelas=numero_parcelas or 1,
+                descricao_garantia=descricao_garantia,
+                observacoes=observacoes,
+                numero_nf=numero_nf,
+            )
+        elif tipo_nota == TipoNotaCorpo.SERVICO:
             texto = CorpoNotaService._montar_texto_servico(
                 nome_cond=nome_cond,
                 mes_referencia=mes_referencia or "",
@@ -335,6 +381,8 @@ class CorpoNotaService:
                 observacoes=observacoes,
                 descricao_garantia=descricao_garantia,
                 valor_nota_produto=valor_nota_produto,
+                numero_parcelas=numero_parcelas or 1,
+                numero_nf=numero_nf,
             )
         else:
             texto = CorpoNotaService._montar_texto(
@@ -350,6 +398,7 @@ class CorpoNotaService:
                 cnpj_cond=cnpj_cond,
                 razao_social_cond=razao_social_cond,
                 contrato_inicio=contrato_inicio,
+                numero_nf=numero_nf,
             )
         return {"conteudo_gerado": texto, "impostos_calculados": impostos}
 
@@ -540,6 +589,25 @@ class CorpoNotaService:
                 valor_liquido=float(corpo.valor_liquido or 0),
             )
 
+        numero_nf = getattr(corpo, "numero_nf", None)
+        numero_parcelas = getattr(corpo, "numero_parcelas", 1) or 1
+
+        if corpo.tipo_nota == TipoNotaCorpo.PRODUTO:
+            return CorpoNotaService._montar_texto_produto(
+                nome_cond=nome_cond,
+                descricao_servico=corpo.descricao_servico or "",
+                numero_os=corpo.numero_os,
+                data_servico_texto=getattr(corpo, "data_servico_texto", None),
+                data_servico=corpo.data_servico,
+                valor_bruto=float(corpo.valor_bruto) if corpo.valor_bruto else None,
+                data_vencimento=corpo.data_vencimento,
+                numero_parcelas=numero_parcelas,
+                descricao_garantia=getattr(corpo, "descricao_garantia", None),
+                observacoes=corpo.observacoes,
+                numero_referencia=corpo.numero_referencia,
+                numero_nf=numero_nf,
+            )
+
         if corpo.tipo_nota == TipoNotaCorpo.SERVICO:
             return CorpoNotaService._montar_texto_servico(
                 nome_cond=nome_cond,
@@ -555,6 +623,8 @@ class CorpoNotaService:
                 descricao_garantia=getattr(corpo, "descricao_garantia", None),
                 valor_nota_produto=float(corpo.valor_nota_produto) if getattr(corpo, "valor_nota_produto", None) else None,
                 numero_referencia=corpo.numero_referencia,
+                numero_parcelas=numero_parcelas,
+                numero_nf=numero_nf,
             )
 
         return CorpoNotaService._montar_texto(
@@ -571,6 +641,7 @@ class CorpoNotaService:
             razao_social_cond=razao_social_cond,
             contrato_inicio=contrato_inicio,
             numero_referencia=corpo.numero_referencia,
+            numero_nf=numero_nf,
         )
 
     @staticmethod
@@ -617,6 +688,17 @@ class CorpoNotaService:
         return resultado
 
     @staticmethod
+    def _fmt_numero_nf(n: int) -> str:
+        s = str(n).zfill(9)
+        return f"{s[:3]}.{s[3:6]}.{s[6:]}"
+
+    @staticmethod
+    def _ordinal_extenso(n: int) -> str:
+        ORDINAIS = {1:"uma",2:"duas",3:"três",4:"quatro",5:"cinco",6:"seis",
+                    7:"sete",8:"oito",9:"nove",10:"dez",11:"onze",12:"doze"}
+        return ORDINAIS.get(n, str(n))
+
+    @staticmethod
     def _montar_texto(
         nome_cond: str,
         mes_referencia: str,
@@ -631,6 +713,7 @@ class CorpoNotaService:
         razao_social_cond: Optional[str] = None,
         contrato_inicio: Optional[date] = None,
         numero_referencia: Optional[str] = None,
+        numero_nf: Optional[int] = None,
     ) -> str:
         def fmt_valor(v: Optional[float]) -> str:
             if v is None:
@@ -665,7 +748,11 @@ class CorpoNotaService:
             except Exception:
                 pass
 
-        linhas = [
+        linhas = []
+        if numero_nf:
+            linhas.append(f"NF – {CorpoNotaService._fmt_numero_nf(numero_nf)} – {nome_cond}")
+            linhas.append("")
+        linhas += [
             "ESSE É CORPO DA NOTA DE MANUTENÇÃO PREVENTIVA MENSAL",
             "Segue abaixo a cobrança referente à manutenção preventiva mensal, conforme detalhamento:",
             "",
@@ -739,9 +826,10 @@ class CorpoNotaService:
         descricao_garantia: Optional[str] = None,
         valor_nota_produto: Optional[float] = None,
         numero_referencia: Optional[str] = None,
+        numero_parcelas: int = 1,
+        numero_nf: Optional[int] = None,
     ) -> str:
         """Gera o texto do corpo da nota de SERVIÇO conforme template da cliente."""
-
         def fmt_valor(v: Optional[float]) -> str:
             if v is None:
                 return "—"
@@ -757,6 +845,14 @@ class CorpoNotaService:
         def fmt_pct(p: float) -> str:
             return f"{int(p)}%" if p == int(p) else f"{p:.2f}%".replace('.', ',')
 
+        def add_meses(d, n: int):
+            mes = d.month + n
+            ano = d.year + (mes - 1) // 12
+            mes = ((mes - 1) % 12) + 1
+            import calendar
+            ultimo_dia = calendar.monthrange(ano, mes)[1]
+            return d.replace(year=ano, month=mes, day=min(d.day, ultimo_dia))
+
         liquido = impostos.valor_liquido if impostos else None
         valor_total_notas = None
         valor_total_boleto = None
@@ -767,53 +863,63 @@ class CorpoNotaService:
             valor_total_boleto = (liquido or 0) + valor_nota_produto
 
         texto_datas = data_servico_texto or (fmt_data_barra(data_servico) if data_servico else "—")
+        tem_produto = valor_nota_produto is not None and valor_nota_produto > 0
+        total_boleto = valor_total_boleto if tem_produto else (liquido if liquido else valor_bruto)
 
-        linhas = [
-            "ESSE É O CORPO DA NOTA DE SERVIÇO",
-            "Segue abaixo a cobrança referente ao serviço executado, conforme detalhamento:",
-            "",
+        linhas = []
+        if numero_nf:
+            if tem_produto:
+                linhas.append(f"Emitidas em {date.today().strftime('%d.%m.%Y')}.")
+            linhas.append(f"NF – {CorpoNotaService._fmt_numero_nf(numero_nf)} – {nome_cond}")
+            linhas.append("")
+
+        extenso_parc = CorpoNotaService._ordinal_extenso(numero_parcelas)
+        plural = "parcela" if numero_parcelas == 1 else "parcelas"
+
+        linhas += [
             f"Serviços Executados: {descricao_servico or '—'}",
+            "",
             f"Datas dos Serviços Executados: {texto_datas}",
             f"Ordens de Serviço: {numero_os or '—'}",
+            f"Quantidade de Parcelas: {numero_parcelas:02d} ({extenso_parc}) {plural}",
         ]
-
-        if numero_referencia:
-            linhas.append(f"Referência: {numero_referencia}")
-
-        linhas.append("Quantidade de Parcelas: 01 (uma) parcela")
 
         if descricao_garantia:
             linhas.append(f"Garantias: {descricao_garantia}")
 
         linhas.append("")
-        linhas.append("Valores da Nota de Serviço:")
+        linhas.append("Valores da Nota de Serviço: ")
 
         if valor_bruto is not None:
             extenso = CorpoNotaService._valor_por_extenso(valor_bruto)
             linhas.append(f"Valor da Nota de Serviço: {fmt_valor(valor_bruto)} ({extenso})")
 
         if impostos:
-            linhas.append("Retenções:")
+            linhas.append("Retenções: ")
             if impostos.valor_inss:
-                linhas.append(f"INSS {fmt_pct(impostos.percentual_inss)} - {fmt_valor(impostos.valor_inss)}")
+                extenso_v = CorpoNotaService._valor_por_extenso(impostos.valor_inss)
+                linhas.append(f"INSS {fmt_pct(impostos.percentual_inss)} - {fmt_valor(impostos.valor_inss)} ({extenso_v})")
             if impostos.valor_cofins:
-                linhas.append(f"COFINS {fmt_pct(impostos.percentual_cofins)} - {fmt_valor(impostos.valor_cofins)}")
+                extenso_v = CorpoNotaService._valor_por_extenso(impostos.valor_cofins)
+                linhas.append(f"COFINS {fmt_pct(impostos.percentual_cofins)} - {fmt_valor(impostos.valor_cofins)} ({extenso_v})")
             if impostos.valor_pis:
-                linhas.append(f"PIS {fmt_pct(impostos.percentual_pis)} - {fmt_valor(impostos.valor_pis)}")
+                extenso_v = CorpoNotaService._valor_por_extenso(impostos.valor_pis)
+                linhas.append(f"PIS {fmt_pct(impostos.percentual_pis)} - {fmt_valor(impostos.valor_pis)} ({extenso_v})")
             if impostos.valor_csll:
-                linhas.append(f"CSLL {fmt_pct(impostos.percentual_csll)} - {fmt_valor(impostos.valor_csll)}")
+                extenso_v = CorpoNotaService._valor_por_extenso(impostos.valor_csll)
+                linhas.append(f"CSLL{fmt_pct(impostos.percentual_csll)} - {fmt_valor(impostos.valor_csll)} ({extenso_v})")
             extenso_liq = CorpoNotaService._valor_por_extenso(impostos.valor_liquido)
             linhas.append(f"Valor Líquido da Nota de Serviço: {fmt_valor(impostos.valor_liquido)} ({extenso_liq})")
 
-        if valor_nota_produto is not None:
+        if tem_produto:
             linhas.append("")
-            linhas.append("Valores da Nota de Produto:")
+            linhas.append("Valores da Nota de Produto: ")
             extenso_prod = CorpoNotaService._valor_por_extenso(valor_nota_produto)
             linhas.append(f"Valor da Nota de Produto: {fmt_valor(valor_nota_produto)} ({extenso_prod})")
 
         if valor_total_notas is not None or valor_total_boleto is not None:
             linhas.append("")
-            linhas.append("Valor Total:")
+            linhas.append("Valor Total: ")
             if valor_total_notas:
                 extenso_total = CorpoNotaService._valor_por_extenso(valor_total_notas)
                 linhas.append(f"Valor Total das Notas: {fmt_valor(valor_total_notas)} ({extenso_total})")
@@ -821,13 +927,108 @@ class CorpoNotaService:
                 extenso_boleto = CorpoNotaService._valor_por_extenso(valor_total_boleto)
                 linhas.append(f"Valor Total do Boleto: {fmt_valor(valor_total_boleto)} ({extenso_boleto})")
 
-        if data_vencimento:
+        if data_vencimento and total_boleto:
             linhas.append("")
-            linhas.append("Parcelamento:")
-            valor_parcela = valor_total_boleto if valor_total_boleto else (liquido if liquido else valor_bruto)
-            if valor_parcela:
-                extenso_parc = CorpoNotaService._valor_por_extenso(valor_parcela)
-                linhas.append(f"1ª Parcela: {fmt_valor(valor_parcela)} ({extenso_parc}) – Vencimento: {fmt_data_barra(data_vencimento)}")
+            linhas.append("Parcelamento: ")
+            # Calcula valores por parcela
+            # Se serviço+produto e N>1: 1ª = liquido serviço, demais dividem valor_nota_produto
+            if tem_produto and numero_parcelas > 1 and liquido and valor_nota_produto:
+                valor_1 = liquido
+                restante = valor_nota_produto
+                valor_outros = round(restante / (numero_parcelas - 1), 2)
+            else:
+                valor_1 = round(total_boleto / numero_parcelas, 2)
+                valor_outros = valor_1
+
+            ORDINAIS_NF = ["1ª","2ª","3ª","4ª","5ª","6ª","7ª","8ª","9ª","10ª","11ª","12ª"]
+            for i in range(numero_parcelas):
+                ord_str = ORDINAIS_NF[i] if i < len(ORDINAIS_NF) else f"{i+1}ª"
+                v = valor_1 if i == 0 else valor_outros
+                dt = add_meses(data_vencimento, i)
+                linhas.append(f"{ord_str} Parcela: {fmt_valor(v)} – Vencimento: {fmt_data_barra(dt)}")
+
+        if observacoes:
+            linhas.append("")
+            linhas.append(observacoes)
+
+        linhas.append("")
+        linhas.append("Ficamos à disposição para quaisquer esclarecimentos.")
+        linhas.append("Por gentileza, solicitamos a confirmação de recebimento deste e-mail.")
+        linhas.append("Atenciosamente,")
+        return "\n".join(linhas)
+
+    @staticmethod
+    def _montar_texto_produto(
+        nome_cond: str,
+        descricao_servico: str,
+        numero_os: Optional[str],
+        data_servico_texto: Optional[str],
+        data_servico: Optional[date],
+        valor_bruto: Optional[float],
+        data_vencimento: Optional[date],
+        numero_parcelas: int = 1,
+        descricao_garantia: Optional[str] = None,
+        observacoes: Optional[str] = None,
+        numero_referencia: Optional[str] = None,
+        numero_nf: Optional[int] = None,
+    ) -> str:
+        """Gera o texto do corpo da nota de PRODUTO conforme template da cliente."""
+
+        def fmt_valor(v: Optional[float]) -> str:
+            if v is None:
+                return "—"
+            return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        def fmt_data_barra(d) -> str:
+            if not d:
+                return "—"
+            if hasattr(d, "strftime"):
+                return d.strftime("%d/%m/%Y")
+            return str(d)
+
+        def add_meses(d, n: int):
+            import calendar
+            mes = d.month + n
+            ano = d.year + (mes - 1) // 12
+            mes = ((mes - 1) % 12) + 1
+            ultimo_dia = calendar.monthrange(ano, mes)[1]
+            return d.replace(year=ano, month=mes, day=min(d.day, ultimo_dia))
+
+        texto_datas = data_servico_texto or (fmt_data_barra(data_servico) if data_servico else "—")
+        extenso_parc = CorpoNotaService._ordinal_extenso(numero_parcelas)
+        plural = "parcela" if numero_parcelas == 1 else "parcelas"
+
+        linhas = []
+        if numero_nf:
+            linhas.append(f"NF – {CorpoNotaService._fmt_numero_nf(numero_nf)} – {nome_cond}")
+
+        linhas += [
+            f"Serviços Executados: {descricao_servico or '—'}",
+            "",
+            f"Datas do Serviço Executado: {texto_datas}",
+            f"Ordens de Serviço: {numero_os or '—'}",
+            f"Quantidade de Parcelas: {numero_parcelas:02d} ({extenso_parc}) {plural}",
+        ]
+
+        if descricao_garantia:
+            linhas.append(f"Garantias: {descricao_garantia}")
+
+        linhas.append("")
+        linhas.append("Valores da Nota de Produto: ")
+
+        if valor_bruto is not None:
+            extenso = CorpoNotaService._valor_por_extenso(valor_bruto)
+            linhas.append(f"Valor da Nota de Produto: {fmt_valor(valor_bruto)} ({extenso})")
+
+        if data_vencimento and valor_bruto:
+            linhas.append("")
+            linhas.append("Parcelamento: ")
+            valor_parcela = round(valor_bruto / numero_parcelas, 2)
+            ORDINAIS_NF = ["1ª","2ª","3ª","4ª","5ª","6ª","7ª","8ª","9ª","10ª","11ª","12ª"]
+            for i in range(numero_parcelas):
+                ord_str = ORDINAIS_NF[i] if i < len(ORDINAIS_NF) else f"{i+1}ª"
+                dt = add_meses(data_vencimento, i)
+                linhas.append(f"{ord_str} Parcela: {fmt_valor(valor_parcela)} Vencimento: {fmt_data_barra(dt)}")
 
         if observacoes:
             linhas.append("")

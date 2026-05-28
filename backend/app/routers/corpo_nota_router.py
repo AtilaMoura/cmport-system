@@ -256,6 +256,8 @@ def preview_corpo(
         data_servico_texto=payload.data_servico_texto,
         descricao_garantia=payload.descricao_garantia,
         valor_nota_produto=payload.valor_nota_produto,
+        numero_parcelas=payload.numero_parcelas,
+        numero_nf=payload.numero_nf,
     )
     impostos_resp = None
     if resultado["impostos_calculados"]:
@@ -305,6 +307,7 @@ def criar_corpo(
         data_servico_texto=payload.data_servico_texto,
         descricao_garantia=payload.descricao_garantia,
         valor_nota_produto=payload.valor_nota_produto,
+        numero_parcelas=payload.numero_parcelas,
     )
 
 
@@ -393,6 +396,8 @@ def atualizar_corpo(
         data_servico_texto=payload.data_servico_texto,
         descricao_garantia=payload.descricao_garantia,
         valor_nota_produto=payload.valor_nota_produto,
+        numero_parcelas=payload.numero_parcelas,
+        numero_nf=payload.numero_nf,
     )
 
 

@@ -30,6 +30,8 @@ interface ContaInter {
   tipo_nota: string;
   ativo: boolean;
   criado_em: string;
+  numero_nf_servico: number | null;
+  numero_nf_produto: number | null;
 }
 
 interface InterForm {
@@ -40,11 +42,15 @@ interface InterForm {
   conta_corrente: string;
   cert_path: string;
   ativo: boolean;
+  tipo_nota: string;
+  numero_nf_servico: string;
+  numero_nf_produto: string;
 }
 
 const INTER_VAZIO: InterForm = {
   cnpj: '', razao_social: '', client_id: '', client_secret: '',
-  conta_corrente: '', cert_path: '', ativo: true,
+  conta_corrente: '', cert_path: '', ativo: true, tipo_nota: 'SERVICO',
+  numero_nf_servico: '', numero_nf_produto: '',
 };
 
 const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '', emails_copia: [] };
@@ -209,13 +215,16 @@ export default function ConfiguracoesPage() {
 
   const abrirEditarInter = (c: ContaInter) => {
     setInterForm({
-      cnpj:           c.cnpj,
-      razao_social:   c.razao_social ?? '',
-      client_id:      c.client_id ?? '',
-      client_secret:  '',
-      conta_corrente: '',
-      cert_path:      '',
-      ativo:          c.ativo,
+      cnpj:              c.cnpj,
+      razao_social:      c.razao_social ?? '',
+      client_id:         c.client_id ?? '',
+      client_secret:     '',
+      conta_corrente:    '',
+      cert_path:         '',
+      ativo:             c.ativo,
+      tipo_nota:         c.tipo_nota ?? 'SERVICO',
+      numero_nf_servico: c.numero_nf_servico != null ? String(c.numero_nf_servico) : '',
+      numero_nf_produto: c.numero_nf_produto != null ? String(c.numero_nf_produto) : '',
     });
     setMostrarInterSecret(false);
     setModalInter(c);
@@ -226,25 +235,33 @@ export default function ConfiguracoesPage() {
       alert('Preencha o CNPJ.'); return;
     }
     setSalvandoInter(true);
+    const nfServico = interForm.numero_nf_servico ? parseInt(interForm.numero_nf_servico) : null;
+    const nfProduto = interForm.numero_nf_produto ? parseInt(interForm.numero_nf_produto) : null;
     try {
       if (modalInter === 'novo') {
         await api.post('/configuracoes/inter', {
-          cnpj:           interForm.cnpj,
-          razao_social:   interForm.razao_social || null,
-          client_id:      interForm.client_id || null,
-          client_secret:  interForm.client_secret || null,
-          conta_corrente: interForm.conta_corrente || null,
-          cert_path:      interForm.cert_path || null,
-          ativo:          interForm.ativo,
+          cnpj:              interForm.cnpj,
+          razao_social:      interForm.razao_social || null,
+          client_id:         interForm.client_id || null,
+          client_secret:     interForm.client_secret || null,
+          conta_corrente:    interForm.conta_corrente || null,
+          cert_path:         interForm.cert_path || null,
+          ativo:             interForm.ativo,
+          tipo_nota:         interForm.tipo_nota || 'SERVICO',
+          numero_nf_servico: nfServico,
+          numero_nf_produto: nfProduto,
         });
       } else {
         const payload: Record<string, unknown> = {
-          cnpj:           interForm.cnpj,
-          razao_social:   interForm.razao_social || null,
-          client_id:      interForm.client_id || null,
-          conta_corrente: interForm.conta_corrente || null,
-          cert_path:      interForm.cert_path || null,
-          ativo:          interForm.ativo,
+          cnpj:              interForm.cnpj,
+          razao_social:      interForm.razao_social || null,
+          client_id:         interForm.client_id || null,
+          conta_corrente:    interForm.conta_corrente || null,
+          cert_path:         interForm.cert_path || null,
+          ativo:             interForm.ativo,
+          tipo_nota:         interForm.tipo_nota || 'SERVICO',
+          numero_nf_servico: nfServico,
+          numero_nf_produto: nfProduto,
         };
         if (interForm.client_secret) payload.client_secret = interForm.client_secret;
         await api.put(`/configuracoes/inter/${(modalInter as ContaInter).id}`, payload);
@@ -505,7 +522,7 @@ export default function ConfiguracoesPage() {
         ) : contasInter.length === 0 ? (
           <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
             <p className="text-slate-400 text-sm">Nenhum CNPJ emitente cadastrado.</p>
-            <p className="text-slate-400 text-xs mt-1">Clique em "+ Adicionar CNPJ" para cadastrar o emitente das notas.</p>
+            <p className="text-slate-400 text-xs mt-1">Clique em &quot;+ Adicionar CNPJ&quot; para cadastrar o emitente das notas.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -525,6 +542,14 @@ export default function ConfiguracoesPage() {
                       ? <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-mono">{c.client_id.substring(0, 8)}… <span className="text-green-500">● Inter</span></p>
                       : <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Sem credenciais Inter (só emitente)</p>
                     }
+                    <div className="flex gap-3 mt-1 flex-wrap">
+                      {c.numero_nf_servico != null && (
+                        <span className="text-xs text-blue-600 dark:text-blue-400 font-mono">NF Serv: {String(c.numero_nf_servico).padStart(9,'0').replace(/(\d{3})(\d{3})(\d{3})/,'$1.$2.$3')}</span>
+                      )}
+                      {c.numero_nf_produto != null && (
+                        <span className="text-xs text-orange-600 dark:text-orange-400 font-mono">NF Prod: {String(c.numero_nf_produto).padStart(9,'0').replace(/(\d{3})(\d{3})(\d{3})/,'$1.$2.$3')}</span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex gap-1.5 flex-wrap justify-end shrink-0">
@@ -633,6 +658,37 @@ export default function ConfiguracoesPage() {
                   className={`${inputCls} font-mono text-xs`}
                 />
                 <p className="text-xs text-slate-400 mt-1">Pasta no servidor contendo <code>certificado.crt</code> e <code>key.key</code></p>
+              </div>
+
+              {/* Numeração de NF */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Numeração de NF</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Próxima NF Serviço/Manutenção</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={interForm.numero_nf_servico}
+                      onChange={e => setInterForm(p => ({ ...p, numero_nf_servico: e.target.value }))}
+                      placeholder="Ex: 110"
+                      className={inputCls}
+                    />
+                    <p className="text-xs text-slate-400 mt-0.5">Sequência compartilhada</p>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Próxima NF Produto</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={interForm.numero_nf_produto}
+                      onChange={e => setInterForm(p => ({ ...p, numero_nf_produto: e.target.value }))}
+                      placeholder="Ex: 111"
+                      className={inputCls}
+                    />
+                    <p className="text-xs text-slate-400 mt-0.5">Sequência separada</p>
+                  </div>
+                </div>
               </div>
 
               <label className="flex items-center gap-2 cursor-pointer">

@@ -51,4 +51,7 @@ class ConfiguracaoInter(Base):
     ativo          = Column(Boolean, default=True)
     # "SERVICO" (padrão) ou "PRODUTO" — usado para classificar notas no import
     tipo_nota      = Column(String(20), nullable=False, default="SERVICO")
+    # Sequências de numeração de NF por CNPJ
+    numero_nf_servico = Column(Integer, nullable=True)  # próxima NF serviço/manutenção
+    numero_nf_produto = Column(Integer, nullable=True)  # próxima NF produto
     criado_em      = Column(DateTime, default=datetime.utcnow)

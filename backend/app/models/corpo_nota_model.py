@@ -1,7 +1,7 @@
 import enum
 
 from sqlalchemy import (
-    Column, Integer, Boolean, Date, DateTime, Enum, ForeignKey,
+    Column, Integer, SmallInteger, Boolean, Date, DateTime, Enum, ForeignKey,
     Numeric, String, Text, Index
 )
 from sqlalchemy.orm import relationship
@@ -89,6 +89,12 @@ class CorpoNota(Base):
 
     # Número de referência sequencial interno (ex: MAT-2026/0001)
     numero_referencia = Column(String(20), nullable=True, unique=True, index=True)
+
+    # Número da NF atribuído na criação (auto-incrementado a partir de ConfiguracaoInter)
+    numero_nf = Column(Integer, nullable=True)
+
+    # Quantidade de parcelas para geração do parcelamento no corpo
+    numero_parcelas = Column(SmallInteger, nullable=True, default=1)
 
     # Texto gerado do corpo da nota
     conteudo_gerado = Column(Text, nullable=True)

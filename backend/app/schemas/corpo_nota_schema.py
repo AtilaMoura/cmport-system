@@ -25,6 +25,7 @@ class CorpoNotaCreate(BaseModel):
     data_servico_texto: Optional[str] = None
     descricao_garantia: Optional[str] = None
     valor_nota_produto: Optional[float] = None
+    numero_parcelas: Optional[int] = 1
 
     @field_validator("mes")
     @classmethod
@@ -60,6 +61,8 @@ class CorpoNotaUpdate(BaseModel):
     data_servico_texto: Optional[str] = None
     descricao_garantia: Optional[str] = None
     valor_nota_produto: Optional[float] = None
+    numero_parcelas: Optional[int] = None
+    numero_nf: Optional[int] = None
 
 
 class CorpoNotaStatusUpdate(BaseModel):
@@ -89,6 +92,8 @@ class CorpoNotaPreviewRequest(BaseModel):
     data_servico_texto: Optional[str] = None
     descricao_garantia: Optional[str] = None
     valor_nota_produto: Optional[float] = None
+    numero_parcelas: Optional[int] = 1
+    numero_nf: Optional[int] = None
 
 
 class ImpostosCalculadosResponse(BaseModel):
@@ -153,5 +158,7 @@ class CorpoNotaResponse(CorpoNotaResumoResponse):
     data_servico_texto: Optional[str] = None
     descricao_garantia: Optional[str] = None
     valor_nota_produto: Optional[float] = None
+    numero_parcelas: Optional[int] = None
+    numero_nf: Optional[int] = None
 
     model_config = {"from_attributes": True}

@@ -14,6 +14,8 @@ interface ConfiguracaoInter {
   razao_social: string | null;
   tipo_nota: string;
   ativo: boolean;
+  numero_nf_servico: number | null;
+  numero_nf_produto: number | null;
 }
 
 interface CondPendente {
@@ -144,6 +146,8 @@ function NovoCorpoNotaContent() {
   const [dataServicoTexto, setDataServicoTexto] = useState('');
   const [descricaoGarantia, setDescricaoGarantia] = useState('');
   const [valorNotaProduto, setValorNotaProduto] = useState('');
+  const [temNotaProduto, setTemNotaProduto] = useState(false);
+  const [numeroParcelas, setNumeroParcelas] = useState(1);
 
   // Step 5 — Preview
   const [preview, setPreview] = useState<{
@@ -161,7 +165,6 @@ function NovoCorpoNotaContent() {
         const r = await api.get('/configuracoes/inter');
         const ativas = (r.data as ConfiguracaoInter[]).filter(c => c.ativo);
         setConfiguracaosInter(ativas);
-        if (ativas.length === 1) setCnpjSelecionado(ativas[0]);
       } catch {
         setConfiguracaosInter([]);
       } finally {
@@ -170,6 +173,17 @@ function NovoCorpoNotaContent() {
     };
     carregarInter();
   }, []);
+
+  // Filtra emitentes compatíveis com o tipo de nota selecionado
+  const emitentesFiltratos = configuracaosInter.filter(c =>
+    tipoNota === 'PRODUTO' ? c.tipo_nota === 'PRODUTO' : c.tipo_nota !== 'PRODUTO'
+  );
+
+  // Helper: próxima NF do emitente para o tipo atual
+  const proximaNfEmitente = (c: ConfiguracaoInter): number | null =>
+    tipoNota === 'PRODUTO' ? c.numero_nf_produto : c.numero_nf_servico;
+
+  const fmtNf = (n: number) => String(n).padStart(9, '0').replace(/(\d{3})(\d{3})(\d{3})/, '$1.$2.$3');
 
   const buscarProximoNumero = async (tipo: string, anoRef: number) => {
     try {
@@ -196,6 +210,21 @@ function NovoCorpoNotaContent() {
       setBuscandoConds(false);
     }
   };
+
+  // Ao mudar tipo, redefine emitente (respeitar filtro) e toggle produto
+  useEffect(() => {
+    setCnpjSelecionado(null);
+    setTemNotaProduto(false);
+    setValorNotaProduto('');
+    setNumeroParcelas(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoNota]);
+
+  // Auto-seleciona se só houver 1 emitente compatível
+  useEffect(() => {
+    if (emitentesFiltratos.length === 1) setCnpjSelecionado(emitentesFiltratos[0]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emitentesFiltratos.length, tipoNota]);
 
   // Re-busca condomínios quando estiver no step 2 e mudar período ou tipo
   useEffect(() => {
@@ -349,9 +378,11 @@ function NovoCorpoNotaContent() {
         valor_bruto: Number(valorBruto),
         data_vencimento: dataVencimento,
         observacoes: observacoes || null,
-        data_servico_texto: tipoNota === 'SERVICO' ? (dataServicoTexto || null) : null,
-        descricao_garantia: tipoNota === 'SERVICO' ? (descricaoGarantia || null) : null,
-        valor_nota_produto: tipoNota === 'SERVICO' && valorNotaProduto ? Number(valorNotaProduto) : null,
+        data_servico_texto: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (dataServicoTexto || null) : null,
+        descricao_garantia: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (descricaoGarantia || null) : null,
+        valor_nota_produto: tipoNota === 'SERVICO' && temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : null,
+        numero_parcelas: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? numeroParcelas : 1,
+        numero_nf: cnpjSelecionado ? (tipoNota === 'PRODUTO' ? cnpjSelecionado.numero_nf_produto : cnpjSelecionado.numero_nf_servico) : null,
       });
       setPreview(r.data);
       setStep(5);
@@ -382,9 +413,10 @@ function NovoCorpoNotaContent() {
         observacoes: observacoes || null,
         configuracao_inter_id: cnpjSelecionado?.id ?? null,
         orcamento_id: orcamentoSelecionado?.id ?? null,
-        data_servico_texto: tipoNota === 'SERVICO' ? (dataServicoTexto || null) : null,
-        descricao_garantia: tipoNota === 'SERVICO' ? (descricaoGarantia || null) : null,
-        valor_nota_produto: tipoNota === 'SERVICO' && valorNotaProduto ? Number(valorNotaProduto) : null,
+        data_servico_texto: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (dataServicoTexto || null) : null,
+        descricao_garantia: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (descricaoGarantia || null) : null,
+        valor_nota_produto: tipoNota === 'SERVICO' && temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : null,
+        numero_parcelas: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? numeroParcelas : 1,
       });
       router.push(`/corpos-nota/${r.data.id}`);
     } catch (e: unknown) {
@@ -440,20 +472,25 @@ function NovoCorpoNotaContent() {
 
                 {carregandoInter ? (
                   <div className="text-slate-400 text-sm animate-pulse">Carregando emitentes...</div>
-                ) : configuracaosInter.length === 0 ? (
+                ) : emitentesFiltratos.length === 0 ? (
                   <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-700 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-400">
-                    Nenhum emitente cadastrado. Importe uma nota fiscal ou cadastre em Configurações → Banco Inter.
+                    Nenhum emitente cadastrado para tipo {tipoNota === 'PRODUTO' ? 'Produto' : 'Serviço/Manutenção'}. Cadastre em Configurações → Banco Inter.
                   </div>
-                ) : configuracaosInter.length === 1 ? (
+                ) : emitentesFiltratos.length === 1 ? (
                   <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700 rounded-xl p-4">
                     <div className="font-bold text-violet-700 dark:text-violet-400 text-sm">
-                      {configuracaosInter[0].razao_social || configuracaosInter[0].cnpj}
+                      {emitentesFiltratos[0].razao_social || emitentesFiltratos[0].cnpj}
                     </div>
-                    <div className="text-xs text-slate-500 mt-0.5">{configuracaosInter[0].cnpj}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{emitentesFiltratos[0].cnpj}</div>
+                    {proximaNfEmitente(emitentesFiltratos[0]) != null && (
+                      <div className="text-xs font-mono text-violet-600 dark:text-violet-400 mt-1">
+                        Próxima NF: {fmtNf(proximaNfEmitente(emitentesFiltratos[0])!)}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {configuracaosInter.map(c => (
+                    {emitentesFiltratos.map(c => (
                       <button
                         key={c.id}
                         type="button"
@@ -468,8 +505,10 @@ function NovoCorpoNotaContent() {
                           {c.razao_social || c.cnpj}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">{c.cnpj}</div>
-                        {c.tipo_nota === 'PRODUTO' && (
-                          <span className="mt-1 inline-block px-2 py-0.5 bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 text-xs rounded-full font-bold">Produto</span>
+                        {proximaNfEmitente(c) != null && (
+                          <div className="text-xs font-mono text-violet-600 dark:text-violet-400 mt-0.5">
+                            NF: {fmtNf(proximaNfEmitente(c)!)}
+                          </div>
                         )}
                       </button>
                     ))}
@@ -513,11 +552,21 @@ function NovoCorpoNotaContent() {
                     <div className="text-xs text-slate-500 mt-1">Serviços executados sob demanda</div>
                   </button>
 
-                  <div className="p-5 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 opacity-50 cursor-not-allowed">
+                  <button
+                    type="button"
+                    onClick={() => setTipoNota('PRODUTO')}
+                    className={`p-5 rounded-2xl border-2 text-left transition-all ${
+                      tipoNota === 'PRODUTO'
+                        ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
+                    }`}
+                  >
                     <div className="text-2xl mb-2">📦</div>
-                    <div className="font-bold text-sm text-slate-500">Produto</div>
-                    <div className="text-xs text-slate-400 mt-1">Em breve</div>
-                  </div>
+                    <div className={`font-bold text-sm ${tipoNota === 'PRODUTO' ? 'text-violet-700 dark:text-violet-400' : 'text-slate-800 dark:text-white'}`}>
+                      Produto
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">Nota de produto para clientes com contrato</div>
+                  </button>
                 </div>
               </div>
 
@@ -857,8 +906,8 @@ function NovoCorpoNotaContent() {
                 </p>
               </div>
 
-              {/* Data do Serviço — MANUTENCAO usa date picker; SERVIÇO usa texto livre */}
-              {tipoNota === 'SERVICO' ? (
+              {/* Data do Serviço — MANUTENCAO usa date picker; SERVIÇO e PRODUTO usam texto livre */}
+              {tipoNota === 'SERVICO' || tipoNota === 'PRODUTO' ? (
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
                     Data(s) do Serviço (texto)
@@ -867,7 +916,7 @@ function NovoCorpoNotaContent() {
                     type="text"
                     value={dataServicoTexto}
                     onChange={e => setDataServicoTexto(e.target.value)}
-                    placeholder="Ex: 06.05.2026 e 07.05.2026"
+                    placeholder="Ex: 14.05.2026"
                     className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                   />
                 </div>
@@ -926,38 +975,73 @@ function NovoCorpoNotaContent() {
                 </div>
               </div>
 
-              {/* Campos extras para SERVIÇO */}
-              {tipoNota === 'SERVICO' && (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
-                      Garantia (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={descricaoGarantia}
-                      onChange={e => setDescricaoGarantia(e.target.value)}
-                      placeholder="Ex: 06 meses · Motor: 3 meses / Placa: 1 ano"
-                      className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                    />
-                  </div>
+              {/* Garantia — SERVIÇO e PRODUTO */}
+              {(tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                    Garantia (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={descricaoGarantia}
+                    onChange={e => setDescricaoGarantia(e.target.value)}
+                    placeholder="Ex: 06 meses · Motor: 3 meses / Placa: 1 ano"
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+              )}
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
-                      Valor da Nota de Produto (R$) — opcional
-                    </label>
+              {/* Toggle nota de produto — só SERVIÇO */}
+              {tipoNota === 'SERVICO' && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <label className="flex items-center gap-3 cursor-pointer">
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={valorNotaProduto}
-                      onChange={e => setValorNotaProduto(e.target.value)}
-                      placeholder="0,00 — deixe em branco se não houver"
-                      className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                      type="checkbox"
+                      checked={temNotaProduto}
+                      onChange={e => {
+                        setTemNotaProduto(e.target.checked);
+                        if (!e.target.checked) setValorNotaProduto('');
+                      }}
+                      className="w-4 h-4 rounded accent-violet-600"
                     />
-                    <p className="text-xs text-slate-500 mt-1">Preencha quando a nota de serviço vier acompanhada de uma nota de produto para o mesmo boleto.</p>
-                  </div>
-                </>
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Tem nota de produto junto?</span>
+                  </label>
+                  {temNotaProduto && (
+                    <div className="mt-3">
+                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                        Valor da Nota de Produto (R$) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={valorNotaProduto}
+                        onChange={e => setValorNotaProduto(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full px-4 py-3 border border-violet-400 dark:border-violet-600 ring-2 ring-violet-100 dark:ring-violet-500/20 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Número de parcelas — SERVIÇO e PRODUTO */}
+              {(tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                    Número de Parcelas
+                  </label>
+                  <select
+                    value={numeroParcelas}
+                    onChange={e => setNumeroParcelas(Number(e.target.value))}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  >
+                    {[1,2,3,4,5,6].map(n => (
+                      <option key={n} value={n}>{n}x</option>
+                    ))}
+                  </select>
+                </div>
               )}
 
               <div>
@@ -1024,6 +1108,14 @@ function NovoCorpoNotaContent() {
                     <div className="font-semibold text-sm text-slate-800 dark:text-white">{cnpjSelecionado.razao_social || cnpjSelecionado.cnpj}</div>
                     <div className="text-xs text-slate-500">{cnpjSelecionado.cnpj}</div>
                   </div>
+                  {proximaNfEmitente(cnpjSelecionado) != null && (
+                    <div className="text-right">
+                      <div className="text-xs text-slate-400 uppercase font-bold mb-0.5">NF prevista</div>
+                      <div className="font-mono font-bold text-violet-700 dark:text-violet-400 text-sm">
+                        {fmtNf(proximaNfEmitente(cnpjSelecionado)!)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
