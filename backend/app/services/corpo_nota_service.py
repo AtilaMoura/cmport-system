@@ -692,17 +692,24 @@ class CorpoNotaService:
             c, resto = divmod(n, 100)
             return f"{CENTENAS[c]}{' e ' + nn(resto) if resto else ''}"
 
-        partes = []
         mil = reais // 1000
         resto_reais = reais % 1000
+        mil_str = ''
         if mil == 1:
-            partes.append('mil')
+            mil_str = 'mil'
         elif mil > 1:
-            partes.append(f"{nn(mil)} mil")
-        if resto_reais:
-            partes.append(nn(resto_reais))
+            mil_str = f"{nn(mil)} mil"
 
-        r_texto = ' e '.join(p for p in partes if p) or 'zero'
+        if mil_str and resto_reais:
+            # "e" antes do resto só quando resto < 100 ou é centena redonda (100, 200...)
+            usar_e = (resto_reais < 100) or (resto_reais % 100 == 0)
+            r_texto = f"{mil_str} e {nn(resto_reais)}" if usar_e else f"{mil_str} {nn(resto_reais)}"
+        elif mil_str:
+            r_texto = mil_str
+        elif resto_reais:
+            r_texto = nn(resto_reais)
+        else:
+            r_texto = 'zero'
         resultado = f"{r_texto} {'real' if reais == 1 else 'reais'}"
 
         if centavos > 0:
@@ -961,6 +968,13 @@ class CorpoNotaService:
                 extenso_boleto = CorpoNotaService._valor_por_extenso(valor_total_boleto)
                 linhas.append(f"Valor Total do Boleto: {fmt_valor(valor_total_boleto)} ({extenso_boleto})")
 
+        def fmt_data_pontos_local(d) -> str:
+            if not d:
+                return "—"
+            if hasattr(d, "strftime"):
+                return d.strftime("%d.%m.%Y")
+            return str(d)
+
         ORDINAIS_NF = ["1ª","2ª","3ª","4ª","5ª","6ª","7ª","8ª","9ª","10ª","11ª","12ª"]
 
         if parcelas_json:
@@ -974,7 +988,7 @@ class CorpoNotaService:
                     try:
                         from datetime import date as date_type
                         d = date_type.fromisoformat(dt_str)
-                        dt_fmt = fmt_data_barra(d)
+                        dt_fmt = fmt_data_pontos_local(d)
                     except Exception:
                         dt_fmt = dt_str
                 else:
@@ -993,7 +1007,7 @@ class CorpoNotaService:
                 ord_str = ORDINAIS_NF[i] if i < len(ORDINAIS_NF) else f"{i+1}ª"
                 v = valor_1 if i == 0 else valor_outros
                 dt = add_meses(data_vencimento, i)
-                linhas.append(f"{ord_str} Parcela: {fmt_valor(v)} – Vencimento: {fmt_data_barra(dt)}")
+                linhas.append(f"{ord_str} Parcela: {fmt_valor(v)} – Vencimento: {fmt_data_pontos_local(dt)}")
 
         if observacoes:
             linhas.append("")
@@ -1081,6 +1095,13 @@ class CorpoNotaService:
             extenso = CorpoNotaService._valor_por_extenso(valor_bruto)
             linhas.append(f"Valor da Nota de Produto: {fmt_valor(valor_bruto)} ({extenso})")
 
+        def fmt_pontos(d) -> str:
+            if not d:
+                return "—"
+            if hasattr(d, "strftime"):
+                return d.strftime("%d.%m.%Y")
+            return str(d)
+
         ORDINAIS_NF = ["1ª","2ª","3ª","4ª","5ª","6ª","7ª","8ª","9ª","10ª","11ª","12ª"]
 
         if parcelas_json:
@@ -1094,7 +1115,7 @@ class CorpoNotaService:
                     try:
                         from datetime import date as date_type
                         d = date_type.fromisoformat(dt_str)
-                        dt_fmt = fmt_data_barra(d)
+                        dt_fmt = fmt_pontos(d)
                     except Exception:
                         dt_fmt = dt_str
                 else:

@@ -62,13 +62,15 @@ interface Orcamento {
   itens: OrcamentoItem[];
 }
 
-const LABELS_STEP = ['Emitente', 'Condomínio', 'Origem', 'Dados', 'Confirmar'];
-const TOTAL_STEPS = 5;
+const LABELS_STEP_MANUT = ['Emitente', 'Condomínio', 'Origem', 'Dados', 'Confirmar'];
+const LABELS_STEP_SERV  = ['Emitente', 'Condomínio', 'Origem', 'Dados', 'Parcelas', 'Confirmar'];
+const TOTAL_STEPS_MANUT = 5;
+const TOTAL_STEPS_SERV  = 6;
 
-function StepIndicator({ atual }: { atual: number }) {
+function StepIndicator({ atual, labels }: { atual: number; labels: string[] }) {
   return (
     <div className="flex items-center gap-1 mb-8 overflow-x-auto pb-2">
-      {LABELS_STEP.map((label, idx) => {
+      {labels.map((label, idx) => {
         const n = idx + 1;
         const concluido = n < atual;
         const ativo = n === atual;
@@ -86,7 +88,7 @@ function StepIndicator({ atual }: { atual: number }) {
                 ativo ? 'text-violet-600 dark:text-violet-400' : 'text-slate-400'
               }`}>{label}</span>
             </div>
-            {n < TOTAL_STEPS && (
+            {n < labels.length && (
               <div className={`h-0.5 w-6 sm:w-10 mb-4 shrink-0 ${n < atual ? 'bg-violet-600' : 'bg-slate-200 dark:bg-slate-700'}`} />
             )}
           </div>
@@ -153,10 +155,18 @@ function NovoCorpoNotaContent() {
   // Parcelas livres: cada uma tem valor + data
   const [parcelas, setParcelas] = useState<{valor: string; data: string}[]>([{valor:'',data:''}]);
 
-  // Step 5 — Preview
+  // Step 5 — Parcelas (impostos calculados no Step 4→5)
+  const [impostosCalculados, setImpostosCalculados] = useState<{
+    valor_liquido: number;
+    percentual_inss: number; percentual_cofins: number; percentual_pis: number; percentual_csll: number;
+    valor_inss: number; valor_cofins: number; valor_pis: number; valor_csll: number;
+  } | null>(null);
+  const [calculandoImpostos, setCalculandoImpostos] = useState(false);
+
+  // Step 6 — Preview
   const [preview, setPreview] = useState<{
     conteudo_gerado: string;
-    impostos_calculados: { valor_liquido: number; percentual_iss?: number } | null;
+    impostos_calculados: { valor_liquido: number } | null;
   } | null>(null);
   const [gerandoPreview, setGerandoPreview] = useState(false);
   const [proximoNumero, setProximoNumero] = useState<string | null>(null);
@@ -365,50 +375,92 @@ function NovoCorpoNotaContent() {
     setStep(4);
   };
 
-  // ── Step 4 → 5: gera preview ─────────────────────────────────────────────────
-  const gerarPreview = async () => {
-    const precisaVencimento = tipoNota === 'MANUTENCAO';
-    const temParcelas = parcelas.some(p => p.valor && p.data);
+  // helper para montar o payload base (sem parcelas)
+  const payloadBase = () => {
+    const mesRef = `${String(mes).padStart(2, '0')}/${ano}`;
+    return {
+      condominio_id: condSelecionado!.condominio_id,
+      tipo_nota: tipoNota,
+      mes_referencia: mesRef,
+      numero_os: numeroOs || null,
+      data_servico: dataServico || null,
+      descricao_servico: descricaoServico,
+      valor_bruto: Number(valorBruto),
+      data_vencimento: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && parcelas[0]?.data
+        ? parcelas[0].data : dataVencimento,
+      observacoes: observacoes || null,
+      data_servico_texto: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (dataServicoTexto || null) : null,
+      descricao_garantia: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (descricaoGarantia || null) : null,
+      valor_nota_produto: tipoNota === 'SERVICO' && temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : null,
+      numero_nf: cnpjSelecionado ? (tipoNota === 'PRODUTO' ? cnpjSelecionado.numero_nf_produto : cnpjSelecionado.numero_nf_servico) : null,
+      produtos_json: listarProdutos && produtos.filter(p => p.nome).length > 0
+        ? produtos.filter(p => p.nome).map(p => ({nome: p.nome, quantidade: Number(p.quantidade) || 1}))
+        : null,
+    };
+  };
+
+  // ── Step 4 → 5: calcula impostos (SERVICO/PRODUTO) ou gera preview direto (MANUTENCAO)
+  const avancarStep4 = async () => {
     if (!valorBruto || !descricaoServico) {
       setErro('Preencha valor bruto e descrição do serviço.');
       return;
     }
-    if (precisaVencimento && !dataVencimento) {
+    if (tipoNota === 'MANUTENCAO' && !dataVencimento) {
       setErro('Preencha a data de vencimento.');
       return;
     }
-    if ((tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && !temParcelas) {
+    setErro(null);
+
+    if (tipoNota === 'MANUTENCAO') {
+      // Manutenção vai direto para o preview (step 5 = confirm)
+      setGerandoPreview(true);
+      try {
+        const r = await api.post('/corpos-nota/preview', { ...payloadBase(), numero_parcelas: 1 });
+        setPreview(r.data);
+        setStep(5);
+      } catch (e: unknown) {
+        const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        setErro(msg || 'Erro ao gerar preview.');
+      } finally {
+        setGerandoPreview(false);
+      }
+      return;
+    }
+
+    // SERVICO ou PRODUTO → calcula impostos e vai para step 5 (parcelas)
+    setCalculandoImpostos(true);
+    try {
+      const r = await api.post('/corpos-nota/preview', { ...payloadBase(), numero_parcelas: 1 });
+      if (r.data.impostos_calculados) {
+        setImpostosCalculados(r.data.impostos_calculados);
+      }
+      setStep(5);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setErro(msg || 'Erro ao calcular impostos.');
+    } finally {
+      setCalculandoImpostos(false);
+    }
+  };
+
+  // ── Step 5 → 6: gera preview final com parcelas (SERVICO/PRODUTO)
+  const gerarPreview = async () => {
+    const temParcelas = parcelas.some(p => p.valor && p.data);
+    if (!temParcelas) {
       setErro('Adicione ao menos uma parcela com valor e data de vencimento.');
       return;
     }
     setErro(null);
     setGerandoPreview(true);
     try {
-      const mesRef = `${String(mes).padStart(2, '0')}/${ano}`;
+      const parcelasPayload = parcelas.filter(p => p.valor && p.data).map(p => ({valor: Number(p.valor), data: p.data}));
       const r = await api.post('/corpos-nota/preview', {
-        condominio_id: condSelecionado!.condominio_id,
-        tipo_nota: tipoNota,
-        mes_referencia: mesRef,
-        numero_os: numeroOs || null,
-        data_servico: dataServico || null,
-        descricao_servico: descricaoServico,
-        valor_bruto: Number(valorBruto),
-        data_vencimento: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && parcelas[0]?.data ? parcelas[0].data : dataVencimento,
-        observacoes: observacoes || null,
-        data_servico_texto: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (dataServicoTexto || null) : null,
-        descricao_garantia: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (descricaoGarantia || null) : null,
-        valor_nota_produto: tipoNota === 'SERVICO' && temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : null,
-        numero_parcelas: parcelas.length,
-        numero_nf: cnpjSelecionado ? (tipoNota === 'PRODUTO' ? cnpjSelecionado.numero_nf_produto : cnpjSelecionado.numero_nf_servico) : null,
-        parcelas_json: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO')
-          ? parcelas.filter(p => p.valor && p.data).map(p => ({valor: Number(p.valor), data: p.data}))
-          : null,
-        produtos_json: listarProdutos && produtos.filter(p => p.nome).length > 0
-          ? produtos.filter(p => p.nome).map(p => ({nome: p.nome, quantidade: Number(p.quantidade) || 1}))
-          : null,
+        ...payloadBase(),
+        numero_parcelas: parcelasPayload.length,
+        parcelas_json: parcelasPayload,
       });
       setPreview(r.data);
-      setStep(5);
+      setStep(6);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setErro(msg || 'Erro ao gerar preview.');
@@ -417,35 +469,23 @@ function NovoCorpoNotaContent() {
     }
   };
 
-  // ── Step 5: confirma criação ─────────────────────────────────────────────────
+  // ── Confirmar criação (step 5 para MANUTENCAO, step 6 para SERVICO/PRODUTO)
   const confirmar = async () => {
     setLoading(true);
     setErro(null);
+    const parcelasPayload = tipoNota !== 'MANUTENCAO'
+      ? parcelas.filter(p => p.valor && p.data).map(p => ({valor: Number(p.valor), data: p.data}))
+      : null;
     try {
       const r = await api.post('/corpos-nota', {
-        condominio_id: condSelecionado!.condominio_id,
-        tipo_nota: tipoNota,
+        ...payloadBase(),
         mes,
         ano,
         servico_id: servicoId || null,
-        numero_os: numeroOs || null,
-        data_servico: dataServico || null,
-        descricao_servico: descricaoServico,
-        valor_bruto: Number(valorBruto),
-        data_vencimento: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && parcelas[0]?.data ? parcelas[0].data : dataVencimento,
-        observacoes: observacoes || null,
         configuracao_inter_id: cnpjSelecionado?.id ?? null,
         orcamento_id: orcamentoSelecionado?.id ?? null,
-        data_servico_texto: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (dataServicoTexto || null) : null,
-        descricao_garantia: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (descricaoGarantia || null) : null,
-        valor_nota_produto: tipoNota === 'SERVICO' && temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : null,
-        numero_parcelas: parcelas.length,
-        parcelas_json: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO')
-          ? parcelas.filter(p => p.valor && p.data).map(p => ({valor: Number(p.valor), data: p.data}))
-          : null,
-        produtos_json: listarProdutos && produtos.filter(p => p.nome).length > 0
-          ? produtos.filter(p => p.nome).map(p => ({nome: p.nome, quantidade: Number(p.quantidade) || 1}))
-          : null,
+        numero_parcelas: parcelasPayload ? parcelasPayload.length : 1,
+        parcelas_json: parcelasPayload,
       });
       router.push(`/corpos-nota/${r.data.id}`);
     } catch (e: unknown) {
@@ -480,7 +520,7 @@ function NovoCorpoNotaContent() {
               <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
                 Novo Corpo de Nota
               </h1>
-              <p className="text-xs text-slate-500">Passo {step} de {TOTAL_STEPS}</p>
+              <p className="text-xs text-slate-500">Passo {step} de {tipoNota === 'MANUTENCAO' ? TOTAL_STEPS_MANUT : TOTAL_STEPS_SERV}</p>
             </div>
           </div>
         </div>
@@ -488,7 +528,10 @@ function NovoCorpoNotaContent() {
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm">
-          <StepIndicator atual={step} />
+          <StepIndicator
+            atual={step}
+            labels={tipoNota === 'MANUTENCAO' ? LABELS_STEP_MANUT : LABELS_STEP_SERV}
+          />
 
           {/* ── STEP 1 — Conta Inter + Tipo de nota + Período ──────────────── */}
           {step === 1 && (
@@ -1107,48 +1150,6 @@ function NovoCorpoNotaContent() {
                 </div>
               )}
 
-              {/* Parcelas com valor e data livres — SERVIÇO e PRODUTO */}
-              {(tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && (
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                      Parcelamento
-                    </label>
-                    <button type="button"
-                      onClick={() => setParcelas(prev => [...prev, {valor:'',data:''}])}
-                      className="text-xs text-violet-600 dark:text-violet-400 hover:underline font-semibold">
-                      + Parcela
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {parcelas.map((p, i) => (
-                      <div key={i} className="flex gap-2 items-center">
-                        <span className="text-xs text-slate-500 dark:text-slate-400 w-6 shrink-0 font-bold">{i+1}ª</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={p.valor}
-                          onChange={e => setParcelas(prev => prev.map((x,j) => j===i ? {...x,valor:e.target.value} : x))}
-                          placeholder="Valor R$"
-                          className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                        />
-                        <input
-                          type="date"
-                          value={p.data}
-                          onChange={e => setParcelas(prev => prev.map((x,j) => j===i ? {...x,data:e.target.value} : x))}
-                          className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                        />
-                        {parcelas.length > 1 && (
-                          <button type="button" onClick={() => setParcelas(prev => prev.filter((_,j) => j!==i))}
-                            className="text-red-400 hover:text-red-600 text-lg font-bold w-8 shrink-0">×</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Observações</label>
                 <textarea
@@ -1166,18 +1167,156 @@ function NovoCorpoNotaContent() {
                   ← Voltar
                 </button>
                 <button
-                  onClick={gerarPreview}
-                  disabled={gerandoPreview}
+                  onClick={avancarStep4}
+                  disabled={calculandoImpostos || gerandoPreview}
                   className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors disabled:opacity-50"
                 >
-                  {gerandoPreview ? 'Calculando...' : 'Prévia →'}
+                  {(calculandoImpostos || gerandoPreview) ? 'Calculando...' : 'Próximo →'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 5 — Preview e confirmação ───────────────────────────────── */}
-          {step === 5 && preview && (
+          {/* ── STEP 5 — Parcelas (só SERVICO / PRODUTO) ─────────────────────── */}
+          {step === 5 && tipoNota !== 'MANUTENCAO' && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-lg font-black text-slate-800 dark:text-white">Parcelamento</h2>
+                <p className="text-sm text-slate-500 mt-1">{condSelecionado?.nome}</p>
+              </div>
+
+              {/* Resumo financeiro */}
+              {impostosCalculados && (
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Valor bruto serviço</span>
+                    <span className="font-semibold">{fmtValor(Number(valorBruto))}</span>
+                  </div>
+                  {impostosCalculados.valor_inss > 0 && (
+                    <div className="flex justify-between text-xs text-slate-400">
+                      <span>INSS {impostosCalculados.percentual_inss}%</span>
+                      <span>− {fmtValor(impostosCalculados.valor_inss)}</span>
+                    </div>
+                  )}
+                  {impostosCalculados.valor_cofins > 0 && (
+                    <div className="flex justify-between text-xs text-slate-400">
+                      <span>COFINS {impostosCalculados.percentual_cofins}%</span>
+                      <span>− {fmtValor(impostosCalculados.valor_cofins)}</span>
+                    </div>
+                  )}
+                  {impostosCalculados.valor_pis > 0 && (
+                    <div className="flex justify-between text-xs text-slate-400">
+                      <span>PIS {impostosCalculados.percentual_pis}%</span>
+                      <span>− {fmtValor(impostosCalculados.valor_pis)}</span>
+                    </div>
+                  )}
+                  {impostosCalculados.valor_csll > 0 && (
+                    <div className="flex justify-between text-xs text-slate-400">
+                      <span>CSLL {impostosCalculados.percentual_csll}%</span>
+                      <span>− {fmtValor(impostosCalculados.valor_csll)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                    <span className="text-slate-600 dark:text-slate-300 font-semibold">Líquido serviço</span>
+                    <span className="font-bold text-violet-700 dark:text-violet-400">{fmtValor(impostosCalculados.valor_liquido)}</span>
+                  </div>
+                  {temNotaProduto && valorNotaProduto && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Valor nota produto</span>
+                        <span className="font-semibold">{fmtValor(Number(valorNotaProduto))}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                        <span className="font-bold text-slate-800 dark:text-white">Total do boleto</span>
+                        <span className="font-black text-violet-700 dark:text-violet-400 text-base">
+                          {fmtValor(impostosCalculados.valor_liquido + Number(valorNotaProduto))}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {!temNotaProduto && (
+                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                      <span className="font-bold text-slate-800 dark:text-white">Total do boleto</span>
+                      <span className="font-black text-violet-700 dark:text-violet-400 text-base">
+                        {fmtValor(impostosCalculados.valor_liquido)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Editor de parcelas */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                    Definir Parcelas
+                  </label>
+                  <button type="button"
+                    onClick={() => setParcelas(prev => [...prev, {valor:'',data:''}])}
+                    className="text-xs text-violet-600 dark:text-violet-400 hover:underline font-semibold">
+                    + Parcela
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {parcelas.map((p, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <span className="text-xs text-slate-500 w-5 shrink-0 font-bold">{i+1}ª</span>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={p.valor}
+                        onChange={e => setParcelas(prev => prev.map((x,j) => j===i ? {...x,valor:e.target.value} : x))}
+                        placeholder="Valor R$"
+                        className="flex-1 px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                      />
+                      <input
+                        type="date"
+                        value={p.data}
+                        onChange={e => setParcelas(prev => prev.map((x,j) => j===i ? {...x,data:e.target.value} : x))}
+                        className="flex-1 px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                      />
+                      {parcelas.length > 1 && (
+                        <button type="button" onClick={() => setParcelas(prev => prev.filter((_,j) => j!==i))}
+                          className="text-red-400 hover:text-red-600 text-lg font-bold w-8 shrink-0">×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {/* Validação da soma */}
+                {(() => {
+                  const soma = parcelas.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
+                  const total = impostosCalculados
+                    ? impostosCalculados.valor_liquido + (temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : 0)
+                    : 0;
+                  const diff = Math.abs(soma - total);
+                  if (soma === 0 || total === 0) return null;
+                  return (
+                    <div className={`mt-2 text-xs flex justify-between px-1 ${diff > 0.01 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                      <span>Soma das parcelas: {fmtValor(soma)}</span>
+                      <span>{diff > 0.01 ? `Diferença: ${fmtValor(diff)}` : '✓ Soma correta'}</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {erro && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 rounded-xl p-3">{erro}</p>}
+
+              <div className="flex gap-3">
+                <button onClick={voltar} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">
+                  ← Voltar
+                </button>
+                <button
+                  onClick={gerarPreview}
+                  disabled={gerandoPreview}
+                  className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors disabled:opacity-50"
+                >
+                  {gerandoPreview ? 'Gerando...' : 'Prévia →'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 5 (MANUTENCAO) / STEP 6 (SERVICO/PRODUTO) — Preview e confirmação */}
+          {((step === 5 && tipoNota === 'MANUTENCAO') || step === 6) && preview && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-black text-slate-800 dark:text-white">Confirmar Corpo de Nota</h2>
