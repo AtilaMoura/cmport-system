@@ -129,7 +129,7 @@ function NovoCorpoNotaContent() {
   const [abaOS, setAbaOS] = useState<'OS' | 'ORCAMENTO' | 'MANUAL'>('OS');
   const [osResultado, setOsResultado] = useState<OSResultado | null>(null);
   const [buscandoOS, setBuscandoOS] = useState(false);
-  const [osSelecionada, setOsSelecionada] = useState<OSItem | null>(null);
+  const [ossSelecionadas, setOssSelecionadas] = useState<OSItem[]>([]);   // multi-select
   const [servicoId, setServicoId] = useState<number | null>(null);
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [buscandoOrcamentos, setBuscandoOrcamentos] = useState(false);
@@ -142,12 +142,16 @@ function NovoCorpoNotaContent() {
   const [valorBruto, setValorBruto] = useState('');
   const [dataVencimento, setDataVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
-  // Campos específicos SERVIÇO
+  // Campos específicos SERVIÇO / PRODUTO
   const [dataServicoTexto, setDataServicoTexto] = useState('');
   const [descricaoGarantia, setDescricaoGarantia] = useState('');
   const [valorNotaProduto, setValorNotaProduto] = useState('');
   const [temNotaProduto, setTemNotaProduto] = useState(false);
-  const [numeroParcelas, setNumeroParcelas] = useState(1);
+  // Produtos listados na nota
+  const [listarProdutos, setListarProdutos] = useState(false);
+  const [produtos, setProdutos] = useState<{nome: string; quantidade: string}[]>([]);
+  // Parcelas livres: cada uma tem valor + data
+  const [parcelas, setParcelas] = useState<{valor: string; data: string}[]>([{valor:'',data:''}]);
 
   // Step 5 — Preview
   const [preview, setPreview] = useState<{
@@ -216,7 +220,9 @@ function NovoCorpoNotaContent() {
     setCnpjSelecionado(null);
     setTemNotaProduto(false);
     setValorNotaProduto('');
-    setNumeroParcelas(1);
+    setParcelas([{valor:'',data:''}]);
+    setProdutos([]);
+    setListarProdutos(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipoNota]);
 
@@ -267,26 +273,13 @@ function NovoCorpoNotaContent() {
   const buscarOSsParaCond = async (cond: CondPendente) => {
     setBuscandoOS(true);
     setOsResultado(null);
-    setOsSelecionada(null);
+    setOssSelecionadas([]);
     setServicoId(null);
     try {
       const r = await api.get('/corpos-nota/buscar-os', {
         params: { condominio_id: cond.condominio_id, mes, ano, tipo_nota: tipoNota },
       });
       setOsResultado(r.data);
-      if (r.data.lista?.length === 1) {
-        const os = r.data.lista[0];
-        setOsSelecionada(os);
-        setServicoId(os.servico_id);
-        if (os.numero_os) setNumeroOs(os.numero_os);
-        if (os.data_servico) {
-          setDataServico(os.data_servico);
-          if (tipoNota === 'SERVICO' && !dataServicoTexto) {
-            setDataServicoTexto(os.data_servico.split('-').reverse().join('.'));
-          }
-        }
-        if (os.descricao_completa && !descricaoServico) setDescricaoServico(os.descricao_completa);
-      }
     } catch {
       setOsResultado({ lista: [], preenchimento_manual: true });
     } finally {
@@ -316,27 +309,29 @@ function NovoCorpoNotaContent() {
     }
   };
 
-  // ── Step 3 — selecionar OS ──────────────────────────────────────────────────
-  const selecionarOS = (os: OSItem) => {
-    setOsSelecionada(os);
-    setServicoId(os.servico_id);
-    if (os.numero_os) setNumeroOs(os.numero_os);
-    if (os.data_servico) {
-      setDataServico(os.data_servico);
-      if (tipoNota === 'SERVICO') {
-        setDataServicoTexto(os.data_servico.split('-').reverse().join('.'));
-      }
-    }
-    if (os.descricao_completa) setDescricaoServico(os.descricao_completa);
+  // ── Step 3 — toggle multi-select OS ────────────────────────────────────────
+  const toggleOS = (os: OSItem) => {
+    setOssSelecionadas(prev => {
+      const jaEsta = prev.some(o => o.numero_os === os.numero_os);
+      const novas = jaEsta ? prev.filter(o => o.numero_os !== os.numero_os) : [...prev, os];
+      // Atualiza campos derivados
+      const nums = novas.map(o => o.numero_os ? `OS nº ${o.numero_os}` : '').filter(Boolean);
+      setNumeroOs(nums.join(' e '));
+      const datas = novas.map(o => o.data_servico ? o.data_servico.split('-').reverse().join('.') : '').filter(Boolean);
+      const datasUnicas = [...new Set(datas)];
+      setDataServicoTexto(datasUnicas.join(' e '));
+      if (novas.length === 1 && novas[0].descricao_completa) setDescricaoServico(novas[0].descricao_completa);
+      if (novas.length === 1 && novas[0].servico_id) setServicoId(novas[0].servico_id);
+      return novas;
+    });
     setOrcamentoSelecionado(null);
   };
 
   // ── Step 3 — selecionar Orçamento ──────────────────────────────────────────
   const selecionarOrcamento = (orc: Orcamento) => {
     setOrcamentoSelecionado(orc);
-    setOsSelecionada(null);
+    setOssSelecionadas([]);
 
-    // Pré-preenche campos
     if (orc.task_ids.length > 0) {
       setNumeroOs(orc.task_ids.map(id => `OS nº ${id}`).join(' e '));
     }
@@ -348,8 +343,20 @@ function NovoCorpoNotaContent() {
     if (descItens) setDescricaoServico(descItens);
     if (orc.total_services > 0) setValorBruto(String(orc.total_services));
     if (orc.request_date) {
-      const dt = orc.request_date.split('-').reverse().join('.');
-      setDataServicoTexto(dt);
+      setDataServicoTexto(orc.request_date.split('-').reverse().join('.'));
+    }
+    // Pré-preenche produtos do orçamento
+    const prodOrc = orc.itens
+      .filter(i => i.tipo === 'PRODUTO' && i.nome)
+      .map(i => ({ nome: i.nome || '', quantidade: String(Math.round(i.quantidade || 1)) }));
+    if (prodOrc.length > 0) {
+      setProdutos(prodOrc);
+      setListarProdutos(true);
+    }
+    // Nota de produto do orçamento
+    if (orc.total_products > 0) {
+      setValorNotaProduto(String(orc.total_products));
+      setTemNotaProduto(true);
     }
   };
 
@@ -360,8 +367,18 @@ function NovoCorpoNotaContent() {
 
   // ── Step 4 → 5: gera preview ─────────────────────────────────────────────────
   const gerarPreview = async () => {
-    if (!valorBruto || !dataVencimento || !descricaoServico) {
-      setErro('Preencha valor bruto, data de vencimento e descrição do serviço.');
+    const precisaVencimento = tipoNota === 'MANUTENCAO';
+    const temParcelas = parcelas.some(p => p.valor && p.data);
+    if (!valorBruto || !descricaoServico) {
+      setErro('Preencha valor bruto e descrição do serviço.');
+      return;
+    }
+    if (precisaVencimento && !dataVencimento) {
+      setErro('Preencha a data de vencimento.');
+      return;
+    }
+    if ((tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && !temParcelas) {
+      setErro('Adicione ao menos uma parcela com valor e data de vencimento.');
       return;
     }
     setErro(null);
@@ -376,13 +393,19 @@ function NovoCorpoNotaContent() {
         data_servico: dataServico || null,
         descricao_servico: descricaoServico,
         valor_bruto: Number(valorBruto),
-        data_vencimento: dataVencimento,
+        data_vencimento: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && parcelas[0]?.data ? parcelas[0].data : dataVencimento,
         observacoes: observacoes || null,
         data_servico_texto: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (dataServicoTexto || null) : null,
         descricao_garantia: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (descricaoGarantia || null) : null,
         valor_nota_produto: tipoNota === 'SERVICO' && temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : null,
-        numero_parcelas: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? numeroParcelas : 1,
+        numero_parcelas: parcelas.length,
         numero_nf: cnpjSelecionado ? (tipoNota === 'PRODUTO' ? cnpjSelecionado.numero_nf_produto : cnpjSelecionado.numero_nf_servico) : null,
+        parcelas_json: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO')
+          ? parcelas.filter(p => p.valor && p.data).map(p => ({valor: Number(p.valor), data: p.data}))
+          : null,
+        produtos_json: listarProdutos && produtos.filter(p => p.nome).length > 0
+          ? produtos.filter(p => p.nome).map(p => ({nome: p.nome, quantidade: Number(p.quantidade) || 1}))
+          : null,
       });
       setPreview(r.data);
       setStep(5);
@@ -409,14 +432,20 @@ function NovoCorpoNotaContent() {
         data_servico: dataServico || null,
         descricao_servico: descricaoServico,
         valor_bruto: Number(valorBruto),
-        data_vencimento: dataVencimento,
+        data_vencimento: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && parcelas[0]?.data ? parcelas[0].data : dataVencimento,
         observacoes: observacoes || null,
         configuracao_inter_id: cnpjSelecionado?.id ?? null,
         orcamento_id: orcamentoSelecionado?.id ?? null,
         data_servico_texto: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (dataServicoTexto || null) : null,
         descricao_garantia: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (descricaoGarantia || null) : null,
         valor_nota_produto: tipoNota === 'SERVICO' && temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : null,
-        numero_parcelas: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? numeroParcelas : 1,
+        numero_parcelas: parcelas.length,
+        parcelas_json: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO')
+          ? parcelas.filter(p => p.valor && p.data).map(p => ({valor: Number(p.valor), data: p.data}))
+          : null,
+        produtos_json: listarProdutos && produtos.filter(p => p.nome).length > 0
+          ? produtos.filter(p => p.nome).map(p => ({nome: p.nome, quantidade: Number(p.quantidade) || 1}))
+          : null,
       });
       router.push(`/corpos-nota/${r.data.id}`);
     } catch (e: unknown) {
@@ -761,39 +790,44 @@ function NovoCorpoNotaContent() {
                             Digite o número da OS no campo abaixo e prossiga.
                           </div>
                         </div>
-                      ) : osResultado.lista.length === 1 ? (
-                        <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800 rounded-xl p-4">
-                          <div className="font-bold text-green-700 dark:text-green-400 text-sm mb-2">OS selecionada automaticamente</div>
-                          <div className="text-sm font-semibold text-slate-800 dark:text-white">
-                            OS #{osResultado.lista[0].numero_os}
-                          </div>
-                          <div className="text-xs text-slate-500 mt-1">{osResultado.lista[0].descricao_preview}</div>
-                        </div>
                       ) : (
                         <div className="space-y-2">
-                          <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                            {osResultado.lista.length} OSs encontradas — selecione {tipoNota === 'SERVICO' ? 'uma ou mais' : 'uma'}:
+                          <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide flex items-center justify-between">
+                            <span>{osResultado.lista.length} OS(s) encontrada(s) — selecione uma ou mais:</span>
+                            {ossSelecionadas.length > 0 && (
+                              <span className="text-violet-600 dark:text-violet-400">{ossSelecionadas.length} selecionada(s)</span>
+                            )}
                           </div>
-                          {osResultado.lista.map(os => (
-                            <button
-                              key={os.numero_os ?? String(os.servico_id)}
-                              type="button"
-                              onClick={() => selecionarOS(os)}
-                              className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                                osSelecionada?.numero_os === os.numero_os
-                                  ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
-                                  : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
-                              }`}
-                            >
-                              <div className="font-bold text-sm text-slate-900 dark:text-white">
-                                OS #{os.numero_os ?? '—'}
-                              </div>
-                              <div className="text-xs text-slate-500 mt-1 flex gap-3">
-                                {os.data_servico && <span>{os.data_servico.split('-').reverse().join('/')}</span>}
-                                <span>{os.descricao_preview}</span>
-                              </div>
-                            </button>
-                          ))}
+                          {osResultado.lista.map(os => {
+                            const marcada = ossSelecionadas.some(o => o.numero_os === os.numero_os);
+                            return (
+                              <button
+                                key={os.numero_os ?? String(os.servico_id)}
+                                type="button"
+                                onClick={() => toggleOS(os)}
+                                className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                                  marcada
+                                    ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
+                                    : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${marcada ? 'bg-violet-600 border-violet-600' : 'border-slate-300 dark:border-slate-600'}`}>
+                                    {marcada && <span className="text-white text-[10px] font-black">✓</span>}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-sm text-slate-900 dark:text-white">
+                                      OS #{os.numero_os ?? '—'}
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-0.5 flex gap-3">
+                                      {os.data_servico && <span>{os.data_servico.split('-').reverse().join('/')}</span>}
+                                      <span className="truncate">{os.descricao_preview}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </>
@@ -991,6 +1025,54 @@ function NovoCorpoNotaContent() {
                 </div>
               )}
 
+              {/* Lista de produtos na nota — SERVIÇO e PRODUTO */}
+              {(tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <label className="flex items-center gap-3 cursor-pointer mb-3">
+                    <input
+                      type="checkbox"
+                      checked={listarProdutos}
+                      onChange={e => {
+                        setListarProdutos(e.target.checked);
+                        if (!e.target.checked) setProdutos([]);
+                        else if (produtos.length === 0) setProdutos([{nome:'',quantidade:'1'}]);
+                      }}
+                      className="w-4 h-4 rounded accent-violet-600"
+                    />
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Listar produtos na nota?</span>
+                  </label>
+                  {listarProdutos && (
+                    <div className="space-y-2">
+                      {produtos.map((p, i) => (
+                        <div key={i} className="flex gap-2 items-center">
+                          <input
+                            type="text"
+                            value={p.nome}
+                            onChange={e => setProdutos(prev => prev.map((x,j) => j===i ? {...x,nome:e.target.value} : x))}
+                            placeholder="Nome do produto"
+                            className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                          />
+                          <input
+                            type="number"
+                            min="1"
+                            value={p.quantidade}
+                            onChange={e => setProdutos(prev => prev.map((x,j) => j===i ? {...x,quantidade:e.target.value} : x))}
+                            placeholder="Qtd"
+                            className="w-16 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white text-center"
+                          />
+                          <button type="button" onClick={() => setProdutos(prev => prev.filter((_,j) => j!==i))}
+                            className="text-red-400 hover:text-red-600 text-lg font-bold w-8 shrink-0">×</button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setProdutos(prev => [...prev, {nome:'',quantidade:'1'}])}
+                        className="text-xs text-violet-600 dark:text-violet-400 hover:underline font-semibold">
+                        + Adicionar produto
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Toggle nota de produto — só SERVIÇO */}
               {tipoNota === 'SERVICO' && (
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
@@ -1019,28 +1101,51 @@ function NovoCorpoNotaContent() {
                         onChange={e => setValorNotaProduto(e.target.value)}
                         placeholder="0,00"
                         className="w-full px-4 py-3 border border-violet-400 dark:border-violet-600 ring-2 ring-violet-100 dark:ring-violet-500/20 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                        autoFocus
                       />
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Número de parcelas — SERVIÇO e PRODUTO */}
+              {/* Parcelas com valor e data livres — SERVIÇO e PRODUTO */}
               {(tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
-                    Número de Parcelas
-                  </label>
-                  <select
-                    value={numeroParcelas}
-                    onChange={e => setNumeroParcelas(Number(e.target.value))}
-                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                  >
-                    {[1,2,3,4,5,6].map(n => (
-                      <option key={n} value={n}>{n}x</option>
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                      Parcelamento
+                    </label>
+                    <button type="button"
+                      onClick={() => setParcelas(prev => [...prev, {valor:'',data:''}])}
+                      className="text-xs text-violet-600 dark:text-violet-400 hover:underline font-semibold">
+                      + Parcela
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {parcelas.map((p, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 w-6 shrink-0 font-bold">{i+1}ª</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={p.valor}
+                          onChange={e => setParcelas(prev => prev.map((x,j) => j===i ? {...x,valor:e.target.value} : x))}
+                          placeholder="Valor R$"
+                          className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                        />
+                        <input
+                          type="date"
+                          value={p.data}
+                          onChange={e => setParcelas(prev => prev.map((x,j) => j===i ? {...x,data:e.target.value} : x))}
+                          className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                        />
+                        {parcelas.length > 1 && (
+                          <button type="button" onClick={() => setParcelas(prev => prev.filter((_,j) => j!==i))}
+                            className="text-red-400 hover:text-red-600 text-lg font-bold w-8 shrink-0">×</button>
+                        )}
+                      </div>
                     ))}
-                  </select>
+                  </div>
                 </div>
               )}
 

@@ -258,6 +258,8 @@ def preview_corpo(
         valor_nota_produto=payload.valor_nota_produto,
         numero_parcelas=payload.numero_parcelas,
         numero_nf=payload.numero_nf,
+        parcelas_json=payload.parcelas_json,
+        produtos_json=payload.produtos_json,
     )
     impostos_resp = None
     if resultado["impostos_calculados"]:
@@ -308,6 +310,8 @@ def criar_corpo(
         descricao_garantia=payload.descricao_garantia,
         valor_nota_produto=payload.valor_nota_produto,
         numero_parcelas=payload.numero_parcelas,
+        parcelas_json=payload.parcelas_json,
+        produtos_json=payload.produtos_json,
     )
 
 
@@ -398,6 +402,8 @@ def atualizar_corpo(
         valor_nota_produto=payload.valor_nota_produto,
         numero_parcelas=payload.numero_parcelas,
         numero_nf=payload.numero_nf,
+        parcelas_json=payload.parcelas_json,
+        produtos_json=payload.produtos_json,
     )
 
 

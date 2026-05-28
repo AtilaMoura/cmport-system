@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import Optional, List, Any
 from datetime import date, datetime
 
 from app.models.ciclo_nota_model import TipoNotaCorpo
@@ -26,6 +26,8 @@ class CorpoNotaCreate(BaseModel):
     descricao_garantia: Optional[str] = None
     valor_nota_produto: Optional[float] = None
     numero_parcelas: Optional[int] = 1
+    parcelas_json: Optional[List[Any]] = None   # [{"valor": 1180.0, "data": "2026-05-20"}]
+    produtos_json: Optional[List[Any]] = None   # [{"nome": "Motor", "quantidade": 3}]
 
     @field_validator("mes")
     @classmethod
@@ -63,6 +65,8 @@ class CorpoNotaUpdate(BaseModel):
     valor_nota_produto: Optional[float] = None
     numero_parcelas: Optional[int] = None
     numero_nf: Optional[int] = None
+    parcelas_json: Optional[List[Any]] = None
+    produtos_json: Optional[List[Any]] = None
 
 
 class CorpoNotaStatusUpdate(BaseModel):
@@ -94,6 +98,8 @@ class CorpoNotaPreviewRequest(BaseModel):
     valor_nota_produto: Optional[float] = None
     numero_parcelas: Optional[int] = 1
     numero_nf: Optional[int] = None
+    parcelas_json: Optional[List[Any]] = None
+    produtos_json: Optional[List[Any]] = None
 
 
 class ImpostosCalculadosResponse(BaseModel):
@@ -160,5 +166,7 @@ class CorpoNotaResponse(CorpoNotaResumoResponse):
     valor_nota_produto: Optional[float] = None
     numero_parcelas: Optional[int] = None
     numero_nf: Optional[int] = None
+    parcelas_json: Optional[List[Any]] = None
+    produtos_json: Optional[List[Any]] = None
 
     model_config = {"from_attributes": True}

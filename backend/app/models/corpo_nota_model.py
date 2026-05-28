@@ -2,7 +2,7 @@ import enum
 
 from sqlalchemy import (
     Column, Integer, SmallInteger, Boolean, Date, DateTime, Enum, ForeignKey,
-    Numeric, String, Text, Index
+    JSON, Numeric, String, Text, Index
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -95,6 +95,14 @@ class CorpoNota(Base):
 
     # Quantidade de parcelas para geração do parcelamento no corpo
     numero_parcelas = Column(SmallInteger, nullable=True, default=1)
+
+    # Parcelas com valor e data definidos pelo operador
+    # [{"valor": 1180.0, "data": "2026-05-20"}, ...]
+    parcelas_json = Column(JSON, nullable=True)
+
+    # Produtos listados na nota (abaixo da garantia no corpo)
+    # [{"nome": "Motor MKN", "quantidade": 3}, ...]
+    produtos_json = Column(JSON, nullable=True)
 
     # Texto gerado do corpo da nota
     conteudo_gerado = Column(Text, nullable=True)

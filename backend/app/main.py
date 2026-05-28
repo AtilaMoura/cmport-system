@@ -116,6 +116,9 @@ def _run_migrations():
         # CorpoNota — número NF e parcelas
         "ALTER TABLE corpos_nota ADD COLUMN numero_nf INT NULL",
         "ALTER TABLE corpos_nota ADD COLUMN numero_parcelas SMALLINT NULL DEFAULT 1",
+        # CorpoNota — parcelas customizadas e lista de produtos
+        "ALTER TABLE corpos_nota ADD COLUMN parcelas_json JSON NULL",
+        "ALTER TABLE corpos_nota ADD COLUMN produtos_json JSON NULL",
         # ConfiguracaoInter — sequências de numeração NF por CNPJ
         "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_servico INT NULL",
         "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_produto INT NULL",
