@@ -12,8 +12,8 @@ class BoletoResponse(BaseModel):
     nosso_numero: Optional[str] = None
     seu_numero: Optional[str] = None
     valor_nominal: float
-    valor_juros: float
-    valor_multa: float
+    valor_juros: float = 0.0
+    valor_multa: float = 0.0
     valor_total_recebido: Optional[float] = None
     data_emissao: date
     data_vencimento: date
