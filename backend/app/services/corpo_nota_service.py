@@ -588,22 +588,44 @@ class CorpoNotaService:
         contrato = ContratoCondominioRepository.get_by_condominio(db, corpo.condominio_id)
         contrato_inicio = contrato.data_inicio if contrato else None
 
-        from app.services.imposto_service import ImpostosCalculados
+        from app.services.imposto_service import ImpostosCalculados, ImpostoService
         impostos = None
         if corpo.valor_bruto:
-            impostos = ImpostosCalculados(
-                percentual_inss=float(corpo.percentual_inss or 0),
-                percentual_cofins=float(corpo.percentual_cofins or 0),
-                percentual_pis=float(corpo.percentual_pis or 0),
-                percentual_csll=float(corpo.percentual_csll or 0),
-                percentual_iss=float(getattr(corpo, "percentual_iss", None) or 0),
-                valor_inss=float(corpo.valor_inss or 0),
-                valor_cofins=float(corpo.valor_cofins or 0),
-                valor_pis=float(corpo.valor_pis or 0),
-                valor_csll=float(corpo.valor_csll or 0),
-                valor_iss=float(getattr(corpo, "valor_iss", None) or 0),
-                valor_liquido=float(corpo.valor_liquido or 0),
-            )
+            # Se os percentuais foram salvos corretamente, usa-os diretamente
+            tem_percentuais = any([
+                float(corpo.percentual_inss or 0) > 0,
+                float(corpo.percentual_cofins or 0) > 0,
+                float(corpo.percentual_pis or 0) > 0,
+                float(corpo.percentual_csll or 0) > 0,
+            ])
+            # Para MANUTENCAO e SERVICO, sempre deve ter retenção — recalcula se zerado
+            tipo_com_retencao = corpo.tipo_nota in (TipoNotaCorpo.MANUTENCAO, TipoNotaCorpo.SERVICO)
+            if tipo_com_retencao and not tem_percentuais:
+                impostos = ImpostoService.calcular_impostos(db, float(corpo.valor_bruto), corpo.tipo_nota.value)
+                # Atualiza os campos salvos
+                corpo.percentual_inss = impostos.percentual_inss
+                corpo.percentual_cofins = impostos.percentual_cofins
+                corpo.percentual_pis = impostos.percentual_pis
+                corpo.percentual_csll = impostos.percentual_csll
+                corpo.valor_inss = impostos.valor_inss
+                corpo.valor_cofins = impostos.valor_cofins
+                corpo.valor_pis = impostos.valor_pis
+                corpo.valor_csll = impostos.valor_csll
+                corpo.valor_liquido = impostos.valor_liquido
+            else:
+                impostos = ImpostosCalculados(
+                    percentual_inss=float(corpo.percentual_inss or 0),
+                    percentual_cofins=float(corpo.percentual_cofins or 0),
+                    percentual_pis=float(corpo.percentual_pis or 0),
+                    percentual_csll=float(corpo.percentual_csll or 0),
+                    percentual_iss=float(getattr(corpo, "percentual_iss", None) or 0),
+                    valor_inss=float(corpo.valor_inss or 0),
+                    valor_cofins=float(corpo.valor_cofins or 0),
+                    valor_pis=float(corpo.valor_pis or 0),
+                    valor_csll=float(corpo.valor_csll or 0),
+                    valor_iss=float(getattr(corpo, "valor_iss", None) or 0),
+                    valor_liquido=float(corpo.valor_liquido or 0),
+                )
 
         numero_nf = getattr(corpo, "numero_nf", None)
         numero_parcelas = getattr(corpo, "numero_parcelas", 1) or 1

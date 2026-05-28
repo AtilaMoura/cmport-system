@@ -44,7 +44,9 @@ class ImpostoService:
             pct_iss    = float(percentuais_override.get("pct_iss", 0) or 0)
         else:
             try:
-                tipo_cfg = TipoServicoConfig(tipo_servico_str)
+                # SERVICO (corpo de nota) usa as mesmas alíquotas de ASSISTENCIA
+                _mapa = {"SERVICO": "ASSISTENCIA", "PRODUTO": "OUTROS"}
+                tipo_cfg = TipoServicoConfig(_mapa.get(tipo_servico_str, tipo_servico_str))
                 config = db.query(ConfiguracaoImpostosServico).filter_by(
                     tipo_servico=tipo_cfg, ativo=True
                 ).first()

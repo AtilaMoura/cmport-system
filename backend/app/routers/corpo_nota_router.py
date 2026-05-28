@@ -417,6 +417,19 @@ def atualizar_status(
     return CorpoNotaService.atualizar_status(db, corpo_id, payload.status, payload.motivo)
 
 
+@router.post("/{corpo_id}/regenerar", response_model=CorpoNotaResponse)
+def regenerar_conteudo(
+    corpo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Regenera o conteudo_gerado e recalcula impostos se necessário."""
+    corpo = CorpoNotaService.get_by_id(db, corpo_id)
+    corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+    from app.repositories.corpo_nota_repository import CorpoNotaRepository
+    return CorpoNotaRepository.save(db, corpo)
+
+
 @router.post("/{corpo_id}/vincular-nota", response_model=CorpoNotaResponse)
 def vincular_nota(
     corpo_id: int,
