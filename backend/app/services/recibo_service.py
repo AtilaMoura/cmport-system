@@ -18,14 +18,21 @@ class ReciboService:
         ano = payload.data_emissao.year
         numero = payload.numero_recibo or ReciboRepository.proximo_numero(db, ano)
 
-        # Garante número único
         if ReciboRepository.get_by_numero(db, numero):
             numero = ReciboRepository.proximo_numero(db, ano)
+
+        # Resolve condominio_id: prioridade → payload → cliente vinculado
+        condominio_id = payload.condominio_id
+        if not condominio_id and payload.cliente_id:
+            from app.models.cliente_model import Cliente
+            cliente = db.get(Cliente, payload.cliente_id)
+            if cliente and cliente.condominio_id:
+                condominio_id = cliente.condominio_id
 
         recibo = Recibo(
             numero_recibo=numero,
             cliente_id=payload.cliente_id,
-            condominio_id=payload.condominio_id,
+            condominio_id=condominio_id,
             cliente_nome_avulso=payload.cliente_nome_avulso,
             descricao_servico=payload.descricao_servico,
             valor=payload.valor,
@@ -35,7 +42,30 @@ class ReciboService:
             status=payload.status,
             observacao=payload.observacao,
         )
-        return ReciboRepository.create(db, recibo)
+        recibo = ReciboRepository.create(db, recibo)
+
+        # Cria serviço de ASSISTENCIA automaticamente se houver condomínio
+        if condominio_id:
+            ReciboService._criar_servico(db, recibo, condominio_id)
+
+        return recibo
+
+    @staticmethod
+    def _criar_servico(db: Session, recibo: Recibo, condominio_id: int) -> None:
+        from app.models.servico_model import ManutencaoAssistencia, TipoServico
+        nome_cliente = (
+            recibo.cliente.nome if recibo.cliente_id and recibo.cliente
+            else recibo.cliente_nome_avulso or "Cliente"
+        )
+        servico = ManutencaoAssistencia(
+            condominio_id=condominio_id,
+            tipo=TipoServico.ASSISTENCIA,
+            data_servico=recibo.data_emissao,
+            descricao=f"{recibo.descricao_servico} — {nome_cliente}",
+            recibo_id=recibo.id,
+        )
+        db.add(servico)
+        db.commit()
 
     @staticmethod
     def get_by_id(db: Session, recibo_id: int) -> Recibo:

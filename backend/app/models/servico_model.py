@@ -30,6 +30,7 @@ class ManutencaoAssistencia(Base):
     email_destinatarios = Column(Text, nullable=True)  # JSON: ["email1@...", "email2@..."]
 
     orcamento_id = Column(Integer, ForeignKey("orcamentos.id", ondelete="SET NULL"), nullable=True, index=True)
+    recibo_id = Column(Integer, ForeignKey("recibos.id", ondelete="SET NULL"), nullable=True, index=True)
     bloquear_vinculo_automatico = Column(Boolean, nullable=False, default=False, server_default="0")
 
     condominio = relationship("Condominio", back_populates="servicos")
