@@ -22,6 +22,7 @@ interface CondPendente {
   condominio_id: number;
   contrato_id: number | null;
   nome: string;
+  descricao_contrato: string | null;  // ex: "Poste" — só preenchido quando há múltiplos contratos
   data_inicio_contrato: string | null;
   valor_fixo_mensal: number | null;
   dia_vencimento_padrao: number | null;
@@ -548,6 +549,7 @@ function NovoCorpoNotaContent() {
         ...payloadBase(),
         mes,
         ano,
+        contrato_id: condSelecionado?.contrato_id ?? null,
         servico_id: servicoId || null,
         configuracao_inter_id: cnpjSelecionado?.id ?? null,
         orcamento_id: orcamentoSelecionado?.id ?? null,
@@ -831,13 +833,20 @@ function NovoCorpoNotaContent() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     {condsFiltrados.map(c => (
                       <button
-                        key={c.condominio_id}
+                        key={`${c.condominio_id}-${c.contrato_id ?? 'x'}`}
                         type="button"
                         onClick={() => avancarStep2(c)}
                         className="p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-500 text-left transition-all group"
                       >
-                        <div className="font-bold text-slate-900 dark:text-white group-hover:text-violet-700 dark:group-hover:text-violet-400 transition-colors">
-                          {c.nome}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900 dark:text-white group-hover:text-violet-700 dark:group-hover:text-violet-400 transition-colors">
+                            {c.nome}
+                          </span>
+                          {c.descricao_contrato && (
+                            <span className="px-2 py-0.5 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-400 text-[10px] font-bold rounded-full uppercase tracking-wide">
+                              {c.descricao_contrato}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-slate-500 mt-1 flex gap-3 flex-wrap">
                           {c.data_inicio_contrato && (

@@ -58,6 +58,7 @@ class CorpoNotaService:
         tipo_nota: TipoNotaCorpo,
         ano: int,
         mes: int,
+        contrato_id: Optional[int] = None,
         servico_id: Optional[int] = None,
         numero_os: Optional[str] = None,
         data_servico: Optional[date] = None,
@@ -81,8 +82,8 @@ class CorpoNotaService:
         if ano < 2020:
             raise HTTPException(status_code=422, detail="ano deve ser >= 2020.")
 
-        # Obtém ou cria o ciclo do mês
-        ciclo = CicloNotaService.get_or_create(db, condominio_id, tipo_nota, ano, mes)
+        # Obtém ou cria o ciclo do mês (inclui contrato_id para suporte a múltiplos contratos)
+        ciclo = CicloNotaService.get_or_create(db, condominio_id, tipo_nota, ano, mes, contrato_id)
 
         # Impede dois corpos ativos no mesmo ciclo
         existente = CorpoNotaRepository.get_ativo_por_ciclo(db, ciclo.id)

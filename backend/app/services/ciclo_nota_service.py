@@ -14,12 +14,14 @@ class CicloNotaService:
         tipo_nota: TipoNotaCorpo,
         ano: int,
         mes: int,
+        contrato_id: Optional[int] = None,
     ) -> CicloNota:
         """Retorna o ciclo existente ou cria um novo. Ponto único de acesso ao ciclo."""
-        ciclo = CicloNotaRepository.get_by_chave(db, condominio_id, tipo_nota, ano, mes)
+        ciclo = CicloNotaRepository.get_by_chave(db, condominio_id, tipo_nota, ano, mes, contrato_id)
         if not ciclo:
             ciclo = CicloNota(
                 condominio_id=condominio_id,
+                contrato_id=contrato_id,
                 tipo_nota=tipo_nota,
                 ano=ano,
                 mes=mes,

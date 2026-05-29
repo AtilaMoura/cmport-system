@@ -11,6 +11,7 @@ class CorpoNotaCreate(BaseModel):
     tipo_nota: TipoNotaCorpo = TipoNotaCorpo.MANUTENCAO
     ano: int
     mes: int
+    contrato_id: Optional[int] = None
     servico_id: Optional[int] = None
     numero_os: Optional[str] = None
     data_servico: Optional[date] = None

@@ -33,6 +33,8 @@ class CicloNota(Base):
     condominio_id = Column(Integer, ForeignKey("condominios.id", ondelete="CASCADE"), nullable=False, index=True)
     condominio = relationship("Condominio")
 
+    contrato_id = Column(Integer, ForeignKey("contratos_condominio.id", ondelete="SET NULL"), nullable=True, index=True)
+
     tipo_nota = Column(Enum(TipoNotaCorpo), nullable=False)
     ano = Column(SmallInteger, nullable=False)
     mes = Column(SmallInteger, nullable=False)
@@ -45,7 +47,7 @@ class CicloNota(Base):
     corpos = relationship("CorpoNota", back_populates="ciclo", lazy="select")
 
     __table_args__ = (
-        UniqueConstraint("condominio_id", "tipo_nota", "ano", "mes", name="uq_ciclo_condominio_tipo_mes"),
+        UniqueConstraint("condominio_id", "contrato_id", "tipo_nota", "ano", "mes", name="uq_ciclo_condominio_contrato_tipo_mes"),
         Index("ix_ciclo_status", "status_ciclo"),
         Index("ix_ciclo_periodo", "ano", "mes"),
     )

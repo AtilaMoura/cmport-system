@@ -174,27 +174,25 @@ def condominios_pendentes(
 
     from app.models.corpo_nota_model import CorpoNota, StatusCorpoNota
 
-    # IDs dos condomínios que já têm corpo ATIVO neste mês/tipo
-    ids_com_corpo = (
-        db.query(CicloNota.condominio_id)
-        .join(CorpoNota, CorpoNota.ciclo_id == CicloNota.id)
-        .filter(
-            CicloNota.tipo_nota == tipo_enum,
-            CicloNota.ano == ano,
-            CicloNota.mes == mes,
-            CorpoNota.deletado_em.is_(None),
-            CorpoNota.status != StatusCorpoNota.CANCELADO,
-        )
-        .scalar_subquery()
-    )
-
     # ── SERVIÇO: qualquer condomínio ativo, sem exigir contrato ──────────
     if tipo_enum == TipoNotaCorpo.SERVICO:
+        ids_cond_com_corpo = (
+            db.query(CicloNota.condominio_id)
+            .join(CorpoNota, CorpoNota.ciclo_id == CicloNota.id)
+            .filter(
+                CicloNota.tipo_nota == tipo_enum,
+                CicloNota.ano == ano,
+                CicloNota.mes == mes,
+                CorpoNota.deletado_em.is_(None),
+                CorpoNota.status != StatusCorpoNota.CANCELADO,
+            )
+            .scalar_subquery()
+        )
         condominios = (
             db.query(Condominio)
             .filter(
                 Condominio.ativo.is_(True),
-                ~Condominio.id.in_(ids_com_corpo),
+                ~Condominio.id.in_(ids_cond_com_corpo),
             )
             .order_by(Condominio.nome)
             .all()
@@ -202,7 +200,9 @@ def condominios_pendentes(
         return [
             {
                 "condominio_id": c.id,
+                "contrato_id": None,
                 "nome": c.nome,
+                "descricao_contrato": None,
                 "data_inicio_contrato": None,
                 "valor_fixo_mensal": None,
                 "dia_vencimento_padrao": None,
@@ -211,24 +211,60 @@ def condominios_pendentes(
             for c in condominios
         ]
 
-    # ── MANUTENCAO / PRODUTO: exige contrato ativo ───────────────────────
+    # ── MANUTENCAO / PRODUTO: retorna uma linha por contrato ativo ───────
+    # IDs de contratos que já têm corpo ativo neste ciclo
+    contratos_com_corpo = (
+        db.query(CicloNota.contrato_id)
+        .join(CorpoNota, CorpoNota.ciclo_id == CicloNota.id)
+        .filter(
+            CicloNota.tipo_nota == tipo_enum,
+            CicloNota.ano == ano,
+            CicloNota.mes == mes,
+            CicloNota.contrato_id.isnot(None),
+            CorpoNota.deletado_em.is_(None),
+            CorpoNota.status != StatusCorpoNota.CANCELADO,
+        )
+        .scalar_subquery()
+    )
+
+    # Para contratos legados (sem contrato_id no ciclo), exclui o condomínio inteiro
+    conds_com_corpo_legado = (
+        db.query(CicloNota.condominio_id)
+        .join(CorpoNota, CorpoNota.ciclo_id == CicloNota.id)
+        .filter(
+            CicloNota.tipo_nota == tipo_enum,
+            CicloNota.ano == ano,
+            CicloNota.mes == mes,
+            CicloNota.contrato_id.is_(None),
+            CorpoNota.deletado_em.is_(None),
+            CorpoNota.status != StatusCorpoNota.CANCELADO,
+        )
+        .scalar_subquery()
+    )
+
     contratos = (
         db.query(ContratoCondominio)
         .options(joinedload(ContratoCondominio.condominio))
         .filter(
             ContratoCondominio.ativo.is_(True),
             ContratoCondominio.deletado_em.is_(None),
-            ~ContratoCondominio.condominio_id.in_(ids_com_corpo),
+            ~ContratoCondominio.id.in_(contratos_com_corpo),
+            ~ContratoCondominio.condominio_id.in_(conds_com_corpo_legado),
         )
-        .order_by(ContratoCondominio.condominio_id)
+        .order_by(ContratoCondominio.condominio_id, ContratoCondominio.id)
         .all()
     )
+
+    # Detecta quais condomínios têm mais de um contrato (para exibir badge)
+    from collections import Counter
+    contagem = Counter(c.condominio_id for c in contratos)
 
     return [
         {
             "condominio_id": c.condominio_id,
             "contrato_id": c.id,
             "nome": c.condominio.nome if c.condominio else f"Condomínio #{c.condominio_id}",
+            "descricao_contrato": c.descricao if contagem[c.condominio_id] > 1 else None,
             "data_inicio_contrato": c.data_inicio.isoformat() if c.data_inicio else None,
             "valor_fixo_mensal": float(c.valor_fixo_mensal) if c.valor_fixo_mensal else None,
             "dia_vencimento_padrao": c.dia_vencimento_padrao,
@@ -324,6 +360,7 @@ def criar_corpo(
         tipo_nota=payload.tipo_nota,
         ano=payload.ano,
         mes=payload.mes,
+        contrato_id=payload.contrato_id,
         servico_id=payload.servico_id,
         numero_os=payload.numero_os,
         data_servico=payload.data_servico,

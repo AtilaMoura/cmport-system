@@ -10,10 +10,11 @@ class ContratoCondominio(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-    condominio_id = Column(Integer, ForeignKey("condominios.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    condominio_id = Column(Integer, ForeignKey("condominios.id", ondelete="CASCADE"), nullable=False, index=True)
     condominio = relationship("Condominio", lazy="joined")
 
     ativo = Column(Boolean, nullable=False, default=True)
+    descricao = Column(String(100), nullable=True)  # ex: "Poste", "Principal" — distingue contratos do mesmo condomínio
     data_inicio = Column(Date, nullable=False)
     data_termino = Column(Date, nullable=True)
 

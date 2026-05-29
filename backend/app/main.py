@@ -124,6 +124,14 @@ def _run_migrations():
         # ConfiguracaoInter — sequências de numeração NF por CNPJ
         "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_servico INT NULL",
         "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_produto INT NULL",
+        # Múltiplos contratos por condomínio
+        "ALTER TABLE contratos_condominio DROP INDEX condominio_id",
+        "ALTER TABLE contratos_condominio ADD COLUMN descricao VARCHAR(100) NULL",
+        "ALTER TABLE ciclos_nota ADD COLUMN contrato_id INT NULL",
+        "ALTER TABLE ciclos_nota ADD INDEX ix_ciclo_contrato (contrato_id)",
+        "ALTER TABLE ciclos_nota ADD CONSTRAINT fk_ciclo_contrato FOREIGN KEY (contrato_id) REFERENCES contratos_condominio(id) ON DELETE SET NULL",
+        "ALTER TABLE ciclos_nota DROP INDEX uq_ciclo_condominio_tipo_mes",
+        "ALTER TABLE ciclos_nota ADD UNIQUE INDEX uq_ciclo_condominio_contrato_tipo_mes (condominio_id, contrato_id, tipo_nota, ano, mes)",
         # Módulo Clientes/Recibos
         "ALTER TABLE clientes MODIFY condominio_id INT NULL",
         "ALTER TABLE manutencoes_assistencias ADD COLUMN recibo_id INT NULL",

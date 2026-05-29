@@ -13,17 +13,19 @@ class CicloNotaRepository:
         tipo_nota: TipoNotaCorpo,
         ano: int,
         mes: int,
+        contrato_id: Optional[int] = None,
     ) -> Optional[CicloNota]:
-        return (
-            db.query(CicloNota)
-            .filter(
-                CicloNota.condominio_id == condominio_id,
-                CicloNota.tipo_nota == tipo_nota,
-                CicloNota.ano == ano,
-                CicloNota.mes == mes,
-            )
-            .first()
+        q = db.query(CicloNota).filter(
+            CicloNota.condominio_id == condominio_id,
+            CicloNota.tipo_nota == tipo_nota,
+            CicloNota.ano == ano,
+            CicloNota.mes == mes,
         )
+        if contrato_id is not None:
+            q = q.filter(CicloNota.contrato_id == contrato_id)
+        else:
+            q = q.filter(CicloNota.contrato_id.is_(None))
+        return q.first()
 
     @staticmethod
     def get_by_id(db: Session, ciclo_id: int) -> Optional[CicloNota]:
