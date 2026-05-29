@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_DOWN
+from decimal import Decimal, ROUND_DOWN
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -61,12 +61,11 @@ class ImpostoService:
                 pass
 
         def _truncar(base: float, pct: float) -> float:
-            """Arredonda para 2 casas decimais — regra fiscal BR (ROUND_HALF_DOWN):
-            arredondamento normal, mas empate exato em .5 vai para baixo."""
+            """Trunca para 2 casas decimais — regra fiscal BR (ROUND_DOWN)."""
             if not pct:
                 return 0.0
             resultado = Decimal(str(base)) * Decimal(str(pct)) / Decimal('100')
-            return float(resultado.quantize(Decimal('0.01'), rounding=ROUND_HALF_DOWN))
+            return float(resultado.quantize(Decimal('0.01'), rounding=ROUND_DOWN))
 
         v = float(valor_bruto)
         v_inss   = _truncar(v, pct_inss)
