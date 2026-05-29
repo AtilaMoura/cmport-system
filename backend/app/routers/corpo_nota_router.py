@@ -227,19 +227,26 @@ def condominios_pendentes(
         .scalar_subquery()
     )
 
-    # Para contratos legados (sem contrato_id no ciclo), exclui o condomínio inteiro
-    conds_com_corpo_legado = (
-        db.query(CicloNota.condominio_id)
+    # Para ciclos legados (sem contrato_id), bloqueia apenas o contrato mais antigo
+    # do condomínio (assumindo que o corpo foi gerado para o contrato original)
+    from sqlalchemy import func as sqlfunc
+
+    contratos_legados_bloqueados = (
+        db.query(sqlfunc.min(ContratoCondominio.id).label("min_id"))
+        .join(CicloNota, CicloNota.condominio_id == ContratoCondominio.condominio_id)
         .join(CorpoNota, CorpoNota.ciclo_id == CicloNota.id)
         .filter(
             CicloNota.tipo_nota == tipo_enum,
             CicloNota.ano == ano,
             CicloNota.mes == mes,
             CicloNota.contrato_id.is_(None),
+            ContratoCondominio.ativo.is_(True),
+            ContratoCondominio.deletado_em.is_(None),
             CorpoNota.deletado_em.is_(None),
             CorpoNota.status != StatusCorpoNota.CANCELADO,
         )
-        .scalar_subquery()
+        .group_by(CicloNota.condominio_id)
+        .subquery()
     )
 
     contratos = (
@@ -249,7 +256,7 @@ def condominios_pendentes(
             ContratoCondominio.ativo.is_(True),
             ContratoCondominio.deletado_em.is_(None),
             ~ContratoCondominio.id.in_(contratos_com_corpo),
-            ~ContratoCondominio.condominio_id.in_(conds_com_corpo_legado),
+            ~ContratoCondominio.id.in_(db.query(contratos_legados_bloqueados.c.min_id)),
         )
         .order_by(ContratoCondominio.condominio_id, ContratoCondominio.id)
         .all()
