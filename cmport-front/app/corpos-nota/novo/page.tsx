@@ -329,8 +329,10 @@ function NovoCorpoNotaContent() {
     if (cond.valor_fixo_mensal) setValorBruto(String(cond.valor_fixo_mensal));
     if (cond.dia_vencimento_padrao) {
       const dia = String(cond.dia_vencimento_padrao).padStart(2, '0');
-      const mesStr = String(mes).padStart(2, '0');
-      setDataVencimento(`${ano}-${mesStr}-${dia}`);
+      // Vencimento é no mês seguinte ao período de referência
+      const mesVenc = mes === 12 ? 1 : mes + 1;
+      const anoVenc = mes === 12 ? ano + 1 : ano;
+      setDataVencimento(`${anoVenc}-${String(mesVenc).padStart(2, '0')}-${dia}`);
     }
 
     // Inicia com aba OS por padrão e busca as OSs
