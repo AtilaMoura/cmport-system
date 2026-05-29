@@ -124,7 +124,8 @@ def _run_migrations():
         # ConfiguracaoInter — sequências de numeração NF por CNPJ
         "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_servico INT NULL",
         "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_produto INT NULL",
-        # Módulo Recibos
+        # Módulo Clientes/Recibos
+        "ALTER TABLE clientes MODIFY condominio_id INT NULL",
         "ALTER TABLE manutencoes_assistencias ADD COLUMN recibo_id INT NULL",
         "ALTER TABLE manutencoes_assistencias ADD INDEX idx_servico_recibo (recibo_id)",
         "ALTER TABLE manutencoes_assistencias ADD CONSTRAINT fk_servico_recibo FOREIGN KEY (recibo_id) REFERENCES recibos(id) ON DELETE SET NULL",
