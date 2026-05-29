@@ -389,6 +389,9 @@ function NovoCorpoNotaContent() {
       const datas = novas.map(o => o.data_servico ? o.data_servico.split('-').reverse().join('.') : '').filter(Boolean);
       const datasUnicas = [...new Set(datas)];
       setDataServicoTexto(datasUnicas.join(' e '));
+      // Para MANUTENCAO, pré-preenche o date picker com a data da primeira OS selecionada
+      if (novas.length > 0 && novas[0].data_servico) setDataServico(novas[0].data_servico);
+      else if (novas.length === 0) setDataServico('');
       if (novas.length === 1 && novas[0].descricao_completa) setDescricaoServico(novas[0].descricao_completa);
       if (novas.length === 1 && novas[0].servico_id) setServicoId(novas[0].servico_id);
       return novas;
