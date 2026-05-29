@@ -180,6 +180,21 @@ export default function DetalhesCondominio() {
     }
   };
 
+  const toggleAtivoCondominio = async () => {
+    if (!condo) return;
+    const novoStatus = !condo.ativo;
+    const msg = novoStatus
+      ? 'Ativar este condomínio?'
+      : 'Desativar este condomínio? Ele deixará de aparecer nas listas de SERVIÇO.';
+    if (!confirm(msg)) return;
+    try {
+      const r = await api.put(`/condominios/${condo.id}`, { ativo: novoStatus });
+      setCondo((prev: any) => ({ ...prev, ativo: r.data.ativo }));
+    } catch {
+      alert('Erro ao alterar status do condomínio.');
+    }
+  };
+
   const deletarContrato = async () => {
     if (!contrato) return;
     if (!confirm('Excluir este contrato? A ação é registrada no histórico de auditoria.')) return;
@@ -256,11 +271,23 @@ export default function DetalhesCondominio() {
                 </div>
               </div>
 
-              <span className={`self-start shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold shadow-lg ${
-                condo.ativo ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
-              }`}>
-                {condo.ativo ? '✓ ATIVO' : '⊘ INATIVO'}
-              </span>
+              <div className="self-start shrink-0 flex flex-col items-end gap-1.5">
+                <span className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold shadow-lg ${
+                  condo.ativo ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+                }`}>
+                  {condo.ativo ? '✓ ATIVO' : '⊘ INATIVO'}
+                </span>
+                <button
+                  onClick={toggleAtivoCondominio}
+                  className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                    condo.ativo
+                      ? 'border-red-300 text-red-200 hover:bg-red-500 hover:text-white'
+                      : 'border-emerald-300 text-emerald-200 hover:bg-emerald-500 hover:text-white'
+                  }`}
+                >
+                  {condo.ativo ? 'Desativar' : 'Ativar'}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">

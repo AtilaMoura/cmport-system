@@ -33,6 +33,15 @@ class NotaFiscalRepository:
         db.add(db_nota)
         db.commit()
         db.refresh(db_nota)
+
+        # Auto-reativa o condomínio caso esteja inativo
+        if db_nota.condominio_id:
+            cond = db.get(Condominio, db_nota.condominio_id)
+            if cond and not cond.ativo:
+                cond.ativo = True
+                db.commit()
+                print(f"[Import] Condomínio #{cond.id} ({cond.nome}) reativado automaticamente.")
+
         return db_nota
 
     @staticmethod
