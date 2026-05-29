@@ -125,7 +125,10 @@ def _run_migrations():
         "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_servico INT NULL",
         "ALTER TABLE configuracao_inter ADD COLUMN numero_nf_produto INT NULL",
         # Múltiplos contratos por condomínio
-        "ALTER TABLE contratos_condominio DROP INDEX condominio_id",
+        "ALTER TABLE contratos_condominio DROP FOREIGN KEY contratos_condominio_ibfk_1",
+        "ALTER TABLE contratos_condominio DROP INDEX ix_contratos_condominio_condominio_id",
+        "ALTER TABLE contratos_condominio ADD INDEX ix_contrato_condo (condominio_id)",
+        "ALTER TABLE contratos_condominio ADD CONSTRAINT fk_contrato_condo FOREIGN KEY (condominio_id) REFERENCES condominios(id) ON DELETE CASCADE",
         "ALTER TABLE contratos_condominio ADD COLUMN descricao VARCHAR(100) NULL AFTER ativo",
         "ALTER TABLE ciclos_nota ADD COLUMN contrato_id INT NULL",
         "ALTER TABLE ciclos_nota ADD INDEX ix_ciclo_contrato (contrato_id)",
