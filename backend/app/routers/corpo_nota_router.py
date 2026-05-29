@@ -227,6 +227,7 @@ def condominios_pendentes(
     return [
         {
             "condominio_id": c.condominio_id,
+            "contrato_id": c.id,
             "nome": c.condominio.nome if c.condominio else f"Condomínio #{c.condominio_id}",
             "data_inicio_contrato": c.data_inicio.isoformat() if c.data_inicio else None,
             "valor_fixo_mensal": float(c.valor_fixo_mensal) if c.valor_fixo_mensal else None,

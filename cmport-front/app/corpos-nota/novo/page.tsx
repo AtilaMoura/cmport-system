@@ -20,6 +20,7 @@ interface ConfiguracaoInter {
 
 interface CondPendente {
   condominio_id: number;
+  contrato_id: number | null;
   nome: string;
   data_inicio_contrato: string | null;
   valor_fixo_mensal: number | null;
@@ -213,6 +214,8 @@ function NovoCorpoNotaContent() {
   const [produtos, setProdutos] = useState<{nome: string; quantidade: string}[]>([]);
   // Parcelas livres: cada uma tem valor + data
   const [parcelas, setParcelas] = useState<{valor: string; data: string}[]>([{valor:'',data:''}]);
+  // Salvar novo valor no contrato ao confirmar
+  const [salvarNoContrato, setSalvarNoContrato] = useState(false);
 
   // Step 5 — Parcelas (impostos calculados no Step 4→5)
   const [impostosCalculados, setImpostosCalculados] = useState<{
@@ -551,6 +554,18 @@ function NovoCorpoNotaContent() {
         numero_parcelas: parcelasPayload ? parcelasPayload.length : 1,
         parcelas_json: parcelasPayload,
       });
+
+      // Atualiza o valor fixo mensal do contrato se solicitado
+      if (salvarNoContrato && condSelecionado?.contrato_id && valorBruto) {
+        try {
+          await api.patch(`/contratos/${condSelecionado.contrato_id}`, {
+            valor_fixo_mensal: Number(valorBruto),
+          });
+        } catch {
+          // Não bloqueia o fluxo — corpo já foi criado
+        }
+      }
+
       router.push(`/corpos-nota/${r.data.id}`);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -1098,10 +1113,24 @@ function NovoCorpoNotaContent() {
                     step="0.01"
                     min="0"
                     value={valorBruto}
-                    onChange={e => setValorBruto(e.target.value)}
+                    onChange={e => { setValorBruto(e.target.value); setSalvarNoContrato(false); }}
                     placeholder="0,00"
                     className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                   />
+                  {tipoNota === 'MANUTENCAO' && condSelecionado?.contrato_id && valorBruto &&
+                   Number(valorBruto) !== condSelecionado.valor_fixo_mensal && (
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={salvarNoContrato}
+                        onChange={e => setSalvarNoContrato(e.target.checked)}
+                        className="w-4 h-4 rounded accent-violet-600"
+                      />
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        Salvar como novo valor padrão do contrato
+                      </span>
+                    </label>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
