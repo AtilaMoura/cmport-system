@@ -17,6 +17,14 @@ from app.models.usuario_model import Usuario
 router = APIRouter()
 
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 @router.post("/classificar-condominios")
 def classificar_condominios_por_nota(db: Session = Depends(get_db), usuario=Depends(require_dev)):
     """Marca ativo=False nos condomínios sem nenhuma nota fiscal no ano corrente.
@@ -59,14 +67,6 @@ def classificar_condominios_por_nota(db: Session = Depends(get_db), usuario=Depe
         "marcados_inativos": marcados_inativos,
         "reativados": reativados,
     }
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 
