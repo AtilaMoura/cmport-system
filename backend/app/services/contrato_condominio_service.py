@@ -16,16 +16,21 @@ class ContratoCondominioService:
         return ContratoCondominioRepository.get_by_condominio(db, condominio_id)
 
     @staticmethod
+    def list_by_condominio(db: Session, condominio_id: int) -> List[ContratoCondominio]:
+        return ContratoCondominioRepository.list_by_condominio(db, condominio_id)
+
+    @staticmethod
     def list_all(db: Session, apenas_ativos: bool = False) -> List[ContratoCondominio]:
         return ContratoCondominioRepository.list_all(db, apenas_ativos)
 
     @staticmethod
-    def criar_ou_atualizar(
+    def criar(
         db: Session,
         condominio_id: int,
         ativo: bool,
         data_inicio: date,
-        data_termino: Optional[date],
+        data_termino: Optional[date] = None,
+        descricao: Optional[str] = None,
         dia_vencimento_padrao: Optional[int] = None,
         valor_fixo_mensal: Optional[Decimal] = None,
         descricao_padrao_servico: Optional[str] = None,
@@ -36,54 +41,54 @@ class ContratoCondominioService:
             raise HTTPException(status_code=422, detail="data_termino não pode ser anterior a data_inicio.")
         if dia_vencimento_padrao is not None and not (1 <= dia_vencimento_padrao <= 28):
             raise HTTPException(status_code=422, detail="dia_vencimento_padrao deve ser entre 1 e 28.")
-
-        # Inclui soft-deleted para evitar violação do UNIQUE INDEX em condominio_id
-        contrato = db.query(ContratoCondominio).filter(
-            ContratoCondominio.condominio_id == condominio_id
-        ).first()
-        if contrato:
-            contrato.deletado_em = None  # Restaura se estiver soft-deletado
-            contrato.ativo = ativo
-            contrato.data_inicio = data_inicio
-            contrato.data_termino = data_termino
-            contrato.dia_vencimento_padrao = dia_vencimento_padrao
-            contrato.valor_fixo_mensal = valor_fixo_mensal
-            contrato.descricao_padrao_servico = descricao_padrao_servico
-            contrato.observacoes_contrato = observacoes_contrato
-        else:
-            contrato = ContratoCondominio(
-                condominio_id=condominio_id,
-                ativo=ativo,
-                data_inicio=data_inicio,
-                data_termino=data_termino,
-                dia_vencimento_padrao=dia_vencimento_padrao,
-                valor_fixo_mensal=valor_fixo_mensal,
-                descricao_padrao_servico=descricao_padrao_servico,
-                observacoes_contrato=observacoes_contrato,
-                criado_por=usuario,
-            )
+        contrato = ContratoCondominio(
+            condominio_id=condominio_id,
+            ativo=ativo,
+            descricao=descricao,
+            data_inicio=data_inicio,
+            data_termino=data_termino,
+            dia_vencimento_padrao=dia_vencimento_padrao,
+            valor_fixo_mensal=valor_fixo_mensal,
+            descricao_padrao_servico=descricao_padrao_servico,
+            observacoes_contrato=observacoes_contrato,
+            criado_por=usuario,
+        )
         return ContratoCondominioRepository.save(db, contrato)
+
+    # Mantém alias para compatibilidade com código legado
+    @staticmethod
+    def criar_ou_atualizar(db, condominio_id, ativo, data_inicio, data_termino=None,
+                           dia_vencimento_padrao=None, valor_fixo_mensal=None,
+                           descricao_padrao_servico=None, observacoes_contrato=None,
+                           usuario=None):
+        return ContratoCondominioService.criar(
+            db, condominio_id, ativo, data_inicio, data_termino, None,
+            dia_vencimento_padrao, valor_fixo_mensal, descricao_padrao_servico,
+            observacoes_contrato, usuario,
+        )
 
     @staticmethod
     def atualizar(
         db: Session,
         contrato_id: int,
-        ativo: Optional[bool],
-        data_inicio,
-        data_termino,
-        dia_vencimento_padrao: Optional[int],
-        valor_fixo_mensal,
-        descricao_padrao_servico: Optional[str],
-        observacoes_contrato: Optional[str],
+        ativo: Optional[bool] = None,
+        descricao: Optional[str] = None,
+        data_inicio = None,
+        data_termino = None,
+        dia_vencimento_padrao: Optional[int] = None,
+        valor_fixo_mensal = None,
+        descricao_padrao_servico: Optional[str] = None,
+        observacoes_contrato: Optional[str] = None,
     ) -> ContratoCondominio:
         contrato = ContratoCondominioRepository.get_by_id(db, contrato_id)
         if not contrato:
             raise HTTPException(status_code=404, detail="Contrato não encontrado.")
         if ativo is not None:
             contrato.ativo = ativo
+        if descricao is not None:
+            contrato.descricao = descricao
         if data_inicio is not None:
             contrato.data_inicio = data_inicio
-        # Campos opcionais: None = limpar o valor existente
         contrato.data_termino = data_termino
         contrato.dia_vencimento_padrao = dia_vencimento_padrao
         contrato.valor_fixo_mensal = valor_fixo_mensal

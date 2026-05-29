@@ -19,6 +19,19 @@ class ContratoCondominioRepository:
         )
 
     @staticmethod
+    def list_by_condominio(db: Session, condominio_id: int) -> List[ContratoCondominio]:
+        return (
+            db.query(ContratoCondominio)
+            .options(joinedload(ContratoCondominio.condominio))
+            .filter(
+                ContratoCondominio.condominio_id == condominio_id,
+                ContratoCondominio.deletado_em.is_(None),
+            )
+            .order_by(ContratoCondominio.id)
+            .all()
+        )
+
+    @staticmethod
     def get_by_id(db: Session, contrato_id: int) -> Optional[ContratoCondominio]:
         return (
             db.query(ContratoCondominio)

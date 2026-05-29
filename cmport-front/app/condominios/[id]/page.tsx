@@ -35,6 +35,7 @@ interface Contrato {
   id: number;
   condominio_id: number;
   ativo: boolean;
+  descricao: string | null;
   data_inicio: string | null;
   data_termino: string | null;
   dia_vencimento_padrao: number | null;
@@ -47,6 +48,7 @@ interface Contrato {
 
 interface ContratoForm {
   ativo: boolean;
+  descricao: string;
   data_inicio: string;
   data_termino: string;
   dia_vencimento_padrao: string;
@@ -57,6 +59,7 @@ interface ContratoForm {
 
 const formContratoInicial: ContratoForm = {
   ativo: true,
+  descricao: '',
   data_inicio: '',
   data_termino: '',
   dia_vencimento_padrao: '',
@@ -82,7 +85,9 @@ export default function DetalhesCondominio() {
   const id = params.id as string;
   const [condo, setCondo] = useState<any>(null);
   const [orcamentos, setOrcamentos] = useState<any[]>([]);
-  const [contrato, setContrato] = useState<Contrato | null>(null);
+  const [contratos, setContratos] = useState<Contrato[]>([]);
+  // Mantém compat com código legado que usa `contrato`
+  const contrato = contratos[0] ?? null;
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [notasFiscais, setNotasFiscais] = useState<NotaFiscal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,12 +107,12 @@ export default function DetalhesCondominio() {
   const [erroContrato, setErroContrato] = useState<string | null>(null);
   const [salvandoContrato, setSalvandoContrato] = useState(false);
 
-  const carregarContrato = async () => {
+  const carregarContratos = async () => {
     try {
-      const res = await api.get(`/contratos/${id}`);
-      setContrato(res.data);
+      const res = await api.get(`/contratos/condominio/${id}`);
+      setContratos(Array.isArray(res.data) ? res.data : [res.data]);
     } catch {
-      setContrato(null);
+      setContratos([]);
     }
   };
 
@@ -115,14 +120,15 @@ export default function DetalhesCondominio() {
     Promise.all([
       api.get(`/condominios/${id}`),
       api.get(`/orcamentos/condominio/${id}`),
-      api.get(`/contratos/${id}`).catch(() => null),
+      api.get(`/contratos/condominio/${id}`).catch(() => ({ data: [] })),
       api.get(`/servicos/condominio/${id}`).catch(() => ({ data: [] })),
       api.get(`/notas-fiscais?condominio_id=${id}`).catch(() => ({ data: [] })),
     ])
-      .then(([rCondo, rOrc, rContrato, rServicos, rNotas]) => {
+      .then(([rCondo, rOrc, rContratos, rServicos, rNotas]) => {
         setCondo(rCondo.data);
         setOrcamentos(rOrc.data);
-        setContrato(rContrato?.data ?? null);
+        const lista = Array.isArray(rContratos?.data) ? rContratos.data : (rContratos?.data ? [rContratos.data] : []);
+        setContratos(lista);
         setServicos(rServicos.data ?? []);
         setNotasFiscais(rNotas.data ?? []);
       })
@@ -135,19 +141,24 @@ export default function DetalhesCondominio() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, id]);
 
-  const abrirModalContrato = () => {
+  const [contratoEditandoId, setContratoEditandoId] = useState<number | null>(null);
+
+  const abrirModalContrato = (contratoParaEditar?: Contrato) => {
     setErroContrato(null);
-    if (contrato) {
+    if (contratoParaEditar) {
+      setContratoEditandoId(contratoParaEditar.id);
       setFormContrato({
-        ativo: contrato.ativo,
-        data_inicio: contrato.data_inicio ?? '',
-        data_termino: contrato.data_termino ?? '',
-        dia_vencimento_padrao: contrato.dia_vencimento_padrao != null ? String(contrato.dia_vencimento_padrao) : '',
-        valor_fixo_mensal: contrato.valor_fixo_mensal ?? '',
-        descricao_padrao_servico: contrato.descricao_padrao_servico ?? '',
-        observacoes_contrato: contrato.observacoes_contrato ?? '',
+        ativo: contratoParaEditar.ativo,
+        descricao: contratoParaEditar.descricao ?? '',
+        data_inicio: contratoParaEditar.data_inicio ?? '',
+        data_termino: contratoParaEditar.data_termino ?? '',
+        dia_vencimento_padrao: contratoParaEditar.dia_vencimento_padrao != null ? String(contratoParaEditar.dia_vencimento_padrao) : '',
+        valor_fixo_mensal: contratoParaEditar.valor_fixo_mensal ?? '',
+        descricao_padrao_servico: contratoParaEditar.descricao_padrao_servico ?? '',
+        observacoes_contrato: contratoParaEditar.observacoes_contrato ?? '',
       });
     } else {
+      setContratoEditandoId(null);
       setFormContrato(formContratoInicial);
     }
     setModalContrato(true);
@@ -161,6 +172,7 @@ export default function DetalhesCondominio() {
     try {
       const payload = {
         ativo: formContrato.ativo,
+        descricao: formContrato.descricao || null,
         data_inicio: formContrato.data_inicio,
         data_termino: formContrato.data_termino || null,
         dia_vencimento_padrao: formContrato.dia_vencimento_padrao ? Number(formContrato.dia_vencimento_padrao) : null,
@@ -168,13 +180,13 @@ export default function DetalhesCondominio() {
         descricao_padrao_servico: formContrato.descricao_padrao_servico || null,
         observacoes_contrato: formContrato.observacoes_contrato || null,
       };
-      if (contrato) {
-        await api.patch(`/contratos/${contrato.id}`, payload);
+      if (contratoEditandoId) {
+        await api.patch(`/contratos/${contratoEditandoId}`, payload);
       } else {
         await api.post('/contratos', { condominio_id: Number(id), ...payload });
       }
       setModalContrato(false);
-      await carregarContrato();
+      await carregarContratos();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setErroContrato(msg || 'Erro ao salvar contrato.');
@@ -187,7 +199,7 @@ export default function DetalhesCondominio() {
     if (!contrato) return;
     try {
       await api.patch(`/contratos/${contrato.id}/toggle-ativo`);
-      await carregarContrato();
+      await carregarContratos();
     } catch {
       alert('Erro ao alterar status do contrato.');
     }
@@ -240,12 +252,11 @@ export default function DetalhesCondominio() {
     }
   };
 
-  const deletarContrato = async () => {
-    if (!contrato) return;
+  const deletarContrato = async (contratoId: number) => {
     if (!confirm('Excluir este contrato? A ação é registrada no histórico de auditoria.')) return;
     try {
-      await api.delete(`/contratos/${contrato.id}`);
-      setContrato(null);
+      await api.delete(`/contratos/${contratoId}`);
+      await carregarContratos();
     } catch {
       alert('Erro ao excluir contrato.');
     }
@@ -846,109 +857,86 @@ export default function DetalhesCondominio() {
                 )}
 
                 {activeTab === 'contrato' && (
-                  contrato ? (
-                    <div className="space-y-4">
-                      {/* Cabeçalho do contrato */}
-                      <div className="flex items-center justify-between flex-wrap gap-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-black text-slate-900 dark:text-white">Contrato</span>
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                            contrato.ativo
-                              ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
-                              : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                          }`}>
-                            {contrato.ativo ? 'Ativo' : 'Inativo'}
-                          </span>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={abrirModalContrato}
-                            className="px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={toggleAtivo}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-                              contrato.ativo
-                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 hover:bg-amber-200'
-                                : 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 hover:bg-green-200'
-                            }`}
-                          >
-                            {contrato.ativo ? 'Desativar' : 'Ativar'}
-                          </button>
-                          <button
-                            onClick={deletarContrato}
-                            className="px-3 py-1.5 text-xs font-bold bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 rounded-lg hover:bg-red-200 transition-colors"
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Dados de vigência */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
-                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Início</p>
-                          <p className="font-bold text-slate-900 dark:text-white text-sm">{fmtData(contrato.data_inicio)}</p>
-                        </div>
-                        <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
-                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Término</p>
-                          <p className="font-bold text-slate-900 dark:text-white text-sm">{fmtData(contrato.data_termino)}</p>
-                        </div>
-                        <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
-                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Vence dia</p>
-                          <p className="font-bold text-slate-900 dark:text-white text-sm">
-                            {contrato.dia_vencimento_padrao ? `Dia ${contrato.dia_vencimento_padrao}` : '—'}
-                          </p>
-                        </div>
-                        <div className="bg-indigo-50 dark:bg-indigo-500/10 rounded-xl p-3 border border-indigo-200 dark:border-indigo-500/30">
-                          <p className="text-xs font-bold text-indigo-500 uppercase tracking-wide mb-1">Valor Mensal</p>
-                          <p className="font-black text-indigo-700 dark:text-indigo-400 text-sm">
-                            {fmtValor(contrato.valor_fixo_mensal) ?? '—'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Descrição padrão */}
-                      {contrato.descricao_padrao_servico && (
-                        <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Descrição Padrão do Serviço</p>
-                          <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                            {contrato.descricao_padrao_servico}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Observações */}
-                      {contrato.observacoes_contrato && (
-                        <div className="bg-amber-50 dark:bg-amber-500/10 rounded-xl p-4 border border-amber-200 dark:border-amber-500/30">
-                          <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-2">Observações</p>
-                          <p className="text-sm text-amber-900 dark:text-amber-200 leading-relaxed">
-                            {contrato.observacoes_contrato}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-slate-100 dark:bg-slate-800 rounded-full">
-                        <span className="text-3xl">📃</span>
-                      </div>
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                        Nenhum contrato cadastrado
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                        Contratos ({contratos.length})
                       </h3>
-                      <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">
-                        Cadastre um contrato para habilitar o auto-preenchimento de valores e datas nos corpos de nota.
-                      </p>
                       <button
-                        onClick={abrirModalContrato}
-                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/20"
+                        onClick={() => abrirModalContrato()}
+                        className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-colors"
                       >
-                        + Cadastrar Contrato
+                        + Novo Contrato
                       </button>
                     </div>
-                  )
+
+                    {contratos.length === 0 ? (
+                      <div className="text-center py-10">
+                        <div className="text-3xl mb-2">📃</div>
+                        <p className="font-semibold text-slate-700 dark:text-white mb-1">Nenhum contrato cadastrado</p>
+                        <p className="text-sm text-slate-500">Cadastre um contrato para habilitar o auto-preenchimento nos corpos de nota.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {contratos.map(c => (
+                          <div key={c.id} className="border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-3">
+                            {/* Header do contrato */}
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${c.ativo ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
+                                  {c.ativo ? 'Ativo' : 'Inativo'}
+                                </span>
+                                {c.descricao && (
+                                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
+                                    {c.descricao}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => abrirModalContrato(c)}
+                                  className="px-2.5 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 transition-colors">
+                                  Editar
+                                </button>
+                                <button onClick={async () => { await api.patch(`/contratos/${c.id}/toggle-ativo`); carregarContratos(); }}
+                                  className={`px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors ${c.ativo ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 hover:bg-amber-200' : 'bg-green-100 text-green-700 dark:bg-green-500/20 hover:bg-green-200'}`}>
+                                  {c.ativo ? 'Desativar' : 'Ativar'}
+                                </button>
+                                <button onClick={() => deletarContrato(c.id)}
+                                  className="px-2.5 py-1.5 text-xs font-bold bg-red-100 text-red-700 dark:bg-red-500/20 rounded-lg hover:bg-red-200 transition-colors">
+                                  Excluir
+                                </button>
+                              </div>
+                            </div>
+                            {/* Dados do contrato */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase mb-0.5">Início</p>
+                                <p className="font-bold text-slate-900 dark:text-white text-sm">{fmtData(c.data_inicio)}</p>
+                              </div>
+                              <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase mb-0.5">Término</p>
+                                <p className="font-bold text-slate-900 dark:text-white text-sm">{fmtData(c.data_termino)}</p>
+                              </div>
+                              <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase mb-0.5">Vence dia</p>
+                                <p className="font-bold text-slate-900 dark:text-white text-sm">{c.dia_vencimento_padrao ? `Dia ${c.dia_vencimento_padrao}` : '—'}</p>
+                              </div>
+                              <div className="bg-indigo-50 dark:bg-indigo-500/10 rounded-xl p-3">
+                                <p className="text-[10px] font-bold text-indigo-500 uppercase mb-0.5">Valor Mensal</p>
+                                <p className="font-black text-indigo-700 dark:text-indigo-400 text-sm">{fmtValor(c.valor_fixo_mensal) ?? '—'}</p>
+                              </div>
+                            </div>
+                            {c.descricao_padrao_servico && (
+                              <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Descrição Padrão</p>
+                                <p className="text-xs text-slate-700 dark:text-slate-300">{c.descricao_padrao_servico}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -1039,9 +1027,22 @@ export default function DetalhesCondominio() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-black text-slate-900 dark:text-white mb-6">
-              {contrato ? 'Editar Contrato' : 'Novo Contrato'}
+              {contratoEditandoId ? 'Editar Contrato' : 'Novo Contrato'}
             </h2>
             <form onSubmit={salvarContrato} className="space-y-4">
+              {/* Descrição identificadora */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 uppercase tracking-wide">
+                  Descrição <span className="text-slate-400 font-normal">(ex: Poste, Torre B)</span>
+                </label>
+                <input
+                  type="text"
+                  value={formContrato.descricao}
+                  onChange={e => setFormContrato(f => ({ ...f, descricao: e.target.value }))}
+                  placeholder="Opcional — aparece como badge quando há múltiplos contratos"
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                />
+              </div>
               {/* Ativo */}
               <div className="flex items-center gap-3">
                 <input

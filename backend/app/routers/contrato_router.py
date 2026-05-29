@@ -27,6 +27,15 @@ def listar_contratos(
     return ContratoCondominioService.list_all(db, apenas_ativos)
 
 
+@router.get("/condominio/{condominio_id}", response_model=List[ContratoResponse])
+def listar_contratos_por_condominio(
+    condominio_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    return ContratoCondominioService.list_by_condominio(db, condominio_id)
+
+
 @router.get("/{condominio_id}", response_model=ContratoResponse)
 def get_contrato_por_condominio(
     condominio_id: int,
@@ -40,15 +49,16 @@ def get_contrato_por_condominio(
 
 
 @router.post("", response_model=ContratoResponse, status_code=201)
-def criar_ou_atualizar_contrato(
+def criar_contrato(
     payload: ContratoCreate,
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    return ContratoCondominioService.criar_ou_atualizar(
+    return ContratoCondominioService.criar(
         db=db,
         condominio_id=payload.condominio_id,
         ativo=payload.ativo,
+        descricao=payload.descricao,
         data_inicio=payload.data_inicio,
         data_termino=payload.data_termino,
         dia_vencimento_padrao=payload.dia_vencimento_padrao,
@@ -70,6 +80,7 @@ def atualizar_contrato(
         db=db,
         contrato_id=contrato_id,
         ativo=payload.ativo,
+        descricao=payload.descricao,
         data_inicio=payload.data_inicio,
         data_termino=payload.data_termino,
         dia_vencimento_padrao=payload.dia_vencimento_padrao,

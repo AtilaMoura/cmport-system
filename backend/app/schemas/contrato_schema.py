@@ -14,6 +14,7 @@ class CondominioBrief(BaseModel):
 class ContratoCreate(BaseModel):
     condominio_id: int
     ativo: bool = True
+    descricao: Optional[str] = None          # ex: "Poste", "Torre B"
     data_inicio: date
     data_termino: Optional[date] = None
     dia_vencimento_padrao: Optional[int] = None
@@ -32,6 +33,7 @@ class ContratoCreate(BaseModel):
 
 class ContratoUpdate(BaseModel):
     ativo: Optional[bool] = None
+    descricao: Optional[str] = None
     data_inicio: Optional[date] = None
     data_termino: Optional[date] = None
     dia_vencimento_padrao: Optional[int] = None
@@ -45,6 +47,7 @@ class ContratoResponse(BaseModel):
     condominio_id: int
     condominio: Optional[CondominioBrief] = None
     ativo: bool
+    descricao: Optional[str] = None
     data_inicio: date
     data_termino: Optional[date] = None
     dia_vencimento_padrao: Optional[int] = None
