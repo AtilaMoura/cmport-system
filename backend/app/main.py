@@ -58,6 +58,8 @@ from app.routers.ciclo_nota_router import router as ciclos_nota_router
 from app.routers.corpo_nota_router import router as corpos_nota_router
 from app.routers.fin_movimentacao_router import router as fin_mov_router
 from app.routers.fin_categoria_router    import router as fin_cat_router
+from app.routers.cliente_router import router as clientes_router
+from app.routers.recibo_router import router as recibos_router
 
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
@@ -347,6 +349,8 @@ app.include_router(ciclos_nota_router,  prefix="/api/v1/ciclos-nota",   tags=["C
 app.include_router(corpos_nota_router,  prefix="/api/v1/corpos-nota",   tags=["Corpo da Nota"],      dependencies=_auth)
 app.include_router(fin_mov_router,      prefix="/api/v1/financeiro",              tags=["Financeiro"],         dependencies=_auth)
 app.include_router(fin_cat_router,      prefix="/api/v1/categorias-financeiras",  tags=["Financeiro"],         dependencies=_auth)
+app.include_router(clientes_router,     prefix="/api/v1/clientes",                tags=["Clientes"],           dependencies=_auth)
+app.include_router(recibos_router,      prefix="/api/v1/recibos",                 tags=["Recibos"],            dependencies=_auth)
 
 
 @app.get("/", tags=["Root"])

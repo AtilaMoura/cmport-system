@@ -87,7 +87,15 @@ export default function DetalhesCondominio() {
   const [notasFiscais, setNotasFiscais] = useState<NotaFiscal[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
-  const [activeTab, setActiveTab] = useState<'contatos' | 'manutencoes' | 'assistencias' | 'notas' | 'orcamentos' | 'contrato'>('contatos');
+  const [activeTab, setActiveTab] = useState<'contatos' | 'manutencoes' | 'assistencias' | 'notas' | 'orcamentos' | 'contrato' | 'moradores'>('contatos');
+
+  // Moradores
+  const [moradores, setMoradores] = useState<any[]>([]);
+  const [carregandoMoradores, setCarregandoMoradores] = useState(false);
+  const [showFormMorador, setShowFormMorador] = useState(false);
+  const [salvandoMorador, setSalvandoMorador] = useState(false);
+  const [formMorador, setFormMorador] = useState({ nome: '', tipo: 'PF', cpf_cnpj: '', apartamento: '', email: '', telefone: '', observacao: '' });
+  const [erroMorador, setErroMorador] = useState<string | null>(null);
 
   const [modalContrato, setModalContrato] = useState(false);
   const [formContrato, setFormContrato] = useState<ContratoForm>(formContratoInicial);
@@ -121,6 +129,11 @@ export default function DetalhesCondominio() {
       .catch(() => setNotFoundState(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (activeTab === 'moradores' && id) carregarMoradores();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, id]);
 
   const abrirModalContrato = () => {
     setErroContrato(null);
@@ -178,6 +191,38 @@ export default function DetalhesCondominio() {
     } catch {
       alert('Erro ao alterar status do contrato.');
     }
+  };
+
+  const carregarMoradores = async () => {
+    if (!id) return;
+    setCarregandoMoradores(true);
+    try {
+      const r = await api.get('/clientes', { params: { condominio_id: id } });
+      setMoradores(r.data);
+    } catch { setMoradores([]); }
+    finally { setCarregandoMoradores(false); }
+  };
+
+  const salvarMorador = async () => {
+    if (!formMorador.nome.trim()) { setErroMorador('Nome é obrigatório.'); return; }
+    setSalvandoMorador(true); setErroMorador(null);
+    try {
+      await api.post('/clientes', { ...formMorador, condominio_id: Number(id) });
+      setShowFormMorador(false);
+      setFormMorador({ nome: '', tipo: 'PF', cpf_cnpj: '', apartamento: '', email: '', telefone: '', observacao: '' });
+      await carregarMoradores();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setErroMorador(msg || 'Erro ao salvar morador.');
+    } finally { setSalvandoMorador(false); }
+  };
+
+  const deletarMorador = async (moradorId: number) => {
+    if (!confirm('Remover este morador?')) return;
+    try {
+      await api.delete(`/clientes/${moradorId}`);
+      await carregarMoradores();
+    } catch { alert('Erro ao remover morador.'); }
   };
 
   const toggleAtivoCondominio = async () => {
@@ -422,6 +467,20 @@ export default function DetalhesCondominio() {
                   )}
                 </button>
                 <button
+                  onClick={() => setActiveTab('moradores')}
+                  className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 ${
+                    activeTab === 'moradores' ? 'border-violet-600 text-violet-600 bg-white dark:bg-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <span className="text-base sm:text-lg">👤</span>
+                  Moradores
+                  {moradores.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
+                      {moradores.length}
+                    </span>
+                  )}
+                </button>
+                <button
                   onClick={() => setActiveTab('contrato')}
                   className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 ${
                     activeTab === 'contrato' ? 'border-indigo-600 text-indigo-600 bg-white dark:bg-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -660,6 +719,126 @@ export default function DetalhesCondominio() {
                       ))}
                     </div>
                   )
+                )}
+
+                {activeTab === 'moradores' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                        Moradores / Clientes
+                      </h3>
+                      <button
+                        onClick={() => { setShowFormMorador(true); setErroMorador(null); }}
+                        className="px-3 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-xl hover:bg-violet-700 transition-colors"
+                      >
+                        + Adicionar
+                      </button>
+                    </div>
+
+                    {showFormMorador && (
+                      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-3">
+                        <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Novo Morador</div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-2">
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Nome *</label>
+                            <input type="text" value={formMorador.nome} onChange={e => setFormMorador(f => ({...f, nome: e.target.value}))}
+                              placeholder="Nome completo" autoFocus
+                              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Tipo</label>
+                            <select value={formMorador.tipo} onChange={e => setFormMorador(f => ({...f, tipo: e.target.value}))}
+                              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white">
+                              <option value="PF">PF — Pessoa Física</option>
+                              <option value="PJ">PJ — Pessoa Jurídica</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">{formMorador.tipo === 'PJ' ? 'CNPJ' : 'CPF'}</label>
+                            <input type="text" value={formMorador.cpf_cnpj} onChange={e => setFormMorador(f => ({...f, cpf_cnpj: e.target.value}))}
+                              placeholder={formMorador.tipo === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
+                              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Apartamento</label>
+                            <input type="text" value={formMorador.apartamento} onChange={e => setFormMorador(f => ({...f, apartamento: e.target.value}))}
+                              placeholder="Ex: 42 / Torre A"
+                              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Telefone</label>
+                            <input type="text" value={formMorador.telefone} onChange={e => setFormMorador(f => ({...f, telefone: e.target.value}))}
+                              placeholder="(11) 99999-9999"
+                              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white" />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">E-mail</label>
+                            <input type="email" value={formMorador.email} onChange={e => setFormMorador(f => ({...f, email: e.target.value}))}
+                              placeholder="email@exemplo.com"
+                              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white" />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Observação</label>
+                            <input type="text" value={formMorador.observacao} onChange={e => setFormMorador(f => ({...f, observacao: e.target.value}))}
+                              placeholder="Observações adicionais"
+                              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white" />
+                          </div>
+                        </div>
+                        {erroMorador && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-500/10 rounded-lg p-2">{erroMorador}</p>}
+                        <div className="flex gap-2">
+                          <button onClick={() => setShowFormMorador(false)}
+                            className="flex-1 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-300 transition-colors">
+                            Cancelar
+                          </button>
+                          <button onClick={salvarMorador} disabled={salvandoMorador}
+                            className="flex-1 py-2 bg-violet-600 text-white rounded-xl text-xs font-bold hover:bg-violet-700 transition-colors disabled:opacity-50">
+                            {salvandoMorador ? 'Salvando...' : 'Salvar'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {carregandoMoradores ? (
+                      <div className="text-slate-400 text-sm animate-pulse text-center py-6">Carregando moradores...</div>
+                    ) : moradores.length === 0 ? (
+                      <div className="text-center py-10">
+                        <div className="text-3xl mb-2">👤</div>
+                        <p className="text-sm text-slate-500">Nenhum morador cadastrado.</p>
+                        <p className="text-xs text-slate-400 mt-1">Adicione moradores para emitir recibos vinculados a este condomínio.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {moradores.map((m: any) => (
+                          <div key={m.id} className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-9 h-9 bg-violet-100 dark:bg-violet-500/20 rounded-full flex items-center justify-center shrink-0">
+                                <span className="text-base">{m.tipo === 'PJ' ? '🏢' : '👤'}</span>
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-sm text-slate-900 dark:text-white truncate">{m.nome}</div>
+                                <div className="text-xs text-slate-500 flex gap-2 flex-wrap mt-0.5">
+                                  <span className="font-semibold text-violet-600 dark:text-violet-400">{m.tipo}</span>
+                                  {m.apartamento && <span>Apto {m.apartamento}</span>}
+                                  {m.cpf_cnpj && <span>{m.cpf_cnpj}</span>}
+                                  {m.telefone && <span>{m.telefone}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a href={`/recibos/novo?cliente_id=${m.id}&condominio_id=${condo?.id}`}
+                                className="px-2.5 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 transition-colors">
+                                + Recibo
+                              </a>
+                              <button onClick={() => deletarMorador(m.id)}
+                                className="px-2.5 py-1.5 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg hover:bg-red-200 transition-colors">
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {activeTab === 'contrato' && (

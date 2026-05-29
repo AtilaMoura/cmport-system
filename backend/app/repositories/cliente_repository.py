@@ -1,0 +1,38 @@
+from typing import List, Optional
+from sqlalchemy.orm import Session
+
+from app.models.cliente_model import Cliente
+
+
+class ClienteRepository:
+
+    @staticmethod
+    def create(db: Session, cliente: Cliente) -> Cliente:
+        db.add(cliente)
+        db.commit()
+        db.refresh(cliente)
+        return cliente
+
+    @staticmethod
+    def get_by_id(db: Session, cliente_id: int) -> Optional[Cliente]:
+        return db.query(Cliente).filter(
+            Cliente.id == cliente_id,
+            Cliente.deletado_em.is_(None),
+        ).first()
+
+    @staticmethod
+    def list_by_condominio(db: Session, condominio_id: int, apenas_ativos: bool = False) -> List[Cliente]:
+        q = db.query(Cliente).filter(
+            Cliente.condominio_id == condominio_id,
+            Cliente.deletado_em.is_(None),
+        )
+        if apenas_ativos:
+            q = q.filter(Cliente.ativo.is_(True))
+        return q.order_by(Cliente.nome).all()
+
+    @staticmethod
+    def save(db: Session, cliente: Cliente) -> Cliente:
+        db.add(cliente)
+        db.commit()
+        db.refresh(cliente)
+        return cliente
