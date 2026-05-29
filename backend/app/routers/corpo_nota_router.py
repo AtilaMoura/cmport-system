@@ -157,9 +157,14 @@ def condominios_pendentes(
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    """Retorna condomínios com contrato ativo que ainda não têm ciclo no mês/tipo informado."""
+    """Retorna condomínios que ainda não têm ciclo no mês/tipo informado.
+
+    SERVICO: todos os condomínios com ativo=True (sem exigir contrato).
+    MANUTENCAO / PRODUTO: apenas condomínios com contrato ativo.
+    """
     from app.models.contrato_condominio_model import ContratoCondominio
     from app.models.ciclo_nota_model import CicloNota, TipoNotaCorpo
+    from app.models.condominio_model import Condominio
     from sqlalchemy.orm import joinedload
 
     try:
@@ -169,9 +174,8 @@ def condominios_pendentes(
 
     from app.models.corpo_nota_model import CorpoNota, StatusCorpoNota
 
-    # IDs dos condomínios que têm corpo ATIVO (não-cancelado, não-deletado) neste mês/tipo
-    # Ciclos vazios ou com apenas corpos cancelados/deletados não bloqueiam
-    condominios_com_corpo_ativo = (
+    # IDs dos condomínios que já têm corpo ATIVO neste mês/tipo
+    ids_com_corpo = (
         db.query(CicloNota.condominio_id)
         .join(CorpoNota, CorpoNota.ciclo_id == CicloNota.id)
         .filter(
@@ -184,13 +188,37 @@ def condominios_pendentes(
         .scalar_subquery()
     )
 
+    # ── SERVIÇO: qualquer condomínio ativo, sem exigir contrato ──────────
+    if tipo_enum == TipoNotaCorpo.SERVICO:
+        condominios = (
+            db.query(Condominio)
+            .filter(
+                Condominio.ativo.is_(True),
+                ~Condominio.id.in_(ids_com_corpo),
+            )
+            .order_by(Condominio.nome)
+            .all()
+        )
+        return [
+            {
+                "condominio_id": c.id,
+                "nome": c.nome,
+                "data_inicio_contrato": None,
+                "valor_fixo_mensal": None,
+                "dia_vencimento_padrao": None,
+                "descricao_padrao_servico": None,
+            }
+            for c in condominios
+        ]
+
+    # ── MANUTENCAO / PRODUTO: exige contrato ativo ───────────────────────
     contratos = (
         db.query(ContratoCondominio)
         .options(joinedload(ContratoCondominio.condominio))
         .filter(
             ContratoCondominio.ativo.is_(True),
             ContratoCondominio.deletado_em.is_(None),
-            ~ContratoCondominio.condominio_id.in_(condominios_com_corpo_ativo),
+            ~ContratoCondominio.condominio_id.in_(ids_com_corpo),
         )
         .order_by(ContratoCondominio.condominio_id)
         .all()

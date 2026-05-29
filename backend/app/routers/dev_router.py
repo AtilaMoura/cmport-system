@@ -8,11 +8,57 @@ from pydantic import BaseModel
 from datetime import date, timedelta
 from typing import Optional
 
+import datetime as dt
+
 from app.core.database import SessionLocal
 from app.core.dependencies import require_dev
 from app.models.usuario_model import Usuario
 
 router = APIRouter()
+
+
+@router.post("/classificar-condominios")
+def classificar_condominios_por_nota(db: Session = Depends(get_db), usuario=Depends(require_dev)):
+    """Marca ativo=False nos condomínios sem nenhuma nota fiscal no ano corrente.
+    Reativa os que têm NF no ano mas estavam inativo. Execução idempotente."""
+    from app.models.condominio_model import Condominio
+    from app.models.nota_fiscal_model import NotaFiscal
+    from sqlalchemy import extract
+
+    ano_atual = dt.date.today().year
+
+    ids_com_nf = {
+        row[0]
+        for row in db.query(NotaFiscal.condominio_id)
+        .filter(
+            NotaFiscal.condominio_id.isnot(None),
+            extract("year", NotaFiscal.criado_em) == ano_atual,
+        )
+        .distinct()
+        .all()
+    }
+
+    todos = db.query(Condominio).all()
+    marcados_inativos = 0
+    reativados = 0
+
+    for c in todos:
+        tem_nf = c.id in ids_com_nf
+        if not tem_nf and c.ativo:
+            c.ativo = False
+            marcados_inativos += 1
+        elif tem_nf and not c.ativo:
+            c.ativo = True
+            reativados += 1
+
+    db.commit()
+    return {
+        "ano": ano_atual,
+        "total_condominios": len(todos),
+        "com_nf_no_ano": len(ids_com_nf),
+        "marcados_inativos": marcados_inativos,
+        "reativados": reativados,
+    }
 
 
 def get_db():
