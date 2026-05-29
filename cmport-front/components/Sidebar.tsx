@@ -24,6 +24,7 @@ export default function Sidebar() {
     { name: 'Notas Fiscais',     icon: '📄', href: '/notas',            roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Corpos de Nota',    icon: '📝', href: '/corpos-nota',      roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Boletos',        icon: '🏦', href: '/boletos',        roles: ['DEV', 'ADMIN', 'USUARIO'] },
+    { name: 'Clientes',       icon: '👥', href: '/clientes',       roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Recibos',        icon: '🧾', href: '/recibos',        roles: ['DEV', 'ADMIN', 'USUARIO'] },
     { name: 'Configurações', icon: '⚙️', href: '/configuracoes', roles: ['DEV', 'ADMIN'] },
     { name: 'Dev / Teste',   icon: '🔧', href: '/dev',            roles: ['DEV'] },

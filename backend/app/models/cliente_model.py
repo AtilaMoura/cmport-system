@@ -10,7 +10,7 @@ class Cliente(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-    condominio_id = Column(Integer, ForeignKey("condominios.id", ondelete="CASCADE"), nullable=False, index=True)
+    condominio_id = Column(Integer, ForeignKey("condominios.id", ondelete="SET NULL"), nullable=True, index=True)
     condominio = relationship("Condominio", lazy="joined")
 
     nome = Column(String(255), nullable=False)

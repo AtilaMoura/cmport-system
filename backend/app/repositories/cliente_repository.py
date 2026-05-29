@@ -21,14 +21,24 @@ class ClienteRepository:
         ).first()
 
     @staticmethod
-    def list_by_condominio(db: Session, condominio_id: int, apenas_ativos: bool = False) -> List[Cliente]:
-        q = db.query(Cliente).filter(
-            Cliente.condominio_id == condominio_id,
-            Cliente.deletado_em.is_(None),
-        )
+    def list_all(
+        db: Session,
+        condominio_id: Optional[int] = None,
+        apenas_ativos: bool = False,
+        busca: Optional[str] = None,
+    ) -> List[Cliente]:
+        q = db.query(Cliente).filter(Cliente.deletado_em.is_(None))
+        if condominio_id:
+            q = q.filter(Cliente.condominio_id == condominio_id)
         if apenas_ativos:
             q = q.filter(Cliente.ativo.is_(True))
+        if busca:
+            q = q.filter(Cliente.nome.ilike(f"%{busca}%"))
         return q.order_by(Cliente.nome).all()
+
+    @staticmethod
+    def list_by_condominio(db: Session, condominio_id: int, apenas_ativos: bool = False) -> List[Cliente]:
+        return ClienteRepository.list_all(db, condominio_id, apenas_ativos)
 
     @staticmethod
     def save(db: Session, cliente: Cliente) -> Cliente:

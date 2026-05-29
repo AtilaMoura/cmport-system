@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 class ClienteCreate(BaseModel):
-    condominio_id: int
+    condominio_id: Optional[int] = None
     nome: str
     tipo: str = "PF"  # PF | PJ
     cpf_cnpj: Optional[str] = None
@@ -28,7 +28,8 @@ class ClienteUpdate(BaseModel):
 
 class ClienteResponse(BaseModel):
     id: int
-    condominio_id: int
+    condominio_id: Optional[int] = None
+    condominio_nome: Optional[str] = None
     nome: str
     tipo: str
     cpf_cnpj: Optional[str] = None

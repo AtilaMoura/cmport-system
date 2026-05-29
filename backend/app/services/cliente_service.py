@@ -33,6 +33,10 @@ class ClienteService:
         return c
 
     @staticmethod
+    def list_all(db: Session, condominio_id: Optional[int] = None, apenas_ativos: bool = False, busca: Optional[str] = None) -> List[Cliente]:
+        return ClienteRepository.list_all(db, condominio_id, apenas_ativos, busca)
+
+    @staticmethod
     def list_by_condominio(db: Session, condominio_id: int, apenas_ativos: bool = False) -> List[Cliente]:
         return ClienteRepository.list_by_condominio(db, condominio_id, apenas_ativos)
 

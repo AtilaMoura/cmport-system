@@ -20,12 +20,20 @@ def get_db():
 
 @router.get("", response_model=List[ClienteResponse])
 def listar(
-    condominio_id: int,
+    condominio_id: Optional[int] = None,
     apenas_ativos: bool = False,
+    busca: Optional[str] = None,
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    return ClienteService.list_by_condominio(db, condominio_id, apenas_ativos)
+    clientes = ClienteService.list_all(db, condominio_id, apenas_ativos, busca)
+    result = []
+    for c in clientes:
+        d = ClienteResponse.model_validate(c)
+        if c.condominio:
+            d.condominio_nome = c.condominio.nome
+        result.append(d)
+    return result
 
 
 @router.post("", response_model=ClienteResponse, status_code=201)

@@ -727,12 +727,16 @@ export default function DetalhesCondominio() {
                       <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">
                         Moradores / Clientes
                       </h3>
-                      <button
-                        onClick={() => { setShowFormMorador(true); setErroMorador(null); }}
-                        className="px-3 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-xl hover:bg-violet-700 transition-colors"
-                      >
-                        + Adicionar
-                      </button>
+                        <div className="flex gap-2">
+                        <Link href={`/clientes?condominio_id=${condo?.id}`}
+                          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                          Ver todos
+                        </Link>
+                        <Link href={`/clientes/novo?condominio_id=${condo?.id}`}
+                          className="px-3 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-xl hover:bg-violet-700 transition-colors">
+                          + Novo Cliente
+                        </Link>
+                      </div>
                     </div>
 
                     {showFormMorador && (
