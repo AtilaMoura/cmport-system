@@ -34,8 +34,9 @@ class ContatoUpdate(BaseModel):
 class ContatoResponse(ContatoBase):
     id: int
     condominio_id: int
-    criado_em: datetime
-    atualizado_em: datetime
+    principal: bool = False
+    criado_em: Optional[datetime] = None
+    atualizado_em: Optional[datetime] = None
 
     class Config:
         from_attributes = True
