@@ -18,13 +18,18 @@ class AuvoSyncService:
         if progress_callback:
             progress_callback(processados=0, total=total)
 
-        relatorio = {"novos": 0, "atualizados": 0, "erros": 0, "detalhes_erros": []}
+        relatorio = {"novos": 0, "ignorados": 0, "erros": 0, "detalhes_erros": []}
 
         for i, customer in enumerate(auvo_customers, 1):
             cliente_nome = customer.get("description") or customer.get("legalName") or f"ID {customer.get('id')}"
             try:
                 auvo_id = customer.get("id")
                 existing = CondominioRepository.get_by_auvo_id(db, auvo_id)
+
+                if existing:
+                    relatorio["ignorados"] += 1
+                    continue
+
                 condo_data = AuvoMapper.to_condominio_create(customer)
 
                 if not condo_data.nome or len(condo_data.nome.strip()) < 3:
@@ -33,14 +38,9 @@ class AuvoSyncService:
                     relatorio["detalhes_erros"].append({"cliente": cliente_nome, "erro": "Nome inválido"})
                     continue
 
-                if existing:
-                    CondominioRepository.update(db, existing.id, condo_data)
-                    condominio_id = existing.id
-                    relatorio["atualizados"] += 1
-                else:
-                    new_condo = CondominioRepository.create_with_auvo(db, condo_data, auvo_id)
-                    condominio_id = new_condo.id
-                    relatorio["novos"] += 1
+                new_condo = CondominioRepository.create_with_auvo(db, condo_data, auvo_id)
+                condominio_id = new_condo.id
+                relatorio["novos"] += 1
 
                 try:
                     addr_data = AuvoMapper.to_endereco_create(customer, condominio_id)
@@ -70,7 +70,7 @@ class AuvoSyncService:
                     processados=i,
                     total=total,
                     novos=relatorio["novos"],
-                    atualizados=relatorio["atualizados"],
+                    ignorados=relatorio["ignorados"],
                     erros=relatorio["erros"],
                 )
 

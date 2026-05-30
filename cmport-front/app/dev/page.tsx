@@ -13,7 +13,7 @@ interface LimparResult {
 
 interface SyncResult {
   novos: number;
-  atualizados: number;
+  ignorados: number;
   erros: number;
   mensagem: string;
   detalhes_erros?: { cliente: string; erro: string }[];
@@ -99,7 +99,7 @@ export default function DevPage() {
             setSyncProgresso(null);
             setSyncResult({
               novos: estado.novos,
-              atualizados: estado.atualizados,
+              ignorados: estado.ignorados,
               erros: estado.erros,
               mensagem: estado.mensagem,
             });
@@ -309,7 +309,7 @@ export default function DevPage() {
               <div className="flex gap-4 mb-3">
                 {[
                   { label: 'Novos', value: syncResult.novos, color: 'text-green-600 dark:text-green-400' },
-                  { label: 'Atualizados', value: syncResult.atualizados, color: 'text-indigo-600 dark:text-indigo-400' },
+                  { label: 'Ignorados', value: syncResult.ignorados, color: 'text-slate-500 dark:text-slate-400' },
                   { label: 'Erros', value: syncResult.erros, color: 'text-red-600 dark:text-red-400' },
                 ].map(item => (
                   <div key={item.label} className="bg-white dark:bg-slate-800 rounded-lg px-4 py-3 text-center">

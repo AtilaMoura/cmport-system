@@ -25,7 +25,7 @@ _sync_estado = {
     "processados": 0,
     "total": 0,
     "novos": 0,
-    "atualizados": 0,
+    "ignorados": 0,
     "erros": 0,
     "mensagem": "",
 }
@@ -42,19 +42,19 @@ def iniciar_sync_auvo():
     _sync_estado.update({
         "rodando": True, "concluido": False,
         "processados": 0, "total": 0,
-        "novos": 0, "atualizados": 0, "erros": 0,
+        "novos": 0, "ignorados": 0, "erros": 0,
         "mensagem": "Iniciando...",
     })
 
     def _run():
         db = SessionLocal()
         try:
-            def _progresso(processados, total, novos=0, atualizados=0, erros=0):
+            def _progresso(processados, total, novos=0, ignorados=0, erros=0):
                 _sync_estado.update({
                     "processados": processados,
                     "total": total,
                     "novos": novos,
-                    "atualizados": atualizados,
+                    "ignorados": ignorados,
                     "erros": erros,
                     "mensagem": f"{processados}/{total} processados",
                 })
@@ -64,9 +64,9 @@ def iniciar_sync_auvo():
                 "rodando": False,
                 "concluido": True,
                 "novos": relatorio["novos"],
-                "atualizados": relatorio["atualizados"],
+                "ignorados": relatorio["ignorados"],
                 "erros": relatorio["erros"],
-                "mensagem": f"Concluído: {relatorio['novos']} novos, {relatorio['atualizados']} atualizados, {relatorio['erros']} erros.",
+                "mensagem": f"Concluído: {relatorio['novos']} novos, {relatorio['ignorados']} ignorados, {relatorio['erros']} erros.",
             })
         except Exception as e:
             _sync_estado.update({"rodando": False, "concluido": True, "mensagem": f"Erro: {e}"})
