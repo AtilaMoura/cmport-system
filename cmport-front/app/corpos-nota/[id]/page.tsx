@@ -47,6 +47,14 @@ interface Condominio {
   nome: string;
 }
 
+interface ConfiguracaoInter {
+  id: number;
+  cnpj: string;
+  razao_social: string | null;
+  tipo_nota: string;
+  ativo: boolean;
+}
+
 interface NotaFiscalCandidato {
   id: number;
   numero_nota: string;
@@ -105,6 +113,7 @@ export default function DetalheCorpoNotaPage() {
 
   const [corpo, setCorpo] = useState<CorpoNota | null>(null);
   const [condominio, setCondominio] = useState<Condominio | null>(null);
+  const [configuracoes, setConfiguracoes] = useState<ConfiguracaoInter[]>([]);
   const [loading, setLoading] = useState(true);
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
   const [copiado, setCopiado] = useState(false);
@@ -119,6 +128,7 @@ export default function DetalheCorpoNotaPage() {
     data_vencimento: '',
     data_servico: '',
     observacoes: '',
+    configuracao_inter_id: '' as string,
   });
 
   // Modal vínculo manual
@@ -137,6 +147,7 @@ export default function DetalheCorpoNotaPage() {
         data_vencimento: r.data.data_vencimento ?? '',
         data_servico: r.data.data_servico ?? '',
         observacoes: r.data.observacoes ?? '',
+        configuracao_inter_id: r.data.configuracao_inter_id != null ? String(r.data.configuracao_inter_id) : '',
       });
       try {
         const rCond = await api.get(`/condominios/${r.data.condominio_id}`);
@@ -157,7 +168,10 @@ export default function DetalheCorpoNotaPage() {
     setTimeout(() => setCopiado(false), 2000);
   };
 
-  useEffect(() => { carregar(); }, [id]);
+  useEffect(() => {
+    carregar();
+    api.get('/configuracoes/inter').then(r => setConfiguracoes(r.data)).catch(() => {});
+  }, [id]);
 
   const atualizarStatus = async (destino: string) => {
     if (!confirm(`Mudar status para "${STATUS_CONFIG[destino]?.label ?? destino}"?`)) return;
@@ -183,6 +197,7 @@ export default function DetalheCorpoNotaPage() {
         data_vencimento: formEdit.data_vencimento || null,
         data_servico: formEdit.data_servico || null,
         observacoes: formEdit.observacoes || null,
+        configuracao_inter_id: formEdit.configuracao_inter_id ? Number(formEdit.configuracao_inter_id) : null,
       });
       setEditando(false);
       carregar();
@@ -359,6 +374,23 @@ export default function DetalheCorpoNotaPage() {
                     />
                   </div>
                 </div>
+                {configuracoes.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">CNPJ / Conta Inter</label>
+                    <select
+                      value={formEdit.configuracao_inter_id}
+                      onChange={e => setFormEdit(f => ({ ...f, configuracao_inter_id: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    >
+                      <option value="">— Nenhuma —</option>
+                      {configuracoes.map(c => (
+                        <option key={c.id} value={String(c.id)}>
+                          {c.cnpj}{c.razao_social ? ` — ${c.razao_social}` : ''} ({c.tipo_nota})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {erroEdit && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 rounded-xl p-3">{erroEdit}</p>}
                 <div className="flex gap-3">
                   <button onClick={() => { setEditando(false); setErroEdit(null); }} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
@@ -380,6 +412,10 @@ export default function DetalheCorpoNotaPage() {
                 <InfoItem label="Vencimento" value={fmt(corpo.data_vencimento)} />
                 <InfoItem label="Nota Fiscal" value={corpo.nota_fiscal_id ? `#${corpo.nota_fiscal_id}` : '—'} />
                 <InfoItem label="Preenchimento" value={corpo.preenchimento_manual ? 'Manual' : 'Automático (OS)'} />
+                {corpo.configuracao_inter_id && (() => {
+                  const cfg = configuracoes.find(c => c.id === corpo.configuracao_inter_id);
+                  return cfg ? <InfoItem label="CNPJ / Conta Inter" value={`${cfg.cnpj}${cfg.razao_social ? ` — ${cfg.razao_social}` : ''}`} /> : null;
+                })()}
                 {corpo.orcamento_id && <InfoItem label="Orçamento" value={`#${corpo.orcamento_id}`} />}
                 {corpo.descricao_garantia && <InfoItem label="Garantia" value={corpo.descricao_garantia} className="sm:col-span-2" />}
                 {corpo.observacoes && <InfoItem label="Observações" value={corpo.observacoes} className="sm:col-span-2" />}
