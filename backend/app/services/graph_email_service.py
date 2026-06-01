@@ -1,4 +1,8 @@
 import base64
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import List, Optional, Tuple
 
 import msal
@@ -8,9 +12,9 @@ import requests
 GRAPH_URL      = "https://graph.microsoft.com/v1.0"
 AUTHORITY_BASE = "https://login.microsoftonline.com"
 
-# Limite seguro: se o total bruto de anexos passar de 3 MB usamos
-# o fluxo draft + upload-session (evita o limite de 4 MB do sendMail).
-_SENDMAIL_LIMIT = 3 * 1024 * 1024
+# Acima deste limite o payload JSON do sendMail ultrapassa 4 MB (overhead base64 ~33%).
+# Nesses casos usamos o fluxo MIME, que só exige Mail.Send e suporta até ~25 MB.
+_SENDMAIL_JSON_LIMIT = 3 * 1024 * 1024  # 3 MB em bytes brutos
 
 
 class GraphEmailService:
@@ -48,26 +52,28 @@ class GraphEmailService:
     ) -> None:
         """
         Envia email via Graph API.
-        Usa /sendMail para mensagens pequenas e draft+upload-session para grandes.
+        - Anexos < 3 MB total: sendMail com JSON (simples).
+        - Anexos >= 3 MB total: sendMail com MIME (não precisa de Mail.ReadWrite).
         """
         anexos = list(anexos_extras or [])
         total_bytes = sum(len(c) for _, c, _ in anexos)
 
-        if total_bytes > _SENDMAIL_LIMIT:
-            GraphEmailService._enviar_via_draft(
+        if total_bytes >= _SENDMAIL_JSON_LIMIT:
+            print(f"[Graph] Anexos somam {total_bytes/1024/1024:.1f} MB — usando envio MIME.")
+            GraphEmailService._enviar_via_mime(
                 sender_email, destinatarios, assunto, corpo_html,
                 token, from_name, anexos, cc_emails,
             )
         else:
-            GraphEmailService._enviar_via_sendmail(
+            GraphEmailService._enviar_via_json(
                 sender_email, destinatarios, assunto, corpo_html,
                 token, from_name, anexos, cc_emails,
             )
 
-    # ── sendMail (< 3 MB de anexos) ──────────────────────────────────────────
+    # ── sendMail JSON (< 3 MB) ────────────────────────────────────────────────
 
     @staticmethod
-    def _enviar_via_sendmail(
+    def _enviar_via_json(
         sender_email: str,
         destinatarios: List[str],
         assunto: str,
@@ -116,10 +122,10 @@ class GraphEmailService:
                 detail = resp.text
             raise Exception(f"Graph API retornou {resp.status_code}: {detail}")
 
-    # ── Draft + upload-session (>= 3 MB de anexos) ───────────────────────────
+    # ── sendMail MIME (>= 3 MB, exige apenas Mail.Send) ───────────────────────
 
     @staticmethod
-    def _enviar_via_draft(
+    def _enviar_via_mime(
         sender_email: str,
         destinatarios: List[str],
         assunto: str,
@@ -129,81 +135,43 @@ class GraphEmailService:
         anexos: List[Tuple[str, bytes, str]],
         cc_emails: Optional[List[str]],
     ) -> None:
-        base_url = f"{GRAPH_URL}/users/{sender_email}"
-        headers  = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
-        # 1. Cria rascunho
-        draft_payload: dict = {
-            "subject": assunto,
-            "body": {"contentType": "HTML", "content": corpo_html},
-            "toRecipients": [{"emailAddress": {"address": d}} for d in destinatarios],
-        }
+        # Constrói mensagem MIME
+        msg = MIMEMultipart("mixed")
+        remetente = f"{from_name} <{sender_email}>" if from_name else sender_email
+        msg["From"]    = remetente
+        msg["To"]      = ", ".join(destinatarios)
+        msg["Subject"] = assunto
         if cc_emails:
-            draft_payload["ccRecipients"] = [{"emailAddress": {"address": cc}} for cc in cc_emails]
+            msg["CC"] = ", ".join(cc_emails)
 
-        resp = requests.post(f"{base_url}/messages", headers=headers, json=draft_payload, timeout=30)
-        if resp.status_code not in (200, 201):
-            raise Exception(f"Erro ao criar rascunho Graph: {resp.status_code}: {resp.text}")
+        msg.attach(MIMEText(corpo_html, "html", "utf-8"))
 
-        msg_id = resp.json()["id"]
-
-        # 2. Adiciona cada anexo
         for filename, content, ct in anexos:
-            size = len(content)
-            ct = ct or "application/octet-stream"
+            main_type, sub_type = (ct or "application/octet-stream").split("/", 1)
+            part = MIMEBase(main_type, sub_type)
+            part.set_payload(content)
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", "attachment", filename=filename)
+            msg.attach(part)
 
-            if size < 3 * 1024 * 1024:
-                # Anexo pequeno — inline
-                att_payload = {
-                    "@odata.type":  "#microsoft.graph.fileAttachment",
-                    "name":         filename,
-                    "contentType":  ct,
-                    "contentBytes": base64.b64encode(content).decode(),
-                }
-                resp = requests.post(
-                    f"{base_url}/messages/{msg_id}/attachments",
-                    headers=headers, json=att_payload, timeout=30,
-                )
-                if resp.status_code not in (200, 201):
-                    raise Exception(f"Erro ao anexar {filename}: {resp.status_code}: {resp.text}")
-            else:
-                # Anexo grande — upload session
-                session_payload = {
-                    "AttachmentItem": {
-                        "attachmentType": "file",
-                        "name": filename,
-                        "size": size,
-                        "contentType": ct,
-                    }
-                }
-                resp = requests.post(
-                    f"{base_url}/messages/{msg_id}/attachments/createUploadSession",
-                    headers=headers, json=session_payload, timeout=30,
-                )
-                if resp.status_code not in (200, 201):
-                    raise Exception(f"Erro ao criar upload session para {filename}: {resp.status_code}: {resp.text}")
+        # Codifica a mensagem MIME em base64 para a Graph API
+        mime_b64 = base64.urlsafe_b64encode(msg.as_bytes()).decode()
 
-                upload_url = resp.json()["uploadUrl"]
+        url = f"{GRAPH_URL}/users/{sender_email}/sendMail"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type":  "text/plain",
+        }
 
-                # Envia em chunks de 4 MB
-                chunk_size = 4 * 1024 * 1024
-                for start in range(0, size, chunk_size):
-                    chunk = content[start: start + chunk_size]
-                    end   = min(start + chunk_size - 1, size - 1)
-                    upload_headers = {
-                        "Content-Length": str(len(chunk)),
-                        "Content-Range":  f"bytes {start}-{end}/{size}",
-                    }
-                    resp = requests.put(upload_url, headers=upload_headers, data=chunk, timeout=60)
-                    if resp.status_code not in (200, 201, 202):
-                        raise Exception(f"Erro no upload de {filename} (chunk {start}-{end}): {resp.status_code}: {resp.text}")
+        try:
+            resp = requests.post(url, headers=headers, data=mime_b64, timeout=120)
+        except requests.exceptions.RequestException as exc:
+            raise Exception(f"Falha na requisição Graph API (MIME): {exc}") from exc
 
-        # 3. Envia o rascunho
-        resp = requests.post(f"{base_url}/messages/{msg_id}/send", headers=headers, timeout=30)
         if resp.status_code != 202:
             detail = ""
             try:
                 detail = resp.json().get("error", {}).get("message", resp.text)
             except Exception:
                 detail = resp.text
-            raise Exception(f"Erro ao enviar rascunho Graph: {resp.status_code}: {detail}")
+            raise Exception(f"Graph API MIME retornou {resp.status_code}: {detail}")
