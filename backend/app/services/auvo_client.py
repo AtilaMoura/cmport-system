@@ -6,34 +6,50 @@ from typing import Optional, Dict, List
 from app.core.config import settings
 
 
-def _comprimir_pdf(pdf_bytes: bytes, dpi: int = 120, qualidade: int = 75) -> bytes:
+def _comprimir_pdf(pdf_bytes: bytes, qualidade: int = 72, max_dim: int = 1400) -> bytes:
     """
-    Recomprime as imagens do PDF reduzindo DPI e qualidade JPEG.
+    Recomprime as imagens do PDF reduzindo resolução e qualidade JPEG.
     Texto e vetores não são afetados. Retorna o PDF original se falhar.
     """
     try:
-        import fitz  # PyMuPDF
+        import fitz
+        from PIL import Image
+
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        xrefs_processados = set()
+
         for page in doc:
             for img in page.get_images(full=True):
                 xref = img[0]
-                base = doc.extract_image(xref)
-                img_bytes = base["image"]
-                ext = base["ext"]
-                if ext.lower() not in ("jpeg", "jpg", "png", "bmp"):
+                if xref in xrefs_processados:
                     continue
-                from PIL import Image
-                pil = Image.open(io.BytesIO(img_bytes))
-                w, h = pil.size
-                fator = min(1.0, (dpi * 8.27) / max(w, h))
-                if fator < 1.0:
-                    pil = pil.resize((int(w * fator), int(h * fator)), Image.LANCZOS)
-                buf = io.BytesIO()
-                pil = pil.convert("RGB")
-                pil.save(buf, format="JPEG", quality=qualidade, optimize=True)
-                doc.replace_image(xref, stream=buf.getvalue())
+                xrefs_processados.add(xref)
+                try:
+                    base = doc.extract_image(xref)
+                    if base["ext"].lower() not in ("jpeg", "jpg", "png", "bmp", "tiff"):
+                        continue
+                    pil = Image.open(io.BytesIO(base["image"])).convert("RGB")
+                    w, h = pil.size
+                    if max(w, h) > max_dim:
+                        fator = max_dim / max(w, h)
+                        pil = pil.resize((int(w * fator), int(h * fator)), Image.LANCZOS)
+                    buf = io.BytesIO()
+                    pil.save(buf, format="JPEG", quality=qualidade, optimize=True)
+                    new_bytes = buf.getvalue()
+                    if len(new_bytes) >= len(base["image"]):
+                        continue
+                    new_w, new_h = pil.size
+                    doc.update_stream(xref, new_bytes)
+                    doc.xref_set_key(xref, "Filter", "/DCTDecode")
+                    doc.xref_set_key(xref, "Width", str(new_w))
+                    doc.xref_set_key(xref, "Height", str(new_h))
+                    doc.xref_set_key(xref, "ColorSpace", "/DeviceRGB")
+                    doc.xref_set_key(xref, "BitsPerComponent", "8")
+                except Exception:
+                    continue
+
         out = io.BytesIO()
-        doc.save(out, deflate=True, garbage=4)
+        doc.save(out, deflate=True, deflate_images=1, garbage=4)
         resultado = out.getvalue()
         orig_mb = len(pdf_bytes) / 1024 / 1024
         novo_mb = len(resultado) / 1024 / 1024
