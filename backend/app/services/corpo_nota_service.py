@@ -1280,6 +1280,34 @@ class CorpoNotaService:
         if not candidatos:
             return None
 
+        # Filtro por CNPJ emitente
+        import re as _re
+        cnpj_nf = _re.sub(r"\D", "", nota.cnpj_emitente or "")
+        if cnpj_nf:
+            from app.models.configuracao_model import ConfiguracaoInter
+            inter_map: dict = {}
+            for c in candidatos:
+                if c.configuracao_inter_id and c.configuracao_inter_id not in inter_map:
+                    conta = db.query(ConfiguracaoInter).filter(ConfiguracaoInter.id == c.configuracao_inter_id).first()
+                    if conta:
+                        inter_map[c.configuracao_inter_id] = _re.sub(r"\D", "", conta.cnpj or "")
+            com_cnpj = [
+                c for c in candidatos
+                if inter_map.get(c.configuracao_inter_id, "") == cnpj_nf
+            ]
+            if com_cnpj:
+                candidatos = com_cnpj
+
+        # Filtro por número da NF
+        try:
+            numero_nf_int = int(_re.sub(r"\D", "", nota.numero_nota or "")) if nota.numero_nota else None
+        except ValueError:
+            numero_nf_int = None
+        if numero_nf_int:
+            com_numero = [c for c in candidatos if c.numero_nf == numero_nf_int]
+            if com_numero:
+                candidatos = com_numero
+
         if len(candidatos) == 1:
             corpo = candidatos[0]
             corpo.nota_fiscal_id = nota.id
