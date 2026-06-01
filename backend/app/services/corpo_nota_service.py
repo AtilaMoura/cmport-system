@@ -1273,15 +1273,49 @@ class CorpoNotaService:
             if m:
                 numero_os = m.group(1)
 
+        import re as _re
+
+        # Extrai numero_nf da nota para matching direto (sem filtro de mês)
+        try:
+            numero_nf_int = int(_re.sub(r"\D", "", nota.numero_nota or "")) if nota.numero_nota else None
+        except ValueError:
+            numero_nf_int = None
+
+        # Rota 1: matching por numero_nf (sem filtro de mês — vencimento pode ser mês seguinte)
+        if numero_nf_int:
+            candidatos_nf = CorpoNotaRepository.list_candidatos_por_numero_nf(
+                db, nota.condominio_id, tipo_corpo, numero_nf_int
+            )
+            if len(candidatos_nf) == 1:
+                corpo = candidatos_nf[0]
+                corpo.nota_fiscal_id = nota.id
+                corpo.status = StatusCorpoNota.XML_VINCULADO
+                nota.corpo_nota_id = corpo.id
+                db.add(nota)
+                CorpoNotaRepository.save(db, corpo)
+                ciclo = CicloNotaRepository.get_by_id(db, corpo.ciclo_id)
+                if ciclo:
+                    CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
+                logger.info(f"CorpoNota {corpo.id} vinculado via numero_nf={numero_nf_int} à NotaFiscal {nota.id}")
+                return []
+
+        # Rota 2: matching por mês/ano + OS (tenta mês atual e mês anterior)
         candidatos = CorpoNotaRepository.list_candidatos_para_nota(
             db, nota.condominio_id, tipo_corpo, ano, mes, numero_os
         )
+        if not candidatos and mes > 1:
+            candidatos = CorpoNotaRepository.list_candidatos_para_nota(
+                db, nota.condominio_id, tipo_corpo, ano, mes - 1, numero_os
+            )
+        elif not candidatos and mes == 1:
+            candidatos = CorpoNotaRepository.list_candidatos_para_nota(
+                db, nota.condominio_id, tipo_corpo, ano - 1, 12, numero_os
+            )
 
         if not candidatos:
             return None
 
         # Filtro por CNPJ emitente
-        import re as _re
         cnpj_nf = _re.sub(r"\D", "", nota.cnpj_emitente or "")
         if cnpj_nf:
             from app.models.configuracao_model import ConfiguracaoInter
@@ -1298,11 +1332,7 @@ class CorpoNotaService:
             if com_cnpj:
                 candidatos = com_cnpj
 
-        # Filtro por número da NF
-        try:
-            numero_nf_int = int(_re.sub(r"\D", "", nota.numero_nota or "")) if nota.numero_nota else None
-        except ValueError:
-            numero_nf_int = None
+        # Filtro adicional por número da NF (se ainda não resolvido)
         if numero_nf_int:
             com_numero = [c for c in candidatos if c.numero_nf == numero_nf_int]
             if com_numero:

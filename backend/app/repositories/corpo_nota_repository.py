@@ -85,6 +85,31 @@ class CorpoNotaRepository:
         return q.all()
 
     @staticmethod
+    def list_candidatos_por_numero_nf(
+        db: Session,
+        condominio_id: int,
+        tipo_nota: TipoNotaCorpo,
+        numero_nf: int,
+    ) -> List[CorpoNota]:
+        """Busca corpo pelo numero_nf exato — sem filtro de mês (vencimento pode ser mês seguinte)."""
+        return (
+            db.query(CorpoNota)
+            .filter(
+                CorpoNota.condominio_id == condominio_id,
+                CorpoNota.tipo_nota == tipo_nota,
+                CorpoNota.numero_nf == numero_nf,
+                CorpoNota.status.in_([
+                    StatusCorpoNota.PENDENTE,
+                    StatusCorpoNota.EM_MONTAGEM,
+                    StatusCorpoNota.GERADO,
+                ]),
+                CorpoNota.nota_fiscal_id.is_(None),
+                CorpoNota.deletado_em.is_(None),
+            )
+            .all()
+        )
+
+    @staticmethod
     def create(db: Session, corpo: CorpoNota) -> CorpoNota:
         db.add(corpo)
         db.commit()
