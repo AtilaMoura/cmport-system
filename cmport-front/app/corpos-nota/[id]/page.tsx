@@ -40,6 +40,7 @@ interface CorpoNota {
   data_servico_texto: string | null;
   descricao_garantia: string | null;
   valor_nota_produto: number | null;
+  sem_retencao: boolean;
 }
 
 interface Condominio {
@@ -129,6 +130,7 @@ export default function DetalheCorpoNotaPage() {
     data_servico: '',
     observacoes: '',
     configuracao_inter_id: '' as string,
+    sem_retencao: false,
   });
 
   // Modal vínculo manual
@@ -148,6 +150,7 @@ export default function DetalheCorpoNotaPage() {
         data_servico: r.data.data_servico ?? '',
         observacoes: r.data.observacoes ?? '',
         configuracao_inter_id: r.data.configuracao_inter_id != null ? String(r.data.configuracao_inter_id) : '',
+        sem_retencao: r.data.sem_retencao ?? false,
       });
       try {
         const rCond = await api.get(`/condominios/${r.data.condominio_id}`);
@@ -198,6 +201,7 @@ export default function DetalheCorpoNotaPage() {
         data_servico: formEdit.data_servico || null,
         observacoes: formEdit.observacoes || null,
         configuracao_inter_id: formEdit.configuracao_inter_id ? Number(formEdit.configuracao_inter_id) : null,
+        sem_retencao: formEdit.sem_retencao,
       });
       setEditando(false);
       carregar();
@@ -390,6 +394,17 @@ export default function DetalheCorpoNotaPage() {
                       ))}
                     </select>
                   </div>
+                )}
+                {(corpo.tipo_nota === 'MANUTENCAO' || corpo.tipo_nota === 'SERVICO') && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={formEdit.sem_retencao}
+                      onChange={e => setFormEdit(f => ({ ...f, sem_retencao: e.target.checked }))}
+                      className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                    />
+                    <span className="text-slate-700 dark:text-slate-300">Sem retenção de imposto</span>
+                  </label>
                 )}
                 {erroEdit && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 rounded-xl p-3">{erroEdit}</p>}
                 <div className="flex gap-3">

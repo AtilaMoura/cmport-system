@@ -29,6 +29,7 @@ class CorpoNotaCreate(BaseModel):
     numero_parcelas: Optional[int] = 1
     parcelas_json: Optional[List[Any]] = None   # [{"valor": 1180.0, "data": "2026-05-20"}]
     produtos_json: Optional[List[Any]] = None   # [{"nome": "Motor", "quantidade": 3}]
+    sem_retencao: bool = False
 
     @field_validator("mes")
     @classmethod
@@ -68,6 +69,7 @@ class CorpoNotaUpdate(BaseModel):
     numero_nf: Optional[int] = None
     parcelas_json: Optional[List[Any]] = None
     produtos_json: Optional[List[Any]] = None
+    sem_retencao: Optional[bool] = None
 
 
 class CorpoNotaStatusUpdate(BaseModel):
@@ -101,6 +103,7 @@ class CorpoNotaPreviewRequest(BaseModel):
     numero_nf: Optional[int] = None
     parcelas_json: Optional[List[Any]] = None
     produtos_json: Optional[List[Any]] = None
+    sem_retencao: bool = False
 
 
 class ImpostosCalculadosResponse(BaseModel):
@@ -169,5 +172,6 @@ class CorpoNotaResponse(CorpoNotaResumoResponse):
     numero_nf: Optional[int] = None
     parcelas_json: Optional[List[Any]] = None
     produtos_json: Optional[List[Any]] = None
+    sem_retencao: bool = False
 
     model_config = {"from_attributes": True}

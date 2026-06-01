@@ -218,6 +218,9 @@ function NovoCorpoNotaContent() {
   // Salvar novo valor no contrato ao confirmar
   const [salvarNoContrato, setSalvarNoContrato] = useState(false);
 
+  // Toggle: omitir retenção de imposto no corpo da nota
+  const [semRetencao, setSemRetencao] = useState(false);
+
   // Step 5 — Parcelas (impostos calculados no Step 4→5)
   const [impostosCalculados, setImpostosCalculados] = useState<{
     valor_liquido: number;
@@ -464,6 +467,7 @@ function NovoCorpoNotaContent() {
       produtos_json: listarProdutos && produtos.filter(p => p.nome).length > 0
         ? produtos.filter(p => p.nome).map(p => ({nome: p.nome, quantidade: Number(p.quantidade) || 1}))
         : null,
+      sem_retencao: semRetencao,
     };
   };
 
@@ -1259,6 +1263,18 @@ function NovoCorpoNotaContent() {
                 />
               </div>
 
+              {(tipoNota === 'MANUTENCAO' || tipoNota === 'SERVICO') && (
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={semRetencao}
+                    onChange={e => setSemRetencao(e.target.checked)}
+                    className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  <span className="text-slate-700 dark:text-slate-300">Sem retenção de imposto</span>
+                </label>
+              )}
+
               {erro && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 rounded-xl p-3">{erro}</p>}
 
               <div className="flex gap-3">
@@ -1285,40 +1301,44 @@ function NovoCorpoNotaContent() {
               </div>
 
               {/* Resumo financeiro */}
-              {impostosCalculados && (
+              {(impostosCalculados || semRetencao) && (
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Valor bruto serviço</span>
+                    <span className="text-slate-500">{semRetencao ? 'Valor total serviço' : 'Valor bruto serviço'}</span>
                     <span className="font-semibold">{fmtValor(Number(valorBruto))}</span>
                   </div>
-                  {impostosCalculados.valor_inss > 0 && (
-                    <div className="flex justify-between text-xs text-slate-400">
-                      <span>INSS {impostosCalculados.percentual_inss}%</span>
-                      <span>− {fmtValor(impostosCalculados.valor_inss)}</span>
-                    </div>
+                  {!semRetencao && impostosCalculados && (
+                    <>
+                      {impostosCalculados.valor_inss > 0 && (
+                        <div className="flex justify-between text-xs text-slate-400">
+                          <span>INSS {impostosCalculados.percentual_inss}%</span>
+                          <span>− {fmtValor(impostosCalculados.valor_inss)}</span>
+                        </div>
+                      )}
+                      {impostosCalculados.valor_cofins > 0 && (
+                        <div className="flex justify-between text-xs text-slate-400">
+                          <span>COFINS {impostosCalculados.percentual_cofins}%</span>
+                          <span>− {fmtValor(impostosCalculados.valor_cofins)}</span>
+                        </div>
+                      )}
+                      {impostosCalculados.valor_pis > 0 && (
+                        <div className="flex justify-between text-xs text-slate-400">
+                          <span>PIS {impostosCalculados.percentual_pis}%</span>
+                          <span>− {fmtValor(impostosCalculados.valor_pis)}</span>
+                        </div>
+                      )}
+                      {impostosCalculados.valor_csll > 0 && (
+                        <div className="flex justify-between text-xs text-slate-400">
+                          <span>CSLL {impostosCalculados.percentual_csll}%</span>
+                          <span>− {fmtValor(impostosCalculados.valor_csll)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                        <span className="text-slate-600 dark:text-slate-300 font-semibold">Líquido serviço</span>
+                        <span className="font-bold text-violet-700 dark:text-violet-400">{fmtValor(impostosCalculados.valor_liquido)}</span>
+                      </div>
+                    </>
                   )}
-                  {impostosCalculados.valor_cofins > 0 && (
-                    <div className="flex justify-between text-xs text-slate-400">
-                      <span>COFINS {impostosCalculados.percentual_cofins}%</span>
-                      <span>− {fmtValor(impostosCalculados.valor_cofins)}</span>
-                    </div>
-                  )}
-                  {impostosCalculados.valor_pis > 0 && (
-                    <div className="flex justify-between text-xs text-slate-400">
-                      <span>PIS {impostosCalculados.percentual_pis}%</span>
-                      <span>− {fmtValor(impostosCalculados.valor_pis)}</span>
-                    </div>
-                  )}
-                  {impostosCalculados.valor_csll > 0 && (
-                    <div className="flex justify-between text-xs text-slate-400">
-                      <span>CSLL {impostosCalculados.percentual_csll}%</span>
-                      <span>− {fmtValor(impostosCalculados.valor_csll)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5">
-                    <span className="text-slate-600 dark:text-slate-300 font-semibold">Líquido serviço</span>
-                    <span className="font-bold text-violet-700 dark:text-violet-400">{fmtValor(impostosCalculados.valor_liquido)}</span>
-                  </div>
                   {temNotaProduto && valorNotaProduto && (
                     <>
                       <div className="flex justify-between">
@@ -1328,7 +1348,7 @@ function NovoCorpoNotaContent() {
                       <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5">
                         <span className="font-bold text-slate-800 dark:text-white">Total do boleto</span>
                         <span className="font-black text-violet-700 dark:text-violet-400 text-base">
-                          {fmtValor(impostosCalculados.valor_liquido + Number(valorNotaProduto))}
+                          {fmtValor((semRetencao ? Number(valorBruto) : (impostosCalculados?.valor_liquido ?? 0)) + Number(valorNotaProduto))}
                         </span>
                       </div>
                     </>
@@ -1337,7 +1357,7 @@ function NovoCorpoNotaContent() {
                     <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5">
                       <span className="font-bold text-slate-800 dark:text-white">Total do boleto</span>
                       <span className="font-black text-violet-700 dark:text-violet-400 text-base">
-                        {fmtValor(impostosCalculados.valor_liquido)}
+                        {fmtValor(semRetencao ? Number(valorBruto) : (impostosCalculados?.valor_liquido ?? 0))}
                       </span>
                     </div>
                   )}
@@ -1383,9 +1403,8 @@ function NovoCorpoNotaContent() {
                 {/* Validação da soma */}
                 {(() => {
                   const soma = parcelas.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
-                  const total = impostosCalculados
-                    ? impostosCalculados.valor_liquido + (temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : 0)
-                    : 0;
+                  const liquido = semRetencao ? Number(valorBruto) : (impostosCalculados?.valor_liquido ?? 0);
+                  const total = liquido + (temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : 0);
                   const diff = Math.abs(soma - total);
                   if (soma === 0 || total === 0) return null;
                   return (
@@ -1434,11 +1453,13 @@ function NovoCorpoNotaContent() {
                   </div>
                 </div>
                 <div className="bg-violet-50 dark:bg-violet-500/10 rounded-xl p-4">
-                  <div className="text-xs text-violet-600 dark:text-violet-400 uppercase font-bold mb-1">Valor Líquido</div>
+                  <div className="text-xs text-violet-600 dark:text-violet-400 uppercase font-bold mb-1">{semRetencao ? 'Valor Total' : 'Valor Líquido'}</div>
                   <div className="text-xl font-black text-violet-700 dark:text-violet-400">
-                    {preview.impostos_calculados
-                      ? fmtValor(preview.impostos_calculados.valor_liquido)
-                      : '—'}
+                    {semRetencao
+                      ? fmtValor(Number(valorBruto))
+                      : preview.impostos_calculados
+                        ? fmtValor(preview.impostos_calculados.valor_liquido)
+                        : '—'}
                   </div>
                 </div>
               </div>

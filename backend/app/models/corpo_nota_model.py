@@ -76,6 +76,9 @@ class CorpoNota(Base):
     # True quando qualquer campo crítico foi preenchido manualmente
     preenchimento_manual = Column(Boolean, nullable=False, default=False)
 
+    # True para omitir retenções (INSS/COFINS/PIS/CSLL) no corpo gerado
+    sem_retencao = Column(Boolean, nullable=False, default=False)
+
     status = Column(Enum(StatusCorpoNota), nullable=False, default=StatusCorpoNota.PENDENTE, index=True)
 
     # Vínculo com nota fiscal (preenchido após upload do ZIP/XML)

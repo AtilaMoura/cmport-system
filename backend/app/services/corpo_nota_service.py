@@ -76,6 +76,7 @@ class CorpoNotaService:
         numero_parcelas: Optional[int] = 1,
         parcelas_json: Optional[list] = None,
         produtos_json: Optional[list] = None,
+        sem_retencao: bool = False,
     ) -> CorpoNota:
         if mes < 1 or mes > 12:
             raise HTTPException(status_code=422, detail="mes deve ser entre 1 e 12.")
@@ -127,9 +128,9 @@ class CorpoNotaService:
             corpo_dados["valor_bruto"] = valor_bruto
             corpo_dados["preenchimento_manual"] = True
 
-        # Calcula impostos se tiver valor_bruto
+        # Calcula impostos se tiver valor_bruto (e sem_retencao não estiver ativo)
         impostos: Optional[ImpostosCalculados] = None
-        if corpo_dados.get("valor_bruto"):
+        if corpo_dados.get("valor_bruto") and not sem_retencao:
             impostos = ImpostoService.calcular_impostos(
                 db, float(corpo_dados["valor_bruto"]), tipo_nota.value
             )
@@ -177,7 +178,10 @@ class CorpoNotaService:
             valor_cofins=impostos.valor_cofins if impostos else None,
             valor_pis=impostos.valor_pis if impostos else None,
             valor_csll=impostos.valor_csll if impostos else None,
-            valor_liquido=impostos.valor_liquido if impostos else None,
+            valor_liquido=impostos.valor_liquido if impostos else (
+                float(corpo_dados["valor_bruto"]) if sem_retencao and corpo_dados.get("valor_bruto") else None
+            ),
+            sem_retencao=sem_retencao,
             data_vencimento=data_vencimento,
             mes_referencia=mes_ref,
             observacoes=observacoes,
@@ -232,6 +236,7 @@ class CorpoNotaService:
         numero_nf: Optional[int] = None,
         parcelas_json: Optional[list] = None,
         produtos_json: Optional[list] = None,
+        sem_retencao: Optional[bool] = None,
     ) -> CorpoNota:
         corpo = CorpoNotaService.get_by_id(db, corpo_id)
 
@@ -271,6 +276,8 @@ class CorpoNotaService:
             corpo.parcelas_json = parcelas_json
         if produtos_json is not None:
             corpo.produtos_json = produtos_json
+        if sem_retencao is not None:
+            corpo.sem_retencao = sem_retencao
 
         if not financeiro_bloqueado:
             if valor_bruto is not None:
@@ -279,18 +286,29 @@ class CorpoNotaService:
             if data_vencimento is not None:
                 corpo.data_vencimento = data_vencimento
             if corpo.valor_bruto:
-                impostos = ImpostoService.calcular_impostos(
-                    db, float(corpo.valor_bruto), corpo.tipo_nota.value, percentuais_override
-                )
-                corpo.percentual_inss = impostos.percentual_inss
-                corpo.percentual_cofins = impostos.percentual_cofins
-                corpo.percentual_pis = impostos.percentual_pis
-                corpo.percentual_csll = impostos.percentual_csll
-                corpo.valor_inss = impostos.valor_inss
-                corpo.valor_cofins = impostos.valor_cofins
-                corpo.valor_pis = impostos.valor_pis
-                corpo.valor_csll = impostos.valor_csll
-                corpo.valor_liquido = impostos.valor_liquido
+                if corpo.sem_retencao:
+                    corpo.percentual_inss = None
+                    corpo.percentual_cofins = None
+                    corpo.percentual_pis = None
+                    corpo.percentual_csll = None
+                    corpo.valor_inss = None
+                    corpo.valor_cofins = None
+                    corpo.valor_pis = None
+                    corpo.valor_csll = None
+                    corpo.valor_liquido = float(corpo.valor_bruto)
+                else:
+                    impostos = ImpostoService.calcular_impostos(
+                        db, float(corpo.valor_bruto), corpo.tipo_nota.value, percentuais_override
+                    )
+                    corpo.percentual_inss = impostos.percentual_inss
+                    corpo.percentual_cofins = impostos.percentual_cofins
+                    corpo.percentual_pis = impostos.percentual_pis
+                    corpo.percentual_csll = impostos.percentual_csll
+                    corpo.valor_inss = impostos.valor_inss
+                    corpo.valor_cofins = impostos.valor_cofins
+                    corpo.valor_pis = impostos.valor_pis
+                    corpo.valor_csll = impostos.valor_csll
+                    corpo.valor_liquido = impostos.valor_liquido
 
         # Regenera o texto com os dados atualizados
         corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
@@ -349,9 +367,10 @@ class CorpoNotaService:
         numero_nf: Optional[int] = None,
         parcelas_json: Optional[list] = None,
         produtos_json: Optional[list] = None,
+        sem_retencao: bool = False,
     ) -> dict:
         impostos = None
-        if valor_bruto:
+        if valor_bruto and not sem_retencao:
             impostos = ImpostoService.calcular_impostos(
                 db, float(valor_bruto), tipo_nota.value, percentuais_override
             )
@@ -400,6 +419,7 @@ class CorpoNotaService:
                 numero_nf=numero_nf,
                 parcelas_json=parcelas_json,
                 produtos_json=produtos_json,
+                sem_retencao=sem_retencao,
             )
         else:
             texto = CorpoNotaService._montar_texto(
@@ -416,6 +436,7 @@ class CorpoNotaService:
                 razao_social_cond=razao_social_cond,
                 contrato_inicio=contrato_inicio,
                 numero_nf=numero_nf,
+                sem_retencao=sem_retencao,
             )
         return {"conteudo_gerado": texto, "impostos_calculados": impostos}
 
@@ -590,43 +611,48 @@ class CorpoNotaService:
         contrato_inicio = contrato.data_inicio if contrato else None
 
         from app.services.imposto_service import ImpostosCalculados, ImpostoService
+        sem_retencao = getattr(corpo, "sem_retencao", False) or False
         impostos = None
         if corpo.valor_bruto:
-            # Se os percentuais foram salvos corretamente, usa-os diretamente
-            tem_percentuais = any([
-                float(corpo.percentual_inss or 0) > 0,
-                float(corpo.percentual_cofins or 0) > 0,
-                float(corpo.percentual_pis or 0) > 0,
-                float(corpo.percentual_csll or 0) > 0,
-            ])
-            # Para MANUTENCAO e SERVICO, sempre deve ter retenção — recalcula se zerado
-            tipo_com_retencao = corpo.tipo_nota in (TipoNotaCorpo.MANUTENCAO, TipoNotaCorpo.SERVICO)
-            if tipo_com_retencao and not tem_percentuais:
-                impostos = ImpostoService.calcular_impostos(db, float(corpo.valor_bruto), corpo.tipo_nota.value)
-                # Atualiza os campos salvos
-                corpo.percentual_inss = impostos.percentual_inss
-                corpo.percentual_cofins = impostos.percentual_cofins
-                corpo.percentual_pis = impostos.percentual_pis
-                corpo.percentual_csll = impostos.percentual_csll
-                corpo.valor_inss = impostos.valor_inss
-                corpo.valor_cofins = impostos.valor_cofins
-                corpo.valor_pis = impostos.valor_pis
-                corpo.valor_csll = impostos.valor_csll
-                corpo.valor_liquido = impostos.valor_liquido
+            if sem_retencao:
+                # Sem retenção: valor líquido = valor bruto, sem cálculo de impostos
+                corpo.valor_liquido = corpo.valor_bruto
             else:
-                impostos = ImpostosCalculados(
-                    percentual_inss=float(corpo.percentual_inss or 0),
-                    percentual_cofins=float(corpo.percentual_cofins or 0),
-                    percentual_pis=float(corpo.percentual_pis or 0),
-                    percentual_csll=float(corpo.percentual_csll or 0),
-                    percentual_iss=float(getattr(corpo, "percentual_iss", None) or 0),
-                    valor_inss=float(corpo.valor_inss or 0),
-                    valor_cofins=float(corpo.valor_cofins or 0),
-                    valor_pis=float(corpo.valor_pis or 0),
-                    valor_csll=float(corpo.valor_csll or 0),
-                    valor_iss=float(getattr(corpo, "valor_iss", None) or 0),
-                    valor_liquido=float(corpo.valor_liquido or 0),
-                )
+                # Se os percentuais foram salvos corretamente, usa-os diretamente
+                tem_percentuais = any([
+                    float(corpo.percentual_inss or 0) > 0,
+                    float(corpo.percentual_cofins or 0) > 0,
+                    float(corpo.percentual_pis or 0) > 0,
+                    float(corpo.percentual_csll or 0) > 0,
+                ])
+                # Para MANUTENCAO e SERVICO, sempre deve ter retenção — recalcula se zerado
+                tipo_com_retencao = corpo.tipo_nota in (TipoNotaCorpo.MANUTENCAO, TipoNotaCorpo.SERVICO)
+                if tipo_com_retencao and not tem_percentuais:
+                    impostos = ImpostoService.calcular_impostos(db, float(corpo.valor_bruto), corpo.tipo_nota.value)
+                    # Atualiza os campos salvos
+                    corpo.percentual_inss = impostos.percentual_inss
+                    corpo.percentual_cofins = impostos.percentual_cofins
+                    corpo.percentual_pis = impostos.percentual_pis
+                    corpo.percentual_csll = impostos.percentual_csll
+                    corpo.valor_inss = impostos.valor_inss
+                    corpo.valor_cofins = impostos.valor_cofins
+                    corpo.valor_pis = impostos.valor_pis
+                    corpo.valor_csll = impostos.valor_csll
+                    corpo.valor_liquido = impostos.valor_liquido
+                else:
+                    impostos = ImpostosCalculados(
+                        percentual_inss=float(corpo.percentual_inss or 0),
+                        percentual_cofins=float(corpo.percentual_cofins or 0),
+                        percentual_pis=float(corpo.percentual_pis or 0),
+                        percentual_csll=float(corpo.percentual_csll or 0),
+                        percentual_iss=float(getattr(corpo, "percentual_iss", None) or 0),
+                        valor_inss=float(corpo.valor_inss or 0),
+                        valor_cofins=float(corpo.valor_cofins or 0),
+                        valor_pis=float(corpo.valor_pis or 0),
+                        valor_csll=float(corpo.valor_csll or 0),
+                        valor_iss=float(getattr(corpo, "valor_iss", None) or 0),
+                        valor_liquido=float(corpo.valor_liquido or 0),
+                    )
 
         numero_nf = getattr(corpo, "numero_nf", None)
         numero_parcelas = getattr(corpo, "numero_parcelas", 1) or 1
@@ -670,6 +696,7 @@ class CorpoNotaService:
                 numero_nf=numero_nf,
                 parcelas_json=parcelas_json,
                 produtos_json=produtos_json,
+                sem_retencao=sem_retencao,
             )
 
         return CorpoNotaService._montar_texto(
@@ -687,6 +714,7 @@ class CorpoNotaService:
             contrato_inicio=contrato_inicio,
             numero_referencia=corpo.numero_referencia,
             numero_nf=numero_nf,
+            sem_retencao=sem_retencao,
         )
 
     @staticmethod
@@ -766,6 +794,7 @@ class CorpoNotaService:
         contrato_inicio: Optional[date] = None,
         numero_referencia: Optional[str] = None,
         numero_nf: Optional[int] = None,
+        sem_retencao: bool = False,
     ) -> str:
         def fmt_valor(v: Optional[float]) -> str:
             if v is None:
@@ -824,9 +853,13 @@ class CorpoNotaService:
 
         if valor_bruto is not None:
             extenso = CorpoNotaService._valor_por_extenso(valor_bruto)
-            linhas.append(f"Valor bruto: {fmt_valor(valor_bruto)} ({extenso})")
+            label_valor = "Valor total" if sem_retencao else "Valor bruto"
+            linhas.append(f"{label_valor}: {fmt_valor(valor_bruto)} ({extenso})")
 
-        if impostos:
+        if sem_retencao:
+            if data_vencimento:
+                linhas.append(f"Vencimento: {fmt_data_barra(data_vencimento)}")
+        elif impostos:
             linhas.append("Retenções:")
             if impostos.valor_inss:
                 linhas.append(f"INSS ({fmt_pct(impostos.percentual_inss)}): {fmt_valor(impostos.valor_inss)}")
@@ -882,6 +915,7 @@ class CorpoNotaService:
         numero_nf: Optional[int] = None,
         parcelas_json: Optional[list] = None,
         produtos_json: Optional[list] = None,
+        sem_retencao: bool = False,
     ) -> str:
         """Gera o texto do corpo da nota de SERVIÇO conforme template da cliente."""
         def fmt_valor(v: Optional[float]) -> str:
@@ -956,9 +990,10 @@ class CorpoNotaService:
 
         if valor_bruto is not None:
             extenso = CorpoNotaService._valor_por_extenso(valor_bruto)
-            linhas.append(f"Valor da Nota de Serviço: {fmt_valor(valor_bruto)} ({extenso})")
+            label_valor = "Valor Total" if sem_retencao else "Valor da Nota de Serviço"
+            linhas.append(f"{label_valor}: {fmt_valor(valor_bruto)} ({extenso})")
 
-        if impostos:
+        if not sem_retencao and impostos:
             linhas.append("Retenções: ")
             if impostos.valor_inss:
                 extenso_v = CorpoNotaService._valor_por_extenso(impostos.valor_inss)
