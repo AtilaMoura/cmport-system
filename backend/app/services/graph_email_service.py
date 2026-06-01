@@ -57,21 +57,8 @@ class GraphEmailService:
         """
         anexos = list(anexos_extras or [])
 
-        # Log de tamanho por anexo para diagnóstico
-        for fname, content, _ in anexos:
-            print(f"[Graph] Anexo: {fname} — {len(content)/1024/1024:.2f} MB")
-
-        # Descarta anexos > 10 MB para não travar o envio
-        MAX_ANEXO = 10 * 1024 * 1024
-        anexos_filtrados = []
-        for fname, content, ct in anexos:
-            if len(content) > MAX_ANEXO:
-                print(f"[Graph] AVISO: anexo '{fname}' ({len(content)/1024/1024:.1f} MB) ignorado por exceder 10 MB.")
-            else:
-                anexos_filtrados.append((fname, content, ct))
-        anexos = anexos_filtrados
-
         total_bytes = sum(len(c) for _, c, _ in anexos)
+        print(f"[Graph] Total anexos: {total_bytes/1024/1024:.1f} MB ({len(anexos)} arquivo(s))")
 
         if total_bytes >= _SENDMAIL_JSON_LIMIT:
             print(f"[Graph] Anexos somam {total_bytes/1024/1024:.1f} MB — usando envio MIME.")
