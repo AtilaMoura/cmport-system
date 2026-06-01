@@ -41,6 +41,7 @@ interface CorpoNota {
   descricao_garantia: string | null;
   valor_nota_produto: number | null;
   sem_retencao: boolean;
+  numero_nf: number | null;
 }
 
 interface Condominio {
@@ -120,6 +121,10 @@ export default function DetalheCorpoNotaPage() {
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
+  // Geração de número NF
+  const [gerandoNf, setGerandoNf] = useState(false);
+  const [erroNf, setErroNf] = useState<string | null>(null);
+
   // Edição inline
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -183,6 +188,21 @@ export default function DetalheCorpoNotaPage() {
     }
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
+  };
+
+  const gerarNumeroNf = async () => {
+    if (!confirm('Gerar número NF? O contador será incrementado e não pode ser desfeito.')) return;
+    setGerandoNf(true);
+    setErroNf(null);
+    try {
+      await api.post(`/corpos-nota/${id}/gerar-numero-nf`);
+      carregar();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setErroNf(msg || 'Erro ao gerar número NF.');
+    } finally {
+      setGerandoNf(false);
+    }
   };
 
   useEffect(() => {
@@ -441,6 +461,37 @@ export default function DetalheCorpoNotaPage() {
                 <InfoItem label="Vencimento" value={fmt(corpo.data_vencimento)} />
                 <InfoItem label="Nota Fiscal" value={corpo.nota_fiscal_id ? `#${corpo.nota_fiscal_id}` : '—'} />
                 <InfoItem label="Preenchimento" value={corpo.preenchimento_manual ? 'Manual' : 'Automático (OS)'} />
+
+                {/* Número NF sequencial */}
+                <div className="sm:col-span-3">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-1">Número NF</div>
+                  <div className="flex items-center gap-3">
+                    <span className={`font-mono font-bold text-base ${corpo.numero_nf ? 'text-violet-700 dark:text-violet-400' : 'text-slate-400'}`}>
+                      {corpo.numero_nf
+                        ? (() => { const s = String(corpo.numero_nf).padStart(9, '0'); return `${s.slice(0,3)}.${s.slice(3,6)}.${s.slice(6)}`; })()
+                        : '— / —'}
+                    </span>
+                    {!corpo.numero_nf && corpo.configuracao_inter_id && !['PAGO','CANCELADO'].includes(corpo.status) && (
+                      <button
+                        onClick={gerarNumeroNf}
+                        disabled={gerandoNf}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 transition-colors disabled:opacity-50"
+                      >
+                        {gerandoNf ? 'Gerando...' : '# Gerar Nº NF'}
+                      </button>
+                    )}
+                    {corpo.numero_nf && !['PAGO','CANCELADO'].includes(corpo.status) && (
+                      <button
+                        onClick={gerarNumeroNf}
+                        disabled={gerandoNf}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-amber-100 hover:text-amber-700 transition-colors disabled:opacity-50"
+                      >
+                        {gerandoNf ? 'Gerando...' : 'Regerar'}
+                      </button>
+                    )}
+                  </div>
+                  {erroNf && <p className="text-xs text-red-600 mt-1">{erroNf}</p>}
+                </div>
                 {corpo.configuracao_inter_id && (() => {
                   const cfg = configuracoes.find(c => c.id === corpo.configuracao_inter_id);
                   return cfg ? <InfoItem label="CNPJ / Conta Inter" value={`${cfg.cnpj}${cfg.razao_social ? ` — ${cfg.razao_social}` : ''}`} /> : null;

@@ -493,6 +493,16 @@ def atualizar_status(
     return CorpoNotaService.atualizar_status(db, corpo_id, payload.status, payload.motivo)
 
 
+@router.post("/{corpo_id}/gerar-numero-nf", response_model=CorpoNotaResponse)
+def gerar_numero_nf(
+    corpo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Atribui o próximo número sequencial de NF (da conta Inter) e regenera o corpo."""
+    return CorpoNotaService.gerar_numero_nf(db, corpo_id)
+
+
 @router.post("/{corpo_id}/regenerar", response_model=CorpoNotaResponse)
 def regenerar_conteudo(
     corpo_id: int,

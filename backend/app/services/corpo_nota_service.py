@@ -504,6 +504,44 @@ class CorpoNotaService:
         corpo.deletado_em = datetime.utcnow()
         CorpoNotaRepository.save(db, corpo)
 
+    # ── Geração de número NF ─────────────────────────────────────────────────
+
+    @staticmethod
+    def gerar_numero_nf(db: Session, corpo_id: int) -> CorpoNota:
+        corpo = CorpoNotaService.get_by_id(db, corpo_id)
+
+        if corpo.status in (StatusCorpoNota.PAGO, StatusCorpoNota.CANCELADO):
+            raise HTTPException(status_code=403, detail="Não é possível gerar número NF em status final.")
+
+        if not corpo.configuracao_inter_id:
+            raise HTTPException(status_code=422, detail="Selecione um CNPJ/Conta Inter antes de gerar o número NF.")
+
+        from app.models.configuracao_model import ConfiguracaoInter
+        conta = (
+            db.query(ConfiguracaoInter)
+            .filter(ConfiguracaoInter.id == corpo.configuracao_inter_id)
+            .with_for_update()
+            .first()
+        )
+        if not conta:
+            raise HTTPException(status_code=404, detail="Conta Inter não encontrada.")
+
+        if corpo.tipo_nota == TipoNotaCorpo.PRODUTO:
+            numero = conta.numero_nf_produto
+            if not numero:
+                raise HTTPException(status_code=422, detail="Contador de NF produto não configurado para esta conta.")
+            conta.numero_nf_produto = numero + 1
+        else:
+            numero = conta.numero_nf_servico
+            if not numero:
+                raise HTTPException(status_code=422, detail="Contador de NF serviço não configurado para esta conta.")
+            conta.numero_nf_servico = numero + 1
+
+        db.add(conta)
+        corpo.numero_nf = numero
+        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        return CorpoNotaRepository.save(db, corpo)
+
     # ── Helpers privados ─────────────────────────────────────────────────────
 
     @staticmethod
