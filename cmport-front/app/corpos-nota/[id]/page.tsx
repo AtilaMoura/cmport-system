@@ -137,6 +137,7 @@ export default function DetalheCorpoNotaPage() {
     observacoes: '',
     configuracao_inter_id: '' as string,
     sem_retencao: false,
+    numero_nf: '' as string,
   });
 
   // Modal vínculo manual
@@ -157,6 +158,7 @@ export default function DetalheCorpoNotaPage() {
         observacoes: r.data.observacoes ?? '',
         configuracao_inter_id: r.data.configuracao_inter_id != null ? String(r.data.configuracao_inter_id) : '',
         sem_retencao: r.data.sem_retencao ?? false,
+        numero_nf: r.data.numero_nf != null ? String(r.data.numero_nf) : '',
       });
       try {
         const rCond = await api.get(`/condominios/${r.data.condominio_id}`);
@@ -236,6 +238,7 @@ export default function DetalheCorpoNotaPage() {
         observacoes: formEdit.observacoes || null,
         configuracao_inter_id: formEdit.configuracao_inter_id ? Number(formEdit.configuracao_inter_id) : null,
         sem_retencao: formEdit.sem_retencao,
+        numero_nf: formEdit.numero_nf ? Number(formEdit.numero_nf) : null,
       });
       setEditando(false);
       carregar();
@@ -429,6 +432,18 @@ export default function DetalheCorpoNotaPage() {
                     </select>
                   </div>
                 )}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Número NF</label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Ex: 19"
+                    value={formEdit.numero_nf}
+                    onChange={e => setFormEdit(f => ({ ...f, numero_nf: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  />
+                  <p className="text-xs text-slate-400 mt-0.5">Número sequencial da NF (será regenerado no corpo da nota)</p>
+                </div>
                 {(corpo.tipo_nota === 'MANUTENCAO' || corpo.tipo_nota === 'SERVICO') && (
                   <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
                     <input
