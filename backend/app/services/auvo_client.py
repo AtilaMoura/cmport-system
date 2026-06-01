@@ -1,8 +1,47 @@
+import io
 import json
 import re
 import requests
 from typing import Optional, Dict, List
 from app.core.config import settings
+
+
+def _comprimir_pdf(pdf_bytes: bytes, dpi: int = 120, qualidade: int = 75) -> bytes:
+    """
+    Recomprime as imagens do PDF reduzindo DPI e qualidade JPEG.
+    Texto e vetores não são afetados. Retorna o PDF original se falhar.
+    """
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        for page in doc:
+            for img in page.get_images(full=True):
+                xref = img[0]
+                base = doc.extract_image(xref)
+                img_bytes = base["image"]
+                ext = base["ext"]
+                if ext.lower() not in ("jpeg", "jpg", "png", "bmp"):
+                    continue
+                from PIL import Image
+                pil = Image.open(io.BytesIO(img_bytes))
+                w, h = pil.size
+                fator = min(1.0, (dpi * 8.27) / max(w, h))
+                if fator < 1.0:
+                    pil = pil.resize((int(w * fator), int(h * fator)), Image.LANCZOS)
+                buf = io.BytesIO()
+                pil = pil.convert("RGB")
+                pil.save(buf, format="JPEG", quality=qualidade, optimize=True)
+                doc.replace_image(xref, stream=buf.getvalue())
+        out = io.BytesIO()
+        doc.save(out, deflate=True, garbage=4)
+        resultado = out.getvalue()
+        orig_mb = len(pdf_bytes) / 1024 / 1024
+        novo_mb = len(resultado) / 1024 / 1024
+        print(f"[PDF] Compressão: {orig_mb:.1f} MB → {novo_mb:.1f} MB ({100*novo_mb/orig_mb:.0f}%)")
+        return resultado
+    except Exception as e:
+        print(f"[PDF] Aviso: compressão falhou ({e}), usando original.")
+        return pdf_bytes
 
 
 class AuvoClient:
@@ -138,8 +177,7 @@ class AuvoClient:
     def baixar_pdf_os(self, task_url: str) -> Optional[bytes]:
         """
         Baixa o PDF da OS a partir do taskUrl retornado pela API.
-        Não requer autenticação — o GUID funciona como token público.
-        Retorna bytes do PDF ou None em caso de erro.
+        Aplica compressão de imagens automaticamente para reduzir o tamanho.
         """
         match = re.search(r'/tarefa/([a-f0-9\-]{36})', task_url or "")
         if not match:
@@ -150,7 +188,7 @@ class AuvoClient:
         try:
             resp = requests.get(pdf_url, timeout=60)
             if resp.status_code == 200 and resp.content[:4] == b"%PDF":
-                return resp.content
+                return _comprimir_pdf(resp.content)
             print(f"[Auvo] PDF OS: status={resp.status_code} guid={guid}")
             return None
         except requests.exceptions.RequestException as exc:
