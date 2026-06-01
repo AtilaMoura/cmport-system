@@ -167,7 +167,20 @@ export default function DetalheCorpoNotaPage() {
   const copiarConteudo = async () => {
     if (!corpo?.conteudo_gerado) return;
     const nomeHeader = condominio ? `Condomínio: ${condominio.nome}\n\n` : '';
-    await navigator.clipboard.writeText(nomeHeader + corpo.conteudo_gerado);
+    const texto = nomeHeader + corpo.conteudo_gerado;
+    try {
+      await navigator.clipboard.writeText(texto);
+    } catch {
+      // fallback para HTTP (clipboard API requer HTTPS)
+      const el = document.createElement('textarea');
+      el.value = texto;
+      el.style.position = 'fixed';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
   };
