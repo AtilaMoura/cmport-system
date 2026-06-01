@@ -3,6 +3,7 @@ from fastapi.responses import Response, HTMLResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 import json
+import traceback
 
 from app.core.database import SessionLocal
 from app.core.dependencies import get_storage_client
@@ -25,6 +26,12 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+@router.get("/tem-inter/{nota_id}")
+def tem_inter(nota_id: int, db: Session = Depends(get_db)):
+    """Verifica se a nota possui ConfiguracaoInter ativa pelo CNPJ emitente."""
+    return {"tem_inter": BoletoService.tem_inter(db, nota_id)}
 
 
 @router.get("/config-impostos/{nota_id}", response_model=ConfigImpostosResponse)
@@ -195,6 +202,7 @@ async def enviar_email_boleto(
             db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras, storage, manut_data, lista_cc
         )
     except Exception as e:
+        print(f"[ERRO enviar-email boleto {boleto_id}] {traceback.format_exc()}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
