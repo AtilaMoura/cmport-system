@@ -1,6 +1,6 @@
-﻿"use client"
+"use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
@@ -19,6 +19,7 @@ interface CorpoResumo {
   tipo_nota: string;
   numero_referencia: string | null;
   numero_os: string | null;
+  numero_nf: number | null;
   mes_referencia: string | null;
   status: string;
   valor_bruto: number | null;
@@ -67,6 +68,10 @@ function fmtValor(v: number | null) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function fmtNf(n: number) {
+  return String(n).padStart(4, '0');
+}
+
 function StatCard({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (
     <div className={`rounded-2xl px-4 py-3 border ${color}`}>
@@ -87,6 +92,11 @@ export default function CorposNotaPage() {
   const [pendentes, setPendentes] = useState<CondPendente[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Filtros de busca client-side
+  const [buscaNome, setBuscaNome] = useState('');
+  const [buscaNf, setBuscaNf] = useState('');
+  const [buscaOs, setBuscaOs] = useState('');
+
   const carregar = async () => {
     setLoading(true);
     try {
@@ -102,7 +112,7 @@ export default function CorposNotaPage() {
       setCondominios(rCond.data);
       setPendentes(rPendentes.data);
     } catch {
-      // silencioso — tabela pode não ter dados ainda
+      // silencioso
     } finally {
       setLoading(false);
     }
@@ -119,8 +129,42 @@ export default function CorposNotaPage() {
     setAno(novoAno);
   };
 
-  const cicloNomeCondominio = (c: Ciclo) =>
-    condominios.find(co => co.id === c.condominio_id)?.nome ?? `Condomínio #${c.condominio_id}`;
+  const nomeCondominio = (id: number) =>
+    condominios.find(co => co.id === id)?.nome ?? `Condomínio #${id}`;
+
+  // Filtros client-side aplicados sobre os ciclos carregados
+  const ciclosFiltrados = useMemo(() => {
+    let resultado = ciclos;
+
+    if (buscaNome.trim()) {
+      const termo = buscaNome.trim().toLowerCase();
+      resultado = resultado.filter(c =>
+        nomeCondominio(c.condominio_id).toLowerCase().includes(termo)
+      );
+    }
+
+    if (buscaNf.trim()) {
+      const termoNf = buscaNf.trim();
+      resultado = resultado.filter(c =>
+        c.corpos.some(corpo =>
+          corpo.numero_nf != null && String(corpo.numero_nf).includes(termoNf)
+        )
+      );
+    }
+
+    if (buscaOs.trim()) {
+      const termoOs = buscaOs.trim().toLowerCase();
+      resultado = resultado.filter(c =>
+        c.corpos.some(corpo =>
+          corpo.numero_os?.toLowerCase().includes(termoOs)
+        )
+      );
+    }
+
+    return resultado;
+  }, [ciclos, buscaNome, buscaNf, buscaOs, condominios]);
+
+  const temFiltroAtivo = buscaNome || buscaNf || buscaOs;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -137,7 +181,8 @@ export default function CorposNotaPage() {
                   Corpos de Nota
                 </h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  {ciclos.length} ciclo(s) em {MESES[mes - 1]}/{ano}
+                  {ciclosFiltrados.length} ciclo(s) em {MESES[mes - 1]}/{ano}
+                  {temFiltroAtivo && <span className="ml-1 text-violet-500">(filtrado)</span>}
                 </p>
               </div>
             </div>
@@ -159,21 +204,9 @@ export default function CorposNotaPage() {
           <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
             <div className="px-3 sm:px-6 lg:px-8 py-3">
               <div className="grid grid-cols-3 gap-3">
-                <StatCard
-                  label="Com contrato"
-                  value={totalComContrato}
-                  color="border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                />
-                <StatCard
-                  label="Pendentes"
-                  value={pendentes.length}
-                  color="border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/5"
-                />
-                <StatCard
-                  label="Criados"
-                  value={criados}
-                  color="border-violet-200 dark:border-violet-800/50 text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/5"
-                />
+                <StatCard label="Com contrato" value={totalComContrato} color="border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300" />
+                <StatCard label="Pendentes" value={pendentes.length} color="border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/5" />
+                <StatCard label="Criados" value={criados} color="border-violet-200 dark:border-violet-800/50 text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/5" />
               </div>
             </div>
           </div>
@@ -182,9 +215,9 @@ export default function CorposNotaPage() {
 
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="px-3 sm:px-6 lg:px-8 py-3">
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-            {/* Navegação de mês */}
+        <div className="px-3 sm:px-6 lg:px-8 py-3 space-y-2">
+          {/* Linha 1: mês + status */}
+          <div className="flex flex-wrap gap-2 items-center">
             <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-1.5">
               <button onClick={() => moverMes(-1)} className="p-1 hover:text-violet-600 transition-colors font-bold text-lg">‹</button>
               <span className="font-bold text-slate-800 dark:text-white text-sm min-w-[90px] text-center">
@@ -193,7 +226,6 @@ export default function CorposNotaPage() {
               <button onClick={() => moverMes(1)} className="p-1 hover:text-violet-600 transition-colors font-bold text-lg">›</button>
             </div>
 
-            {/* Filtro condomínio */}
             <select
               value={condominioId ?? ''}
               onChange={e => setCondominioId(e.target.value ? Number(e.target.value) : null)}
@@ -203,7 +235,6 @@ export default function CorposNotaPage() {
               {condominios.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
 
-            {/* Filtro status */}
             <select
               value={statusFiltro}
               onChange={e => setStatusFiltro(e.target.value)}
@@ -215,43 +246,88 @@ export default function CorposNotaPage() {
               <option value="CONCLUIDO">Concluído</option>
             </select>
           </div>
+
+          {/* Linha 2: busca por nome, NF e OS */}
+          <div className="flex flex-wrap gap-2">
+            <div className="relative flex-1 min-w-[160px]">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+              <input
+                type="text"
+                placeholder="Buscar condomínio..."
+                value={buscaNome}
+                onChange={e => setBuscaNome(e.target.value)}
+                className="w-full pl-7 pr-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400"
+              />
+            </div>
+            <div className="relative w-36">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">NF</span>
+              <input
+                type="text"
+                placeholder="Nº NF..."
+                value={buscaNf}
+                onChange={e => setBuscaNf(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400"
+              />
+            </div>
+            <div className="relative w-36">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">OS</span>
+              <input
+                type="text"
+                placeholder="Nº OS..."
+                value={buscaOs}
+                onChange={e => setBuscaOs(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400"
+              />
+            </div>
+            {temFiltroAtivo && (
+              <button
+                onClick={() => { setBuscaNome(''); setBuscaNf(''); setBuscaOs(''); }}
+                className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 transition-colors"
+              >
+                ✕ Limpar
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="px-3 sm:px-6 lg:px-8 py-6">
         {loading ? (
           <div className="text-center py-20 text-slate-400 font-semibold">Carregando...</div>
-        ) : ciclos.length === 0 ? (
+        ) : ciclosFiltrados.length === 0 ? (
           <div className="text-center py-20">
             <div className="text-5xl mb-4">📝</div>
             <div className="text-slate-500 font-semibold mb-2">
-              Nenhum ciclo em {MESES[mes - 1]}/{ano}
+              {temFiltroAtivo ? 'Nenhum resultado para a busca' : `Nenhum ciclo em ${MESES[mes - 1]}/${ano}`}
             </div>
-            <Link href="/corpos-nota/novo" className="mt-4 inline-block px-6 py-2 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors">
-              Criar primeiro corpo de nota
-            </Link>
+            {!temFiltroAtivo && (
+              <Link href="/corpos-nota/novo" className="mt-4 inline-block px-6 py-2 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors">
+                Criar primeiro corpo de nota
+              </Link>
+            )}
           </div>
         ) : (
           <div className="grid gap-4 xl:grid-cols-2">
-            {ciclos.map(ciclo => {
+            {ciclosFiltrados.map(ciclo => {
               const cicloStatus = STATUS_CICLO_CONFIG[ciclo.status_ciclo] ?? STATUS_CICLO_CONFIG.PENDENTE;
               const tipoConf = TIPO_NOTA_CONFIG[ciclo.tipo_nota] ?? { label: ciclo.tipo_nota, icon: '📄' };
+              const nome = nomeCondominio(ciclo.condominio_id);
               return (
                 <div key={ciclo.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                   {/* Header do ciclo */}
                   <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">{tipoConf.icon}</span>
-                      <div>
-                        <span className="font-bold text-slate-900 dark:text-white text-sm">
-                          {cicloNomeCondominio(ciclo)}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-lg shrink-0">{tipoConf.icon}</span>
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-900 dark:text-white text-sm block truncate">
+                          {nome}
                         </span>
-                        <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
                           {tipoConf.label} · {MESES[ciclo.mes - 1]}/{ciclo.ano}
                         </span>
                       </div>
                     </div>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${cicloStatus.cls}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold shrink-0 ml-2 ${cicloStatus.cls}`}>
                       {cicloStatus.label}
                     </span>
                   </div>
@@ -265,31 +341,43 @@ export default function CorposNotaPage() {
                           <Link
                             key={corpo.id}
                             href={`/corpos-nota/${corpo.id}`}
-                            className="flex items-center gap-4 px-4 sm:px-6 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+                            className="flex items-center gap-3 px-4 sm:px-6 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
                           >
                             <div className={`w-2 h-2 rounded-full shrink-0 ${corpoStatus.dot}`} />
+
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
+                              {/* Linha 1: status + referências */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${corpoStatus.cls}`}>
                                   {corpoStatus.label}
                                 </span>
                                 {corpo.numero_referencia && (
                                   <span className="text-xs font-bold text-violet-600 dark:text-violet-400">{corpo.numero_referencia}</span>
                                 )}
-                                {corpo.numero_os && (
-                                  <span className="text-xs text-slate-500 dark:text-slate-400">OS #{corpo.numero_os}</span>
+                                {corpo.numero_nf != null && (
+                                  <span className="text-xs font-mono font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-500/10 px-1.5 py-0.5 rounded">
+                                    NF {fmtNf(corpo.numero_nf)}
+                                  </span>
                                 )}
                                 {corpo.nota_fiscal_id && (
                                   <span className="text-xs text-cyan-600 dark:text-cyan-400 font-semibold">XML ✓</span>
                                 )}
+                              </div>
+                              {/* Linha 2: OS + mês */}
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {corpo.numero_os && (
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">OS {corpo.numero_os}</span>
+                                )}
+                                {corpo.mes_referencia && (
+                                  <span className="text-xs text-slate-400 dark:text-slate-500">{corpo.mes_referencia}</span>
+                                )}
                                 {corpo.preenchimento_manual && (
-                                  <span className="text-xs text-amber-600 dark:text-amber-400">Manual</span>
+                                  <span className="text-xs text-amber-500">Manual</span>
                                 )}
                               </div>
-                              {corpo.mes_referencia && (
-                                <span className="text-xs text-slate-400 dark:text-slate-500">{corpo.mes_referencia}</span>
-                              )}
                             </div>
+
+                            {/* Valores */}
                             <div className="text-right shrink-0">
                               {corpo.valor_liquido != null ? (
                                 <>
@@ -298,10 +386,13 @@ export default function CorposNotaPage() {
                                     <div className="text-xs text-slate-400 line-through">{fmtValor(corpo.valor_bruto)}</div>
                                   )}
                                 </>
+                              ) : corpo.valor_bruto != null ? (
+                                <div className="text-sm font-bold text-slate-900 dark:text-white">{fmtValor(corpo.valor_bruto)}</div>
                               ) : (
                                 <span className="text-xs text-slate-400">Sem valor</span>
                               )}
                             </div>
+
                             <svg className="w-4 h-4 text-slate-300 group-hover:text-violet-500 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
