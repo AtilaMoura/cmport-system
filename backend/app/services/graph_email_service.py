@@ -56,6 +56,21 @@ class GraphEmailService:
         - Anexos >= 3 MB total: sendMail com MIME (não precisa de Mail.ReadWrite).
         """
         anexos = list(anexos_extras or [])
+
+        # Log de tamanho por anexo para diagnóstico
+        for fname, content, _ in anexos:
+            print(f"[Graph] Anexo: {fname} — {len(content)/1024/1024:.2f} MB")
+
+        # Descarta anexos > 10 MB para não travar o envio
+        MAX_ANEXO = 10 * 1024 * 1024
+        anexos_filtrados = []
+        for fname, content, ct in anexos:
+            if len(content) > MAX_ANEXO:
+                print(f"[Graph] AVISO: anexo '{fname}' ({len(content)/1024/1024:.1f} MB) ignorado por exceder 10 MB.")
+            else:
+                anexos_filtrados.append((fname, content, ct))
+        anexos = anexos_filtrados
+
         total_bytes = sum(len(c) for _, c, _ in anexos)
 
         if total_bytes >= _SENDMAIL_JSON_LIMIT:
@@ -154,8 +169,8 @@ class GraphEmailService:
             part.add_header("Content-Disposition", "attachment", filename=filename)
             msg.attach(part)
 
-        # Codifica a mensagem MIME em base64 para a Graph API
-        mime_b64 = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        # Codifica a mensagem MIME em base64 padrão para a Graph API
+        mime_b64 = base64.b64encode(msg.as_bytes()).decode()
 
         url = f"{GRAPH_URL}/users/{sender_email}/sendMail"
         headers = {
