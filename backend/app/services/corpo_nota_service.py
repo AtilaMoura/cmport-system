@@ -527,14 +527,10 @@ class CorpoNotaService:
             raise HTTPException(status_code=404, detail="Conta Inter não encontrada.")
 
         if corpo.tipo_nota == TipoNotaCorpo.PRODUTO:
-            numero = conta.numero_nf_produto
-            if not numero:
-                raise HTTPException(status_code=422, detail="Contador de NF produto não configurado para esta conta.")
+            numero = conta.numero_nf_produto or 1
             conta.numero_nf_produto = numero + 1
         else:
-            numero = conta.numero_nf_servico
-            if not numero:
-                raise HTTPException(status_code=422, detail="Contador de NF serviço não configurado para esta conta.")
+            numero = conta.numero_nf_servico or 1
             conta.numero_nf_servico = numero + 1
 
         db.add(conta)

@@ -459,39 +459,29 @@ export default function DetalheCorpoNotaPage() {
                   ? <InfoItem label="Data(s) do Serviço" value={corpo.data_servico_texto} />
                   : <InfoItem label="Data do Serviço" value={fmt(corpo.data_servico)} />}
                 <InfoItem label="Vencimento" value={fmt(corpo.data_vencimento)} />
-                <InfoItem label="Nota Fiscal" value={corpo.nota_fiscal_id ? `#${corpo.nota_fiscal_id}` : '—'} />
-                <InfoItem label="Preenchimento" value={corpo.preenchimento_manual ? 'Manual' : 'Automático (OS)'} />
-
-                {/* Número NF sequencial */}
-                <div className="sm:col-span-3">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-1">Número NF</div>
-                  <div className="flex items-center gap-3">
-                    <span className={`font-mono font-bold text-base ${corpo.numero_nf ? 'text-violet-700 dark:text-violet-400' : 'text-slate-400'}`}>
-                      {corpo.numero_nf
-                        ? (() => { const s = String(corpo.numero_nf).padStart(9, '0'); return `${s.slice(0,3)}.${s.slice(3,6)}.${s.slice(6)}`; })()
-                        : '— / —'}
+                {/* Nota Fiscal: número sequencial + vínculo XML */}
+                <div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-1">Nota Fiscal</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`font-mono font-bold ${corpo.numero_nf ? 'text-violet-700 dark:text-violet-400' : 'text-slate-400'}`}>
+                      {corpo.numero_nf ? String(corpo.numero_nf).padStart(4, '0') : '—'}
                     </span>
-                    {!corpo.numero_nf && corpo.configuracao_inter_id && !['PAGO','CANCELADO'].includes(corpo.status) && (
-                      <button
-                        onClick={gerarNumeroNf}
-                        disabled={gerandoNf}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 transition-colors disabled:opacity-50"
-                      >
-                        {gerandoNf ? 'Gerando...' : '# Gerar Nº NF'}
-                      </button>
+                    {corpo.nota_fiscal_id && (
+                      <span className="text-xs text-slate-500">· XML #{corpo.nota_fiscal_id}</span>
                     )}
-                    {corpo.numero_nf && !['PAGO','CANCELADO'].includes(corpo.status) && (
+                    {!['PAGO','CANCELADO'].includes(corpo.status) && corpo.configuracao_inter_id && (
                       <button
                         onClick={gerarNumeroNf}
                         disabled={gerandoNf}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-amber-100 hover:text-amber-700 transition-colors disabled:opacity-50"
+                        className="px-2 py-0.5 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-400 rounded text-xs font-bold hover:bg-violet-200 transition-colors disabled:opacity-50"
                       >
-                        {gerandoNf ? 'Gerando...' : 'Regerar'}
+                        {gerandoNf ? '...' : corpo.numero_nf ? 'Regerar' : 'Gerar'}
                       </button>
                     )}
                   </div>
                   {erroNf && <p className="text-xs text-red-600 mt-1">{erroNf}</p>}
                 </div>
+                <InfoItem label="Preenchimento" value={corpo.preenchimento_manual ? 'Manual' : 'Automático (OS)'} />
                 {corpo.configuracao_inter_id && (() => {
                   const cfg = configuracoes.find(c => c.id === corpo.configuracao_inter_id);
                   return cfg ? <InfoItem label="CNPJ / Conta Inter" value={`${cfg.cnpj}${cfg.razao_social ? ` — ${cfg.razao_social}` : ''}`} /> : null;
