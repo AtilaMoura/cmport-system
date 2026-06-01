@@ -15,14 +15,14 @@ interface CorpoNota {
   data_servico: string | null;
   descricao_servico: string | null;
   valor_bruto: number | null;
-  percentual_inss: number;
-  percentual_cofins: number;
-  percentual_pis: number;
-  percentual_csll: number;
-  valor_inss: number;
-  valor_cofins: number;
-  valor_pis: number;
-  valor_csll: number;
+  percentual_inss: number | null;
+  percentual_cofins: number | null;
+  percentual_pis: number | null;
+  percentual_csll: number | null;
+  valor_inss: number | null;
+  valor_cofins: number | null;
+  valor_pis: number | null;
+  valor_csll: number | null;
   valor_liquido: number | null;
   data_vencimento: string | null;
   mes_referencia: string | null;
@@ -103,7 +103,8 @@ function fmtValor(v: number | null | undefined) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function fmtPct(v: number) {
+function fmtPct(v: number | null | undefined) {
+  if (v == null || v === 0) return '—';
   return `${v.toFixed(2)}%`;
 }
 
@@ -451,7 +452,7 @@ export default function DetalheCorpoNotaPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <ValorCard label="Bruto (Serv.)" value={fmtValor(corpo.valor_bruto)} accent={false} />
             <ValorCard label="INSS" value={fmtValor(corpo.valor_inss)} sub={fmtPct(corpo.percentual_inss)} accent={false} />
-            <ValorCard label="COFINS+PIS+CSLL" value={fmtValor(corpo.valor_cofins + corpo.valor_pis + corpo.valor_csll)} sub={fmtPct(corpo.percentual_cofins + corpo.percentual_pis + corpo.percentual_csll)} accent={false} />
+            <ValorCard label="COFINS+PIS+CSLL" value={fmtValor((corpo.valor_cofins ?? 0) + (corpo.valor_pis ?? 0) + (corpo.valor_csll ?? 0))} sub={fmtPct((corpo.percentual_cofins ?? 0) + (corpo.percentual_pis ?? 0) + (corpo.percentual_csll ?? 0))} accent={false} />
             <ValorCard label="Líquido (Serv.)" value={fmtValor(corpo.valor_liquido)} accent={true} />
           </div>
           {corpo.valor_nota_produto != null && corpo.valor_nota_produto > 0 && (
