@@ -67,6 +67,21 @@ interface NotaFiscalCandidato {
   cliente_nome: string | null;
 }
 
+interface NotaFiscalVinculada {
+  id: number;
+  numero_nota: string;
+  valor: number;
+  data_vencimento: string;
+}
+
+interface Divergencia {
+  campo: string;
+  corpo: string;
+  nota: string;
+  valorCorpo: number | string | null;
+  valorNota: number | string | null;
+}
+
 const STATUS_NOTA_CONFIG: Record<string, { label: string; cls: string }> = {
   AUTORIZADA:   { label: 'Autorizada',   cls: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' },
   CANCELADA:    { label: 'Cancelada',    cls: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' },
@@ -121,6 +136,12 @@ export default function DetalheCorpoNotaPage() {
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
+  // Nota fiscal vinculada + divergências
+  const [notaVinculada, setNotaVinculada] = useState<NotaFiscalVinculada | null>(null);
+  const [divergencias, setDivergencias] = useState<Divergencia[]>([]);
+  const [alertaDismissed, setAlertaDismissed] = useState(false);
+  const [atualizandoCorpo, setAtualizandoCorpo] = useState(false);
+
   // Geração de número NF
   const [gerandoNf, setGerandoNf] = useState(false);
   const [erroNf, setErroNf] = useState<string | null>(null);
@@ -164,6 +185,42 @@ export default function DetalheCorpoNotaPage() {
         const rCond = await api.get(`/condominios/${r.data.condominio_id}`);
         setCondominio(rCond.data);
       } catch { /* silencioso */ }
+
+      // Busca nota fiscal vinculada e calcula divergências
+      if (r.data.nota_fiscal_id) {
+        try {
+          const rNota = await api.get(`/notas-fiscais/${r.data.nota_fiscal_id}`);
+          const nota: NotaFiscalVinculada = rNota.data;
+          setNotaVinculada(nota);
+          setAlertaDismissed(false);
+
+          const divs: Divergencia[] = [];
+          const corpValor = r.data.valor_bruto as number | null;
+          if (corpValor != null && Math.abs(corpValor - nota.valor) > 0.01) {
+            divs.push({
+              campo: 'Valor',
+              corpo: fmtValor(corpValor),
+              nota: fmtValor(nota.valor),
+              valorCorpo: corpValor,
+              valorNota: nota.valor,
+            });
+          }
+          const corpData = r.data.data_vencimento as string | null;
+          if (corpData && nota.data_vencimento && corpData !== nota.data_vencimento) {
+            divs.push({
+              campo: 'Vencimento',
+              corpo: fmt(corpData),
+              nota: fmt(nota.data_vencimento),
+              valorCorpo: corpData,
+              valorNota: nota.data_vencimento,
+            });
+          }
+          setDivergencias(divs);
+        } catch { /* silencioso */ }
+      } else {
+        setNotaVinculada(null);
+        setDivergencias([]);
+      }
     } catch {
       router.push('/corpos-nota');
     } finally {
@@ -204,6 +261,23 @@ export default function DetalheCorpoNotaPage() {
       setErroNf(msg || 'Erro ao gerar número NF.');
     } finally {
       setGerandoNf(false);
+    }
+  };
+
+  const atualizarComNota = async () => {
+    if (!notaVinculada || divergencias.length === 0) return;
+    setAtualizandoCorpo(true);
+    try {
+      const payload: Record<string, unknown> = {};
+      for (const div of divergencias) {
+        if (div.campo === 'Valor') payload.valor_bruto = div.valorNota;
+        if (div.campo === 'Vencimento') payload.data_vencimento = div.valorNota;
+      }
+      await api.patch(`/corpos-nota/${id}`, payload);
+      setAlertaDismissed(true);
+      carregar();
+    } catch { /* silencioso */ } finally {
+      setAtualizandoCorpo(false);
     }
   };
 
@@ -537,6 +611,45 @@ export default function DetalheCorpoNotaPage() {
             </div>
           )}
         </div>
+
+        {/* Alerta de divergência entre corpo e nota fiscal vinculada */}
+        {divergencias.length > 0 && !alertaDismissed && (
+          <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4">
+            <div className="flex items-start gap-3">
+              <span className="text-amber-500 text-xl shrink-0">⚠️</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-amber-800 dark:text-amber-300 text-sm mb-2">
+                  Divergência entre o corpo da nota e a nota fiscal vinculada
+                  {notaVinculada && <span className="font-normal"> (NF {notaVinculada.numero_nota})</span>}
+                </p>
+                <div className="space-y-1 mb-3">
+                  {divergencias.map(div => (
+                    <div key={div.campo} className="text-xs text-amber-700 dark:text-amber-400">
+                      <span className="font-bold">{div.campo}:</span>{' '}
+                      sistema tem <span className="font-mono bg-amber-100 dark:bg-amber-500/20 px-1 rounded">{div.corpo}</span>,
+                      NF tem <span className="font-mono bg-amber-100 dark:bg-amber-500/20 px-1 rounded">{div.nota}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={atualizarComNota}
+                    disabled={atualizandoCorpo}
+                    className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors disabled:opacity-50"
+                  >
+                    {atualizandoCorpo ? 'Atualizando...' : 'Atualizar sistema com dados da NF'}
+                  </button>
+                  <button
+                    onClick={() => setAlertaDismissed(true)}
+                    className="px-3 py-1.5 bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-600 rounded-lg text-xs font-bold hover:bg-amber-50 transition-colors"
+                  >
+                    Manter divergência
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Conteúdo gerado */}
         {corpo.conteudo_gerado && (
