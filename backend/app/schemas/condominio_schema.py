@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from datetime import datetime
 
@@ -13,6 +13,16 @@ class CondominioCreate(BaseModel):
     observacao: Optional[str] = None
     ativo: bool = True
 
+    @field_validator("nome", mode="before")
+    @classmethod
+    def nome_upper(cls, v: str) -> str:
+        return v.upper() if v else v
+
+    @field_validator("razao_social", mode="before")
+    @classmethod
+    def razao_social_upper(cls, v: Optional[str]) -> Optional[str]:
+        return v.upper() if v else v
+
 
 class CondominioUpdate(BaseModel):
     nome: Optional[str] = Field(None, min_length=3, max_length=255)
@@ -20,6 +30,16 @@ class CondominioUpdate(BaseModel):
     razao_social: Optional[str] = Field(None, max_length=255)
     observacao: Optional[str] = None
     ativo: Optional[bool] = None
+
+    @field_validator("nome", mode="before")
+    @classmethod
+    def nome_upper(cls, v: Optional[str]) -> Optional[str]:
+        return v.upper() if v else v
+
+    @field_validator("razao_social", mode="before")
+    @classmethod
+    def razao_social_upper(cls, v: Optional[str]) -> Optional[str]:
+        return v.upper() if v else v
 
 
 class CondominioResponse(BaseModel):
