@@ -1209,6 +1209,19 @@ class NotaFiscalService:
                 except Exception as e:
                     print(f"[IMPORT] Aviso: erro ao tentar vincular corpo da nota: {e}")
 
+                # Fallback: se numero_os não veio do XML, tenta pegar do corpo de nota vinculado
+                if not dados_nota.get('numero_os'):
+                    try:
+                        db.refresh(db_nota)
+                        if db_nota.corpo_nota_id:
+                            from app.models.corpo_nota_model import CorpoNota as _CorpoNota
+                            corpo = db.query(_CorpoNota).filter(_CorpoNota.id == db_nota.corpo_nota_id).first()
+                            if corpo and corpo.numero_os:
+                                dados_nota['numero_os'] = corpo.numero_os
+                                print(f"[IMPORT] OS '{corpo.numero_os}' obtida do corpo da nota para nota {db_nota.numero_nota}")
+                    except Exception as e:
+                        print(f"[IMPORT] Aviso: falha ao buscar OS do corpo da nota: {e}")
+
                 if dados_nota['condominio_id'] and dados_nota['tipo'] in [TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]:
                     try:
                         tipo_servico_str = "assistencia" if dados_nota['tipo'] == TipoNota.ASSISTENCIA else "manutencao"
