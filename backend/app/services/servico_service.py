@@ -122,6 +122,7 @@ class ServicoService:
         if not servico:
             return None
         servico.ordem_servico_id = None
+        servico.numero_os = None
         db.commit()
         db.refresh(servico)
         return servico
