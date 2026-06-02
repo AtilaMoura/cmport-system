@@ -103,12 +103,12 @@ def extrair_numero_os(texto: str) -> Optional[str]:
     """
     if not texto:
         return None
-    # Formato antigo: "Numero [da] ordem servico: X"
-    match = re.search(r'[Nn]umeros?\s+(?:d[ae]s?\s+)?ordens?\s+servi[cç]os?[:\s]+([\d.]+)', texto)
+    # Formato antigo: "Numero [da] ordens servicos: X"
+    match = re.search(r'[Nn]umeros?\s+(?:d[ae]s?\s+)?orde(?:m|ns?)\s+servi[cç]os?[:\s]+([\d.]+)', texto)
     if match:
         return "".join(filter(str.isdigit, match.group(1)))
     # Formato novo: "Ordem de Servico: X" ou "Ordens de Servico: OS n X"
-    match = re.search(r'[Oo]rdens?\s+de\s+[Ss]ervi[cç]o[s]?[:\s]+(?:OS\s+n[º°]?\s*)?([\d.]+)', texto)
+    match = re.search(r'[Oo]rde(?:m|ns?)\s+de\s+[Ss]ervi[cç]o[s]?[:\s]+(?:OS\s+n[º\xba°]?\s*)?([\d.]+)', texto)
     if match:
         return "".join(filter(str.isdigit, match.group(1)))
     return None
