@@ -714,7 +714,21 @@ class NotaFiscalService:
                     aviso_servico = f"Nota reprocessada, mas erro ao criar serviço: {e}"
                     print(f"[Reprocessar] Erro ao criar servico: {e}")
 
-        avisos = [a for a in [aviso_condo, aviso_servico] if a]
+        # Tenta vincular ao corpo da nota (cobre notas OUTROS/PRODUTO que não vincularam na importação)
+        aviso_corpo = None
+        if not nota.corpo_nota_id:
+            try:
+                from app.services.corpo_nota_service import CorpoNotaService
+                candidatos = CorpoNotaService.tentar_vincular_por_nota_fiscal(db, nota.id)
+                if candidatos == []:
+                    aviso_corpo = "Corpo da nota vinculado automaticamente"
+                    print(f"[Reprocessar] Corpo da nota vinculado para nota {nota.numero_nota}")
+                elif candidatos and len(candidatos) > 0:
+                    aviso_corpo = f"{len(candidatos)} corpos candidatos — vincule manualmente"
+            except Exception as e:
+                print(f"[Reprocessar] Aviso ao tentar vincular corpo: {e}")
+
+        avisos = [a for a in [aviso_condo, aviso_servico, aviso_corpo] if a]
         return {
             "nota": NotaFiscalResponse.model_validate(nota),
             "avisos": avisos,

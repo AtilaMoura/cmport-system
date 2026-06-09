@@ -1408,10 +1408,14 @@ class CorpoNotaService:
         """
         import re as _re
 
-        try:
-            numero_nf_int = int(_re.sub(r"\D", "", nota.numero_nota or "")) if nota.numero_nota else None
-        except ValueError:
-            numero_nf_int = None
+        # NF-e armazena numero_nota como "11-1" (numero-serie); extrai só o número
+        numero_nf_int = None
+        if nota.numero_nota:
+            try:
+                parte = nota.numero_nota.split('-')[0].strip()
+                numero_nf_int = int(parte) if parte.isdigit() else None
+            except (ValueError, IndexError):
+                pass
 
         candidatos = []
 
