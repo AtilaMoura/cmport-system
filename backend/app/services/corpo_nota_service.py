@@ -548,12 +548,59 @@ class CorpoNotaService:
         if corpo.tipo_nota == TipoNotaCorpo.PRODUTO:
             numero = conta.numero_nf_produto or 1
             conta.numero_nf_produto = numero + 1
+            db.add(conta)
+            corpo.numero_nf = numero
         else:
             numero = conta.numero_nf_servico or 1
             conta.numero_nf_servico = numero + 1
+            db.add(conta)
+            corpo.numero_nf = numero
 
-        db.add(conta)
-        corpo.numero_nf = numero
+            # Para corpo SERVICO com nota de produto: atribui numero_nf_produto também
+            if corpo.valor_nota_produto and not corpo.numero_nf_produto:
+                conta_prod = (
+                    db.query(ConfiguracaoInter)
+                    .filter(ConfiguracaoInter.tipo_nota == "PRODUTO")
+                    .with_for_update()
+                    .first()
+                )
+                if conta_prod:
+                    num_prod = conta_prod.numero_nf_produto or 1
+                    conta_prod.numero_nf_produto = num_prod + 1
+                    db.add(conta_prod)
+                    corpo.numero_nf_produto = num_prod
+
+        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        return CorpoNotaRepository.save(db, corpo)
+
+    @staticmethod
+    def gerar_numero_nf_produto(db: Session, corpo_id: int) -> CorpoNota:
+        """Atribui/reatribui numero_nf_produto em corpo SERVICO com valor_nota_produto."""
+        corpo = CorpoNotaService.get_by_id(db, corpo_id)
+
+        if corpo.tipo_nota != TipoNotaCorpo.SERVICO:
+            raise HTTPException(status_code=422, detail="Apenas corpos SERVICO possuem NF de produto.")
+
+        if not corpo.valor_nota_produto:
+            raise HTTPException(status_code=422, detail="Corpo não possui valor de nota de produto.")
+
+        if corpo.status in (StatusCorpoNota.PAGO, StatusCorpoNota.CANCELADO):
+            raise HTTPException(status_code=403, detail="Não é possível gerar número em status final.")
+
+        from app.models.configuracao_model import ConfiguracaoInter
+        conta_prod = (
+            db.query(ConfiguracaoInter)
+            .filter(ConfiguracaoInter.tipo_nota == "PRODUTO")
+            .with_for_update()
+            .first()
+        )
+        if not conta_prod:
+            raise HTTPException(status_code=404, detail="Conta Inter de produto não configurada.")
+
+        num_prod = conta_prod.numero_nf_produto or 1
+        conta_prod.numero_nf_produto = num_prod + 1
+        db.add(conta_prod)
+        corpo.numero_nf_produto = num_prod
         corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
 
@@ -1321,6 +1368,14 @@ class CorpoNotaService:
                 corpo.nota_fiscal_id = nota.id
                 corpo.status = StatusCorpoNota.XML_VINCULADO
                 nota.corpo_nota_id = corpo.id
+                # Se nota de produto já vinculada ao corpo → cria nota_vinculada_id simétrico
+                if corpo.nota_produto_id and corpo.nota_produto_id != nota.id:
+                    from app.models.nota_fiscal_model import NotaFiscal as _NF
+                    nota_prod = db.query(_NF).filter(_NF.id == corpo.nota_produto_id).first()
+                    if nota_prod:
+                        nota.nota_vinculada_id = nota_prod.id
+                        nota_prod.nota_vinculada_id = nota.id
+                        db.add(nota_prod)
                 db.add(nota)
                 CorpoNotaRepository.save(db, corpo)
                 ciclo = CicloNotaRepository.get_by_id(db, corpo.ciclo_id)
@@ -1373,6 +1428,14 @@ class CorpoNotaService:
             corpo.nota_fiscal_id = nota.id
             corpo.status = StatusCorpoNota.XML_VINCULADO
             nota.corpo_nota_id = corpo.id
+            # Se nota de produto já vinculada ao corpo → cria nota_vinculada_id simétrico
+            if corpo.nota_produto_id and corpo.nota_produto_id != nota.id:
+                from app.models.nota_fiscal_model import NotaFiscal as _NF
+                nota_prod = db.query(_NF).filter(_NF.id == corpo.nota_produto_id).first()
+                if nota_prod:
+                    nota.nota_vinculada_id = nota_prod.id
+                    nota_prod.nota_vinculada_id = nota.id
+                    db.add(nota_prod)
             db.add(nota)
             CorpoNotaRepository.save(db, corpo)
 
@@ -1447,6 +1510,21 @@ class CorpoNotaService:
             corpo = candidatos[0]
             corpo.nota_produto_id = nota.id
 
+            # Atribui numero_nf_produto do contador se ainda não atribuído
+            if not corpo.numero_nf_produto:
+                from app.models.configuracao_model import ConfiguracaoInter
+                conta_prod = (
+                    db.query(ConfiguracaoInter)
+                    .filter(ConfiguracaoInter.tipo_nota == "PRODUTO")
+                    .with_for_update()
+                    .first()
+                )
+                if conta_prod:
+                    num_prod = conta_prod.numero_nf_produto or 1
+                    conta_prod.numero_nf_produto = num_prod + 1
+                    db.add(conta_prod)
+                    corpo.numero_nf_produto = num_prod
+
             # Cria vínculo simétrico nota_vinculada_id entre NF serviço ↔ NF produto
             if corpo.nota_fiscal_id and corpo.nota_fiscal_id != nota.id:
                 from app.models.nota_fiscal_model import NotaFiscal as _NF
@@ -1459,6 +1537,9 @@ class CorpoNotaService:
             # Atualiza status para XML_VINCULADO se ambas as notas estão presentes
             if corpo.nota_fiscal_id:
                 corpo.status = StatusCorpoNota.XML_VINCULADO
+
+            # Regenera corpo com numero_nf_produto agora atribuído
+            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
 
             db.add(nota)
             CorpoNotaRepository.save(db, corpo)

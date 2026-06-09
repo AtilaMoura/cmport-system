@@ -147,6 +147,9 @@ export default function DetalheCorpoNotaPage() {
   // Geração de número NF
   const [gerandoNf, setGerandoNf] = useState(false);
   const [erroNf, setErroNf] = useState<string | null>(null);
+  const [gerandoNfProd, setGerandoNfProd] = useState(false);
+  const [erroNfProd, setErroNfProd] = useState<string | null>(null);
+  const [showModalGerar, setShowModalGerar] = useState(false);
 
   // Edição inline
   const [editando, setEditando] = useState(false);
@@ -230,10 +233,11 @@ export default function DetalheCorpoNotaPage() {
     }
   };
 
-  const copiarConteudo = async () => {
-    if (!corpo?.conteudo_gerado) return;
+  const _copiarTexto = async (corpoAtual?: typeof corpo) => {
+    const c = corpoAtual ?? corpo;
+    if (!c?.conteudo_gerado) return;
     const nomeHeader = condominio ? `Condomínio: ${condominio.nome}\n\n` : '';
-    const texto = nomeHeader + corpo.conteudo_gerado;
+    const texto = nomeHeader + c.conteudo_gerado;
     try {
       await navigator.clipboard.writeText(texto);
     } catch {
@@ -251,6 +255,17 @@ export default function DetalheCorpoNotaPage() {
     setTimeout(() => setCopiado(false), 2000);
   };
 
+  const copiarConteudo = async () => {
+    if (!corpo?.conteudo_gerado) return;
+    // Se número ainda não gerado → mostrar modal para gerar antes
+    if (!corpo.numero_nf) {
+      setErroNf(null);
+      setShowModalGerar(true);
+      return;
+    }
+    await _copiarTexto();
+  };
+
   const gerarNumeroNf = async () => {
     if (!confirm('Gerar número NF? O contador será incrementado e não pode ser desfeito.')) return;
     setGerandoNf(true);
@@ -263,6 +278,21 @@ export default function DetalheCorpoNotaPage() {
       setErroNf(msg || 'Erro ao gerar número NF.');
     } finally {
       setGerandoNf(false);
+    }
+  };
+
+  const gerarNumeroNfProduto = async () => {
+    if (!confirm('Gerar número NF Produto? O contador de produto será incrementado e não pode ser desfeito.')) return;
+    setGerandoNfProd(true);
+    setErroNfProd(null);
+    try {
+      await api.post(`/corpos-nota/${id}/gerar-numero-nf-produto`);
+      carregar();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setErroNfProd(msg || 'Erro ao gerar número NF Produto.');
+    } finally {
+      setGerandoNfProd(false);
     }
   };
 
@@ -377,8 +407,64 @@ export default function DetalheCorpoNotaPage() {
   const podeEditar = !['XML_VINCULADO', 'BOLETO_GERADO', 'PAGO'].includes(corpo.status);
   const podeDeletar = corpo.status !== 'PAGO';
 
+  const temProduto = !!(corpo.valor_nota_produto && corpo.valor_nota_produto > 0);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+
+      {/* Modal: Gerar número antes de copiar */}
+      {showModalGerar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
+            <h3 className="font-black text-slate-800 dark:text-slate-100 mb-2 text-base">Gerar número antes de copiar?</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              {temProduto
+                ? 'Este corpo possui NF de serviço e NF de produto. Dois números serão gerados e os contadores serão incrementados.'
+                : 'O número da NF ainda não foi gerado. O contador será incrementado e não pode ser desfeito.'}
+            </p>
+            {erroNf && <p className="text-xs text-red-600 dark:text-red-400 mb-3">{erroNf}</p>}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={async () => {
+                  setGerandoNf(true);
+                  setErroNf(null);
+                  try {
+                    const res = await api.post(`/corpos-nota/${id}/gerar-numero-nf`);
+                    setShowModalGerar(false);
+                    await _copiarTexto(res.data);
+                  } catch (e: unknown) {
+                    const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+                    setErroNf(msg || 'Erro ao gerar número NF.');
+                  } finally {
+                    setGerandoNf(false);
+                    carregar();
+                  }
+                }}
+                disabled={gerandoNf}
+                className="w-full px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-colors"
+              >
+                {gerandoNf ? 'Gerando...' : temProduto ? 'Gerar ambos e copiar' : 'Gerar e copiar'}
+              </button>
+              <button
+                onClick={async () => {
+                  setShowModalGerar(false);
+                  await _copiarTexto();
+                }}
+                className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold transition-colors"
+              >
+                Copiar sem gerar número
+              </button>
+              <button
+                onClick={() => setShowModalGerar(false)}
+                className="w-full px-4 py-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-xl text-sm transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-3 lg:py-5">
@@ -604,7 +690,7 @@ export default function DetalheCorpoNotaPage() {
           </div>
           {corpo.valor_nota_produto != null && corpo.valor_nota_produto > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-              {/* Linha de NF Produto: número + status XML */}
+              {/* Linha de NF Produto: número + status XML + botão gerar + link nota */}
               <div className="flex items-center gap-3 mb-3 flex-wrap">
                 <span className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold">NF Produto</span>
                 {corpo.numero_nf_produto ? (
@@ -619,7 +705,25 @@ export default function DetalheCorpoNotaPage() {
                 ) : (
                   <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded font-bold">XML Prod. aguardando</span>
                 )}
+                {!['PAGO', 'CANCELADO'].includes(corpo.status) && (
+                  <button
+                    onClick={gerarNumeroNfProduto}
+                    disabled={gerandoNfProd}
+                    className="px-2 py-0.5 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-400 rounded text-xs font-bold hover:bg-violet-200 transition-colors disabled:opacity-50"
+                  >
+                    {gerandoNfProd ? '...' : corpo.numero_nf_produto ? 'Regerar' : 'Gerar'}
+                  </button>
+                )}
+                {corpo.nota_produto_id && (
+                  <Link
+                    href={`/notas/${corpo.nota_produto_id}`}
+                    className="text-xs text-violet-600 dark:text-violet-400 hover:underline font-semibold"
+                  >
+                    Ver nota #{corpo.nota_produto_id} →
+                  </Link>
+                )}
               </div>
+              {erroNfProd && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{erroNfProd}</p>}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <ValorCard label="Nota de Produto" value={fmtValor(corpo.valor_nota_produto)} accent={false} />
                 <ValorCard

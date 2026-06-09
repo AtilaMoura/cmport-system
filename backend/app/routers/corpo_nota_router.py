@@ -505,6 +505,16 @@ def gerar_numero_nf(
     return CorpoNotaService.gerar_numero_nf(db, corpo_id)
 
 
+@router.post("/{corpo_id}/gerar-numero-nf-produto", response_model=CorpoNotaResponse)
+def gerar_numero_nf_produto(
+    corpo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Atribui o próximo número sequencial de NF de produto (conta Inter PRODUTO) e regenera o corpo."""
+    return CorpoNotaService.gerar_numero_nf_produto(db, corpo_id)
+
+
 @router.post("/{corpo_id}/regenerar", response_model=CorpoNotaResponse)
 def regenerar_conteudo(
     corpo_id: int,
