@@ -1222,6 +1222,17 @@ class BoletoService:
         return BoletoStats(**data)
 
     @staticmethod
+    def tem_inter(db: Session, nota_id: int) -> bool:
+        """Verifica se a nota fiscal possui ConfiguracaoInter ativa pelo CNPJ emitente."""
+        nota = NotaFiscalRepository.get_by_id(db, nota_id)
+        if not nota or not getattr(nota, "cnpj_emitente", None):
+            return False
+        from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+        cnpj_limpo = _limpar_cnpj(nota.cnpj_emitente)
+        config = ConfiguracaoInterRepository.get_by_cnpj(db, cnpj_limpo)
+        return config is not None
+
+    @staticmethod
     def preview_email_boleto(db: Session, boleto_id: int) -> dict:
         """Retorna o HTML do email que seria enviado para o boleto (para preview no frontend)."""
         from app.services.email_service import gerar_html_boleto
@@ -1528,7 +1539,7 @@ class BoletoService:
             cond = CondominioRepository.get_by_id(db, nota.condominio_id)
             nome_condominio = cond.nome if cond else ""
 
-        # Baixa PDFs de todos os boletos com codigo_solicitacao
+        # Baixa PDFs de todos os boletos — Inter ou upload manual
         client_servico = _get_inter_client(nota, db)
         anexos: List[tuple] = []
         for b in boletos:
@@ -1538,6 +1549,15 @@ class BoletoService:
                     anexos.append((f"boleto_p{b.numero_parcela}.pdf", pdf, "application/pdf"))
                 except Exception as e:
                     print(f"[EmailServico] PDF boleto parcela {b.numero_parcela} indisponível: {e}")
+            elif b.pdf_object_key and storage:
+                try:
+                    from app.core.config import settings
+                    pdf_manual = storage.download(settings.STORAGE_BUCKET, b.pdf_object_key)
+                    if pdf_manual:
+                        anexos.append((f"boleto_p{b.numero_parcela}.pdf", pdf_manual, "application/pdf"))
+                        print(f"[EmailServico] PDF manual parcela {b.numero_parcela} anexado do storage.")
+                except Exception as e:
+                    print(f"[EmailServico] PDF manual boleto parcela {b.numero_parcela} indisponível: {e}")
 
         # Anexa PDF da nota fiscal se disponível no storage
         if storage and nota.pdf_object_key:

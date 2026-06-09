@@ -1,3 +1,19 @@
+# Refatoracao.md — Tarefa Ativa de Implementação
+
+> **Propósito:** Este arquivo contém o plano técnico detalhado da tarefa que está sendo implementada no momento.
+> É substituído integralmente a cada nova tarefa iniciada.
+> O índice mestre e o histórico de tarefas concluídas ficam em `PLANO_IMPLEMENTACAO.md`.
+
+---
+
+## Tarefa Atual
+
+**Nenhuma tarefa em andamento.** A próxima tarefa será definida com base no índice de `PLANO_IMPLEMENTACAO.md`.
+
+---
+
+## Histórico — Última Tarefa Concluída
+
 # Plano Técnico — Módulo Corpo da Nota (Fase 1: Manutenção)
 
 > **Executor:** Outra IA
@@ -5,7 +21,26 @@
 > **Stack:** FastAPI + SQLAlchemy + MySQL | Next.js 16 App Router + TypeScript + Tailwind v4
 > **Deploy:** `git push vps master` (hook automático)
 > **Data do plano:** 2026-05-22
-> **Status:** Pronto para execução — NÃO implementar código sem ler este documento inteiro
+> **Última atualização:** 2026-05-22
+> **Status:** ✅ Concluído — Em produção (commit `1da01ed`)
+
+---
+
+## Status da Implementação
+
+| Fase | Descrição | Status |
+|------|-----------|--------|
+| A | Models + ImpostoService + main.py migrations | ✅ Concluído |
+| B | Repositories (contrato, ciclo, corpo) | ✅ Concluído |
+| C | Services (contrato, ciclo, corpo, imposto) | ✅ Concluído |
+| D | Schemas + Routers + registro no main.py | ✅ Concluído |
+| E | Integrações: nota_fiscal_service + boleto_service + models existentes | ✅ Concluído |
+| F | Frontend: páginas, componentes, API calls, TypeScript | ✅ Concluído |
+| G | Deploy VPS — build limpo, containers saudáveis | ✅ Concluído |
+
+**Commit do backend:** `1167252` — 22 arquivos, +3016 linhas
+**Commit do frontend:** `6754c46` — 8 arquivos, +1744 linhas
+**Commit do fix vínculo manual:** `1da01ed` — 2 arquivos
 
 ---
 

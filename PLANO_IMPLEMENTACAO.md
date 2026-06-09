@@ -1,406 +1,269 @@
 # Plano de Implementação — CMPort
 
-**Última atualização:** 2026-05-05
-**Status atual:** Fases 0–9 e Sub-fases 10A–10G concluídas. Sub-fase 11 concluída. **Sub-fase 12 em andamento.**
+**Última atualização:** 2026-05-28
+**Status:** Fases 0–12.4 + Corpo de Nota + N1 + N3-backend + F1.1 + F1.2 concluídos. Janeiro/2026 importado (109 registros). Pendentes: D1 + N2 + N3-frontend + F1.3 + F1.4.
 
-Convenções: `[x]` concluído · `[~]` em andamento · `[ ]` a fazer.
-
----
-
-## Histórico de Fases Concluídas
-
-| Fase | Descrição |
-|---|---|
-| 0–9 | Estrutura base, autenticação, condominios, serviços, notas fiscais, boletos, dashboard |
-| 10A | Sincronização de Produtos Auvo |
-| 10B | Sincronização de Orçamentos Auvo |
-| 10C | Termo de Garantia — criação, PDF via LibreOffice |
-| 10D | Email: remoção do XML como anexo, limpeza de fluxo |
-| 10F | Correções e ajustes pós-10D |
-| 10G | Geração de termo via HTML + WeasyPrint com preview no frontend |
+Convenções: `[x]` concluído · `[ ]` a fazer.
 
 ---
 
-## Sub-fase 10E — Futuro (fora do escopo atual)
+## Protocolo de Execução de Tarefas
 
-`[ ]` Geração de nota fiscal a partir de orçamento Auvo:
-- A partir do detalhe do orçamento local, criar registro em `notas_fiscais` com produtos/serviços
-- Permitir disparar emissão fiscal externa
-- Vincular automaticamente a `ManutencaoAssistencia` correspondente
+> **Como funciona o fluxo de trabalho para cada tarefa deste plano:**
 
----
+1. **Selecionar tarefa** — escolher a próxima tarefa do índice abaixo (N1, N2, N3, F1.x)
+2. **Detalhar no Refatoracao.md** — antes de qualquer implementação, escrever o plano técnico completo da tarefa em `Refatoracao.md` (substitui o conteúdo anterior), com:
+   - Objetivo e escopo
+   - Análise dos arquivos existentes que serão lidos/modificados
+   - Passo a passo por fase (A, B, C...) com arquivos a criar e modificar
+   - Regras de negócio e validações
+   - Checklist final
+   - Testes esperados
+3. **Outra IA implementa** — a implementação é executada por outro agente com base no `Refatoracao.md`
+4. **Validação** — revisar o que foi implementado, testar os pontos do checklist, verificar TypeScript e deploy
+5. **Marcar como concluído** — atualizar o status no índice deste arquivo (`PLANO_IMPLEMENTACAO.md`) e registrar o commit no `Refatoracao.md`
 
-## Sub-fase 11 — Armazenamento de PDF de Notas Fiscais (MinIO → R2)
-
-### Resumo
-
-O sistema atual importa XMLs de notas fiscais e descarta qualquer PDF que venha junto. Esta fase adiciona um storage S3-compatível (MinIO em dev e prod, com troca futura para Cloudflare R2 apenas via configuração) para persistir o PDF da NF. O banco guardará apenas a chave do objeto (`pdf_object_key`). O fluxo de importação de ZIP será estendido para capturar PDFs, um novo endpoint permitirá upload manual, e o envio de e-mail de boleto passará a anexar o PDF da nota automaticamente.
-
-### Arquitetura Alvo
-
-```
-Upload ZIP (XML + PDF)     Upload manual PDF       Envio de e-mail
-       │                         │                        │
-       ▼                         ▼                        ▼
-nota_fiscal_router ──────────────────────────── boleto_router
-       │                         │                        │
-       ▼                         ▼                        ▼
-NotaFiscalService         NotaFiscalService        BoletoService
-.importar_xmls()          .upload_pdf_nota()       .enviar_email_boleto()
-(extrai PDF do ZIP,       (valida, faz upload)     (baixa PDF da NF
- faz upload ao final)              │                se existir)
-       │                           │                        │
-       └───────────────────────────┘                        │
-                       │                                    │
-                       ▼                                    ▼
-               StorageClient (core/storage_client.py)
-               boto3 + endpoint_url (MinIO ou R2)
-                       │
-                       ▼
-               NotaFiscalRepository.update_pdf_key()
-                       │
-                       ▼
-               notas_fiscais.pdf_object_key (String, nullable)
-```
-
-**Princípio de portabilidade MinIO → R2:** `StorageClient` usa `boto3` com `endpoint_url` configurável. Troca para R2 = muda 4 variáveis de ambiente. Zero mudança de código.
+> `Refatoracao.md` é sempre **a tarefa ativa no momento** — um arquivo por vez, substituído a cada nova tarefa iniciada.
 
 ---
 
-### Mudanças por Camada
+## Índice Geral
 
-#### Backend
+### ✅ Concluído
 
-**NOVO: `backend/app/core/storage_client.py`**
+| # | Módulo | Descrição |
+|---|--------|-----------|
+| 0–9 | Base | Auth JWT, condomínios, serviços, notas fiscais, boletos, dashboard, Auvo, configurações |
+| 10A | Sync Produtos Auvo | Sincronização de catálogo de produtos |
+| 10B | Sync Orçamentos Auvo | Sync + candidatos + filtros |
+| 10C | Termo de Garantia | PDF via LibreOffice, template Word |
+| 10D | Email — sem XML | Remoção de XML como anexo no envio |
+| 10F | Correções pós-10D | Bugs e ajustes pós-deploy |
+| 10G | Termo via WeasyPrint | HTML → PDF, substituiu LibreOffice |
+| 11 | Storage PDF NF | MinIO, upload, ZIP, email com PDF — sub-fases 11.1–11.6 |
+| 12.1 | CC Global email | Configuração de emails em cópia global |
+| 12.2 | CC por envio | CC por envio + merge com CC global |
+| 12.3 | Envio em lote | Todos os boletos de um serviço em 1 email |
+| 12.4 | PDF Orçamento | WeasyPrint para orçamentos, anexo no email |
+| R | **Corpo da Nota de Serviço** | Ciclos, corpos, contratos, wizard 5 passos — commits `1167252`, `6754c46`, `1da01ed` |
+| N1 | Corpo da Nota de Produto | `corpo_nota_model.py` já tem `tipo_nota` + `TipoNotaCorpo` cobrindo produto e serviço |
+| N3-back | Boleto Manual — Backend | Endpoints `/boletos/manual`, `/registrar-pagamento`, `/enviar-email` implementados |
+| F1.1 | Financeiro — Backend CRUD | Models `fin_*` + seeds + schemas + repos + services + routers — tudo implementado |
+| F1.2 | Financeiro — Inter Extrato | `sincronizar_inter` + `buscar_extrato` + endpoint `/financeiro/sincronizar-inter` implementados |
 
-Abstração S3-compatível com responsabilidades:
-- Inicializar `boto3.client('s3', endpoint_url=...)` com credenciais do env
-- Métodos: `upload(bucket, key, data, content_type)`, `download(bucket, key) → bytes`, `delete(bucket, key)`, `get_presigned_url(bucket, key, expiry_seconds) → str`, `ensure_bucket_exists(bucket)`
-- Instância singleton criada no startup, injetada via `Depends(get_storage_client)` em `core/dependencies.py`
-- Por que `boto3` e não SDK nativo MinIO: boto3 funciona para MinIO, R2 e qualquer S3-compatível apenas via `endpoint_url`
+### 🚧 A Implementar
 
-**ALTERADO: `backend/app/core/config.py`**
+| # | Módulo | Descrição |
+|---|--------|-----------|
+| D1 | **Dados — Pendentes Janeiro 2026** | 7 recibos sem condomínio mapeado — aguardando identificação |
+| N2 | Leitura Nota de Entrada + Gerar Serviço | Import NF-e de entrada → auto-criar serviço |
+| N3-front | Boleto Manual — Frontend | Formulário, upload PDF, badge status, marcar pago — backend já existe |
+| F1.3 | Financeiro — Frontend | Sidebar 4 grupos, 3 páginas, 6 componentes |
+| F1.4 | Financeiro — QA + Entrega | Teste ponta a ponta, deploy VPS |
 
-Adicionar ao `Settings`:
-```
-STORAGE_ENDPOINT: str = "http://localhost:9000"
-STORAGE_ACCESS_KEY: str = "minioadmin"
-STORAGE_SECRET_KEY: str = "minioadmin"
-STORAGE_BUCKET: str = "cmport-nfe"
-STORAGE_REGION: str = "us-east-1"
-```
+### ⏸ Fora do Escopo Atual
 
-**ALTERADO: `backend/app/models/nota_fiscal_model.py`**
-
-Um único campo novo na tabela `notas_fiscais`:
-```python
-pdf_object_key = Column(String(500), nullable=True)
-# Chave do objeto no storage: "notas_fiscais/{nota_id}/{numero_sanitizado}.pdf"
-# None = sem PDF armazenado
-```
-Campo derivado no schema Pydantic (não no banco): `pdf_disponivel: bool = pdf_object_key is not None`
-
-**ALTERADO: `backend/app/main.py`**
-
-- Migration em `_run_migrations()`: `ALTER TABLE notas_fiscais ADD COLUMN pdf_object_key VARCHAR(500) NULL`
-- Startup: criar instância do `StorageClient` e chamar `ensure_bucket_exists()`. Falha → log de warning, não aborta o servidor
-
-**ALTERADO: `backend/app/schemas/nota_fiscal_schema.py`**
-
-Em `NotaFiscalResponse`:
-```python
-pdf_object_key: Optional[str] = None
-pdf_disponivel: bool = False  # computado via @model_validator
-```
-Novo schema `UploadPdfResponse(BaseModel)`: campos `nota_id`, `pdf_object_key`, `mensagem`
-
-**ALTERADO: `backend/app/repositories/nota_fiscal_repository.py`**
-
-Novo método: `update_pdf_key(db, nota_id, pdf_object_key) → NotaFiscal` — apenas persistência, sem lógica de negócio
-
-**ALTERADO: `backend/app/services/nota_fiscal_service.py`**
-
-*Extensão de `importar_xmls()`*: ao ler um ZIP, também coletar `.pdf` em `pdfs_no_zip: dict[str, bytes]`. Após criar/confirmar a nota, tentar match:
-- Estratégia 1: `numero_nota.lower()` bate com nome-base de algum PDF
-- Estratégia 2: ZIP com exatamente 1 XML + 1 PDF → match direto
-- Se match: chamar `storage.upload()` + `NotaFiscalRepository.update_pdf_key()`
-- Falha no upload não aborta a nota — log de warning
-
-*Novos métodos estáticos*:
-- `upload_pdf_nota(db, nota_id, pdf_bytes, storage) → key`: valida nota, sanitiza `numero_nota`, faz upload, atualiza banco
-- `get_pdf_url(db, nota_id, storage) → str`: verifica que nota existe e tem `pdf_object_key`, retorna presigned URL (expiry 900s)
-
-*Extensão de `delete_nota()`*: antes de deletar, se `pdf_object_key` existir → `storage.delete()` (try/except, não-bloqueante)
-
-**ALTERADO: `backend/app/routers/nota_fiscal_router.py`**
-
-Novos endpoints (todos com `Depends(get_storage_client)`):
-
-| Método | Path | Descrição |
-|---|---|---|
-| `POST` | `/{id}/pdf` | Upload manual — `multipart/form-data`, campo `pdf: UploadFile` |
-| `GET` | `/{id}/pdf-url` | Retorna `{"url": "...", "expira_em": 900}` — 404 se sem PDF |
-| `DELETE` | `/{id}/pdf` | Remove do storage + limpa `pdf_object_key` — requer role ADMIN/DEV |
-
-**ALTERADO: `backend/app/services/boleto_service.py`**
-
-Em `enviar_email_boleto()`, na construção de `lista_anexos`, adicionar bloco:
-```python
-if nota.pdf_object_key:
-    try:
-        pdf_nf = storage.download(settings.STORAGE_BUCKET, nota.pdf_object_key)
-        lista_anexos.append((f"nota_fiscal_{nota.numero_nota}.pdf", pdf_nf, "application/pdf"))
-    except Exception as e:
-        print(f"[Email] Aviso: não foi possível baixar PDF da NF: {e}")
-```
-Parâmetro `storage: Optional[StorageClient] = None` adicionado ao método — se `None`, skip silencioso
+| # | Descrição |
+|---|-----------|
+| 10E | Geração de nota fiscal a partir de orçamento Auvo |
 
 ---
 
-#### Frontend
+## D1 — Dados: Pendentes Janeiro 2026
 
-**ALTERADO: `cmport-front/app/notas/[id]/page.tsx`**
+### Contexto
+Janeiro/2026 foi importado com sucesso: **109 registros** (notas fiscais + serviços + boletos PAGO, total R$70.400,79).
+Ficaram 7 linhas sem mapeamento porque o nome na planilha é apenas o nome do morador, não o condomínio.
+Arquivo de referência: `PENDENTES_JANEIRO_2026.xlsx` (na raiz do projeto).
 
-Extensão da interface:
-```typescript
-interface NotaFiscal {
-  // campos existentes...
-  pdf_object_key: string | null
-  pdf_disponivel: boolean
-}
-```
+### Pendentes — aguardando identificação do condomínio
 
-Indicador de PDF na tela de detalhe:
-- `pdf_disponivel === true`: badge verde "PDF Disponível" + botão "Visualizar PDF" (abre presigned URL em nova aba) + botão "Substituir"
-- `pdf_disponivel === false`: badge cinza "Sem PDF" + botão "Fazer Upload do PDF"
+| Linha planilha | Nome (planilha) | Data pagto | Valor | Condomínio no sistema |
+|---|---|---|---|---|
+| 115 | Eraseg | 16/01/2026 | R$ 750,00 | ❓ a identificar |
+| 116 | Eraseg | 23/01/2026 | R$ 1.050,00 | ❓ a identificar |
+| 117 | Durval | 19/01/2026 | R$ 350,00 | ❓ a identificar |
+| 118 | Adelson | 23/01/2026 | R$ 140,00 | ❓ a identificar |
+| 119 | Ludmila | 23/01/2026 | R$ 70,00 | ❓ a identificar |
+| 121 | Luis | 27/01/2026 | R$ 70,00 | ❓ a identificar |
+| 123 | Chistopher | 28/01/2026 | R$ 100,00 | ❓ a identificar |
 
-Modal de upload:
-- `<input type="file" accept=".pdf">`
-- `POST multipart/form-data` para `/api/v1/notas-fiscais/{id}/pdf`
-- Atualiza estado local sem reload de página
+**Total pendente: R$ 2.530,00**
 
-**ALTERADO: `cmport-front/app/notas/page.tsx`**
+### Como inserir após identificação
+1. Informar qual condomínio (nome ou ID) cada linha pertence
+2. Atualizar `COND_IDS` no `gerar_sql_janeiro.py` com os novos mapeamentos (ex: `'Eraseg': 123`)
+3. Remover os nomes de `PENDING_NAMES` no mesmo script
+4. Rodar `python gerar_sql_janeiro.py` → gera novo SQL apenas para as linhas ainda pendentes
+5. Copiar SQL para VPS e executar no banco
 
-Coluna indicadora na listagem: ícone de documento se `pdf_disponivel`, traço se não — apenas visual, não interativo
-
----
-
-#### Docker / Infraestrutura
-
-**ALTERADO: `docker-compose.yml` (desenvolvimento)**
-
-```yaml
-minio:
-  image: minio/minio:latest
-  container_name: cmport_minio
-  command: server /data --console-address ":9001"
-  environment:
-    MINIO_ROOT_USER: minioadmin
-    MINIO_ROOT_PASSWORD: minioadmin
-  ports:
-    - "9000:9000"   # API S3-compatível
-    - "9001:9001"   # Console web (http://localhost:9001)
-  volumes:
-    - minio_data:/data
-
-volumes:
-  db_data:
-  minio_data:   # novo
-```
-
-**ALTERADO: `docker-compose.prod.yml` (produção)**
-
-Mesmo serviço MinIO, mas:
-- Credenciais via `env_file: .env.production`
-- Portas 9000/9001 **não expostas** externamente — acesso apenas interno via rede `cmport_net`
-- Volume `minio_data` persistente
-
-**ALTERADO: `backend/.env`**
-
-```bash
-# Storage (MinIO local — para R2 basta trocar as 4 vars abaixo)
-STORAGE_ENDPOINT=http://localhost:9000
-STORAGE_ACCESS_KEY=minioadmin
-STORAGE_SECRET_KEY=minioadmin
-STORAGE_BUCKET=cmport-nfe
-STORAGE_REGION=us-east-1
-```
-
-Em `.env.production`: `STORAGE_ENDPOINT=http://minio:9000` (nome do serviço Docker), credenciais fortes
-
-**Troca futura para R2 — apenas vars (zero mudança de código):**
-```bash
-STORAGE_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
-STORAGE_ACCESS_KEY=<r2_access_key>
-STORAGE_SECRET_KEY=<r2_secret_key>
-STORAGE_REGION=auto
-```
-
-**ALTERADO: `backend/requirements.txt`** — adicionar `boto3>=1.34.0`
+### Checklist
+- [ ] Identificar condomínio das 7 linhas acima
+- [ ] Atualizar `gerar_sql_janeiro.py` com novos mapeamentos
+- [ ] Executar SQL no banco de produção
+- [ ] Conferir total: deve adicionar R$ 2.530,00 ao total atual (R$ 70.400,79 → R$ 72.930,79)
 
 ---
 
-### Sequência de Implementação
+## ✅ N1 — Corpo da Nota de Produto (NF-e)
 
-#### Fase 11.1 — Infraestrutura ✅
-- `[x]` Adicionar MinIO ao `docker-compose.yml` e `docker-compose.prod.yml`
-- `[x]` Adicionar vars `STORAGE_*` ao `backend/.env`
-- `[x]` Adicionar `boto3` ao `requirements.txt`
-- `[x]` Criar `backend/app/core/storage_client.py`
-- `[x]` Adicionar `STORAGE_*` ao `core/config.py`
-- `[x]` Adicionar `get_storage_client()` em `core/dependencies.py`
-- `[x]` `ensure_bucket_exists()` chamado no startup de `main.py` (try/except não-bloqueante) via script Python
-
-#### Fase 11.2 — Banco de Dados ✅
-- `[x]` Adicionar `pdf_object_key` ao `nota_fiscal_model.py`
-- `[x]` Adicionar migration em `main.py`
-- `[x]` Adicionar `update_pdf_key()` em `nota_fiscal_repository.py`
-- `[x]` Estender `NotaFiscalResponse` com `pdf_object_key` e `pdf_disponivel`
-- `[x]` Adicionar `UploadPdfResponse` em `nota_fiscal_schema.py`
-
-#### Fase 11.3 — Upload Manual ✅
-- `[x]` Adicionar `upload_pdf_nota()` em `nota_fiscal_service.py`
-- `[x]` Adicionar `get_pdf_url()` em `nota_fiscal_service.py`
-- `[x]` Adicionar `delete_pdf_nota()` em `nota_fiscal_service.py` (corrigido — lógica movida do router para o service)
-- `[x]` Adicionar `POST /{id}/pdf`, `GET /{id}/pdf-url` e `DELETE /{id}/pdf` em `nota_fiscal_router.py`
-
-#### Fase 11.4 — ZIP com PDF ✅
-- `[x]` Estender `importar_xmls()` para coletar PDFs do ZIP
-- `[x]` Implementar lógica de matching (nome-base e fallback 1:1)
-- `[x]` Chamar `upload_pdf_nota()` ao final do processamento de cada nota
-- `[x]` Router passa `storage` para `importar_xmls()`
-
-#### Fase 11.5 — Email Automático ✅
-- `[x]` Adicionar `Depends(get_storage_client)` ao endpoint de enviar email em `boleto_router.py`
-- `[x]` Passar `storage` para `BoletoService.enviar_email_boleto()`
-- `[x]` Adicionar download do PDF da NF em `lista_anexos` (dupla guarda: `pdf_object_key and storage`)
-
-#### Fase 11.6 — Frontend ✅
-- `[x]` Estender interface `NotaFiscal` com `pdf_disponivel`
-- `[x]` Indicador na listagem `notas/page.tsx`
-- `[x]` Badge + botões em `notas/[id]/page.tsx`
-- `[x]` Modal de upload de PDF
-- `[x]` Download via presigned URL em nova aba
-- `[x]` `npx tsc --noEmit` sem erros
-- `[x]` `npm run lint` sem erros
+**Concluído.** O model `corpo_nota_model.py` já usa campo `tipo_nota` com enum `TipoNotaCorpo` que cobre tanto SERVIÇO quanto PRODUTO. Ciclos, wizard, router, service, schema e repository estão implementados (parte do módulo R — Corpo da Nota de Serviço).
 
 ---
 
-### Testes e Validações
+## N2 — Leitura de Nota de Entrada + Geração de Serviço
 
-| Cenário | Endpoint | Verificação |
-|---|---|---|
-| Importar ZIP com XML+PDF | `POST /notas-fiscais/importar-xml` | Nota criada, `pdf_object_key` populado, PDF visível no MinIO Console |
-| Importar ZIP com apenas XML | `POST /notas-fiscais/importar-xml` | Nota criada, `pdf_object_key = null`, sem erro |
-| Upload manual de PDF | `POST /notas-fiscais/{id}/pdf` | Resposta 200, campo atualizado, PDF no MinIO |
-| Upload de arquivo não-PDF | `POST /notas-fiscais/{id}/pdf` | Resposta 422 com mensagem clara |
-| URL de download (com PDF) | `GET /notas-fiscais/{id}/pdf-url` | URL válida, PDF abre no browser |
-| URL de download (sem PDF) | `GET /notas-fiscais/{id}/pdf-url` | Resposta 404 |
-| Deletar nota com PDF | `DELETE /notas-fiscais/{id}` | Objeto removido do MinIO, nota deletada |
-| Email de boleto (NF com PDF) | `POST /boletos/{codigo}/enviar-email` | Email recebido com PDF da NF anexado |
-| Email de boleto (NF sem PDF) | `POST /boletos/{codigo}/enviar-email` | Email enviado normalmente, sem PDF da NF |
-| MinIO offline — email | — | Email enviado sem PDF da NF (log de warning, não 500) |
-| MinIO offline — importação | `POST /notas-fiscais/importar-xml` | Nota importada, `pdf_object_key = null`, log de warning |
+### Objetivo
+Importar XML de NF-e de entrada (compras de fornecedores) e auto-criar o serviço
+correspondente para controle interno, eliminando lançamento manual duplicado.
 
-**Validações pós-deploy:**
-- MinIO sobe com `docker compose up -d`
-- Console acessível em `http://localhost:9001`
-- Bucket `cmport-nfe` criado automaticamente no startup do backend
-- Notas antigas (`pdf_object_key = null`) continuam funcionando normalmente
+### Definição de Escopo
+- [ ] Mapear campos da NF-e de entrada → campos de `ManutencaoAssistencia`
+- [ ] Decidir tipo de serviço criado (MANUTENCAO / ASSISTENCIA / OUTROS) e regra de default
 
----
+### Backend
+- [ ] Parser XML NF-e de entrada: fornecedor, CNPJ, itens, valor total, data emissão
+- [ ] Endpoint `POST /notas-fiscais/importar-entrada` — aceita XML ou ZIP
+- [ ] Service: extrair dados + criar `ManutencaoAssistencia` a partir da nota
+- [ ] Campo FK nullable `nota_entrada_id` em `ManutencaoAssistencia` (aditivo, sem breaking change)
+- [ ] Repository: listar serviços criados a partir de nota de entrada
 
-### Riscos e Rollback
+### Frontend
+- [ ] Tela de import: upload XML/ZIP + preview dos dados extraídos antes de confirmar
+- [ ] Revisão dos campos mapeados com opção de editar antes de salvar
+- [ ] Indicador no serviço: badge "Origem: Nota de Entrada" quando aplicável
+- [ ] `npx tsc --noEmit` zerado
 
-| Risco | Probabilidade | Mitigação |
-|---|---|---|
-| MinIO offline em produção | Médio | Toda lógica de storage é `try/except` — falha não bloqueia fluxo principal |
-| PDF grande trava requisição | Baixo | Upload direto (não base64). Limite 50 MB via FastAPI `UploadFile` |
-| `boto3` conflito de dependências | Baixo | Lib madura. Verificar `pip install boto3` antes da fase 11.1 |
-| PDF no ZIP sem match com XML | Médio | Fallback 1:1 se ZIP tem exatamente 1 XML + 1 PDF |
-| Presigned URL expõe dados sensíveis | Médio | URL expira em 15 min. MinIO sem porta exposta em prod |
-| Volume `minio_data` sem backup | Alto | Incluir `minio_data` na rotina de backup junto com `db_data` |
-| Regressão no fluxo de email | Baixo | `storage` é parâmetro opcional — se `None`, skip silencioso |
-
-**Rollback:** feature é aditiva (campo nullable, endpoints novos, `try/except` em todo storage). Reverter código não quebra banco. Rollback completo: reverter código + executar manualmente `ALTER TABLE notas_fiscais DROP COLUMN pdf_object_key`.
+### Testes
+- [ ] Importar XML válido → revisar preview → confirmar → serviço criado no banco
+- [ ] Importar ZIP com múltiplos XMLs → cada um gera um serviço independente
+- [ ] Importar XML inválido → erro claro no frontend, sem criar serviço
+- [ ] Serviço criado aparece na listagem com badge de origem correto
+- [ ] Campo `nota_entrada_id` preenchido no banco
+- [ ] Importar mesmo XML duas vezes → comportamento definido (bloquear ou permitir)
+- [ ] `npx tsc --noEmit` e `npm run lint` zerados
+- [ ] Smoke test em produção após deploy
 
 ---
 
-### Checklist Final de Entrega
+## N3 — Boleto Manual + Email + Controle
 
-**Infraestrutura**
-- `[x]` MinIO em `docker-compose.yml` (dev) e `docker-compose.prod.yml` (prod)
-- `[x]` Vars `STORAGE_*` em `backend/.env` e `.env.production`
-- `[x]` `boto3>=1.34.0` em `requirements.txt`
-- `[x]` Volume `minio_data` persistente
+### Objetivo
+Registrar manualmente boletos sem API Inter, com envio por email e controle de status.
 
-**Backend**
-- `[x]` `backend/app/core/storage_client.py` criado
-- `[x]` `STORAGE_*` em `core/config.py`
-- `[x]` `get_storage_client()` em `core/dependencies.py`
-- `[x]` Campo `pdf_object_key` no model + migration em `main.py`
-- `[x]` `update_pdf_key()` no repository
-- `[x]` `pdf_disponivel` computado em `NotaFiscalResponse`
-- `[x]` `upload_pdf_nota()` e `get_pdf_url()` no service
-- `[x]` Lógica de PDF em `importar_xmls()` (ZIP)
-- `[x]` Limpeza de PDF em `delete_nota()`
-- `[x]` Endpoints `POST /{id}/pdf`, `GET /{id}/pdf-url`, `DELETE /{id}/pdf`
-- `[x]` PDF da NF em `lista_anexos` no `boleto_service`
+### ✅ Backend — concluído
+- [x] Endpoint `POST /boletos/manual` — criação manual (`CriarBoletoManualRequest`)
+- [x] Endpoint `POST /boletos/{id}/enviar-email` — envio com PDF anexado, suporta CC e customização de corpo
+- [x] Endpoint `POST /boletos/{id}/registrar-pagamento` — registrar pagamento com data
+- [x] Upload de PDF: `POST /boletos/{id}/pdf` — armazenamento no MinIO
+- [x] `pdf_object_key` no model para boletos sem API Inter
+- [x] `forma_pagamento` enum cobre PIX, TRANSFERENCIA, CHEQUE, DINHEIRO, BOLETO_ITAU
 
-**Frontend**
-- `[x]` Interface `NotaFiscal` estendida com `pdf_disponivel`
-- `[x]` Indicador na listagem `notas/page.tsx`
-- `[x]` Badge + botões em `notas/[id]/page.tsx`
-- `[x]` Modal de upload funcional
-- `[x]` Download via presigned URL funcional
-- `[x]` `npx tsc --noEmit` sem erros
-- `[x]` `npm run lint` sem erros
+### 🚧 Frontend — a implementar
+- [ ] Formulário de cadastro: valor, vencimento, condomínio, forma de pagamento, observação
+- [ ] Upload de PDF do boleto externo (drag & drop ou file input)
+- [ ] Botão "Enviar Email" com PDF anexado + campo CC
+- [ ] Botão "Marcar como Pago" com confirmação + campo data de pagamento
+- [ ] Badge de status colorido na listagem de boletos
+- [ ] `npx tsc --noEmit` zerado
 
-**Qualidade**
-- `[x]` Nenhuma falha de storage aborta fluxo principal
-- `[x]` Chave no formato `notas_fiscais/{id}/{numero_sanitizado}.pdf`
-- `[x]` Troca para R2 documentada: 4 vars + remover serviço `minio` do compose
+### Testes (frontend)
+- [ ] Criar boleto manual via formulário → aparece na listagem
+- [ ] Upload PDF → link de download funcional
+- [ ] Enviar email → recebimento com PDF anexado confirmado
+- [ ] Marcar como PAGO → status e data atualizados na tela
+- [ ] `npx tsc --noEmit` e `npm run lint` zerados
+- [ ] Smoke test em produção após deploy
 
 ---
 
-## Sub-fase 12 — Melhorias no Envio de Email
+## ✅ F1.1 — Financeiro: Backend CRUD
 
-### Resumo
+**Concluído.** Toda a camada de backend está implementada:
 
-Quatro melhorias no fluxo de email de boleto:
-1. **CC global** — lista de emails em Configurações que sempre recebem cópia
-2. **CC por envio** — campo "Com cópia para" no compositor de email
-3. **Envio em lote** — todos os boletos de um serviço em 1 email
-4. **PDF de orçamento gerado** — gerar PDF do orçamento com WeasyPrint (dados locais do banco) e anexar ao email
+| Camada | Arquivos |
+|--------|----------|
+| Models | `fin_categoria_model.py`, `fin_movimentacao_model.py`, `fin_saldo_inicial_model.py` |
+| Schemas | `fin_categoria_schema.py`, `fin_movimentacao_schema.py`, `fin_saldo_inicial_schema.py` |
+| Repositories | `fin_categoria_repository.py`, `fin_movimentacao_repository.py`, `fin_saldo_inicial_repository.py` |
+| Service | `fin_movimentacao_service.py` |
+| Routers | `fin_movimentacao_router.py` (`/api/v1/financeiro`), `fin_categoria_router.py` (`/api/v1/categorias-financeiras`) |
 
-> Auvo não fornece PDF de orçamento — apenas `public_link`. Solução: gerar PDF próprio a partir dos dados em `orcamentos` + `orcamento_itens`.
+Tabelas: `fin_categorias` (enum RECEITA/FORNECEDOR/DESPESA) · `fin_movimentacoes` (origem BANCO/MANUAL, soft delete, `id_externo_banco`) · `fin_saldo_inicial` (UNIQUE ano+mes).
 
 ---
 
-### Fase 12.1 — CC Global (Configurações) ✅
+## ✅ F1.2 — Financeiro: Inter Extrato
 
-- `[x]` Adicionar `emails_copia = Column(Text, nullable=True)` em `configuracao_model.py` (`ConfiguracaoEmpresa`)
-- `[x]` Migration em `main.py`: `ALTER TABLE configuracao_empresa ADD COLUMN emails_copia TEXT NULL`
-- `[x]` `configuracao_schema.py` → `EmpresaUpdate` e `EmpresaResponse`: `emails_copia: Optional[List[str]]` + `@field_validator` para parse JSON
-- `[x]` `configuracao_service.py` → `atualizar_empresa()`: serializar `emails_copia` como JSON antes de salvar
-- `[x]` Frontend `configuracoes/page.tsx`: seção "E-mails em Cópia (Global)" — input + "+" + lista com "×"; salva via `PUT /configuracoes/empresa`
+**Concluído.** `fin_movimentacao_service.py` tem `sincronizar_inter(db, data_inicio, data_fim)` que chama `InterClient.buscar_extrato()`, cria movimentações com `origem=BANCO` e deduplica por `id_externo_banco`. Endpoint `POST /financeiro/sincronizar-inter` registrado no router.
 
-### Fase 12.2 — CC por Envio + Merge CC Global ✅
+---
 
-- `[x]` `email_service.py` → `enviar_boleto()`: parâmetro `cc_emails: List[str] = []`; buscar `ConfiguracaoEmpresa.emails_copia`; merge via `set()`; SMTP `msg["Cc"]`; Graph `ccRecipients`
-- `[x]` `boleto_service.py` → `enviar_email_boleto()`: parâmetro `cc_emails: List[str] = []`, repassar para EmailService
-- `[x]` `boleto_router.py` → Form: adicionar `cc: Optional[str] = Form(None)`
-- `[x]` Frontend `servicos/[id]/page.tsx`: input "Com cópia para" no compositor; parse ao enviar
+## F1.3 — Financeiro: Frontend
 
-### Fase 12.3 — Envio em Lote ✅
+### Objetivo
+Interface completa do módulo financeiro: Sidebar refatorada para grupos,
+3 páginas e 6 componentes. Zero erros TypeScript.
 
-- `[x]` `boleto_router.py`: novo endpoint `POST /enviar-email-servico/{servico_id}`
-- `[x]` `boleto_service.py`: novo método `enviar_email_servico()` — busca boletos da nota, baixa PDFs via Inter, envia 1 email com todos os anexos, atualiza `email_enviado_em` / `email_destinatarios`
-- `[x]` Frontend `servicos/[id]/page.tsx`: botão "Enviar todos em 1 email" (visível quando nota tem > 1 parcela)
+### Sidebar (obrigatório antes das páginas)
+- [ ] Refatorar `Sidebar.tsx`: array flat → 4 grupos (`MenuGroup[]`)
+- [ ] Grupos: OPERACIONAL / FISCAL / FINANCEIRO / SISTEMA
+- [ ] Manter todo CSS, animações e lógica de role — apenas estrutura de dados muda
+- [ ] Testar navegação em todas as rotas existentes sem regressão
 
-### Fase 12.4 — PDF de Orçamento Gerado ✅
+### Interfaces TypeScript
+- [ ] `CategoriaFinanceira` — espelha `fin_categorias`
+- [ ] `Movimentacao` — espelha `fin_movimentacoes`
+- [ ] `DashboardFinanceiro` — resposta do endpoint dashboard
+- [ ] `SaldoInicial` — espelha `fin_saldo_inicial`
+- [ ] `FormMovimentacaoManual` — payload de criação manual
 
-- `[x]` `orcamento_service.py`: novo método `gerar_pdf(db, orcamento_id) -> bytes` — monta HTML + WeasyPrint com dados de `Orcamento` + `OrcamentoItem[]`
-- `[x]` `boleto_service.py` → `enviar_email_servico()`: se `incluir_orcamento=True` e `servico.orcamento_id` existir, gerar PDF e adicionar em `anexos_extras`
-- `[x]` Endpoint `enviar-email-servico`: parâmetro `incluir_orcamento: bool = Form(False)`
-- `[x]` Frontend `servicos/[id]/page.tsx`: checkbox "Incluir PDF do Orçamento" (visível só se `servico.orcamento_id !== null`)
+### Páginas
+- [ ] `/financeiro` — Dashboard com cards, breakdown e saldo do período
+- [ ] `/financeiro/movimentacoes` — Tabela com filtros, ações e nova movimentação
+- [ ] `/financeiro/categorias` — Gestão por grupo com toggles ativo/inativo
+
+### Componentes
+- [ ] `DashboardFinanceiro.tsx` — 4 cards topo + breakdown receitas + saldo período
+- [ ] `TabelaMovimentacoes.tsx` — colunas, badges por tipo/origem/status, filtros
+- [ ] `FormMovimentacaoManual.tsx` — modal: tipo → grupo → categoria → valores
+- [ ] `FormCategorizar.tsx` — select inline na tabela, sem modal, salva direto
+- [ ] `BotaoSincronizarInter.tsx` — estados: idle / loading / sucesso / erro
+- [ ] `SaldoInicialCard.tsx` — exibe valor, clique → input inline, Enter/blur → salva
+
+### Qualidade
+- [ ] `npx tsc --noEmit` zerado
+- [ ] `npm run lint` sem erros
+
+### Testes
+- [ ] Sidebar: 4 grupos visíveis, navegação para todas as rotas existentes sem regressão
+- [ ] Dashboard: carrega totais do mês atual, troca de mês/ano atualiza os cards
+- [ ] Saldo inicial: editar inline → Enter → salva → valor atualiza sem reload
+- [ ] Nova movimentação manual: tipo → grupo → categoria → preencher → salvar → aparece na tabela
+- [ ] `FormCategorizar` inline: selecionar categoria → PUT chamado → coluna categoria atualiza
+- [ ] `BotaoSincronizarInter`: clicar → loading → resultado "X novas, Y duplicadas" exibido
+- [ ] Página categorias: criar nova, editar nome, toggle ativo/inativo
+- [ ] Filtros na tabela: mês/ano, grupo (tabs), status funcionando em combinação
+- [ ] Badge ENTRADA=verde, SAIDA=vermelho, BANCO=azul, MANUAL=cinza, PENDENTE=amarelo, VALIDADO=verde
+- [ ] `npx tsc --noEmit` e `npm run lint` zerados
+
+---
+
+## F1.4 — Financeiro: QA + Entrega
+
+### Objetivo
+Validação ponta a ponta com o cliente e deploy em produção.
+
+- [ ] Fluxo completo com cliente: sincronizar Inter → categorizar movimentações → validar → dashboard
+- [ ] Verificar saldo acumulado encadeando janeiro até mês atual com dados reais
+- [ ] Confirmar que nenhuma tabela existente foi alterada (`git diff` nas migrations/models)
+- [ ] Deploy VPS: `git push vps master`
+- [ ] Smoke test produção: dashboard carrega, movimentações listam, categorias OK
+- [ ] Smoke test Inter em produção: sincronizar 1 dia de extrato → resultado correto
+- [ ] Documentar para o cliente: como usar cada página e o fluxo recomendado
+
+### Testes de Regressão
+- [ ] Boletos existentes continuam funcionando normalmente
+- [ ] Notas fiscais existentes continuam funcionando
+- [ ] Corpo da Nota de Serviço sem regressão
+- [ ] Sidebar: todas as rotas anteriores acessíveis nos novos grupos

@@ -251,6 +251,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [envioLoteAtivo, setEnvioLoteAtivo] = useState(false);
   const [enviandoLote, setEnviandoLote] = useState(false);
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
+  const [temInter, setTemInter] = useState<boolean | null>(null);
 
   // Form
   const [tipo, setTipo] = useState('');
@@ -390,6 +391,12 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
           setBoletos(boletosRes.data || []);
         } catch {
           setBoletos([]);
+        }
+        try {
+          const { data: interData } = await api.get(`/boletos/tem-inter/${s.nota_fiscal_id}`);
+          setTemInter(interData.tem_inter);
+        } catch {
+          setTemInter(null);
         }
         if (nota.nota_vinculada_id) {
           try {
@@ -2066,14 +2073,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                       {totalPago}/{boletosAtivos.length} pago(s) · {fmt(valorRecebido)} recebido
                     </span>
-                    <button
-                      onClick={() => handleGerarParcelasFaltantes()}
-                      disabled={gerandoParcelas || carregandoConfig}
-                      className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
-                    >
-                      {(gerandoParcelas || carregandoConfig) ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
-                      Gerar Inter (faltantes)
-                    </button>
+                    {temInter && (
+                      <button
+                        onClick={() => handleGerarParcelasFaltantes()}
+                        disabled={gerandoParcelas || carregandoConfig}
+                        className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {(gerandoParcelas || carregandoConfig) ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
+                        Gerar Inter (faltantes)
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -2111,14 +2120,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                           <div className="flex items-center gap-2">
                             {!boleto && (
                               <>
-                                <button
-                                  onClick={() => handleGerarParcelasFaltantes(parcela.parcela)}
-                                  disabled={gerandoParcelas || carregandoConfig}
-                                  className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
-                                >
-                                  {(gerandoParcelas || carregandoConfig) ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
-                                  Gerar Inter
-                                </button>
+                                {temInter && (
+                                  <button
+                                    onClick={() => handleGerarParcelasFaltantes(parcela.parcela)}
+                                    disabled={gerandoParcelas || carregandoConfig}
+                                    className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
+                                  >
+                                    {(gerandoParcelas || carregandoConfig) ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
+                                    Gerar Inter
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => {
                                     setModalRegistrar(parcela.parcela);
@@ -2231,14 +2242,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                             )}
                             {boleto && (boleto.situacao === 'CANCELADO' || boleto.situacao === 'EXPIRADO') && (
                               <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => handleGerarParcelasFaltantes(parcela.parcela)}
-                                  disabled={gerandoParcelas || carregandoConfig}
-                                  className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
-                                >
-                                  {(gerandoParcelas || carregandoConfig) ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
-                                  Gerar Inter
-                                </button>
+                                {temInter && (
+                                  <button
+                                    onClick={() => handleGerarParcelasFaltantes(parcela.parcela)}
+                                    disabled={gerandoParcelas || carregandoConfig}
+                                    className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1"
+                                  >
+                                    {(gerandoParcelas || carregandoConfig) ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🏦'}
+                                    Gerar Inter
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => {
                                     setModalRegistrar(parcela.parcela);

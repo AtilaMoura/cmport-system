@@ -75,3 +75,9 @@ cmport-front/.env.production
 # =========================
 backend/app/auth/*.crt
 backend/app/auth/*.key
+
+# =========================
+# Arquivos não usados no sistema
+# =========================
+_arquivo/
+~$*
