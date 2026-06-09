@@ -110,6 +110,50 @@ class CorpoNotaRepository:
         )
 
     @staticmethod
+    def list_candidatos_produto_por_numero_nf(
+        db: Session,
+        condominio_id: int,
+        numero_nf_produto: int,
+    ) -> List[CorpoNota]:
+        """Busca corpos SERVICO candidatos a receber nota de produto, por numero_nf_produto."""
+        return (
+            db.query(CorpoNota)
+            .filter(
+                CorpoNota.condominio_id == condominio_id,
+                CorpoNota.tipo_nota == TipoNotaCorpo.SERVICO,
+                CorpoNota.numero_nf_produto == numero_nf_produto,
+                CorpoNota.nota_produto_id.is_(None),
+                CorpoNota.deletado_em.is_(None),
+            )
+            .all()
+        )
+
+    @staticmethod
+    def list_candidatos_produto_por_mes(
+        db: Session,
+        condominio_id: int,
+        ano: int,
+        mes: int,
+    ) -> List[CorpoNota]:
+        """Busca corpos SERVICO com valor_nota_produto preenchido mas sem nota_produto_id vinculada."""
+        from app.models.ciclo_nota_model import CicloNota
+
+        return (
+            db.query(CorpoNota)
+            .join(CicloNota, CorpoNota.ciclo_id == CicloNota.id)
+            .filter(
+                CorpoNota.condominio_id == condominio_id,
+                CicloNota.tipo_nota == TipoNotaCorpo.SERVICO,
+                CicloNota.ano == ano,
+                CicloNota.mes == mes,
+                CorpoNota.valor_nota_produto.isnot(None),
+                CorpoNota.nota_produto_id.is_(None),
+                CorpoNota.deletado_em.is_(None),
+            )
+            .all()
+        )
+
+    @staticmethod
     def create(db: Session, corpo: CorpoNota) -> CorpoNota:
         db.add(corpo)
         db.commit()

@@ -42,6 +42,8 @@ interface CorpoNota {
   valor_nota_produto: number | null;
   sem_retencao: boolean;
   numero_nf: number | null;
+  numero_nf_produto: number | null;
+  nota_produto_id: number | null;
 }
 
 interface Condominio {
@@ -555,8 +557,10 @@ export default function DetalheCorpoNotaPage() {
                     <span className={`font-mono font-bold ${corpo.numero_nf ? 'text-violet-700 dark:text-violet-400' : 'text-slate-400'}`}>
                       {corpo.numero_nf ? String(corpo.numero_nf).padStart(4, '0') : '—'}
                     </span>
-                    {corpo.nota_fiscal_id && (
-                      <span className="text-xs text-slate-500">· XML #{corpo.nota_fiscal_id}</span>
+                    {corpo.nota_fiscal_id ? (
+                      <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded font-bold">XML Serv. vinculado</span>
+                    ) : (
+                      <span className="text-xs text-slate-400">XML aguardando</span>
                     )}
                     {!['PAGO','CANCELADO'].includes(corpo.status) && corpo.configuracao_inter_id && (
                       <button
@@ -600,6 +604,22 @@ export default function DetalheCorpoNotaPage() {
           </div>
           {corpo.valor_nota_produto != null && corpo.valor_nota_produto > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              {/* Linha de NF Produto: número + status XML */}
+              <div className="flex items-center gap-3 mb-3 flex-wrap">
+                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold">NF Produto</span>
+                {corpo.numero_nf_produto ? (
+                  <span className="font-mono font-bold text-violet-700 dark:text-violet-400">
+                    {String(corpo.numero_nf_produto).padStart(4, '0')}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400 font-mono">—</span>
+                )}
+                {corpo.nota_produto_id ? (
+                  <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded font-bold">XML Prod. vinculado</span>
+                ) : (
+                  <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded font-bold">XML Prod. aguardando</span>
+                )}
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <ValorCard label="Nota de Produto" value={fmtValor(corpo.valor_nota_produto)} accent={false} />
                 <ValorCard

@@ -67,6 +67,7 @@ class CorpoNotaUpdate(BaseModel):
     valor_nota_produto: Optional[float] = None
     numero_parcelas: Optional[int] = None
     numero_nf: Optional[int] = None
+    numero_nf_produto: Optional[int] = None
     parcelas_json: Optional[List[Any]] = None
     produtos_json: Optional[List[Any]] = None
     sem_retencao: Optional[bool] = None
@@ -171,6 +172,8 @@ class CorpoNotaResponse(CorpoNotaResumoResponse):
     valor_nota_produto: Optional[float] = None
     numero_parcelas: Optional[int] = None
     numero_nf: Optional[int] = None
+    numero_nf_produto: Optional[int] = None
+    nota_produto_id: Optional[int] = None
     parcelas_json: Optional[List[Any]] = None
     produtos_json: Optional[List[Any]] = None
     sem_retencao: bool = False

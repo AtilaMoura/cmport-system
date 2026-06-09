@@ -160,6 +160,21 @@ class CorpoNotaService:
                         conta.numero_nf_servico = numero_nf_atribuido + 1
                 db.add(conta)
 
+        # Para SERVICO com nota de produto: atribui numero_nf_produto do contador
+        numero_nf_produto_atribuido = None
+        if tipo_nota == TipoNotaCorpo.SERVICO and corpo_dados.get("valor_nota_produto") and configuracao_inter_id:
+            from app.models.configuracao_model import ConfiguracaoInter as _CI
+            conta_prod = (
+                db.query(_CI)
+                .filter(_CI.id == configuracao_inter_id)
+                .with_for_update()
+                .first()
+            )
+            if conta_prod:
+                numero_nf_produto_atribuido = conta_prod.numero_nf_produto or 1
+                conta_prod.numero_nf_produto = numero_nf_produto_atribuido + 1
+                db.add(conta_prod)
+
         corpo = CorpoNota(
             ciclo_id=ciclo.id,
             condominio_id=condominio_id,
@@ -196,6 +211,7 @@ class CorpoNotaService:
             valor_nota_produto=valor_nota_produto,
             numero_parcelas=numero_parcelas or 1,
             numero_nf=numero_nf_atribuido,
+            numero_nf_produto=numero_nf_produto_atribuido,
             parcelas_json=parcelas_json,
             produtos_json=produtos_json,
         )
@@ -234,6 +250,7 @@ class CorpoNotaService:
         valor_nota_produto: Optional[float] = None,
         numero_parcelas: Optional[int] = None,
         numero_nf: Optional[int] = None,
+        numero_nf_produto: Optional[int] = None,
         parcelas_json: Optional[list] = None,
         produtos_json: Optional[list] = None,
         sem_retencao: Optional[bool] = None,
@@ -272,6 +289,8 @@ class CorpoNotaService:
             corpo.numero_parcelas = numero_parcelas
         if numero_nf is not None:
             corpo.numero_nf = numero_nf
+        if numero_nf_produto is not None:
+            corpo.numero_nf_produto = numero_nf_produto
         if parcelas_json is not None:
             corpo.parcelas_json = parcelas_json
         if produtos_json is not None:
@@ -728,6 +747,7 @@ class CorpoNotaService:
                 numero_referencia=corpo.numero_referencia,
                 numero_parcelas=numero_parcelas,
                 numero_nf=numero_nf,
+                numero_nf_produto=getattr(corpo, "numero_nf_produto", None),
                 parcelas_json=parcelas_json,
                 produtos_json=produtos_json,
                 sem_retencao=sem_retencao,
@@ -947,6 +967,7 @@ class CorpoNotaService:
         numero_referencia: Optional[str] = None,
         numero_parcelas: int = 1,
         numero_nf: Optional[int] = None,
+        numero_nf_produto: Optional[int] = None,
         parcelas_json: Optional[list] = None,
         produtos_json: Optional[list] = None,
         sem_retencao: bool = False,
@@ -993,6 +1014,8 @@ class CorpoNotaService:
             if tem_produto:
                 linhas.append(f"Emitidas em {date.today().strftime('%d.%m.%Y')}.")
             linhas.append(f"NF – {CorpoNotaService._fmt_numero_nf(numero_nf)} – {nome_cond}")
+            if tem_produto and numero_nf_produto:
+                linhas.append(f"NF Produto – {CorpoNotaService._fmt_numero_nf(numero_nf_produto)} – {nome_cond}")
             linhas.append("")
 
         extenso_parc = CorpoNotaService._ordinal_extenso(numero_parcelas)
@@ -1256,6 +1279,13 @@ class CorpoNotaService:
             TipoNota.ASSISTENCIA: TipoNotaCorpo.SERVICO,
         }
         tipo_corpo = tipo_map.get(nota.tipo)
+
+        # Notas OUTROS de CNPJ configurado como PRODUTO → tenta vincular ao CorpoNota SERVICO
+        if not tipo_corpo and nota.tipo == TipoNota.OUTROS:
+            from app.services.nota_fiscal_service import _cnpj_e_produto
+            if _cnpj_e_produto(db, nota.cnpj_emitente):
+                return CorpoNotaService._tentar_vincular_nota_produto(db, nota)
+
         if not tipo_corpo:
             return None
 
@@ -1354,6 +1384,88 @@ class CorpoNotaService:
             return []
 
         # 2+ candidatos — retorna lista para o frontend mostrar seletor
+        return [
+            {
+                "corpo_id": c.id,
+                "numero_os": c.numero_os,
+                "mes_referencia": c.mes_referencia,
+                "status": c.status.value,
+                "descricao_servico": (c.descricao_servico or "")[:80],
+            }
+            for c in candidatos
+        ]
+
+    @staticmethod
+    def _tentar_vincular_nota_produto(db: Session, nota) -> Optional[list]:
+        """
+        Vincula uma nota de produto (TipoNota.OUTROS de CNPJ=PRODUTO) ao CorpoNota de SERVICO correto.
+        Cria simetricamente nota_vinculada_id entre a nota de serviço e a nota de produto.
+
+        Retorna:
+          None   → sem candidatos
+          []     → vinculado automaticamente
+          [...]  → múltiplos candidatos para seleção manual
+        """
+        import re as _re
+
+        try:
+            numero_nf_int = int(_re.sub(r"\D", "", nota.numero_nota or "")) if nota.numero_nota else None
+        except ValueError:
+            numero_nf_int = None
+
+        candidatos = []
+
+        # Rota 1: match por numero_nf_produto exato
+        if numero_nf_int:
+            candidatos = CorpoNotaRepository.list_candidatos_produto_por_numero_nf(
+                db, nota.condominio_id, numero_nf_int
+            )
+
+        # Rota 2: fallback — busca por mês/ano do vencimento
+        if not candidatos and nota.data_vencimento:
+            ano, mes = nota.data_vencimento.year, nota.data_vencimento.month
+            candidatos = CorpoNotaRepository.list_candidatos_produto_por_mes(
+                db, nota.condominio_id, ano, mes
+            )
+            if not candidatos and mes > 1:
+                candidatos = CorpoNotaRepository.list_candidatos_produto_por_mes(
+                    db, nota.condominio_id, ano, mes - 1
+                )
+            elif not candidatos and mes == 1:
+                candidatos = CorpoNotaRepository.list_candidatos_produto_por_mes(
+                    db, nota.condominio_id, ano - 1, 12
+                )
+
+        if not candidatos:
+            return None
+
+        if len(candidatos) == 1:
+            corpo = candidatos[0]
+            corpo.nota_produto_id = nota.id
+
+            # Cria vínculo simétrico nota_vinculada_id entre NF serviço ↔ NF produto
+            if corpo.nota_fiscal_id and corpo.nota_fiscal_id != nota.id:
+                from app.models.nota_fiscal_model import NotaFiscal as _NF
+                nota_servico = db.query(_NF).filter(_NF.id == corpo.nota_fiscal_id).first()
+                if nota_servico:
+                    nota_servico.nota_vinculada_id = nota.id
+                    nota.nota_vinculada_id = nota_servico.id
+                    db.add(nota_servico)
+
+            # Atualiza status para XML_VINCULADO se ambas as notas estão presentes
+            if corpo.nota_fiscal_id:
+                corpo.status = StatusCorpoNota.XML_VINCULADO
+
+            db.add(nota)
+            CorpoNotaRepository.save(db, corpo)
+
+            ciclo = CicloNotaRepository.get_by_id(db, corpo.ciclo_id)
+            if ciclo:
+                CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
+
+            logger.info(f"CorpoNota {corpo.id} vinculado via nota_produto à NotaFiscal {nota.id}")
+            return []
+
         return [
             {
                 "corpo_id": c.id,

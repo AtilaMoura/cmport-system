@@ -85,6 +85,13 @@ class CorpoNota(Base):
     nota_fiscal_id = Column(Integer, ForeignKey("notas_fiscais.id", ondelete="SET NULL"), nullable=True, index=True)
     nota_fiscal = relationship("NotaFiscal", foreign_keys=[nota_fiscal_id])
 
+    # NF de produto vinculada (para corpos SERVICO com nota de produto consolidada)
+    nota_produto_id = Column(Integer, ForeignKey("notas_fiscais.id", ondelete="SET NULL"), nullable=True, index=True)
+    nota_produto = relationship("NotaFiscal", foreign_keys=[nota_produto_id])
+
+    # Número sequencial da NF de produto (atribuído ao gerar o corpo quando valor_nota_produto está preenchido)
+    numero_nf_produto = Column(Integer, nullable=True)
+
     # Garantia
     tem_garantia = Column(Boolean, nullable=False, default=False)
     termo_garantia_id = Column(Integer, ForeignKey("termos_garantia.id", ondelete="SET NULL"), nullable=True)
