@@ -14,7 +14,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend,
 interface NotaFiscal {
   id: number;
   numero_nota: string;
-  tipo: 'ASSISTENCIA' | 'MANUTENCAO' | 'OUTROS';
+  tipo: 'ASSISTENCIA' | 'MANUTENCAO' | 'PRODUTO';
   status: 'AUTORIZADA' | 'CANCELADA' | 'DESCONHECIDO';
   parcelas: number;
   valor: number;
@@ -232,14 +232,14 @@ export default function NotasPage() {
   }, [condominios, notasFiltradas]);
 
   const distribuicaoTipoData = useMemo(() => ({
-    labels: ['Assistencia', 'Manutencao', 'Outros'],
+    labels: ['Assistencia', 'Manutencao', 'Produto'],
     datasets: [{
       data: [
         notasFiltradas.filter(n => n.tipo === 'ASSISTENCIA').length,
         notasFiltradas.filter(n => n.tipo === 'MANUTENCAO').length,
-        notasFiltradas.filter(n => n.tipo === 'OUTROS').length,
+        notasFiltradas.filter(n => n.tipo === 'PRODUTO').length,
       ],
-      backgroundColor: ['#3b82f6', '#7c3aed', '#64748b'],
+      backgroundColor: ['#3b82f6', '#7c3aed', '#8b5cf6'],
       borderWidth: 0,
     }],
   }), [notasFiltradas]);
@@ -260,6 +260,7 @@ export default function NotasPage() {
     switch (tipo) {
       case 'ASSISTENCIA': return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
       case 'MANUTENCAO':  return 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400';
+      case 'PRODUTO':     return 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400';
       default:            return 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-400';
     }
   };
@@ -268,6 +269,7 @@ export default function NotasPage() {
     switch (tipo) {
       case 'ASSISTENCIA': return '🔧';
       case 'MANUTENCAO':  return '🛠️';
+      case 'PRODUTO':     return '📦';
       default:            return '📄';
     }
   };
@@ -367,13 +369,13 @@ export default function NotasPage() {
               onChange={e => { setFiltroMes(e.target.value); setDataInicio(''); setDataFim(''); }}
               className="px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
             />
-            {['todos', 'ASSISTENCIA', 'MANUTENCAO'].map(t => (
+            {['todos', 'ASSISTENCIA', 'MANUTENCAO', 'PRODUTO'].map(t => (
               <button key={t} onClick={() => setFiltroTipo(t)}
                 className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${filtroTipo === t
-                  ? t === 'todos' ? 'bg-orange-600 text-white' : t === 'ASSISTENCIA' ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white'
+                  ? t === 'todos' ? 'bg-orange-600 text-white' : t === 'ASSISTENCIA' ? 'bg-blue-600 text-white' : t === 'MANUTENCAO' ? 'bg-purple-600 text-white' : 'bg-violet-600 text-white'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
               >
-                {t === 'todos' ? 'Todos' : t === 'ASSISTENCIA' ? '🔧 Assistencia' : '🛠️ Manutencao'}
+                {t === 'todos' ? 'Todos' : t === 'ASSISTENCIA' ? '🔧 Assistencia' : t === 'MANUTENCAO' ? '🛠️ Manutencao' : '📦 Produto'}
               </button>
             ))}
             <button

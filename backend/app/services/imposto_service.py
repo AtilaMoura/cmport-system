@@ -46,7 +46,7 @@ class ImpostoService:
         else:
             try:
                 # SERVICO (corpo de nota) usa as mesmas alíquotas de ASSISTENCIA
-                _mapa = {"SERVICO": "ASSISTENCIA", "PRODUTO": "OUTROS"}
+                _mapa = {"SERVICO": "ASSISTENCIA", "PRODUTO": "PRODUTO"}
                 tipo_cfg = TipoServicoConfig(_mapa.get(tipo_servico_str, tipo_servico_str))
                 config = db.query(ConfiguracaoImpostosServico).filter_by(
                     tipo_servico=tipo_cfg, ativo=True

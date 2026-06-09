@@ -566,13 +566,13 @@ export default function DashboardPage() {
           const tipoCls: Record<string, string> = {
             MANUTENCAO:  'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400',
             ASSISTENCIA: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
-            OUTROS:      'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+            PRODUTO:     'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400',
           };
           const tipoLabel: Record<string, string> = {
-            MANUTENCAO: 'Manut.', ASSISTENCIA: 'Assist.', OUTROS: 'Outros',
+            MANUTENCAO: 'Manut.', ASSISTENCIA: 'Assist.', PRODUTO: 'Produto',
           };
           const tipoIcon: Record<string, string> = {
-            MANUTENCAO: '🛠️', ASSISTENCIA: '🔧', OUTROS: '📄',
+            MANUTENCAO: '🛠️', ASSISTENCIA: '🔧', PRODUTO: '📦',
           };
 
           const situacaoBoletoCls: Record<string, string> = {
@@ -619,7 +619,7 @@ export default function DashboardPage() {
                     <option value="todos">Todos os tipos</option>
                     <option value="MANUTENCAO">Manutenção</option>
                     <option value="ASSISTENCIA">Assistência</option>
-                    <option value="OUTROS">Outros</option>
+                    <option value="PRODUTO">Produto</option>
                   </select>
                 </div>
               </div>

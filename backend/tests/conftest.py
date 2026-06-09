@@ -21,7 +21,7 @@ def make_nota_fiscal(
     nota = MagicMock()
     nota.id = id
     nota.numero_nota = numero_nota
-    nota.tipo = tipo or TipoNota.OUTROS
+    nota.tipo = tipo or TipoNota.PRODUTO
     nota.condominio_id = condominio_id
     nota.cnpj_emitente = cnpj_emitente
     nota.data_vencimento = data_vencimento or date(2026, 5, 20)

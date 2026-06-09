@@ -741,7 +741,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         valor_bruto: notaFiscal.valor,
         valor_liquido: notaFiscal.valor * (1 - 0.1565),
         numero_os: null,
-        aplicar_juros_default: notaFiscal.tipo !== 'OUTROS',
+        aplicar_juros_default: notaFiscal.tipo !== 'PRODUTO',
         alerta_impostos: false,
         divergencia_impostos: null,
         parcelas_json: null,

@@ -1280,8 +1280,8 @@ class CorpoNotaService:
         }
         tipo_corpo = tipo_map.get(nota.tipo)
 
-        # Notas OUTROS de CNPJ configurado como PRODUTO → tenta vincular ao CorpoNota SERVICO
-        if not tipo_corpo and nota.tipo == TipoNota.OUTROS:
+        # Notas PRODUTO de CNPJ configurado como PRODUTO → tenta vincular ao CorpoNota SERVICO
+        if not tipo_corpo and nota.tipo == TipoNota.PRODUTO:
             from app.services.nota_fiscal_service import _cnpj_e_produto
             if _cnpj_e_produto(db, nota.cnpj_emitente):
                 return CorpoNotaService._tentar_vincular_nota_produto(db, nota)

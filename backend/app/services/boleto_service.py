@@ -40,7 +40,7 @@ def _calcular_valor_liquido(db: Session, nota, pcts_override: dict = None) -> fl
     """
     Calcula o valor líquido da nota descontando impostos com base na tabela de configuração.
     Para MANUTENCAO/ASSISTENCIA: aplica os percentuais da config (ou override).
-    Para OUTROS: retorna valor integral.
+    Para PRODUTO: retorna valor integral.
     pcts_override: dict com chaves opcionais pct_pis, pct_cofins, pct_inss, pct_csll (floats)
     """
     from app.models.nota_fiscal_model import TipoNota
@@ -105,7 +105,7 @@ def _montar_mora_multa(aplicar_juros: bool, taxa_juros: float) -> dict:
 
 
 def _aplicar_juros_default(nota) -> bool:
-    """True para serviços (juros padrão ativo); False para OUTROS (produto sem juros)."""
+    """True para serviços (juros padrão ativo); False para PRODUTO (sem juros)."""
     from app.models.nota_fiscal_model import TipoNota
     return nota.tipo in (TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA)
 

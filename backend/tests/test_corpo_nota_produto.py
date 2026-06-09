@@ -2,11 +2,11 @@
 Testes para o vínculo automático de nota de produto ao CorpoNota de SERVICO.
 
 Cobre:
-  1. Nota de produto (OUTROS, CNPJ=PRODUTO) vincula ao corpo SERVICO correto
+  1. Nota de produto (PRODUTO, CNPJ=PRODUTO) vincula ao corpo SERVICO correto
   2. Nota de produto sem corpo candidato retorna None
   3. Vínculo simétrico nota_vinculada_id é criado entre NF serviço e NF produto
   4. numero_nf_produto é atribuído ao gerar corpo SERVICO com valor_nota_produto
-  5. Nota OUTROS de CNPJ não-PRODUTO não vincula como produto
+  5. Nota PRODUTO de CNPJ não-PRODUTO não vincula como produto
 """
 import pytest
 from decimal import Decimal
@@ -37,7 +37,7 @@ def test_nota_produto_vincula_ao_corpo_servico():
     from app.models.ciclo_nota_model import TipoNotaCorpo
     from app.models.corpo_nota_model import StatusCorpoNota
 
-    nota = make_nota_fiscal(id=20, numero_nota="11", tipo=TipoNota.OUTROS)
+    nota = make_nota_fiscal(id=20, numero_nota="11", tipo=TipoNota.PRODUTO)
     nota_servico = make_nota_fiscal(id=5, numero_nota="42", tipo=TipoNota.MANUTENCAO)
     corpo = make_corpo_nota(
         id=10,
@@ -76,7 +76,7 @@ def test_nota_produto_sem_corpo_retorna_none():
     """
     from app.models.nota_fiscal_model import TipoNota
 
-    nota = make_nota_fiscal(id=20, numero_nota="99", tipo=TipoNota.OUTROS)
+    nota = make_nota_fiscal(id=20, numero_nota="99", tipo=TipoNota.PRODUTO)
 
     with (
         patch("app.repositories.corpo_nota_repository.CorpoNotaRepository.list_candidatos_produto_por_numero_nf", return_value=[]),
@@ -98,7 +98,7 @@ def test_nota_vinculada_criada_simetricamente():
     from app.models.nota_fiscal_model import TipoNota
     from app.models.corpo_nota_model import StatusCorpoNota
 
-    nota_produto = make_nota_fiscal(id=20, numero_nota="11", tipo=TipoNota.OUTROS)
+    nota_produto = make_nota_fiscal(id=20, numero_nota="11", tipo=TipoNota.PRODUTO)
     nota_servico = make_nota_fiscal(id=5, numero_nota="42", tipo=TipoNota.MANUTENCAO)
     # Garantir que nota_vinculada_id começa None
     nota_produto.nota_vinculada_id = None
@@ -170,16 +170,16 @@ def test_numero_nf_produto_atribuido_ao_criar():
         assert conta.numero_nf_produto == numero_nf_produto_antes + 1, "Contador deve incrementar"
 
 
-# ─── 5. nota OUTROS de CNPJ não-PRODUTO não vincula como produto ──────────────
+# ─── 5. nota PRODUTO de CNPJ não-PRODUTO não vincula como produto ──────────────
 
-def test_nota_outros_sem_cnpj_produto_nao_vincula():
+def test_nota_produto_sem_cnpj_produto_nao_vincula():
     """
-    Nota com tipo OUTROS mas CNPJ que NÃO é conta PRODUTO deve retornar None
+    Nota com tipo PRODUTO mas CNPJ que NÃO é conta PRODUTO deve retornar None
     em tentar_vincular_por_nota_fiscal, sem chamar _tentar_vincular_nota_produto.
     """
     from app.models.nota_fiscal_model import TipoNota, NotaFiscal
 
-    nota = make_nota_fiscal(id=30, numero_nota="55", tipo=TipoNota.OUTROS, cnpj_emitente="99999999000199")
+    nota = make_nota_fiscal(id=30, numero_nota="55", tipo=TipoNota.PRODUTO, cnpj_emitente="99999999000199")
 
     db = _db_mock()
     db.query.return_value.filter.return_value.first.return_value = nota
@@ -193,5 +193,5 @@ def test_nota_outros_sem_cnpj_produto_nao_vincula():
         resultado = CorpoNotaService.tentar_vincular_por_nota_fiscal(db, nota.id)
 
     mock_vincula.assert_not_called()
-    # nota OUTROS sem PRODUTO retorna None (sem candidatos)
+    # nota PRODUTO sem CNPJ de conta PRODUTO retorna None (sem candidatos)
     assert resultado is None

@@ -64,7 +64,7 @@ def detectar_tipo_automatico(tipo_fornecido: Optional[str], descricao: str) -> T
     if "MANUTENCAO PREVENTIVA" in desc_upper:
         return TipoNota.MANUTENCAO
 
-    return TipoNota.OUTROS
+    return TipoNota.PRODUTO
 
 
 def _cnpj_e_produto(db: Session, cnpj_emit: Optional[str]) -> bool:
@@ -251,7 +251,7 @@ def extrair_dados_nfse(xml_str: str, db: Session, tipo_fornecido: Optional[str])
     data_emissao = parse_date(data_emissao_str)
     tipo = detectar_tipo_automatico(tipo_fornecido, discriminacao)
     if _cnpj_e_produto(db, cnpj_emit):
-        tipo = TipoNota.OUTROS
+        tipo = TipoNota.PRODUTO
     status_xml = get('StatusNFe')
     status = detectar_status_nfse(status_xml)
 
@@ -388,14 +388,14 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
         elif tipo_upper == "ASSISTENCIA":
             tipo = TipoNota.ASSISTENCIA
         else:
-            tipo = TipoNota.OUTROS
+            tipo = TipoNota.PRODUTO
     elif serie == '2':
         tipo = TipoNota.ASSISTENCIA
     else:
         tipo = detectar_tipo_automatico(None, inf_compl)
-    # Se o CNPJ emitente pertence a conta marcada como PRODUTO, força OUTROS
+    # Se o CNPJ emitente pertence a conta marcada como PRODUTO, força PRODUTO
     if _cnpj_e_produto(db, cnpj_emit):
-        tipo = TipoNota.OUTROS
+        tipo = TipoNota.PRODUTO
 
     # Parcelas: conta vencimentos listados; fallback campo "Quantidade parcelas"
     lista_vencimentos = _extrair_lista_vencimentos(inf_compl)
@@ -714,7 +714,7 @@ class NotaFiscalService:
                     aviso_servico = f"Nota reprocessada, mas erro ao criar serviço: {e}"
                     print(f"[Reprocessar] Erro ao criar servico: {e}")
 
-        # Tenta vincular ao corpo da nota (cobre notas OUTROS/PRODUTO que não vincularam na importação)
+        # Tenta vincular ao corpo da nota (cobre notas PRODUTO que não vincularam na importação)
         aviso_corpo = None
         if not nota.corpo_nota_id:
             try:

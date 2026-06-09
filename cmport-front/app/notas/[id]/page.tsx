@@ -14,7 +14,7 @@ interface ParcelaDisplay {
 interface NotaFiscal {
   id: number;
   numero_nota: string;
-  tipo: 'ASSISTENCIA' | 'MANUTENCAO' | 'OUTROS';
+  tipo: 'ASSISTENCIA' | 'MANUTENCAO' | 'PRODUTO';
   parcelas: number;
   valor: number;
   data_vencimento: string;

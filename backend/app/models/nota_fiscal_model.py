@@ -9,7 +9,7 @@ from app.core.database import Base
 class TipoNota(enum.Enum):
     ASSISTENCIA = "ASSISTENCIA"
     MANUTENCAO = "MANUTENCAO"
-    OUTROS = "OUTROS"
+    PRODUTO = "PRODUTO"
 
 
 class StatusNota(enum.Enum):
@@ -27,7 +27,7 @@ class NotaFiscal(Base):
     condominio = relationship("Condominio")
 
     numero_nota = Column(String(50), unique=True, index=True, nullable=False)
-    tipo = Column(Enum(TipoNota), default=TipoNota.OUTROS)
+    tipo = Column(Enum(TipoNota), default=TipoNota.PRODUTO)
     status = Column(Enum(StatusNota), default=StatusNota.AUTORIZADA, nullable=False, index=True)
 
     parcelas = Column(Integer, default=1)

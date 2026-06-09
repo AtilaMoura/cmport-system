@@ -660,6 +660,20 @@ export default function ConfiguracoesPage() {
                 <p className="text-xs text-slate-400 mt-1">Pasta no servidor contendo <code>certificado.crt</code> e <code>key.key</code></p>
               </div>
 
+              {/* Tipo de Nota emitida por esta conta */}
+              <div>
+                <label className={labelCls}>Tipo de Nota</label>
+                <select
+                  value={interForm.tipo_nota}
+                  onChange={e => setInterForm(p => ({ ...p, tipo_nota: e.target.value }))}
+                  className={inputCls}
+                >
+                  <option value="SERVICO">Serviço (Assistência / Manutenção)</option>
+                  <option value="PRODUTO">Produto</option>
+                </select>
+                <p className="text-xs text-slate-400 mt-0.5">Define como as NF-e desta conta serão classificadas ao importar</p>
+              </div>
+
               {/* Numeração de NF */}
               <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Numeração de NF</p>
