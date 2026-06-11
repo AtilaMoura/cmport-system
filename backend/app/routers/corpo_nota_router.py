@@ -330,7 +330,6 @@ def preview_corpo(
         valor_nota_produto=payload.valor_nota_produto,
         numero_parcelas=payload.numero_parcelas,
         numero_nf=payload.numero_nf,
-        numero_nf_produto=getattr(payload, "numero_nf_produto", None),
         parcelas_json=payload.parcelas_json,
         produtos_json=payload.produtos_json,
         sem_retencao=payload.sem_retencao,
