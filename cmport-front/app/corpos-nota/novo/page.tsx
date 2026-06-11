@@ -254,10 +254,8 @@ function NovoCorpoNotaContent() {
     carregarInter();
   }, []);
 
-  // Filtra emitentes compatíveis com o tipo de nota selecionado
-  const emitentesFiltratos = configuracaosInter.filter(c =>
-    tipoNota === 'PRODUTO' ? c.tipo_nota === 'PRODUTO' : c.tipo_nota !== 'PRODUTO'
-  );
+  // Todos os emitentes ativos aparecem para qualquer tipo de nota
+  const emitentesFiltratos = configuracaosInter;
 
   // Helper: próxima NF do emitente para o tipo atual
   const proximaNfEmitente = (c: ConfiguracaoInter): number | null =>
