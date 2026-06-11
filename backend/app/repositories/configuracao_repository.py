@@ -119,3 +119,10 @@ class ConfiguracaoInterRepository:
         db.commit()
         db.refresh(obj)
         return obj
+
+    @staticmethod
+    def ativar(db: Session, obj: ConfiguracaoInter) -> ConfiguracaoInter:
+        obj.ativo = True
+        db.commit()
+        db.refresh(obj)
+        return obj

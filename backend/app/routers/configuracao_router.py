@@ -112,3 +112,11 @@ def desativar_inter(id: int, db: Session = Depends(get_db)):
         return ConfiguracaoService.desativar_inter(db, id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/inter/{id}/ativar", response_model=ConfiguracaoInterResponse)
+def ativar_inter(id: int, db: Session = Depends(get_db)):
+    try:
+        return ConfiguracaoService.ativar_inter(db, id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

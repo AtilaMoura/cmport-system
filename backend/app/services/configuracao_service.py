@@ -264,3 +264,11 @@ class ConfiguracaoService:
             raise Exception("Configuração Inter não encontrada.")
         obj = ConfiguracaoInterRepository.desativar(db, obj)
         return ConfiguracaoInterResponse.model_validate(obj)
+
+    @staticmethod
+    def ativar_inter(db: Session, id: int) -> ConfiguracaoInterResponse:
+        obj = ConfiguracaoInterRepository.get_by_id(db, id)
+        if not obj:
+            raise Exception("Configuração Inter não encontrada.")
+        obj = ConfiguracaoInterRepository.ativar(db, obj)
+        return ConfiguracaoInterResponse.model_validate(obj)

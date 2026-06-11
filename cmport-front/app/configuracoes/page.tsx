@@ -82,6 +82,7 @@ export default function ConfiguracoesPage() {
   const [interForm, setInterForm] = useState<InterForm>({ ...INTER_VAZIO });
   const [salvandoInter, setSalvandoInter] = useState(false);
   const [desativandoInter, setDesativandoInter] = useState<number | null>(null);
+  const [ativandoInter, setAtivandoInter] = useState<number | null>(null);
   const [mostrarInterSecret, setMostrarInterSecret] = useState(false);
 
   // ── Empresa ────────────────────────────────────────────────────────────────
@@ -270,6 +271,15 @@ export default function ConfiguracoesPage() {
       await carregarInter();
     } catch { alert('Erro ao salvar conta Inter.'); }
     finally { setSalvandoInter(false); }
+  };
+
+  const ativarInter = async (id: number) => {
+    setAtivandoInter(id);
+    try {
+      await api.patch(`/configuracoes/inter/${id}/ativar`);
+      await carregarInter();
+    } catch { alert('Erro ao ativar conta Inter.'); }
+    finally { setAtivandoInter(null); }
   };
 
   const desativarInter = async (id: number) => {
@@ -559,13 +569,21 @@ export default function ConfiguracoesPage() {
                     >
                       ✏️ Editar
                     </button>
-                    {c.ativo && (
+                    {c.ativo ? (
                       <button
                         onClick={() => desativarInter(c.id)}
                         disabled={desativandoInter === c.id}
                         className="px-3 py-1.5 text-xs font-bold rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:brightness-95 transition-all disabled:opacity-50"
                       >
                         {desativandoInter === c.id ? '...' : 'Desativar'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => ativarInter(c.id)}
+                        disabled={ativandoInter === c.id}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 hover:brightness-95 transition-all disabled:opacity-50"
+                      >
+                        {ativandoInter === c.id ? '...' : 'Ativar'}
                       </button>
                     )}
                   </div>
