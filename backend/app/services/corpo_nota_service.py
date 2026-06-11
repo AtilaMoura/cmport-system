@@ -1231,9 +1231,8 @@ class CorpoNotaService:
 
         linhas += [
             f"Serviços Executados: {descricao_servico or '—'}",
-            "",
-            f"Datas do Serviço Executado: {texto_datas}",
-            f"Ordens de Serviço: {numero_os or '—'}",
+            f"Datas dos Serviços Executados: {texto_datas}",
+            f"Ordens de Serviços: {numero_os or '—'}",
             f"Quantidade de Parcelas: {n_parc:02d} ({extenso_parc}) {plural}",
         ]
 
@@ -1251,7 +1250,7 @@ class CorpoNotaService:
                     linhas.append(f"{qtd}x {nome_p}")
 
         linhas.append("")
-        linhas.append("Valores da Nota de Produto: ")
+        linhas.append("Valor da Nota de Produto: ")
 
         if valor_bruto is not None:
             extenso = CorpoNotaService._valor_por_extenso(valor_bruto)

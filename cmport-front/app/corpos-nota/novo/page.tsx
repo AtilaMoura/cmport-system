@@ -1302,10 +1302,12 @@ function NovoCorpoNotaContent() {
               {(impostosCalculados || semRetencao) && (
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">{semRetencao ? 'Valor total serviço' : 'Valor bruto serviço'}</span>
+                    <span className="text-slate-500">
+                      {tipoNota === 'PRODUTO' ? 'Valor da nota de produto' : semRetencao ? 'Valor total serviço' : 'Valor bruto serviço'}
+                    </span>
                     <span className="font-semibold">{fmtValor(Number(valorBruto))}</span>
                   </div>
-                  {!semRetencao && impostosCalculados && (
+                  {tipoNota !== 'PRODUTO' && !semRetencao && impostosCalculados && (
                     <>
                       {impostosCalculados.valor_inss > 0 && (
                         <div className="flex justify-between text-xs text-slate-400">
@@ -1351,7 +1353,7 @@ function NovoCorpoNotaContent() {
                       </div>
                     </>
                   )}
-                  {!temNotaProduto && (
+                  {!temNotaProduto && tipoNota !== 'PRODUTO' && (
                     <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5">
                       <span className="font-bold text-slate-800 dark:text-white">Total do boleto</span>
                       <span className="font-black text-violet-700 dark:text-violet-400 text-base">
@@ -1401,7 +1403,9 @@ function NovoCorpoNotaContent() {
                 {/* Validação da soma */}
                 {(() => {
                   const soma = parcelas.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
-                  const liquido = semRetencao ? Number(valorBruto) : (impostosCalculados?.valor_liquido ?? 0);
+                  const liquido = tipoNota === 'PRODUTO'
+                    ? Number(valorBruto)
+                    : semRetencao ? Number(valorBruto) : (impostosCalculados?.valor_liquido ?? 0);
                   const total = liquido + (temNotaProduto && valorNotaProduto ? Number(valorNotaProduto) : 0);
                   const diff = Math.abs(soma - total);
                   if (soma === 0 || total === 0) return null;
