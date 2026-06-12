@@ -1223,14 +1223,16 @@ class BoletoService:
 
     @staticmethod
     def tem_inter(db: Session, nota_id: int) -> bool:
-        """Verifica se a nota fiscal possui ConfiguracaoInter ativa pelo CNPJ emitente."""
-        nota = NotaFiscalRepository.get_by_id(db, nota_id)
-        if not nota or not getattr(nota, "cnpj_emitente", None):
-            return False
+        """Verifica se há ConfiguracaoInter ativa para emitir boleto desta nota."""
         from app.repositories.configuracao_repository import ConfiguracaoInterRepository
-        cnpj_limpo = _limpar_cnpj(nota.cnpj_emitente)
-        config = ConfiguracaoInterRepository.get_by_cnpj(db, cnpj_limpo)
-        return config is not None
+        nota = NotaFiscalRepository.get_by_id(db, nota_id)
+        if not nota:
+            return False
+        if getattr(nota, "cnpj_emitente", None):
+            cnpj_limpo = _limpar_cnpj(nota.cnpj_emitente)
+            return ConfiguracaoInterRepository.get_by_cnpj(db, cnpj_limpo) is not None
+        # Nota sem cnpj_emitente (gerada internamente, sem XML): usa fallback igual a _get_inter_client
+        return len(ConfiguracaoInterRepository.get_ativos(db)) > 0
 
     @staticmethod
     def preview_email_boleto(db: Session, boleto_id: int) -> dict:
