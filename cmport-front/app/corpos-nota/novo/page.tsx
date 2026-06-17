@@ -988,8 +988,8 @@ function NovoCorpoNotaContent() {
                 </>
               )}
 
-              {/* Aba Orçamento — somente SERVIÇO */}
-              {tipoNota === 'SERVICO' && abaOS === 'ORCAMENTO' && (
+              {/* Aba Orçamento — SERVIÇO e PRODUTO */}
+              {tipoNota !== 'MANUTENCAO' && abaOS === 'ORCAMENTO' && (
                 <div className="space-y-3">
                   {buscandoOrcamentos && (
                     <div className="text-slate-400 text-sm animate-pulse py-4 text-center">Buscando orçamentos...</div>
@@ -1031,8 +1031,8 @@ function NovoCorpoNotaContent() {
                 </div>
               )}
 
-              {/* Aba Manual — somente SERVIÇO */}
-              {tipoNota === 'SERVICO' && abaOS === 'MANUAL' && (
+              {/* Aba Manual — SERVIÇO e PRODUTO */}
+              {tipoNota !== 'MANUTENCAO' && abaOS === 'MANUAL' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
                     Número(s) da OS — texto livre

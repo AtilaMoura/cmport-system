@@ -8,7 +8,7 @@
 
 ## Tarefa Atual
 
-**Vinculação Automática + Orçamento em PRODUTO + Termo de Garantia via Corpo da Nota**
+**Corpo da Nota — Step 3 redesign + Garantia com Termo automático**
 
 **Data:** 2026-06-17 | **Prioridade:** Alta | **Status:** 🚧 A implementar
 
@@ -16,475 +16,409 @@
 
 ## Princípios Arquiteturais (não negociáveis)
 
-1. **Sem redundância de dados** — o corpo da nota referencia o serviço via FK (`servico_id`), nunca copia campos do serviço. Cada dado tem uma única fonte de verdade.
-
-2. **Sem duplicidade na base** — `TermoGarantia` continua pertencendo a `ManutencaoAssistencia` (FK `servico_id` obrigatório no model). O corpo da nota guarda apenas `termo_garantia_id` como referência de conveniência.
-
-3. **Serviço mantém autonomia total** — a página `/servicos/[id]` não muda. O usuário pode criar, editar, desvincular e recriar o Termo de Garantia, vincular/desvincular notas fiscais e realizar qualquer operação no serviço de forma completamente independente do corpo da nota.
-
-4. **Não quebrar o que funciona** — os textos gerados por corpos SERVIÇO e SERVIÇO+produto vinculado são saída crítica e não podem mudar.
+1. **Sem redundância** — corpo referencia serviço via FK (`servico_id`). Nenhum campo do serviço é copiado.
+2. **Sem duplicidade** — `TermoGarantia` pertence ao `ManutencaoAssistencia`. O corpo guarda só `termo_garantia_id`.
+3. **Serviço mantém autonomia total** — `/servicos/[id]` continua podendo criar/editar/desvincular/recriar Termo independentemente.
+4. **Não quebrar o que funciona** — textos gerados de corpos SERVIÇO e SERVIÇO+produto são saída crítica, não mudam.
 
 ---
 
-## O Que Não Pode Mudar (Regressão Obrigatória)
+## O Que Já Foi Implementado (esta sessão — não refazer)
 
-Antes de tocar qualquer arquivo, coletar snapshots via `POST /api/v1/corpos-nota/preview`:
-
-| Cenário | Campo a salvar |
-|---------|---------------|
-| Corpo SERVIÇO simples | `conteudo_gerado` |
-| Corpo SERVIÇO + `valor_nota_produto` + `parcelas_json` | `conteudo_gerado` |
-| Corpo PRODUTO standalone | `conteudo_gerado` |
-| `npx tsc --noEmit` no frontend | deve passar zero erros |
-
-Após cada fase, conferir que os textos permanecem idênticos.
+| Item | Commit | Status |
+|------|--------|--------|
+| Tabs OS/Orçamento visíveis para PRODUTO (linha 891) | f69e945 | ✅ |
+| Auto-vínculo XML PRODUTO standalone (repository + service) | f69e945 | ✅ |
+| Endpoint `GET /corpos-nota/{id}/pre-gerar-termo` | f69e945 | ✅ |
+| Seção "Termo de Garantia" no detalhe do corpo (`[id]/page.tsx`) | f69e945 | ✅ |
 
 ---
 
-## Fase 0 — Snapshot (antes de qualquer código)
+## Bugs Ainda Existentes (descobertos nos testes)
 
-- [ ] Gerar preview de corpo SERVIÇO simples → copiar `conteudo_gerado`
-- [ ] Gerar preview de corpo SERVIÇO + nota de produto → copiar `conteudo_gerado`
-- [ ] Gerar preview de corpo PRODUTO standalone → copiar `conteudo_gerado`
-- [ ] Confirmar `npx tsc --noEmit` zerado antes de começar
+| # | Bug | Causa raiz | Arquivo | Linha |
+|---|-----|-----------|---------|-------|
+| B1 | Orçamento: aba visível mas conteúdo vazio para PRODUTO | `tipoNota === 'SERVICO'` no conteúdo da aba | `novo/page.tsx` | 992 |
+| B2 | Manual: aba visível mas campo vazio para PRODUTO | `tipoNota === 'SERVICO'` no conteúdo da aba | `novo/page.tsx` | 1035 |
+| B3 | Garantia ainda é campo texto livre (deveria ser opções fixas) | Nunca implementado | `novo/page.tsx` | ~1165 |
+| B4 | Termo não pode ter data pendente (NOT NULL no model) | `data_inicio DATE NOT NULL` | `termo_garantia_model.py` | 14 |
+| B5 | Email anexa Termo mesmo quando data de execução está vazia | Sem verificação `data_inicio is None` | `boleto_service.py` | ~1449, ~1617 |
+| B6 | Serviço não avisa "Termo pendente" quando falta data | Lógica não implementada | `servicos/[id]/page.tsx` | — |
 
 ---
 
-## Fase 1 — Fix: Orçamentos no Wizard de Corpo PRODUTO
+## Fase A — Fix Urgente: Conteúdo das Abas para PRODUTO (2 linhas)
 
-### Problema
+**Arquivo:** `cmport-front/app/corpos-nota/novo/page.tsx`
 
-A tab OS / ORCAMENTO / MANUAL no Step 3 do wizard só renderiza quando `tipoNota === 'SERVICO'` (linha ~891 de `novo/page.tsx`). Para tipo PRODUTO as tabs ficam invisíveis — o usuário não consegue selecionar Orçamento nem OS ao criar um corpo de nota de produto.
-
-### Arquivo
-
-`cmport-front/app/corpos-nota/novo/page.tsx`
-
-### Mudança — 1 linha
-
-```typescript
-// ANTES (linha ~891)
-{tipoNota === 'SERVICO' && (
-  <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-    {(['OS', 'ORCAMENTO', 'MANUAL'] as const).map(aba => (
-
+```tsx
+// LINHA 992 — ANTES
+{tipoNota === 'SERVICO' && abaOS === 'ORCAMENTO' && (
 // DEPOIS
-{tipoNota !== 'MANUTENCAO' && (
-  <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-    {(['OS', 'ORCAMENTO', 'MANUAL'] as const).map(aba => (
+{tipoNota !== 'MANUTENCAO' && abaOS === 'ORCAMENTO' && (
+
+// LINHA 1035 — ANTES
+{tipoNota === 'SERVICO' && abaOS === 'MANUAL' && (
+// DEPOIS
+{tipoNota !== 'MANUTENCAO' && abaOS === 'MANUAL' && (
 ```
 
-Toda a lógica das tabs (buscar OS, selecionar orçamento, preencher campos derivados) já funciona para SERVIÇO e reaproveita 100% para PRODUTO.
-
-### Checklist Fase 1
-
-- [ ] Wizard tipo PRODUTO → Step 3 exibe tabs OS / ORCAMENTO / MANUAL
-- [ ] Selecionar Orçamento → `produtos_json` pré-preenchido + `orcamento_id` salvo no payload
-- [ ] Selecionar OS → `servico_id` + `numero_os` + `data_servico_texto` preenchidos
-- [ ] Tipo SERVIÇO e MANUTENÇÃO → comportamento idêntico ao de antes
+**Checklist Fase A:**
+- [ ] Wizard PRODUTO → aba "Via Orçamento" mostra lista de orçamentos
+- [ ] Wizard PRODUTO → aba "Manual" mostra campo texto livre
+- [ ] Wizard SERVIÇO → comportamento idêntico ao anterior (sem regressão)
 - [ ] `npx tsc --noEmit` zerado
 
 ---
 
-## Fase 2 — Fix: Vínculo Automático de Nota PRODUTO Standalone
+## Fase B — Step 3: OS + Orçamento Simultâneos (sem abas)
 
 ### Problema
 
-Ao importar um XML de NF-e de produto, o método `tentar_vincular_por_nota_fiscal` detecta CNPJ de conta PRODUTO e chama `_tentar_vincular_nota_produto` — que só procura corpos `tipo_nota=SERVICO`. Corpos `tipo_nota=PRODUTO` standalone nunca recebem vínculo automático. A nota entra no sistema solta, sem conexão com o corpo que a originou.
+O modelo atual de abas mutuamente exclusivas (OS | Orçamento | Manual) impede selecionar OS **e** Orçamento ao mesmo tempo. O cliente pode querer vincular a OS do Auvo E o orçamento correspondente ao mesmo corpo.
 
-### Fluxo corrigido
+### Novo comportamento
+
+Remover as 3 abas. Step 3 passa a exibir **dois blocos verticais sempre visíveis**:
 
 ```
-XML PRODUTO importado
-  → tentar_vincular_por_nota_fiscal()
-      → _cnpj_e_produto() = True
-          → _tentar_vincular_nota_produto()       [busca corpo SERVICO — existente]
-              → achou → vincula ✅ fim
-              → não achou → fallback (NOVO):
-                  → _tentar_vincular_nota_produto_standalone()  [busca corpo PRODUTO]
-                      → 1 candidato → vincula nota_fiscal_id ✅
-                      → 2+ candidatos → retorna lista (vínculo manual)
-                      → 0 candidatos → None (nota fica solta, sem erro)
+┌─ Step 3 — Origem ────────────────────────────────────────┐
+│                                                           │
+│  Ordens de Serviço encontradas (multi-seleção)           │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ ☐  OS #73787278 · 14.05.2026 · Instalação bomba │    │
+│  │ ☐  OS #73912345 · 20.05.2026 · Troca motor      │    │
+│  └──────────────────────────────────────────────────┘    │
+│  [nenhuma OS encontrada → campo texto livre aparece]      │
+│                                                           │
+│  ──── Orçamento (opcional) ──────────────── [SERV/PROD]  │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ ○  Orç. #1234 · R$ 2.800,00 · Motor MKN + Manta │    │
+│  │ ○  Orç. #1198 · R$ 1.500,00 · Bomba d'água      │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                           │
+│  Número(s) da OS — texto livre (editável sempre)         │
+│  [ OS nº 73787278 e OS nº 73912345           ]           │
+│                                                           │
+└───────────────────────────────────────────── [Próximo →] ┘
 ```
 
-### Arquivo 1: `backend/app/repositories/corpo_nota_repository.py`
+### Regras de seleção
 
-Adicionar dois métodos estáticos ao final da classe `CorpoNotaRepository`:
+| Ação do usuário | Resultado |
+|----------------|-----------|
+| Seleciona 1+ OSs | `numero_os`, `data_servico`, `servico_id` preenchidos automaticamente |
+| Seleciona orçamento | `orcamento_id`, `valor_bruto`, `produtos_json` preenchidos automaticamente |
+| Seleciona OS + Orçamento | Ambos preenchidos; `servico_id` vem da OS |
+| Não seleciona nada | Campos ficam em branco → cliente preenche manualmente no Step 4 |
+| Campo "Número(s) da OS" | Sempre visível e editável, pré-preenchido quando OS é selecionada |
 
-```python
-@staticmethod
-def list_candidatos_produto_standalone_por_numero_nf(
-    db: Session,
-    condominio_id: int,
-    numero_nf: int,
-) -> List[CorpoNota]:
-    """Corpos tipo=PRODUTO sem nota vinculada com numero_nf exato."""
-    return (
-        db.query(CorpoNota)
-        .filter(
-            CorpoNota.condominio_id == condominio_id,
-            CorpoNota.tipo_nota == TipoNotaCorpo.PRODUTO,
-            CorpoNota.numero_nf == numero_nf,
-            CorpoNota.nota_fiscal_id.is_(None),
-            CorpoNota.deletado_em.is_(None),
-        )
-        .all()
-    )
+### Mudanças no código
 
-@staticmethod
-def list_candidatos_produto_standalone_por_mes(
-    db: Session,
-    condominio_id: int,
-    ano: int,
-    mes: int,
-) -> List[CorpoNota]:
-    """Corpos tipo=PRODUTO sem nota vinculada no mês/ano informado."""
-    from app.models.ciclo_nota_model import CicloNota
-    return (
-        db.query(CorpoNota)
-        .join(CicloNota, CorpoNota.ciclo_id == CicloNota.id)
-        .filter(
-            CorpoNota.condominio_id == condominio_id,
-            CorpoNota.tipo_nota == TipoNotaCorpo.PRODUTO,
-            CicloNota.ano == ano,
-            CicloNota.mes == mes,
-            CorpoNota.nota_fiscal_id.is_(None),
-            CorpoNota.deletado_em.is_(None),
-        )
-        .all()
-    )
-```
+**Arquivo:** `cmport-front/app/corpos-nota/novo/page.tsx`
 
-### Arquivo 2: `backend/app/services/corpo_nota_service.py`
+1. Remover state `abaOS` e a função `onAbaChange`
+2. Remover os 3 botões de tab (div com `flex gap-1 p-1 bg-slate-100 rounded-xl`)
+3. Manter o bloco OS sempre visível (multi-seleção existente — não muda lógica)
+4. Mover bloco Orçamento para abaixo das OSs, visível quando `tipoNota !== 'MANUTENCAO'`
+5. Campo texto "Número(s) da OS — texto livre" fica sempre visível ao final
+6. Bloco Manual deixa de existir como aba separada — é o estado natural de não selecionar nada
 
-**A — Novo método** (inserir logo após `_tentar_vincular_nota_produto`):
+**Estado do bloco Orçamento:**
+- Só aparece para SERVIÇO e PRODUTO
+- Carrega orçamentos ao montar o Step 3 (não precisa mais de trigger de aba)
+- Seleção única (radio), desmarcar clicando novamente
 
-```python
-@staticmethod
-def _tentar_vincular_nota_produto_standalone(
-    db: Session, nota
-) -> Optional[list]:
-    """
-    Fallback: vincula nota PRODUTO a CorpoNota tipo=PRODUTO standalone.
-    Chamado quando _tentar_vincular_nota_produto não encontra candidato SERVICO.
-    """
-    numero_nf_int = None
-    if nota.numero_nota:
-        try:
-            numero_nf_int = int(nota.numero_nota.split('-')[0].strip())
-        except (ValueError, IndexError):
-            pass
-
-    candidatos = []
-    if numero_nf_int:
-        candidatos = CorpoNotaRepository.list_candidatos_produto_standalone_por_numero_nf(
-            db, nota.condominio_id, numero_nf_int
-        )
-    if not candidatos and nota.data_vencimento:
-        candidatos = CorpoNotaRepository.list_candidatos_produto_standalone_por_mes(
-            db, nota.condominio_id,
-            nota.data_vencimento.year,
-            nota.data_vencimento.month,
-        )
-
-    if len(candidatos) == 1:
-        corpo = candidatos[0]
-        corpo.nota_fiscal_id = nota.id
-        corpo.status = StatusCorpoNota.XML_VINCULADO
-        nota.corpo_nota_id = corpo.id
-        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
-        CorpoNotaRepository.save(db, corpo)
-        logger.info(f"[PRODUTO-standalone] CorpoNota {corpo.id} vinculado à nota {nota.id}")
-        return []
-    elif len(candidatos) > 1:
-        return candidatos  # múltiplos → vínculo manual
-    return None            # sem candidatos → nota fica solta
-```
-
-**B — Modificar `tentar_vincular_por_nota_fiscal`** (trecho ~linhas 1323–1336):
-
-```python
-# ANTES
-if not tipo_corpo and nota.tipo == TipoNota.PRODUTO:
-    from app.services.nota_fiscal_service import _cnpj_e_produto
-    if _cnpj_e_produto(db, nota.cnpj_emitente):
-        return CorpoNotaService._tentar_vincular_nota_produto(db, nota)
-
-# DEPOIS
-if not tipo_corpo and nota.tipo == TipoNota.PRODUTO:
-    from app.services.nota_fiscal_service import _cnpj_e_produto
-    if _cnpj_e_produto(db, nota.cnpj_emitente):
-        resultado = CorpoNotaService._tentar_vincular_nota_produto(db, nota)
-        if resultado is not None:
-            return resultado
-        # Fallback: tenta corpo PRODUTO standalone
-        return CorpoNotaService._tentar_vincular_nota_produto_standalone(db, nota)
-```
-
-### Checklist Fase 2
-
-- [ ] Criar corpo PRODUTO standalone com emitente configurado (`numero_nf_produto=234`) → corpo recebe `numero_nf=234`
-- [ ] Importar XML nota PRODUTO número `234-1` mesmo condomínio → `corpo.nota_fiscal_id` preenchido, `nota.corpo_nota_id` preenchido, `corpo.status=XML_VINCULADO`
-- [ ] `conteudo_gerado` regenerado após vínculo (NF aparece no cabeçalho do texto)
-- [ ] XML nota PRODUTO para condomínio sem corpo PRODUTO → nota fica solta, sem erro
-- [ ] Dois corpos PRODUTO no mesmo mês → retorna lista de candidatos, não vincula automaticamente
-- [ ] Fluxo SERVIÇO com nota de produto vinculada → não regride
+**Checklist Fase B:**
+- [ ] Step 3 exibe OS + Orçamento verticais, sem tabs
+- [ ] Selecionar 2 OSs → `numero_os = "OS nº X e OS nº Y"`, `servico_id` da primeira
+- [ ] Selecionar OS + Orçamento → ambos preenchidos, `servico_id` vem da OS
+- [ ] Não selecionar nada → Step 4 com campos em branco (preenchimento manual)
+- [ ] Campo texto "Número da OS" sempre visível, editável
+- [ ] MANUTENÇÃO → bloco Orçamento não aparece (mantém comportamento atual)
+- [ ] `npx tsc --noEmit` zerado
 
 ---
 
-## Fase 3 — Termo de Garantia via Corpo da Nota
+## Fase C — Garantia: Botões Fixos + Modal Termo Automático no Wizard
 
-### Contexto
+### Problema
 
-O `TermoGarantia` é de propriedade do `ManutencaoAssistencia` (FK `servico_id` obrigatório). O corpo da nota guarda apenas `termo_garantia_id` como referência — **nenhum dado é duplicado**.
+Campo texto livre de garantia não padroniza o prazo e não abre o Termo automaticamente quando OS está vinculada.
 
-O serviço em `/servicos/[id]` mantém autonomia total: pode criar, editar, desvincular e recriar o Termo a qualquer momento sem qualquer dependência do corpo da nota.
+### Novo comportamento
 
-O corpo da nota oferece um **atalho**: quando já tem OS + produtos + garantia preenchidos, o usuário pode iniciar a geração do Termo diretamente no detalhe do corpo.
-
-### Problema da Data de Início
-
-O corpo pode ser criado antes da execução do serviço. Nesse caso, `data_servico` pode ser null no momento de gerar o Termo. Solução: não auto-gerar silenciosamente. Um botão abre formulário de confirmação pré-preenchido — o usuário ajusta a data se necessário.
-
-### Mapeamento Corpo → Termo (sem duplicar dados)
-
-| Campo do Termo | Origem | Observação |
-|----------------|--------|-----------|
-| `servico_id` | `corpo.servico_id` | Obrigatório — sem OS vinculada não gera |
-| `produto_descricao` | `corpo.produtos_json` serializado | `"3x Motor MKN · 2x Manta"` |
-| `prazo_meses` | parse de `corpo.descricao_garantia` | `"06 meses"` → 6, default 12 |
-| `data_inicio` | `corpo.data_servico` | Pode ser null — usuário confirma |
-| `data_fim` | calculado frontend: `data_inicio + prazo_meses` | |
-| `orcamento_id` | `corpo.orcamento_id` | |
-
-### Arquivo 1: `backend/app/services/corpo_nota_service.py`
-
-Dois helpers estáticos (sem efeito colateral, apenas transformação de dados):
-
-```python
-@staticmethod
-def _serializar_produtos_para_termo(produtos_json: Optional[list]) -> Optional[str]:
-    """[{"nome":"Motor","quantidade":3}] → "3x Motor · 2x Manta" """
-    if not produtos_json:
-        return None
-    partes = [
-        f"{p.get('quantidade', 1)}x {p.get('nome', '')}"
-        for p in produtos_json if p.get('nome')
-    ]
-    return " · ".join(partes) if partes else None
-
-@staticmethod
-def _extrair_prazo_meses(descricao_garantia: Optional[str]) -> int:
-    """"06 meses" → 6 | "Motor: 3m / Placa: 1 ano" → 3 | None → 12"""
-    if not descricao_garantia:
-        return 12
-    import re
-    m = re.search(r'(\d+)\s*(?:meses?|m\.?)', descricao_garantia, re.IGNORECASE)
-    return int(m.group(1)) if m else 12
-```
-
-Novo método de serviço (chamado pelo router):
-
-```python
-@staticmethod
-def pre_gerar_termo(db: Session, corpo_id: int) -> dict:
-    corpo = CorpoNotaService.get_by_id(db, corpo_id)
-
-    if not corpo.servico_id:
-        return {"pode_gerar": False, "motivo_bloqueio": "Corpo sem OS vinculada (servico_id ausente)"}
-
-    produto_desc = CorpoNotaService._serializar_produtos_para_termo(corpo.produtos_json)
-    if not produto_desc:
-        return {"pode_gerar": False, "motivo_bloqueio": "Sem produtos listados no corpo (produtos_json vazio)"}
-
-    prazo = CorpoNotaService._extrair_prazo_meses(corpo.descricao_garantia)
-
-    data_inicio = corpo.data_servico  # pode ser None
-    data_fim = None
-    if data_inicio:
-        from dateutil.relativedelta import relativedelta
-        data_fim = data_inicio + relativedelta(months=prazo)
-
-    return {
-        "pode_gerar": True,
-        "motivo_bloqueio": None,
-        "servico_id": corpo.servico_id,
-        "produto_descricao": produto_desc,
-        "prazo_meses": prazo,
-        "data_inicio": data_inicio.isoformat() if data_inicio else None,
-        "data_fim": data_fim.isoformat() if data_fim else None,
-        "orcamento_id": corpo.orcamento_id,
-    }
-```
-
-### Arquivo 2: `backend/app/schemas/corpo_nota_schema.py`
-
-```python
-class PreGerarTermoResponse(BaseModel):
-    pode_gerar: bool
-    motivo_bloqueio: Optional[str] = None
-    servico_id: Optional[int] = None
-    produto_descricao: Optional[str] = None
-    prazo_meses: int = 12
-    data_inicio: Optional[date] = None
-    data_fim: Optional[date] = None
-    orcamento_id: Optional[int] = None
-```
-
-### Arquivo 3: `backend/app/routers/corpo_nota_router.py`
-
-```python
-@router.get("/{corpo_id}/pre-gerar-termo", response_model=PreGerarTermoResponse)
-def pre_gerar_termo(
-    corpo_id: int,
-    db: Session = Depends(get_db),
-    usuario=Depends(get_current_user),
-):
-    return CorpoNotaService.pre_gerar_termo(db, corpo_id)
-```
-
-### Arquivo 4: `cmport-front/app/corpos-nota/[id]/page.tsx`
-
-Adicionar seção "Termo de Garantia" no detalhe do corpo. A seção só aparece se `corpo.tem_garantia === true`.
-
-**Estado A — sem termo gerado (`termo_garantia_id === null`), com `servico_id`:**
+**Step 4 — seção Garantia:**
 
 ```
-┌─────────────────────────────────────────────┐
-│ Termo de Garantia                            │
-│  [Gerar Termo]  ← botão violet               │
-└─────────────────────────────────────────────┘
+Garantia:
+  [ 3 meses ]  [ 6 meses ]  [ 1 ano ]    ← toggle, um de cada vez
+                                           Nenhum selecionado = sem garantia
 ```
 
-Clicar → chama `GET /corpos-nota/{id}/pre-gerar-termo`:
-- `pode_gerar: false` → exibe mensagem do `motivo_bloqueio` inline
-- `pode_gerar: true` → abre modal de confirmação:
+Ao selecionar um prazo:
+- `tem_garantia = true`
+- `descricao_garantia = "3 meses"` | `"6 meses"` | `"1 ano"`
+- Se `servicoId` preenchido (OS selecionada) → **modal Termo abre automaticamente**
+- Se `servicoId` vazio → botão manual "Pré-gerar Termo" aparece abaixo dos botões
+
+### Modal "Pré-gerar Termo de Garantia"
+
+Abre automaticamente quando prazo é selecionado e `servicoId` está preenchido.
 
 ```
-┌─────────────────────────────────────────────┐
-│ Confirmar Termo de Garantia                  │
-│                                              │
-│ Produtos/Serviços:                           │
-│ [3x Motor MKN · 2x Manta             ]  ← textarea editável
-│                                              │
-│ Prazo (meses): [ 6 ]                        │  ← number input
-│                                              │
-│ Data de início: [ 2026-05-15 ]              │  ← date input (editável)
-│ (pode ficar vazio se serviço ainda não foi executado)
-│                                              │
-│            [Cancelar]  [Confirmar e Salvar]  │
-└─────────────────────────────────────────────┘
+┌─ Termo de Garantia ──────────────────────────────────────┐
+│                                                           │
+│  Produtos / Serviços Garantidos:                         │
+│  [ 3x Motor MKN · 2x Manta asfáltica          ]  ← editável
+│  (pré-preenchido com produtos_json do Step 4)            │
+│                                                           │
+│  Prazo: 6 meses  (travado no selecionado)                │
+│                                                           │
+│  Data de início da garantia:                             │
+│  [ 14/05/2026 ]  ← pré-preenchido da OS se disponível   │
+│   ou  [ vazio — "Pendente (preencher após execução)" ]   │
+│                                                           │
+│          [Pular por agora]  [Salvar Termo]               │
+└──────────────────────────────────────────────────────────┘
 ```
 
-Ao confirmar:
+**Ao clicar "Salvar Termo":**
+```
+POST /termos-garantia/
+  → { servico_id, produto_descricao, prazo_meses,
+      data_inicio: date | null,
+      data_fim: (data_inicio + prazo) | null,
+      orcamento_id }
+```
+- Salva `termoWizardId` no state
+- Na confirmação final (Step 6) → payload inclui `termo_garantia_id: termoWizardId`
+
+**Ao clicar "Pular por agora":**
+- Termo não é criado agora
+- `tem_garantia = true`, `descricao_garantia` preenchido
+- Usuário pode gerar Termo depois na página de detalhe do corpo (botão já existe)
+
+### Mudanças no código
+
+**Arquivo:** `cmport-front/app/corpos-nota/novo/page.tsx`
+
+1. Substituir `<input type="text" value={descricaoGarantia}>` por 3 botões toggle
+2. Novo state `prazoGarantia: 3 | 6 | 12 | null`
+3. Novo state `showModalTermoWizard: boolean`
+4. Novo state `termoWizardId: number | null`
+5. `descricaoGarantia` calculado a partir do prazo: `{ 3: '3 meses', 6: '6 meses', 12: '1 ano' }`
+6. Ao selecionar prazo + ter `servicoId` → `setShowModalTermoWizard(true)`
+7. Modal chama `POST /termos-garantia/` → salva `termoWizardId`
+8. Payload final (`confirmar`) inclui `termo_garantia_id: termoWizardId`
+
+**Arquivo:** `cmport-front/app/corpos-nota/novo/page.tsx` — `payloadBase()`:
 ```typescript
-// 1. Cria Termo usando endpoint já existente
-const dFim = calcularDataFim(dataInicio, prazoMeses); // frontend calcula
-const { data: novoTermo } = await api.post('/termos-garantia/', {
-  servico_id: preGerar.servico_id,
-  produto_descricao: produtoDescricao,  // valor editado pelo usuário
-  prazo_meses: prazoMeses,
-  data_inicio: dataInicio || null,
-  data_fim: dFim || null,
-  orcamento_id: preGerar.orcamento_id,
-});
-
-// 2. Atualiza referência no corpo (não duplica dado — só guarda o ID)
-await api.patch(`/corpos-nota/${corpoId}`, { termo_garantia_id: novoTermo.id });
-
-// 3. Atualiza estado local
-setCorpo(prev => ({ ...prev, termo_garantia_id: novoTermo.id }));
+termo_garantia_id: termoWizardId || null,  // ← adicionar
 ```
 
-**Estado B — termo já gerado (`termo_garantia_id !== null`):**
-
-```
-┌─────────────────────────────────────────────┐
-│ Termo de Garantia  ✓                         │
-│  [Ver PDF]  [Preview]  [Ver no Serviço →]   │
-└─────────────────────────────────────────────┘
+**Arquivo:** `backend/app/schemas/corpo_nota_schema.py` — `CorpoNotaCreate`:
+```python
+termo_garantia_id: Optional[int] = None  # ← adicionar se não existe
 ```
 
-"Ver no Serviço →" abre `/servicos/{servico_id}` onde o usuário tem autonomia total para recriar, editar ou desvincular o Termo.
+**Checklist Fase C:**
+- [ ] Step 4: 3 botões de prazo substituem campo texto
+- [ ] Selecionar prazo com OS vinculada → modal abre automaticamente
+- [ ] Modal pré-preenche produtos do state e data da OS
+- [ ] "Salvar Termo" → cria Termo, fecha modal, `termoWizardId` salvo
+- [ ] "Pular por agora" → fecha modal, garantia registrada, Termo criado depois
+- [ ] Sem OS vinculada: selecionar prazo → mostra botão manual "Pré-gerar Termo"
+- [ ] Criar corpo → payload inclui `termo_garantia_id` se gerado
+- [ ] Detalhe do corpo criado → seção Termo mostra estado correto (gerado ou pendente)
+- [ ] `npx tsc --noEmit` zerado
 
-### Estrutura de Vínculos (sem duplicidade)
+---
+
+## Fase D — Model: `data_inicio` e `data_fim` Nullable
+
+### Problema
+
+`TermoGarantia.data_inicio` e `data_fim` são `NOT NULL` no banco. Não é possível criar Termo com data pendente.
+
+### Mudanças
+
+**Arquivo:** `backend/app/models/termo_garantia_model.py`
+```python
+# ANTES
+data_inicio = Column(Date, nullable=False)
+data_fim = Column(Date, nullable=False)
+
+# DEPOIS
+data_inicio = Column(Date, nullable=True)
+data_fim = Column(Date, nullable=True)
+```
+
+**Arquivo:** `backend/app/schemas/termo_garantia_schema.py`
+```python
+# Nos schemas de criação e response:
+data_inicio: Optional[date] = None
+data_fim: Optional[date] = None
+```
+
+**SQL no banco (VPS — rodar manualmente via SSH):**
+```sql
+ALTER TABLE termos_garantia
+  MODIFY data_inicio DATE NULL,
+  MODIFY data_fim DATE NULL;
+```
+
+**Arquivo:** `backend/app/services/termo_garantia_service.py` — `gerar_pdf()`:
+```python
+# Adicionar verificação antes de gerar
+if not termo.data_inicio:
+    raise ValueError("Termo com data de execução pendente — preencha a data para gerar o PDF")
+```
+
+**Checklist Fase D:**
+- [ ] `POST /termos-garantia/` aceita `data_inicio: null`
+- [ ] Termo criado sem data salva no banco sem erro
+- [ ] `GET /termos-garantia/{id}/pdf` com `data_inicio=null` retorna 400 com mensagem clara
+- [ ] Termos existentes no banco (com data preenchida) não são afetados
+
+---
+
+## Fase E — Email: Não Anexar Termo Pendente
+
+### Problema
+
+Email do boleto tenta gerar PDF do Termo independente de `data_inicio` ser null. Se null, falha silenciosamente mas pode gerar log de erro.
+
+### Mudança
+
+**Arquivo:** `backend/app/services/boleto_service.py` — dois locais (linhas ~1449 e ~1617):
+
+```python
+# ANTES
+termo = TermoGarantiaRepository.get_by_servico_id(db, servico.id)
+if termo:
+    pdf_termo = TermoGarantiaService.gerar_pdf(db, termo.id)
+    anexos.append(...)
+
+# DEPOIS
+termo = TermoGarantiaRepository.get_by_servico_id(db, servico.id)
+if termo and termo.data_inicio is not None:  # ← só anexa se data completa
+    try:
+        pdf_termo = TermoGarantiaService.gerar_pdf(db, termo.id)
+        anexos.append(...)
+    except Exception as e:
+        logger.warning(f"Termo {termo.id} não incluído no email: {e}")
+```
+
+**Checklist Fase E:**
+- [ ] Email enviado com Termo pendente (data_inicio=null) → PDF não é anexado, email enviado normalmente
+- [ ] Email enviado com Termo completo → PDF anexado normalmente
+- [ ] Nenhum erro no log quando Termo está pendente
+
+---
+
+## Fase F — Serviço `/servicos/[id]`: Indicador "Termo Pendente"
+
+### Problema
+
+Quando o corpo gera um Termo com `data_inicio=null`, o serviço vinculado não mostra nenhuma indicação. O cliente não sabe que precisa preencher a data.
+
+### Novo comportamento
+
+**Arquivo:** `cmport-front/app/servicos/[id]/page.tsx`
+
+Verificar o Termo do serviço. Se `termo.data_inicio === null`:
 
 ```
-ManutencaoAssistencia (id=42)   ← fonte de verdade do serviço
-    ↑ servico_id FK (obrigatório)
-TermoGarantia (id=7)            ← Termo é do serviço, não do corpo
-    ↑ termo_garantia_id FK (nullable, apenas referência)
-CorpoNota (id=15)
+┌─ Termo de Garantia ──────────────────────────────────────┐
+│  ⏳ Data de execução pendente                             │
+│  Prazo: 6 meses · 3x Motor MKN · 2x Manta asfáltica     │
+│                                                           │
+│  Data de início do serviço:                              │
+│  [ __ / __ / ____ ]  [Salvar]                           │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### Checklist Fase 3
+Ao salvar:
+```
+PATCH /termos-garantia/{id}
+  → { data_inicio, data_fim: data_inicio + prazo_meses }
+```
+Após salvar: badge muda para "Termo completo" → botão "Ver PDF" aparece.
 
-- [ ] Corpo SERVIÇO com OS + `produtos_json` + `descricao_garantia="06 meses"` → botão "Gerar Termo" aparece
-- [ ] `GET /pre-gerar-termo` retorna `produto_descricao="3x Motor"`, `prazo_meses=6`, `data_inicio` correto
-- [ ] `data_inicio=null` quando `corpo.data_servico` é null → campo vazio no modal, usuário preenche
-- [ ] Confirmar modal → `POST /termos-garantia/` cria Termo, `PATCH /corpos-nota/{id}` seta `termo_garantia_id`
-- [ ] Estado B exibido após geração: "Ver PDF" e "Ver no Serviço →" funcionais
-- [ ] PDF do Termo via `/termos-garantia/{id}/pdf` correto
-- [ ] Corpo sem `servico_id` → seção não exibe botão "Gerar Termo"
-- [ ] Corpo tipo PRODUTO com OS vinculada → também pode gerar Termo
-- [ ] Navegar para `/servicos/{id}` → criar/editar/excluir Termo funciona independentemente (sem regressão)
+**Checklist Fase F:**
+- [ ] Serviço com Termo `data_inicio=null` → exibe badge ⏳ + input de data
+- [ ] Preencher data + Salvar → PATCH enviado, `data_inicio` e `data_fim` atualizados
+- [ ] Após salvar: badge muda, botão "Ver PDF" aparece, PDF correto
+- [ ] Serviço com Termo completo → sem regressão (comportamento atual mantido)
 - [ ] `npx tsc --noEmit` zerado
 
 ---
 
 ## Mapa de Arquivos
 
-| Arquivo | Fase | O que muda |
-|---------|------|-----------|
-| `cmport-front/app/corpos-nota/novo/page.tsx` | F1 | 1 linha: `=== 'SERVICO'` → `!== 'MANUTENCAO'` |
-| `backend/app/repositories/corpo_nota_repository.py` | F2 | +2 métodos estáticos |
-| `backend/app/services/corpo_nota_service.py` | F2, F3 | +1 método fallback, +1 método pre_gerar_termo, +2 helpers |
-| `backend/app/schemas/corpo_nota_schema.py` | F3 | +1 schema `PreGerarTermoResponse` |
-| `backend/app/routers/corpo_nota_router.py` | F3 | +1 endpoint `GET /{corpo_id}/pre-gerar-termo` |
-| `cmport-front/app/corpos-nota/[id]/page.tsx` | F3 | +seção Termo de Garantia + modal de confirmação |
+| Arquivo | Fases | O que muda |
+|---------|-------|-----------|
+| `cmport-front/app/corpos-nota/novo/page.tsx` | A, B, C | Fix 2 condicionais + remover tabs + botões garantia + modal Termo |
+| `backend/app/models/termo_garantia_model.py` | D | `data_inicio` e `data_fim` nullable |
+| `backend/app/schemas/termo_garantia_schema.py` | D | campos Optional |
+| `backend/app/services/termo_garantia_service.py` | D | check `data_inicio` antes de gerar PDF |
+| `backend/app/services/boleto_service.py` | E | skip Termo pendente no email |
+| `cmport-front/app/servicos/[id]/page.tsx` | F | badge + input data execução |
+| SQL banco VPS | D | ALTER TABLE nullable |
 
 **Não mudam:**
-- `corpo_nota_model.py` — `termo_garantia_id` já existe no model
-- `termo_garantia_model.py` / `_service.py` / `_router.py` — usados, não alterados
+- `corpo_nota_model.py` — `termo_garantia_id` já existe
+- `corpo_nota_service.py` — helpers e `pre_gerar_termo` já implementados
+- `corpo_nota_router.py` — endpoint `pre-gerar-termo` já existe
+- `corpos-nota/[id]/page.tsx` — seção Termo já implementada
 - `_montar_texto_servico` / `_montar_texto_produto` — texto intocado
-- `app/servicos/[id]/page.tsx` — autonomia total mantida, zero mudanças
 
 ---
 
 ## Ordem de Implementação
 
 ```
-Fase 0 (snapshot)
+Fase A (2 linhas — fix urgente)
     ↓
-Fase 1 (frontend — 1 linha) ─┐
-                              ├── independentes, podem ser em paralelo
-Fase 2 (backend — vínculo) ──┘
+Fase D (model nullable + SQL VPS)   ← antes de B porque B cria Termos sem data
     ↓
-Fase 3 (backend + frontend — Termo)
+Fase B (Step 3 redesign — sem abas)
     ↓
-Testes de regressão + deploy
+Fase C (garantia botões + modal Termo no wizard)
+    ↓
+Fase E (email skip Termo pendente)
+    ↓
+Fase F (serviço indicador pendente)
+    ↓
+tsc + deploy + smoke test
 ```
 
 ---
 
 ## Checklist Final
 
-- [ ] Fase 0: snapshots coletados, `npx tsc --noEmit` verde antes de começar
-- [ ] Fase 1: tab ORCAMENTO visível no wizard PRODUTO
-- [ ] Fase 2: XML PRODUTO standalone vincula automaticamente ao corpo PRODUTO
-- [ ] Fase 3: botão "Gerar Termo" funcional, PDF correto, vínculos preenchidos
-- [ ] Regressão SERVIÇO simples: `conteudo_gerado` idêntico ao snapshot
-- [ ] Regressão SERVIÇO + produto: `conteudo_gerado` idêntico ao snapshot
-- [ ] Vínculo automático MANUTENCAO/SERVIÇO existente não regride
-- [ ] Serviço em `/servicos/[id]`: Termo pode ser criado/editado/excluído de forma independente
-- [ ] `npx tsc --noEmit` zerado no frontend
-- [ ] Deploy VPS: `git push vps master`
-- [ ] Smoke test produção: corpo PRODUTO → selecionar orçamento → gerar → importar XML → verificar vínculo → gerar Termo
+- [ ] **A**: Orçamento e Manual visíveis para PRODUTO no Step 3
+- [ ] **B**: Step 3 sem abas — OS + Orçamento simultâneos, ambos selecionáveis juntos
+- [ ] **C**: Garantia com botões 3/6/12 meses; modal Termo abre ao selecionar prazo com OS
+- [ ] **D**: `data_inicio` nullable; Termo criado sem data no banco; PDF retorna 400 se pendente
+- [ ] **E**: Email não anexa PDF de Termo pendente; email enviado normalmente
+- [ ] **F**: Serviço mostra "Termo pendente" + input data + salva PATCH
+- [ ] Regressão: corpo SERVIÇO e SERVIÇO+produto — texto idêntico ao anterior
+- [ ] Regressão: email com Termo completo → PDF anexado normalmente
+- [ ] `npx tsc --noEmit` zerado
+- [ ] Deploy VPS + smoke test
 
 ---
 
-## Histórico — Última Tarefa Concluída
+## Histórico — Implementado nesta sessão (commit f69e945)
+
+- Tabs visíveis para PRODUTO (linha 891: `!== 'MANUTENCAO'`)
+- Auto-vínculo XML PRODUTO standalone (`_tentar_vincular_nota_produto_standalone`)
+- Endpoint `GET /corpos-nota/{id}/pre-gerar-termo` + schema `PreGerarTermoResponse`
+- Seção "Termo de Garantia" no detalhe do corpo com modal + download PDF
+
+## Histórico — Tarefa Anterior Concluída
 
 **Módulo Corpo da Nota — Fase 1 (Manutenção + Serviço + Produto)**
-Commits: `1167252` (backend +3016 linhas) · `6754c46` (frontend +1744 linhas) · `1da01ed` (fix vínculo manual)
-Todas as fases A–G concluídas e em produção. Detalhes técnicos arquivados no git.
+Commits: `1167252` · `6754c46` · `1da01ed` — todas as fases A–G em produção.

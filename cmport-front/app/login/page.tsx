@@ -19,7 +19,7 @@ export default function LoginPage() {
     try {
       const resp = await axios.post('/api/v1/auth/login', { email, senha });
       setToken(resp.data.access_token);
-      router.push('/');
+      window.location.href = '/';
     } catch {
       setErro('Email ou senha incorretos. Tente novamente.');
     } finally {

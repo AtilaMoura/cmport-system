@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { getToken, removeToken, decodeToken, isTokenValid, JwtPayload } from '@/lib/auth';
 
@@ -11,18 +11,19 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState>({ user: null, logout: () => {} });
 
-// Inicializa o usuário lendo o cookie uma única vez (lazy initializer — sem useEffect)
-function initUser(): JwtPayload | null {
-  if (typeof window === 'undefined') return null;
-  const token = getToken();
-  if (token && isTokenValid(token)) return decodeToken(token);
-  removeToken();
-  return null;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [user, setUser] = useState<JwtPayload | null>(initUser);
+  const [user, setUser] = useState<JwtPayload | null>(null);
+
+  // Lê o cookie só no client, após hidratação, para evitar mismatch SSR/client
+  useEffect(() => {
+    const token = getToken();
+    if (token && isTokenValid(token)) {
+      setUser(decodeToken(token));
+    } else {
+      removeToken();
+    }
+  }, []);
 
   function logout() {
     removeToken();
