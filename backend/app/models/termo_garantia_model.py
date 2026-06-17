@@ -11,8 +11,8 @@ class TermoGarantia(Base):
     
     produto_descricao = Column(Text, nullable=False)
     prazo_meses = Column(Integer, nullable=False) # 3, 6 ou 12
-    data_inicio = Column(Date, nullable=False)
-    data_fim = Column(Date, nullable=False)
+    data_inicio = Column(Date, nullable=True)
+    data_fim = Column(Date, nullable=True)
     
     # FK opcional para orçamentos (de onde o termo pode ter sido gerado)
     orcamento_id = Column(Integer, ForeignKey("orcamentos.id", ondelete="SET NULL"), nullable=True)

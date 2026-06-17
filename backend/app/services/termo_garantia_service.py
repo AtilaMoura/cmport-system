@@ -106,6 +106,9 @@ class TermoGarantiaService:
     @staticmethod
     def gerar_pdf(db: Session, termo_id: int) -> io.BytesIO:
         from weasyprint import HTML
+        termo_check = TermoGarantiaRepository.get_by_id(db, termo_id)
+        if not termo_check or not termo_check.data_inicio:
+            raise ValueError("Termo com data de execução pendente — preencha a data para gerar o PDF")
         context = _build_context(db, termo_id)
         context["assinatura_src"] = "assinatura_andre.png"
         tpl = _JINJA_ENV.get_template("termo_garantia_template.html")

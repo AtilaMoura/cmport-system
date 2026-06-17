@@ -1444,7 +1444,7 @@ class BoletoService:
 
         if servico_os:
             termo = TermoGarantiaRepository.get_by_servico_id(db, servico_os.id)
-            if termo:
+            if termo and termo.data_inicio is not None:
                 try:
                     pdf_termo = TermoGarantiaService.gerar_pdf(db, termo.id)
                     lista_anexos.append((
@@ -1611,7 +1611,7 @@ class BoletoService:
             from app.repositories.termo_garantia_repository import TermoGarantiaRepository
             from app.services.termo_garantia_service import TermoGarantiaService
             termo = TermoGarantiaRepository.get_by_servico_id(db, servico.id)
-            if termo:
+            if termo and termo.data_inicio is not None:
                 try:
                     pdf_termo = TermoGarantiaService.gerar_pdf(db, termo.id)
                     anexos.append((f"termo_garantia_servico_{servico.id}.pdf", pdf_termo.getvalue(), "application/pdf"))

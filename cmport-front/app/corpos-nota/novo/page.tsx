@@ -188,8 +188,7 @@ function NovoCorpoNotaContent() {
   const [condSelecionado, setCondSelecionado] = useState<CondPendente | null>(null);
   const [filtroCond, setFiltroCond] = useState('');
 
-  // Step 3 — OS / Orçamento / Manual
-  const [abaOS, setAbaOS] = useState<'OS' | 'ORCAMENTO' | 'MANUAL'>('OS');
+  // Step 3 — OS + Orçamento simultâneos
   const [osResultado, setOsResultado] = useState<OSResultado | null>(null);
   const [buscandoOS, setBuscandoOS] = useState(false);
   const [ossSelecionadas, setOssSelecionadas] = useState<OSItem[]>([]);   // multi-select
@@ -213,6 +212,13 @@ function NovoCorpoNotaContent() {
   // Produtos listados na nota
   const [listarProdutos, setListarProdutos] = useState(false);
   const [produtos, setProdutos] = useState<{nome: string; quantidade: string}[]>([]);
+  // Garantia com prazo fixo + Termo automático no wizard
+  const [prazoGarantia, setPrazoGarantia] = useState<3 | 6 | 12 | null>(null);
+  const [showModalTermoWizard, setShowModalTermoWizard] = useState(false);
+  const [termoWizardId, setTermoWizardId] = useState<number | null>(null);
+  const [modalProdutoDesc, setModalProdutoDesc] = useState('');
+  const [modalDataInicio, setModalDataInicio] = useState('');
+  const [salvandoTermo, setSalvandoTermo] = useState(false);
   // Parcelas livres: cada uma tem valor + data
   const [parcelas, setParcelas] = useState<{valor: string; data: string}[]>([{valor:'',data:''}]);
   // Salvar novo valor no contrato ao confirmar
@@ -340,9 +346,8 @@ function NovoCorpoNotaContent() {
       setDataVencimento(`${anoVenc}-${String(mesVenc).padStart(2, '0')}-${dia}`);
     }
 
-    // Inicia com aba OS por padrão e busca as OSs
-    setAbaOS('OS');
     await buscarOSsParaCond(cond);
+    if (tipoNota !== 'MANUTENCAO') buscarOrcamentos(cond.condominio_id);
     setStep(3);
   };
 
@@ -378,13 +383,6 @@ function NovoCorpoNotaContent() {
     }
   };
 
-  const onAbaChange = (aba: 'OS' | 'ORCAMENTO' | 'MANUAL') => {
-    setAbaOS(aba);
-    if (aba === 'ORCAMENTO' && condSelecionado && orcamentos.length === 0 && !buscandoOrcamentos) {
-      buscarOrcamentos(condSelecionado.condominio_id);
-    }
-  };
-
   // ── Step 3 — toggle multi-select OS ────────────────────────────────────────
   const toggleOS = (os: OSItem) => {
     setOssSelecionadas(prev => {
@@ -403,15 +401,17 @@ function NovoCorpoNotaContent() {
       if (novas.length === 1 && novas[0].servico_id) setServicoId(novas[0].servico_id);
       return novas;
     });
-    setOrcamentoSelecionado(null);
   };
 
-  // ── Step 3 — selecionar Orçamento ──────────────────────────────────────────
+  // ── Step 3 — selecionar Orçamento (radio com toggle-deselect) ──────────────
   const selecionarOrcamento = (orc: Orcamento) => {
+    if (orcamentoSelecionado?.id === orc.id) {
+      setOrcamentoSelecionado(null);
+      return;
+    }
     setOrcamentoSelecionado(orc);
-    setOssSelecionadas([]);
 
-    if (orc.task_ids.length > 0) {
+    if (orc.task_ids.length > 0 && ossSelecionadas.length === 0) {
       setNumeroOs(orc.task_ids.map(id => `OS nº ${id}`).join(' e '));
     }
     const descItens = orc.itens
@@ -444,6 +444,47 @@ function NovoCorpoNotaContent() {
     setStep(4);
   };
 
+  const selecionarPrazoGarantia = (meses: 3 | 6 | 12) => {
+    if (prazoGarantia === meses) {
+      setPrazoGarantia(null);
+      setDescricaoGarantia('');
+      return;
+    }
+    const desc = meses === 12 ? '1 ano' : `${meses} meses`;
+    setPrazoGarantia(meses);
+    setDescricaoGarantia(desc);
+    if (servicoId) {
+      const produtosDesc = produtos.filter(p => p.nome).map(p => `${p.quantidade}x ${p.nome}`).join(' · ');
+      setModalProdutoDesc(produtosDesc || '');
+      setModalDataInicio(dataServico || '');
+      setShowModalTermoWizard(true);
+    }
+  };
+
+  const salvarTermoWizard = async () => {
+    if (!servicoId || !prazoGarantia) return;
+    setSalvandoTermo(true);
+    try {
+      const dataFim = modalDataInicio
+        ? (() => { const d = new Date(modalDataInicio + 'T00:00:00'); d.setMonth(d.getMonth() + prazoGarantia); return d.toISOString().split('T')[0]; })()
+        : null;
+      const r = await api.post('/termos-garantia/', {
+        servico_id: servicoId,
+        produto_descricao: modalProdutoDesc,
+        prazo_meses: prazoGarantia,
+        data_inicio: modalDataInicio || null,
+        data_fim: dataFim,
+        orcamento_id: orcamentoSelecionado?.id || null,
+      });
+      setTermoWizardId(r.data.id);
+      setShowModalTermoWizard(false);
+    } catch {
+      setErro('Erro ao salvar Termo de Garantia.');
+    } finally {
+      setSalvandoTermo(false);
+    }
+  };
+
   // helper para montar o payload base (sem parcelas)
   const payloadBase = () => {
     const mesRef = `${String(mes).padStart(2, '0')}/${ano}`;
@@ -465,6 +506,7 @@ function NovoCorpoNotaContent() {
       produtos_json: listarProdutos && produtos.filter(p => p.nome).length > 0
         ? produtos.filter(p => p.nome).map(p => ({nome: p.nome, quantidade: Number(p.quantidade) || 1}))
         : null,
+      termo_garantia_id: termoWizardId || null,
       sem_retencao: semRetencao,
     };
   };
@@ -875,7 +917,7 @@ function NovoCorpoNotaContent() {
             </div>
           )}
 
-          {/* ── STEP 3 — Origem: OS / Orçamento / Manual ─────────────────────── */}
+          {/* ── STEP 3 — Origem: OS + Orçamento simultâneos ─────────────────── */}
           {step === 3 && (
             <div className="space-y-5">
               <div>
@@ -887,110 +929,94 @@ function NovoCorpoNotaContent() {
                 </p>
               </div>
 
-              {/* Abas — SERVIÇO e PRODUTO (exceto MANUTENÇÃO) */}
-              {tipoNota !== 'MANUTENCAO' && (
-                <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-                  {(['OS', 'ORCAMENTO', 'MANUAL'] as const).map(aba => (
-                    <button
-                      key={aba}
-                      type="button"
-                      onClick={() => onAbaChange(aba)}
-                      className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-                        abaOS === aba
-                          ? 'bg-white dark:bg-slate-700 text-violet-700 dark:text-violet-400 shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                      }`}
-                    >
-                      {aba === 'OS' ? 'Via OS' : aba === 'ORCAMENTO' ? 'Via Orçamento' : 'Manual'}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Conteúdo da aba OS (ou único conteúdo para MANUTENCAO) */}
-              {(tipoNota === 'MANUTENCAO' || abaOS === 'OS') && (
-                <>
-                  {buscandoOS && (
-                    <div className="text-slate-400 text-sm animate-pulse py-4 text-center">Buscando OSs...</div>
-                  )}
-
-                  {osResultado && !buscandoOS && (
-                    <>
-                      {osResultado.lista.length === 0 ? (
-                        <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-                          <div className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Nenhuma OS sincronizada para este condomínio</div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            Digite o número da OS no campo abaixo e prossiga.
-                          </div>
+              {/* Bloco OS — sempre visível */}
+              <>
+                {buscandoOS && (
+                  <div className="text-slate-400 text-sm animate-pulse py-4 text-center">Buscando OSs...</div>
+                )}
+                {osResultado && !buscandoOS && (
+                  <>
+                    {osResultado.lista.length === 0 ? (
+                      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                        <div className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Nenhuma OS sincronizada para este condomínio</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          Digite o número da OS no campo abaixo e prossiga.
                         </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide flex items-center justify-between">
-                            <span>{osResultado.lista.length} OS(s) encontrada(s) — selecione uma ou mais:</span>
-                            {ossSelecionadas.length > 0 && (
-                              <span className="text-violet-600 dark:text-violet-400">{ossSelecionadas.length} selecionada(s)</span>
-                            )}
-                          </div>
-                          {osResultado.lista.map(os => {
-                            const marcada = ossSelecionadas.some(o => o.numero_os === os.numero_os);
-                            return (
-                              <button
-                                key={os.numero_os ?? String(os.servico_id)}
-                                type="button"
-                                onClick={() => toggleOS(os)}
-                                className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                                  marcada
-                                    ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
-                                    : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${marcada ? 'bg-violet-600 border-violet-600' : 'border-slate-300 dark:border-slate-600'}`}>
-                                    {marcada && <span className="text-white text-[10px] font-black">✓</span>}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide flex items-center justify-between">
+                          <span>{osResultado.lista.length} OS(s) encontrada(s) — selecione uma ou mais:</span>
+                          {ossSelecionadas.length > 0 && (
+                            <span className="text-violet-600 dark:text-violet-400">{ossSelecionadas.length} selecionada(s)</span>
+                          )}
+                        </div>
+                        {osResultado.lista.map(os => {
+                          const marcada = ossSelecionadas.some(o => o.numero_os === os.numero_os);
+                          return (
+                            <button
+                              key={os.numero_os ?? String(os.servico_id)}
+                              type="button"
+                              onClick={() => toggleOS(os)}
+                              className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                                marcada
+                                  ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10'
+                                  : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${marcada ? 'bg-violet-600 border-violet-600' : 'border-slate-300 dark:border-slate-600'}`}>
+                                  {marcada && <span className="text-white text-[10px] font-black">✓</span>}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-bold text-sm text-slate-900 dark:text-white">
+                                    OS #{os.numero_os ?? '—'}
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-bold text-sm text-slate-900 dark:text-white">
-                                      OS #{os.numero_os ?? '—'}
-                                    </div>
-                                    <div className="text-xs text-slate-500 mt-0.5 flex gap-3">
-                                      {os.data_servico && <span>{os.data_servico.split('-').reverse().join('/')}</span>}
-                                      <span className="truncate">{os.descricao_preview}</span>
-                                    </div>
+                                  <div className="text-xs text-slate-500 mt-0.5 flex gap-3">
+                                    {os.data_servico && <span>{os.data_servico.split('-').reverse().join('/')}</span>}
+                                    <span className="truncate">{os.descricao_preview}</span>
                                   </div>
                                 </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </>
-                  )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
+                {tipoNota === 'MANUTENCAO' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                      {osResultado?.lista.length === 0 ? 'Número da OS — digite para continuar' : 'Número da OS (opcional)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={numeroOs}
+                      onChange={e => setNumeroOs(e.target.value)}
+                      placeholder="Ex: 73787278"
+                      className={`w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white ${
+                        osResultado?.lista.length === 0
+                          ? 'border-violet-400 dark:border-violet-600 ring-2 ring-violet-100 dark:ring-violet-500/20'
+                          : 'border-slate-200 dark:border-slate-700'
+                      }`}
+                      autoFocus={osResultado?.lista.length === 0}
+                    />
+                  </div>
+                )}
+              </>
 
-                  {tipoNota === 'MANUTENCAO' && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
-                        {osResultado?.lista.length === 0 ? 'Número da OS — digite para continuar' : 'Número da OS (opcional)'}
-                      </label>
-                      <input
-                        type="text"
-                        value={numeroOs}
-                        onChange={e => setNumeroOs(e.target.value)}
-                        placeholder="Ex: 73787278"
-                        className={`w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white ${
-                          osResultado?.lista.length === 0
-                            ? 'border-violet-400 dark:border-violet-600 ring-2 ring-violet-100 dark:ring-violet-500/20'
-                            : 'border-slate-200 dark:border-slate-700'
-                        }`}
-                        autoFocus={osResultado?.lista.length === 0}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Aba Orçamento — SERVIÇO e PRODUTO */}
-              {tipoNota !== 'MANUTENCAO' && abaOS === 'ORCAMENTO' && (
+              {/* Bloco Orçamento — SERVIÇO e PRODUTO, sempre visível */}
+              {tipoNota !== 'MANUTENCAO' && (
                 <div className="space-y-3">
+                  <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                    <span>Orçamento (opcional)</span>
+                    {orcamentoSelecionado && (
+                      <span className="text-violet-600 dark:text-violet-400 normal-case font-normal">
+                        · Orç. #{orcamentoSelecionado.auvo_public_id} selecionado
+                      </span>
+                    )}
+                  </div>
                   {buscandoOrcamentos && (
                     <div className="text-slate-400 text-sm animate-pulse py-4 text-center">Buscando orçamentos...</div>
                   )}
@@ -1011,17 +1037,20 @@ function NovoCorpoNotaContent() {
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-bold text-sm text-slate-900 dark:text-white">
-                          Orç. #{orc.auvo_public_id}
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded-full border-2 shrink-0 ${orcamentoSelecionado?.id === orc.id ? 'bg-violet-600 border-violet-600' : 'border-slate-300 dark:border-slate-600'}`} />
+                          <div className="font-bold text-sm text-slate-900 dark:text-white">
+                            Orç. #{orc.auvo_public_id}
+                          </div>
                         </div>
                         <div className="text-sm font-black text-violet-700 dark:text-violet-400">
                           {fmtValor(orc.total_services)}
                         </div>
                       </div>
                       {orc.observations && (
-                        <div className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2">{orc.observations}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-300 mt-1 ml-7 line-clamp-2">{orc.observations}</div>
                       )}
-                      <div className="text-xs text-slate-400 mt-1 flex gap-3">
+                      <div className="text-xs text-slate-400 mt-1 ml-7 flex gap-3">
                         {orc.request_date && <span>{orc.request_date.split('-').reverse().join('/')}</span>}
                         {orc.current_stage_description && <span>{orc.current_stage_description}</span>}
                         {orc.task_ids.length > 0 && <span>{orc.task_ids.length} OS(s)</span>}
@@ -1031,8 +1060,8 @@ function NovoCorpoNotaContent() {
                 </div>
               )}
 
-              {/* Aba Manual — SERVIÇO e PRODUTO */}
-              {tipoNota !== 'MANUTENCAO' && abaOS === 'MANUAL' && (
+              {/* Campo texto OS — sempre visível para SERVIÇO e PRODUTO */}
+              {tipoNota !== 'MANUTENCAO' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
                     Número(s) da OS — texto livre
@@ -1042,8 +1071,7 @@ function NovoCorpoNotaContent() {
                     value={numeroOs}
                     onChange={e => setNumeroOs(e.target.value)}
                     placeholder="Ex: OS nº 73787278 e OS nº 74220219"
-                    className="w-full px-4 py-3 border border-violet-400 dark:border-violet-600 ring-2 ring-violet-100 dark:ring-violet-500/20 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                    autoFocus
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                   />
                   <p className="text-xs text-slate-500 mt-1">Você pode digitar múltiplos números separados por &quot;e&quot;.</p>
                 </div>
@@ -1159,16 +1187,41 @@ function NovoCorpoNotaContent() {
               {/* Garantia — SERVIÇO e PRODUTO */}
               {(tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
                     Garantia (opcional)
                   </label>
-                  <input
-                    type="text"
-                    value={descricaoGarantia}
-                    onChange={e => setDescricaoGarantia(e.target.value)}
-                    placeholder="Ex: 06 meses · Motor: 3 meses / Placa: 1 ano"
-                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                  />
+                  <div className="flex gap-2">
+                    {([3, 6, 12] as const).map(meses => (
+                      <button
+                        key={meses}
+                        type="button"
+                        onClick={() => selecionarPrazoGarantia(meses)}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-xl border-2 transition-all ${
+                          prazoGarantia === meses
+                            ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-violet-300'
+                        }`}
+                      >
+                        {meses === 12 ? '1 ano' : `${meses} meses`}
+                      </button>
+                    ))}
+                  </div>
+                  {prazoGarantia && !servicoId && (
+                    <p className="text-xs text-slate-500 mt-2">
+                      Vincule uma OS no passo anterior para gerar o Termo automaticamente.
+                    </p>
+                  )}
+                  {termoWizardId && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">✓ Termo #{termoWizardId} gerado</span>
+                      <button type="button" onClick={() => setShowModalTermoWizard(true)} className="text-xs text-violet-600 underline">editar</button>
+                    </div>
+                  )}
+                  {prazoGarantia && servicoId && !termoWizardId && (
+                    <button type="button" onClick={() => { setModalProdutoDesc(produtos.filter(p=>p.nome).map(p=>`${p.quantidade}x ${p.nome}`).join(' · ')); setModalDataInicio(dataServico||''); setShowModalTermoWizard(true); }} className="mt-2 text-xs text-violet-600 underline">
+                      Pré-gerar Termo de Garantia
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1512,6 +1565,64 @@ function NovoCorpoNotaContent() {
           )}
         </div>
       </div>
+      {/* Modal Termo de Garantia — wizard */}
+      {showModalTermoWizard && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-black text-slate-800 dark:text-white">Termo de Garantia</h3>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                Produtos / Serviços Garantidos
+              </label>
+              <textarea
+                value={modalProdutoDesc}
+                onChange={e => setModalProdutoDesc(e.target.value)}
+                rows={3}
+                placeholder="Ex: 3x Motor MKN · 2x Manta asfáltica"
+                className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white resize-none"
+              />
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+              Prazo: <span className="font-bold text-violet-700 dark:text-violet-400">
+                {prazoGarantia === 12 ? '1 ano' : `${prazoGarantia} meses`}
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                Data de início da garantia
+              </label>
+              <input
+                type="date"
+                value={modalDataInicio}
+                onChange={e => setModalDataInicio(e.target.value)}
+                className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+              />
+              <p className="text-xs text-slate-500 mt-1">Deixe vazio se a execução ainda não ocorreu.</p>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowModalTermoWizard(false)}
+                className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+              >
+                Pular por agora
+              </button>
+              <button
+                type="button"
+                onClick={salvarTermoWizard}
+                disabled={salvandoTermo || !modalProdutoDesc.trim()}
+                className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors disabled:opacity-60"
+              >
+                {salvandoTermo ? 'Salvando...' : 'Salvar Termo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

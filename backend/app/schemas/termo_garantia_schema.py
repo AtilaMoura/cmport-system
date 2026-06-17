@@ -6,8 +6,8 @@ class TermoGarantiaBase(BaseModel):
     servico_id: int
     produto_descricao: str
     prazo_meses: int
-    data_inicio: date
-    data_fim: date
+    data_inicio: Optional[date] = None
+    data_fim: Optional[date] = None
     orcamento_id: Optional[int] = None
 
 class TermoGarantiaCreate(TermoGarantiaBase):
