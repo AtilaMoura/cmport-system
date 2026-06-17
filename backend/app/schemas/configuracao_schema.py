@@ -48,11 +48,12 @@ class ConfiguracaoEmailResponse(BaseModel):
 
 
 class ConfiguracaoEmpresaSchema(BaseModel):
-    nome:            str
-    email_from_name: str = "CMPort"
-    telefone:        Optional[str] = None
-    site:            Optional[str] = None
-    emails_copia:    Optional[List[str]] = None
+    nome:               str
+    email_from_name:    str = "CMPort"
+    telefone:           Optional[str] = None
+    site:               Optional[str] = None
+    emails_copia:       Optional[List[str]] = None
+    meses_historico_os: int = 2
 
     @field_validator('emails_copia', mode='before')
     @classmethod

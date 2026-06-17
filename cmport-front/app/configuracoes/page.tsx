@@ -20,6 +20,7 @@ interface Empresa {
   telefone: string | null;
   site: string | null;
   emails_copia: string[] | null;
+  meses_historico_os: number;
 }
 
 interface ContaInter {
@@ -53,7 +54,7 @@ const INTER_VAZIO: InterForm = {
   numero_nf_servico: '', numero_nf_produto: '',
 };
 
-const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '', emails_copia: [] };
+const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '', emails_copia: [], meses_historico_os: 2 };
 
 const FORM_VAZIO = {
   nome: '', email: '', ativo: false, tipo: 'SMTP',
@@ -431,6 +432,20 @@ export default function ConfiguracoesPage() {
               <div>
                 <label className={labelCls}>Site</label>
                 <input type="text" value={empresa.site ?? ''} onChange={e => setEmpresa(p => ({ ...p, site: e.target.value }))} placeholder="www.cmport.com.br" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Meses de histórico de OS (wizard)</label>
+                <select
+                  value={empresa.meses_historico_os}
+                  onChange={e => setEmpresa(p => ({ ...p, meses_historico_os: Number(e.target.value) }))}
+                  className={inputCls}
+                >
+                  <option value={1}>1 — Somente o mês selecionado</option>
+                  <option value={2}>2 — Mês atual + 1 anterior (padrão)</option>
+                  <option value={3}>3 — Mês atual + 2 anteriores</option>
+                  <option value={4}>4 — Mês atual + 3 anteriores</option>
+                  <option value={5}>5 — Mês atual + 4 anteriores</option>
+                </select>
               </div>
             </div>
             <div className="flex items-center gap-3 pt-2">

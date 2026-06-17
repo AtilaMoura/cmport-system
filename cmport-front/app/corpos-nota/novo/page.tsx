@@ -243,7 +243,9 @@ function NovoCorpoNotaContent() {
   const [gerandoPreview, setGerandoPreview] = useState(false);
   const [proximoNumero, setProximoNumero] = useState<string | null>(null);
 
-  // Carrega contas Inter na montagem
+  const [mesHistoricoOS, setMesHistoricoOS] = useState(2);
+
+  // Carrega contas Inter e config empresa na montagem
   useEffect(() => {
     const carregarInter = async () => {
       setCarregandoInter(true);
@@ -257,7 +259,14 @@ function NovoCorpoNotaContent() {
         setCarregandoInter(false);
       }
     };
+    const carregarConfigEmpresa = async () => {
+      try {
+        const r = await api.get('/configuracoes/empresa');
+        setMesHistoricoOS(r.data.meses_historico_os ?? 2);
+      } catch { /* usa default 2 */ }
+    };
     carregarInter();
+    carregarConfigEmpresa();
   }, []);
 
   // Todos os emitentes ativos aparecem para qualquer tipo de nota
@@ -358,7 +367,7 @@ function NovoCorpoNotaContent() {
     setServicoId(null);
     try {
       const r = await api.get('/corpos-nota/buscar-os', {
-        params: { condominio_id: cond.condominio_id, mes, ano, tipo_nota: tipoNota },
+        params: { condominio_id: cond.condominio_id, mes, ano, tipo_nota: tipoNota, meses_historico: mesHistoricoOS },
       });
       setOsResultado(r.data);
     } catch {

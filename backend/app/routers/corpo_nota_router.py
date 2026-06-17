@@ -53,6 +53,7 @@ def buscar_os_para_corpo(
     mes: int,
     ano: int,
     tipo_nota: Optional[str] = None,
+    meses_historico: int = 2,
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
@@ -60,7 +61,10 @@ def buscar_os_para_corpo(
 
     Para MANUTENCAO filtra task_type_description ILIKE '%Manuten%'.
     Para SERVICO retorna todas as OS (sem filtro de tipo).
+    meses_historico=2 → mês atual + 1 anterior.
     """
+    import calendar
+    from datetime import date, datetime
     from app.models.ordem_servico_model import OrdemServico
     from app.models.condominio_model import Condominio
 
@@ -68,15 +72,29 @@ def buscar_os_para_corpo(
     if not condo or not condo.auvo_id:
         return {"lista": [], "preenchimento_manual": True}
 
+    # Calcular janela de datas: N meses atrás até último dia do mês de referência
+    meses_back = max(1, meses_historico) - 1
+    year_from, month_from = ano, mes
+    for _ in range(meses_back):
+        month_from -= 1
+        if month_from < 1:
+            month_from = 12
+            year_from -= 1
+    date_from = date(year_from, month_from, 1)
+    last_day = calendar.monthrange(ano, mes)[1]
+    date_to = date(ano, mes, last_day)
+
     query = db.query(OrdemServico).filter(
         OrdemServico.customer_id == condo.auvo_id,
         OrdemServico.finished == True,
+        OrdemServico.task_date >= datetime(date_from.year, date_from.month, date_from.day),
+        OrdemServico.task_date <= datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59),
     )
 
     if tipo_nota != "SERVICO":
         query = query.filter(OrdemServico.task_type_description.ilike("%Manuten%"))
 
-    ordens = query.order_by(OrdemServico.task_date.desc()).limit(50).all()
+    ordens = query.order_by(OrdemServico.task_date.desc()).all()
 
     if not ordens:
         return {"lista": [], "preenchimento_manual": True}
