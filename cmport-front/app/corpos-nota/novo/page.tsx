@@ -304,9 +304,8 @@ function NovoCorpoNotaContent() {
     }
   };
 
-  // Ao mudar tipo, redefine emitente (respeitar filtro) e toggle produto
+  // Ao mudar tipo, reseta campos dependentes (mas mantém o emitente selecionado)
   useEffect(() => {
-    setCnpjSelecionado(null);
     setTemNotaProduto(false);
     setValorNotaProduto('');
     setParcelas([{valor:'',data:''}]);
