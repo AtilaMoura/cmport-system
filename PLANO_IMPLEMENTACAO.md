@@ -1,7 +1,7 @@
 # Plano de Implementação — CMPort
 
-**Última atualização:** 2026-05-28
-**Status:** Fases 0–12.4 + Corpo de Nota + N1 + N3-backend + F1.1 + F1.2 concluídos. Janeiro/2026 importado (109 registros). Pendentes: D1 + N2 + N3-frontend + F1.3 + F1.4.
+**Última atualização:** 2026-06-17
+**Status:** Fases 0–12.4 + Corpo de Nota + N1 + N3-backend + F1.1 + F1.2 concluídos. Janeiro/2026 importado (109 registros). Pendentes: C1 + D1 + N2 + N3-frontend + F1.3 + F1.4.
 
 Convenções: `[x]` concluído · `[ ]` a fazer.
 
@@ -55,6 +55,7 @@ Convenções: `[x]` concluído · `[ ]` a fazer.
 
 | # | Módulo | Descrição |
 |---|--------|-----------|
+| **C1** | **Corpo da Nota — Melhorias** | Orçamento no wizard PRODUTO + auto-vínculo XML standalone + Termo de Garantia via corpo |
 | D1 | **Dados — Pendentes Janeiro 2026** | 7 recibos sem condomínio mapeado — aguardando identificação |
 | N2 | Leitura Nota de Entrada + Gerar Serviço | Import NF-e de entrada → auto-criar serviço |
 | N3-front | Boleto Manual — Frontend | Formulário, upload PDF, badge status, marcar pago — backend já existe |
@@ -66,6 +67,54 @@ Convenções: `[x]` concluído · `[ ]` a fazer.
 | # | Descrição |
 |---|-----------|
 | 10E | Geração de nota fiscal a partir de orçamento Auvo |
+
+---
+
+## C1 — Corpo da Nota: Melhorias (Prioridade Alta)
+
+**Plano técnico detalhado:** `Refatoracao.md`
+
+### Objetivo
+Três melhorias no módulo Corpo da Nota que amarram tudo desde o início: nota, serviço, orçamento e Termo de Garantia — sem redundância de dados, sem duplicidade na base. O serviço mantém autonomia total.
+
+### Fase 1 — Fix: Orçamentos no Wizard PRODUTO (1 linha, frontend)
+Tabs OS / ORCAMENTO / MANUAL ocultas para `tipo_nota=PRODUTO` — usuário não consegue vincular orçamento ou OS ao criar corpo de produto.
+
+- [ ] `cmport-front/app/corpos-nota/novo/page.tsx` linha ~891: `tipoNota === 'SERVICO'` → `tipoNota !== 'MANUTENCAO'`
+- [ ] Wizard PRODUTO → Step 3 exibe tabs, seleção de Orçamento/OS funciona
+- [ ] `npx tsc --noEmit` zerado
+
+### Fase 2 — Fix: Vínculo Automático Nota PRODUTO Standalone (backend)
+Ao importar XML PRODUTO, `tentar_vincular_por_nota_fiscal` nunca encontra corpos `tipo_nota=PRODUTO` — só busca corpos SERVIÇO. Nota fica solta.
+
+- [ ] `corpo_nota_repository.py`: +2 métodos (`list_candidatos_produto_standalone_por_numero_nf`, `list_candidatos_produto_standalone_por_mes`)
+- [ ] `corpo_nota_service.py`: +método `_tentar_vincular_nota_produto_standalone` + fallback em `tentar_vincular_por_nota_fiscal`
+- [ ] XML nota PRODUTO importado vincula automaticamente ao corpo PRODUTO correto
+- [ ] Múltiplos candidatos → retorna lista para vínculo manual (sem erro)
+
+### Fase 3 — Termo de Garantia via Corpo da Nota (backend + frontend)
+Corpo com OS + produtos + garantia preenchidos permite gerar Termo diretamente, sem reabrir o serviço.
+
+**Princípio:** `TermoGarantia.servico_id` é o FK obrigatório (dono é o serviço). `CorpoNota.termo_garantia_id` é referência de conveniência. Nenhum dado duplicado.
+
+- [ ] `corpo_nota_service.py`: helpers `_serializar_produtos_para_termo`, `_extrair_prazo_meses`, método `pre_gerar_termo`
+- [ ] `corpo_nota_schema.py`: schema `PreGerarTermoResponse`
+- [ ] `corpo_nota_router.py`: `GET /{corpo_id}/pre-gerar-termo`
+- [ ] `cmport-front/app/corpos-nota/[id]/page.tsx`: botão "Gerar Termo" + modal de confirmação + estado B (Termo já gerado)
+- [ ] Modal pré-preenchido; data vazia se corpo criado antes do serviço (usuário preenche)
+- [ ] Após salvar: `POST /termos-garantia/` + `PATCH /corpos-nota/{id}` com `termo_garantia_id`
+- [ ] PDF do Termo correto; "Ver no Serviço →" abre `/servicos/{id}` com autonomia total
+
+### Checklist Final C1
+- [ ] Snapshot de regressão coletado antes de começar
+- [ ] Fase 1 concluída: tabs PRODUTO funcionando
+- [ ] Fase 2 concluída: XML PRODUTO standalone vincula automaticamente
+- [ ] Fase 3 concluída: Termo gerado via corpo, vínculo bidirecional
+- [ ] Corpos SERVIÇO simples e SERVIÇO+produto: `conteudo_gerado` idêntico ao snapshot
+- [ ] Serviço em `/servicos/[id]` sem regressão (autonomia total mantida)
+- [ ] `npx tsc --noEmit` zerado
+- [ ] Deploy: `git push vps master`
+- [ ] Smoke test produção
 
 ---
 

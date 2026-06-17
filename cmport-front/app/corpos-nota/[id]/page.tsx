@@ -44,6 +44,9 @@ interface CorpoNota {
   numero_nf: number | null;
   numero_nf_produto: number | null;
   nota_produto_id: number | null;
+  servico_id: number | null;
+  termo_garantia_id: number | null;
+  produtos_json: { nome: string; quantidade: number }[] | null;
 }
 
 interface Condominio {
@@ -82,6 +85,17 @@ interface Divergencia {
   nota: string;
   valorCorpo: number | string | null;
   valorNota: number | string | null;
+}
+
+interface PreGerarTermo {
+  pode_gerar: boolean;
+  motivo_bloqueio: string | null;
+  servico_id: number | null;
+  produto_descricao: string | null;
+  prazo_meses: number;
+  data_inicio: string | null;
+  data_fim: string | null;
+  orcamento_id: number | null;
 }
 
 const STATUS_NOTA_CONFIG: Record<string, { label: string; cls: string }> = {
@@ -171,6 +185,17 @@ export default function DetalheCorpoNotaPage() {
   const [candidatos, setCandidatos] = useState<NotaFiscalCandidato[]>([]);
   const [buscandoCandidatos, setBuscandoCandidatos] = useState(false);
   const [vinculando, setVinculando] = useState(false);
+
+  // Modal Termo de Garantia
+  const [showModalTermo, setShowModalTermo] = useState(false);
+  const [preGerarTermo, setPreGerarTermo] = useState<PreGerarTermo | null>(null);
+  const [termoProdutoDescricao, setTermoProdutoDescricao] = useState('');
+  const [termoPrazoMeses, setTermoPrazoMeses] = useState(12);
+  const [termoDataInicio, setTermoDataInicio] = useState('');
+  const [salvandoTermo, setSalvandoTermo] = useState(false);
+  const [erroTermo, setErroTermo] = useState<string | null>(null);
+  const [carregandoPreTermo, setCarregandoPreTermo] = useState(false);
+  const [baixandoPdfTermo, setBaixandoPdfTermo] = useState(false);
 
   const carregar = async () => {
     try {
@@ -393,6 +418,73 @@ export default function DetalheCorpoNotaPage() {
       alert(msg || 'Erro ao vincular nota.');
     } finally {
       setVinculando(false);
+    }
+  };
+
+  const abrirModalTermo = async () => {
+    setCarregandoPreTermo(true);
+    setErroTermo(null);
+    try {
+      const r = await api.get(`/corpos-nota/${id}/pre-gerar-termo`);
+      const dados: PreGerarTermo = r.data;
+      setPreGerarTermo(dados);
+      setTermoProdutoDescricao(dados.produto_descricao ?? '');
+      setTermoPrazoMeses(dados.prazo_meses);
+      setTermoDataInicio(dados.data_inicio ?? '');
+      setShowModalTermo(true);
+    } catch {
+      alert('Erro ao carregar dados para o Termo de Garantia.');
+    } finally {
+      setCarregandoPreTermo(false);
+    }
+  };
+
+  const handleSalvarTermo = async () => {
+    if (!preGerarTermo) return;
+    setSalvandoTermo(true);
+    setErroTermo(null);
+    try {
+      let dataFim: string | null = null;
+      if (termoDataInicio) {
+        const d = new Date(termoDataInicio);
+        d.setMonth(d.getMonth() + termoPrazoMeses);
+        dataFim = d.toISOString().split('T')[0];
+      }
+      const { data: novoTermo } = await api.post('/termos-garantia/', {
+        servico_id: preGerarTermo.servico_id,
+        produto_descricao: termoProdutoDescricao,
+        prazo_meses: termoPrazoMeses,
+        data_inicio: termoDataInicio || null,
+        data_fim: dataFim,
+        orcamento_id: preGerarTermo.orcamento_id,
+      });
+      await api.patch(`/corpos-nota/${id}`, { termo_garantia_id: novoTermo.id });
+      setCorpo(prev => prev ? { ...prev, termo_garantia_id: novoTermo.id } : prev);
+      setShowModalTermo(false);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setErroTermo(msg || 'Erro ao salvar Termo de Garantia.');
+    } finally {
+      setSalvandoTermo(false);
+    }
+  };
+
+  const baixarPdfTermo = async (termoId: number) => {
+    setBaixandoPdfTermo(true);
+    try {
+      const res = await api.get(`/termos-garantia/${termoId}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `termo_garantia_${termoId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('Erro ao baixar PDF do Termo.');
+    } finally {
+      setBaixandoPdfTermo(false);
     }
   };
 
@@ -838,6 +930,48 @@ export default function DetalheCorpoNotaPage() {
             </div>
           </div>
         )}
+        {/* Termo de Garantia */}
+        {corpo.tem_garantia && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+            <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-4">Termo de Garantia</h3>
+            {corpo.termo_garantia_id ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-400 font-bold">
+                  ✓ Termo gerado (#{corpo.termo_garantia_id})
+                </span>
+                <button
+                  onClick={() => baixarPdfTermo(corpo.termo_garantia_id!)}
+                  disabled={baixandoPdfTermo}
+                  className="px-3 py-1.5 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-400 rounded-lg text-xs font-bold hover:bg-violet-200 transition-colors disabled:opacity-50"
+                >
+                  {baixandoPdfTermo ? '...' : 'Ver PDF'}
+                </button>
+                {corpo.servico_id && (
+                  <Link
+                    href={`/servicos/${corpo.servico_id}`}
+                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+                  >
+                    Ver no Serviço →
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                {corpo.servico_id ? (
+                  <button
+                    onClick={abrirModalTermo}
+                    disabled={carregandoPreTermo}
+                    className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {carregandoPreTermo ? 'Carregando...' : 'Gerar Termo de Garantia'}
+                  </button>
+                ) : (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Vincule uma OS para poder gerar o Termo de Garantia.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal Vincular XML */}
@@ -900,6 +1034,81 @@ export default function DetalheCorpoNotaPage() {
             >
               Fechar
             </button>
+          </div>
+        </div>
+      )}
+      {/* Modal Termo de Garantia */}
+      {showModalTermo && preGerarTermo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-6 w-full max-w-lg">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-black text-slate-900 dark:text-white">Confirmar Termo de Garantia</h2>
+              <button
+                onClick={() => setShowModalTermo(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {!preGerarTermo.pode_gerar ? (
+              <div className="text-center py-6">
+                <div className="text-3xl mb-3">⚠️</div>
+                <p className="text-slate-700 dark:text-slate-300 font-semibold">{preGerarTermo.motivo_bloqueio}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">Produtos / Serviços</label>
+                  <textarea
+                    value={termoProdutoDescricao}
+                    onChange={e => setTermoProdutoDescricao(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">Prazo (meses)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={termoPrazoMeses}
+                    onChange={e => setTermoPrazoMeses(Number(e.target.value))}
+                    className="w-24 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">Data de início do serviço</label>
+                  <input
+                    type="date"
+                    value={termoDataInicio}
+                    onChange={e => setTermoDataInicio(e.target.value)}
+                    className="w-full sm:w-48 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  />
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Pode ficar vazio se o serviço ainda não foi executado.</p>
+                </div>
+                {erroTermo && (
+                  <p className="text-sm text-red-600 dark:text-red-400 font-semibold">{erroTermo}</p>
+                )}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowModalTermo(false)}
+                    className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSalvarTermo}
+                    disabled={salvandoTermo || !termoProdutoDescricao.trim()}
+                    className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-50"
+                  >
+                    {salvandoTermo ? 'Salvando...' : 'Confirmar e Salvar'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

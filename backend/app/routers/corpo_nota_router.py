@@ -15,6 +15,7 @@ from app.schemas.corpo_nota_schema import (
     CorpoNotaPreviewResponse,
     VincularNotaRequest,
     ImpostosCalculadosResponse,
+    PreGerarTermoResponse,
 )
 from app.services.corpo_nota_service import CorpoNotaService
 
@@ -525,6 +526,16 @@ def regenerar_conteudo(
     corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
     from app.repositories.corpo_nota_repository import CorpoNotaRepository
     return CorpoNotaRepository.save(db, corpo)
+
+
+@router.get("/{corpo_id}/pre-gerar-termo", response_model=PreGerarTermoResponse)
+def pre_gerar_termo(
+    corpo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Pré-calcula dados para geração de Termo de Garantia a partir do corpo da nota."""
+    return CorpoNotaService.pre_gerar_termo(db, corpo_id)
 
 
 @router.post("/{corpo_id}/vincular-nota", response_model=CorpoNotaResponse)

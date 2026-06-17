@@ -887,8 +887,8 @@ function NovoCorpoNotaContent() {
                 </p>
               </div>
 
-              {/* Abas — somente para SERVIÇO */}
-              {tipoNota === 'SERVICO' && (
+              {/* Abas — SERVIÇO e PRODUTO (exceto MANUTENÇÃO) */}
+              {tipoNota !== 'MANUTENCAO' && (
                 <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
                   {(['OS', 'ORCAMENTO', 'MANUAL'] as const).map(aba => (
                     <button

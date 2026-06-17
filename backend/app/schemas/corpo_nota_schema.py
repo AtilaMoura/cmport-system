@@ -179,3 +179,14 @@ class CorpoNotaResponse(CorpoNotaResumoResponse):
     sem_retencao: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class PreGerarTermoResponse(BaseModel):
+    pode_gerar: bool
+    motivo_bloqueio: Optional[str] = None
+    servico_id: Optional[int] = None
+    produto_descricao: Optional[str] = None
+    prazo_meses: int = 12
+    data_inicio: Optional[date] = None
+    data_fim: Optional[date] = None
+    orcamento_id: Optional[int] = None

@@ -1326,11 +1326,15 @@ class CorpoNotaService:
         }
         tipo_corpo = tipo_map.get(nota.tipo)
 
-        # Notas PRODUTO de CNPJ configurado como PRODUTO → tenta vincular ao CorpoNota SERVICO
+        # Notas PRODUTO de CNPJ configurado como PRODUTO → tenta vincular ao CorpoNota SERVICO,
+        # com fallback para CorpoNota PRODUTO standalone se não encontrar corpo SERVICO.
         if not tipo_corpo and nota.tipo == TipoNota.PRODUTO:
             from app.services.nota_fiscal_service import _cnpj_e_produto
             if _cnpj_e_produto(db, nota.cnpj_emitente):
-                return CorpoNotaService._tentar_vincular_nota_produto(db, nota)
+                resultado = CorpoNotaService._tentar_vincular_nota_produto(db, nota)
+                if resultado is not None:
+                    return resultado
+                return CorpoNotaService._tentar_vincular_nota_produto_standalone(db, nota)
 
         if not tipo_corpo:
             return None
@@ -1548,6 +1552,141 @@ class CorpoNotaService:
                 CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
 
             logger.info(f"CorpoNota {corpo.id} vinculado via nota_produto à NotaFiscal {nota.id}")
+            return []
+
+        return [
+            {
+                "corpo_id": c.id,
+                "numero_os": c.numero_os,
+                "mes_referencia": c.mes_referencia,
+                "status": c.status.value,
+                "descricao_servico": (c.descricao_servico or "")[:80],
+            }
+            for c in candidatos
+        ]
+
+    @staticmethod
+    def _serializar_produtos_para_termo(produtos_json: Optional[list]) -> Optional[str]:
+        """[{"nome":"Motor","quantidade":3}] → "3x Motor · 2x Manta" """
+        if not produtos_json:
+            return None
+        partes = [
+            f"{p.get('quantidade', 1)}x {p.get('nome', '')}"
+            for p in produtos_json if p.get('nome')
+        ]
+        return " · ".join(partes) if partes else None
+
+    @staticmethod
+    def _extrair_prazo_meses(descricao_garantia: Optional[str]) -> int:
+        """Extrai prazo em meses de texto como "06 meses" ou "3m". Default 12."""
+        if not descricao_garantia:
+            return 12
+        import re
+        m = re.search(r'(\d+)\s*(?:meses?|m\.?)', descricao_garantia, re.IGNORECASE)
+        return int(m.group(1)) if m else 12
+
+    @staticmethod
+    def pre_gerar_termo(db: Session, corpo_id: int) -> dict:
+        """
+        Pré-calcula os dados para geração de Termo de Garantia a partir do corpo da nota.
+        Não salva nada — apenas retorna os dados para o frontend mostrar no modal de confirmação.
+        """
+        from app.schemas.corpo_nota_schema import PreGerarTermoResponse
+
+        corpo = CorpoNotaService.get_by_id(db, corpo_id)
+
+        if not corpo.servico_id:
+            return {
+                "pode_gerar": False,
+                "motivo_bloqueio": "Corpo sem OS vinculada (servico_id ausente)",
+            }
+
+        produto_desc = CorpoNotaService._serializar_produtos_para_termo(corpo.produtos_json)
+        if not produto_desc:
+            return {
+                "pode_gerar": False,
+                "motivo_bloqueio": "Sem produtos listados no corpo (produtos_json vazio)",
+            }
+
+        prazo = CorpoNotaService._extrair_prazo_meses(corpo.descricao_garantia)
+        data_inicio = corpo.data_servico
+        data_fim = None
+        if data_inicio:
+            from dateutil.relativedelta import relativedelta
+            data_fim = data_inicio + relativedelta(months=prazo)
+
+        return {
+            "pode_gerar": True,
+            "motivo_bloqueio": None,
+            "servico_id": corpo.servico_id,
+            "produto_descricao": produto_desc,
+            "prazo_meses": prazo,
+            "data_inicio": data_inicio,
+            "data_fim": data_fim,
+            "orcamento_id": corpo.orcamento_id,
+        }
+
+    @staticmethod
+    def _tentar_vincular_nota_produto_standalone(db: Session, nota) -> Optional[list]:
+        """
+        Fallback: vincula nota PRODUTO a CorpoNota tipo=PRODUTO standalone.
+        Chamado quando _tentar_vincular_nota_produto não encontra candidato SERVICO.
+
+        Retorna:
+          None   → sem candidatos (nota fica solta, sem erro)
+          []     → vinculado automaticamente
+          [...]  → múltiplos candidatos para seleção manual
+        """
+        numero_nf_int = None
+        if nota.numero_nota:
+            try:
+                parte = nota.numero_nota.split('-')[0].strip()
+                numero_nf_int = int(parte) if parte.isdigit() else None
+            except (ValueError, IndexError):
+                pass
+
+        candidatos = []
+
+        # Rota 1: match por numero_nf exato no corpo PRODUTO
+        if numero_nf_int:
+            candidatos = CorpoNotaRepository.list_candidatos_produto_standalone_por_numero_nf(
+                db, nota.condominio_id, numero_nf_int
+            )
+
+        # Rota 2: fallback por mês/ano do vencimento
+        if not candidatos and nota.data_vencimento:
+            ano, mes = nota.data_vencimento.year, nota.data_vencimento.month
+            candidatos = CorpoNotaRepository.list_candidatos_produto_standalone_por_mes(
+                db, nota.condominio_id, ano, mes
+            )
+            if not candidatos and mes > 1:
+                candidatos = CorpoNotaRepository.list_candidatos_produto_standalone_por_mes(
+                    db, nota.condominio_id, ano, mes - 1
+                )
+            elif not candidatos and mes == 1:
+                candidatos = CorpoNotaRepository.list_candidatos_produto_standalone_por_mes(
+                    db, nota.condominio_id, ano - 1, 12
+                )
+
+        if not candidatos:
+            return None
+
+        if len(candidatos) == 1:
+            corpo = candidatos[0]
+            corpo.nota_fiscal_id = nota.id
+            corpo.status = StatusCorpoNota.XML_VINCULADO
+            nota.corpo_nota_id = corpo.id
+            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+            db.add(nota)
+            CorpoNotaRepository.save(db, corpo)
+
+            ciclo = CicloNotaRepository.get_by_id(db, corpo.ciclo_id)
+            if ciclo:
+                CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
+
+            logger.info(
+                f"[PRODUTO-standalone] CorpoNota {corpo.id} vinculado à NotaFiscal {nota.id}"
+            )
             return []
 
         return [

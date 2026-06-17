@@ -154,6 +154,49 @@ class CorpoNotaRepository:
         )
 
     @staticmethod
+    def list_candidatos_produto_standalone_por_numero_nf(
+        db: Session,
+        condominio_id: int,
+        numero_nf: int,
+    ) -> List[CorpoNota]:
+        """Corpos tipo=PRODUTO standalone sem nota vinculada com numero_nf exato."""
+        return (
+            db.query(CorpoNota)
+            .filter(
+                CorpoNota.condominio_id == condominio_id,
+                CorpoNota.tipo_nota == TipoNotaCorpo.PRODUTO,
+                CorpoNota.numero_nf == numero_nf,
+                CorpoNota.nota_fiscal_id.is_(None),
+                CorpoNota.deletado_em.is_(None),
+            )
+            .all()
+        )
+
+    @staticmethod
+    def list_candidatos_produto_standalone_por_mes(
+        db: Session,
+        condominio_id: int,
+        ano: int,
+        mes: int,
+    ) -> List[CorpoNota]:
+        """Corpos tipo=PRODUTO standalone sem nota vinculada no mês/ano informado."""
+        from app.models.ciclo_nota_model import CicloNota
+
+        return (
+            db.query(CorpoNota)
+            .join(CicloNota, CorpoNota.ciclo_id == CicloNota.id)
+            .filter(
+                CorpoNota.condominio_id == condominio_id,
+                CorpoNota.tipo_nota == TipoNotaCorpo.PRODUTO,
+                CicloNota.ano == ano,
+                CicloNota.mes == mes,
+                CorpoNota.nota_fiscal_id.is_(None),
+                CorpoNota.deletado_em.is_(None),
+            )
+            .all()
+        )
+
+    @staticmethod
     def create(db: Session, corpo: CorpoNota) -> CorpoNota:
         db.add(corpo)
         db.commit()
