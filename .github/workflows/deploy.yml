@@ -11,17 +11,28 @@ jobs:
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detectar mudanças
+        id: changes
+        run: |
+          echo "backend=$(git diff --name-only HEAD~1 HEAD | grep -q '^backend/' && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "frontend=$(git diff --name-only HEAD~1 HEAD | grep -q '^cmport-front/' && echo true || echo false)" >> $GITHUB_OUTPUT
 
       - name: Login no Docker Hub
+        if: steps.changes.outputs.backend == 'true' || steps.changes.outputs.frontend == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Configurar Docker Buildx
+        if: steps.changes.outputs.backend == 'true' || steps.changes.outputs.frontend == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Build e push — Backend (FastAPI)
+        if: steps.changes.outputs.backend == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -31,6 +42,7 @@ jobs:
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/cmport-api:buildcache,mode=max
 
       - name: Build e push — Frontend (Next.js)
+        if: steps.changes.outputs.frontend == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./cmport-front
@@ -55,11 +67,15 @@ jobs:
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 30m
+          envs: PULL_BACKEND,PULL_FRONTEND
           script: |
             cd /root/cmport-system
-            docker pull cmport/cmport-api:latest
-            docker pull cmport/cmport-front:latest
+            [ "$PULL_BACKEND" = "true" ] && docker pull cmport/cmport-api:latest || echo "==> Backend sem mudancas, pulando pull"
+            [ "$PULL_FRONTEND" = "true" ] && docker pull cmport/cmport-front:latest || echo "==> Frontend sem mudancas, pulando pull"
             docker compose -f docker-compose.prod.yml up -d
             docker image prune -f
-            echo "==> Deploy concluído: $(date)"
+            echo "==> Deploy concluido: $(date)"
             docker compose -f docker-compose.prod.yml ps
+        env:
+          PULL_BACKEND: ${{ steps.changes.outputs.backend }}
+          PULL_FRONTEND: ${{ steps.changes.outputs.frontend }}

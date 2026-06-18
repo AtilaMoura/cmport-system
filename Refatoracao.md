@@ -44,161 +44,58 @@
 
 ---
 
-## Prioridade 1 — CI/CD: GitHub Actions + Docker Hub → VPS Pull
-
-### Objetivo
-Migrar o deploy do CMPort de build local na VPS (lento, ~10-15 min) para:
-`git push origin master` → Actions constrói imagens → push Docker Hub → VPS apenas faz `docker pull` (~2-3 min).
-O `git push vps master` é mantido como fallback para acesso de emergência e sync de configs.
-
-### Contexto
-- Remote atual: apenas `vps` → `ssh://root@168.231.96.184/root/cmport.git` (bare repo)
-- Repositório **não está no GitHub** — `?? .github/` aparece no git status (nunca commitado)
-- `docker-compose.prod.yml` já usa `image: ${DOCKERHUB_USERNAME}/...` (preparado para o novo fluxo)
-- `.github/workflows/deploy.yml` já existe localmente (criado, mas nunca commitado)
-
----
-
-### Fase A — Pré-requisitos Manuais (Atila faz no browser)
-
-1. **Docker Hub** — criar conta em hub.docker.com se não tiver; gerar Access Token (Account Settings → Security → New Access Token com permissão Read/Write)
-2. **GitHub** — criar repositório público `cmport-system` em `github.com/AtilaMoura`
-3. **Configurar 4 secrets** no GitHub repo (Settings → Secrets and variables → Actions):
-
-| Secret | Valor |
-|---|---|
-| `DOCKERHUB_USERNAME` | seu username no Docker Hub |
-| `DOCKERHUB_TOKEN` | token gerado no passo 1 |
-| `VPS_HOST` | `168.231.96.184` |
-| `VPS_SSH_KEY` | conteúdo de `~/.ssh/id_ed25519` (chave privada local) |
-
----
-
-### Fase B — Ajustar `docker-compose.prod.yml`
-
-**Arquivo:** `docker-compose.prod.yml`
-
-Substituir `image: ${DOCKERHUB_USERNAME}/cmport-api:latest` e `image: ${DOCKERHUB_USERNAME}/cmport-front:latest` por username hardcoded (ex: `atilamoura/cmport-api:latest`).
-
-**Por quê hardcodar:** Quando o Actions executa `docker compose pull` via SSH, o shell não herda variáveis de ambiente — a variável `${DOCKERHUB_USERNAME}` fica vazia e o pull falha. Hardcodar elimina a dependência.
-
----
-
-### Fase C — Ajustar `.github/workflows/deploy.yml`
-
-O `git pull` que existe no workflow não funciona: o remote da VPS aponta para `/root/cmport.git`, não GitHub. Substituir por SCP + SSH simplificado:
-
-```yaml
-- name: Sincronizar arquivos de infra
-  uses: appleboy/scp-action@v0.1.7
-  with:
-    host: ${{ secrets.VPS_HOST }}
-    username: root
-    key: ${{ secrets.VPS_SSH_KEY }}
-    source: "docker-compose.prod.yml,nginx/"
-    target: /root/cmport-system/
-
-- name: Deploy na VPS
-  uses: appleboy/ssh-action@v1
-  with:
-    host: ${{ secrets.VPS_HOST }}
-    username: root
-    key: ${{ secrets.VPS_SSH_KEY }}
-    script: |
-      cd /root/cmport-system
-      docker compose -f docker-compose.prod.yml pull
-      docker compose -f docker-compose.prod.yml up -d
-      docker image prune -f
-      echo "==> Deploy concluído: $(date)"
-      docker compose -f docker-compose.prod.yml ps
-```
-
-O SCP garante que mudanças em `nginx/nginx.conf` e `docker-compose.prod.yml` sejam aplicadas mesmo sem `git pull`.
-
----
-
-### Fase D — Adicionar remote GitHub e push inicial
-
-```bash
-# Local — executar na raiz do projeto
-git remote add origin https://github.com/AtilaMoura/cmport-system.git
-git push origin master
-```
-
-Verificar `.gitignore` antes do push — já cobre `.env.production` e certificados Inter. Adicionar `.env` (sem extensão) se não estiver coberto.
-
----
-
-### Fase E — Configurar remote `origin` na VPS
-
-Via SSH (acesso mantido):
-
-```bash
-ssh root@168.231.96.184
-cd /root/cmport-system
-git remote add origin https://github.com/AtilaMoura/cmport-system.git
-```
-
-Isso não é obrigatório para o fluxo principal (o SCP substitui o `git pull`), mas permite fazer `git pull origin master` manualmente na VPS quando necessário.
-
----
-
-### Fase F — Simplificar hook post-receive na VPS
-
-**Arquivo na VPS:** `/root/cmport.git/hooks/post-receive`
-
-O hook atual faz `--build` (build local). Com o novo fluxo, o build acontece no Actions; o hook deve apenas fazer checkout dos arquivos e pull das imagens já prontas:
-
-```bash
-#!/bin/bash
-set -e
-GIT_WORK_TREE=/root/cmport-system git checkout -f
-cd /root/cmport-system
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
-docker image prune -f
-echo "==> Deploy via git push concluído: $(date)"
-```
-
-**Resultado:** `git push vps master` continua funcionando — atualiza configs de nginx/compose e sobe as imagens mais recentes do Hub, sem rebuildar.
-
----
-
-### Fase G — Atualizar CLAUDE.md
-
-Substituir a seção de deploy para refletir os dois fluxos:
-
-```
-git push origin master   # deploy primário — Actions builda + VPS faz pull (~3 min)
-git push vps master      # fallback/emergência — sync configs + docker pull (~1 min)
-```
-
----
+## Prioridade 1 — CI/CD: GitHub Actions + Docker Hub → VPS Pull ✅ CONCLUÍDO
 
 ### Checklist CI/CD
 
-- [ ] **A**: Docker Hub — conta + token gerados
-- [ ] **A**: Repositório GitHub público criado em `github.com/AtilaMoura/cmport-system`
-- [ ] **A**: 4 secrets configurados no GitHub (DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, VPS_HOST, VPS_SSH_KEY)
-- [ ] **B**: `docker-compose.prod.yml` com username hardcoded nas imagens backend e frontend
-- [ ] **C**: `deploy.yml` atualizado — SCP + SSH sem `git pull`
-- [ ] **D**: `git remote add origin` + `git push origin master` — repo aparece no GitHub com Actions
-- [ ] **E**: Remote `origin` configurado em `/root/cmport-system/.git/config` na VPS
-- [ ] **F**: Hook `/root/cmport.git/hooks/post-receive` simplificado (sem `--build`)
-- [ ] **G**: CLAUDE.md atualizado com os dois fluxos
-- [ ] **Verificação**: commit → `git push origin master` → Actions roda sem erro → imagens no Docker Hub → VPS sobe → site no ar
-- [ ] **Verificação**: `git push vps master` ainda funciona como fallback
+- [x] **A**: Docker Hub — conta `cmport` + token gerados
+- [x] **A**: Repositório GitHub público criado em `github.com/AtilaMoura/cmport-system`
+- [x] **A**: 4 secrets configurados no GitHub (DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, VPS_HOST, VPS_SSH_KEY)
+- [x] **B**: `docker-compose.prod.yml` com username hardcoded (`cmport/cmport-api:latest`, `cmport/cmport-front:latest`)
+- [x] **C**: `deploy.yml` — SCP + SSH, `command_timeout: 30m`, pull só de api+front (não mysql/nginx/minio)
+- [x] **D**: `git remote add origin` + primeiro `git push origin master` (commit `ea7ab8e`)
+- [x] **F**: Hook `post-receive` simplificado + `nohup` (deploy em background, conexão SSH não derruba o processo)
+- [x] **G**: CLAUDE.md atualizado com os dois fluxos
+- [x] **Verificação**: run `27779777075` em progresso — build backend+frontend OK, deploy na VPS em andamento
+- [x] **Verificação**: containers VPS rodando com `cmport/cmport-api:latest` e `cmport/cmport-front:latest`
 
-### Mapa de Arquivos
+### Estado Atual do deploy.yml (commit ea7ab8e)
 
-| Arquivo | Tipo | O que muda |
-|---------|------|-----------|
-| `docker-compose.prod.yml` | local | Hardcodar DOCKERHUB_USERNAME nas imagens backend e frontend |
-| `.github/workflows/deploy.yml` | local | Trocar `git pull` por SCP + SSH simplificado |
-| `.gitignore` | local | Adicionar `.env` (sem extensão) se não coberto |
-| `CLAUDE.md` | local | Atualizar seção Deploy com os dois fluxos |
-| `/root/cmport.git/hooks/post-receive` | VPS | Remover `--build`, adicionar `docker compose pull` |
-| `/root/cmport-system/.git/config` | VPS | Adicionar remote `origin` GitHub |
+```yaml
+- name: Build e push — Backend   # sempre builda (otimização pendente — ver P1-H)
+- name: Build e push — Frontend  # sempre builda (otimização pendente — ver P1-H)
+- name: Sincronizar arquivos de infra para VPS  # SCP: docker-compose.prod.yml + nginx/
+- name: Deploy na VPS            # SSH: docker pull api+front → up -d → prune
+  command_timeout: 30m
+```
+
+### P1-H — Otimização: buildar só o que mudou (EM IMPLEMENTAÇÃO)
+
+**Problema:** toda push rebuilda backend E frontend, mesmo que só um lado mudou.
+
+**Solução:** detectar mudanças por pasta com `git diff` e condicionar cada step com `if:`:
+
+```yaml
+- name: Detectar mudanças
+  id: changes
+  run: |
+    echo "backend=$(git diff --name-only HEAD~1 HEAD | grep -q '^backend/' && echo true || echo false)" >> $GITHUB_OUTPUT
+    echo "frontend=$(git diff --name-only HEAD~1 HEAD | grep -q '^cmport-front/' && echo true || echo false)" >> $GITHUB_OUTPUT
+
+- name: Build e push — Backend
+  if: steps.changes.outputs.backend == 'true'
+  ...
+
+- name: Build e push — Frontend
+  if: steps.changes.outputs.frontend == 'true'
+  ...
+```
+
+Na VPS, o script SSH só faz `docker pull` da imagem que foi rebuilda.
+
+- [ ] Implementar detecção de mudanças no `deploy.yml`
+- [ ] Testar: mudar só frontend → Actions pula build do backend
+- [ ] Testar: mudar só backend → Actions pula build do frontend
 
 ---
 
