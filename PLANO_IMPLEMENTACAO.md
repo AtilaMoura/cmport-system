@@ -55,6 +55,7 @@ Convenções: `[x]` concluído · `[ ]` a fazer.
 
 | # | Módulo | Descrição |
 |---|--------|-----------|
+| **CI/CD** | **Deploy: GitHub Actions + Docker Hub** | Build de imagem no Actions → push Docker Hub → VPS faz apenas `docker pull` (mantém `git push vps` como fallback) |
 | **C1** | **Corpo da Nota — Melhorias** | Orçamento no wizard PRODUTO + auto-vínculo XML standalone + Termo de Garantia via corpo |
 | D1 | **Dados — Pendentes Janeiro 2026** | 7 recibos sem condomínio mapeado — aguardando identificação |
 | N2 | Leitura Nota de Entrada + Gerar Serviço | Import NF-e de entrada → auto-criar serviço |

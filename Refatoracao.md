@@ -6,419 +6,276 @@
 
 ---
 
-## Tarefa Atual
+## Tarefas Concluídas (sessão 2026-06-17)
 
-**Corpo da Nota — Step 3 redesign + Garantia com Termo automático**
-
-**Data:** 2026-06-17 | **Prioridade:** Alta | **Status:** 🚧 A implementar
-
----
-
-## Princípios Arquiteturais (não negociáveis)
-
-1. **Sem redundância** — corpo referencia serviço via FK (`servico_id`). Nenhum campo do serviço é copiado.
-2. **Sem duplicidade** — `TermoGarantia` pertence ao `ManutencaoAssistencia`. O corpo guarda só `termo_garantia_id`.
-3. **Serviço mantém autonomia total** — `/servicos/[id]` continua podendo criar/editar/desvincular/recriar Termo independentemente.
-4. **Não quebrar o que funciona** — textos gerados de corpos SERVIÇO e SERVIÇO+produto são saída crítica, não mudam.
-
----
-
-## O Que Já Foi Implementado (esta sessão — não refazer)
-
-| Item | Commit | Status |
-|------|--------|--------|
-| Tabs OS/Orçamento visíveis para PRODUTO (linha 891) | f69e945 | ✅ |
-| Auto-vínculo XML PRODUTO standalone (repository + service) | f69e945 | ✅ |
-| Endpoint `GET /corpos-nota/{id}/pre-gerar-termo` | f69e945 | ✅ |
-| Seção "Termo de Garantia" no detalhe do corpo (`[id]/page.tsx`) | f69e945 | ✅ |
+| Fase | Descrição | Commit | Status |
+|------|-----------|--------|--------|
+| A | Fix condicionais PRODUTO (Via Orçamento + Manual) | 1fb6cd6 | ✅ |
+| B | Step 3 sem abas — OS + Orçamento simultâneos | d33545b | ✅ |
+| C | Garantia: 3 botões toggle + modal Termo automático | d33545b | ✅ |
+| D | TermoGarantia: data_inicio/data_fim nullable | d33545b | ✅ |
+| E | Email: não anexar PDF de Termo com data pendente | d33545b | ✅ |
+| F | Serviço: badge ⏳ + input data + PATCH quando Termo pendente | d33545b | ✅ |
+| — | Config meses histórico OS (Step 3, default 2) | 1644b06 | ✅ |
+| — | Fix: emitente não some ao trocar tipo de nota (Step 1) | 68aed7d | ✅ |
+| — | Deploy VPS + ALTER TABLE (termos_garantia + configuracao_empresa) | — | ✅ |
 
 ---
 
-## Bugs Ainda Existentes (descobertos nos testes)
+## Corpo de Nota de Referência (exemplo gerado 2026-06-17)
 
-| # | Bug | Causa raiz | Arquivo | Linha |
-|---|-----|-----------|---------|-------|
-| B1 | Orçamento: aba visível mas conteúdo vazio para PRODUTO | `tipoNota === 'SERVICO'` no conteúdo da aba | `novo/page.tsx` | 992 |
-| B2 | Manual: aba visível mas campo vazio para PRODUTO | `tipoNota === 'SERVICO'` no conteúdo da aba | `novo/page.tsx` | 1035 |
-| B3 | Garantia ainda é campo texto livre (deveria ser opções fixas) | Nunca implementado | `novo/page.tsx` | ~1165 |
-| B4 | Termo não pode ter data pendente (NOT NULL no model) | `data_inicio DATE NOT NULL` | `termo_garantia_model.py` | 14 |
-| B5 | Email anexa Termo mesmo quando data de execução está vazia | Sem verificação `data_inicio is None` | `boleto_service.py` | ~1449, ~1617 |
-| B6 | Serviço não avisa "Termo pendente" quando falta data | Lógica não implementada | `servicos/[id]/page.tsx` | — |
+> Caso de teste real — usado para validar o fluxo PRODUTO com orçamento e sem OS.
+
+| Campo | Valor |
+|-------|-------|
+| Número | PRD-2026/0003 |
+| Tipo | PRODUTO |
+| Condomínio | CONDOMINIO EDIFICIO VERMONT |
+| Mês de Referência | 06/2026 |
+| OS | — (sem OS vinculada — preenchimento manual) |
+| Data do Serviço | — (em branco) |
+| Vencimento | 24/06/2026 |
+| Nota Fiscal | 0126 (XML aguardando) |
+| Preenchimento | Manual |
+| CNPJ / Conta Inter | 22.761.557/0001-88 — CMPORT SISTEMAS DE ELETRONICOS DE SEGURANCA LTDA |
+| Orçamento | #15 |
+
+**Observações para P2:** este corpo foi gerado sem OS e sem data do serviço — ilustra exatamente os cenários P2-B (data vazia) e P2-C (número OS vazio). O valor deve ter vindo do orçamento #15 (P2-A).
 
 ---
 
-## Fase A — Fix Urgente: Conteúdo das Abas para PRODUTO (2 linhas)
+## Prioridade 1 — CI/CD: GitHub Actions + Docker Hub → VPS Pull
 
-**Arquivo:** `cmport-front/app/corpos-nota/novo/page.tsx`
+### Objetivo
+Migrar o deploy do CMPort de build local na VPS (lento, ~10-15 min) para:
+`git push origin master` → Actions constrói imagens → push Docker Hub → VPS apenas faz `docker pull` (~2-3 min).
+O `git push vps master` é mantido como fallback para acesso de emergência e sync de configs.
 
-```tsx
-// LINHA 992 — ANTES
-{tipoNota === 'SERVICO' && abaOS === 'ORCAMENTO' && (
-// DEPOIS
-{tipoNota !== 'MANUTENCAO' && abaOS === 'ORCAMENTO' && (
+### Contexto
+- Remote atual: apenas `vps` → `ssh://root@168.231.96.184/root/cmport.git` (bare repo)
+- Repositório **não está no GitHub** — `?? .github/` aparece no git status (nunca commitado)
+- `docker-compose.prod.yml` já usa `image: ${DOCKERHUB_USERNAME}/...` (preparado para o novo fluxo)
+- `.github/workflows/deploy.yml` já existe localmente (criado, mas nunca commitado)
 
-// LINHA 1035 — ANTES
-{tipoNota === 'SERVICO' && abaOS === 'MANUAL' && (
-// DEPOIS
-{tipoNota !== 'MANUTENCAO' && abaOS === 'MANUAL' && (
+---
+
+### Fase A — Pré-requisitos Manuais (Atila faz no browser)
+
+1. **Docker Hub** — criar conta em hub.docker.com se não tiver; gerar Access Token (Account Settings → Security → New Access Token com permissão Read/Write)
+2. **GitHub** — criar repositório público `cmport-system` em `github.com/AtilaMoura`
+3. **Configurar 4 secrets** no GitHub repo (Settings → Secrets and variables → Actions):
+
+| Secret | Valor |
+|---|---|
+| `DOCKERHUB_USERNAME` | seu username no Docker Hub |
+| `DOCKERHUB_TOKEN` | token gerado no passo 1 |
+| `VPS_HOST` | `168.231.96.184` |
+| `VPS_SSH_KEY` | conteúdo de `~/.ssh/id_ed25519` (chave privada local) |
+
+---
+
+### Fase B — Ajustar `docker-compose.prod.yml`
+
+**Arquivo:** `docker-compose.prod.yml`
+
+Substituir `image: ${DOCKERHUB_USERNAME}/cmport-api:latest` e `image: ${DOCKERHUB_USERNAME}/cmport-front:latest` por username hardcoded (ex: `atilamoura/cmport-api:latest`).
+
+**Por quê hardcodar:** Quando o Actions executa `docker compose pull` via SSH, o shell não herda variáveis de ambiente — a variável `${DOCKERHUB_USERNAME}` fica vazia e o pull falha. Hardcodar elimina a dependência.
+
+---
+
+### Fase C — Ajustar `.github/workflows/deploy.yml`
+
+O `git pull` que existe no workflow não funciona: o remote da VPS aponta para `/root/cmport.git`, não GitHub. Substituir por SCP + SSH simplificado:
+
+```yaml
+- name: Sincronizar arquivos de infra
+  uses: appleboy/scp-action@v0.1.7
+  with:
+    host: ${{ secrets.VPS_HOST }}
+    username: root
+    key: ${{ secrets.VPS_SSH_KEY }}
+    source: "docker-compose.prod.yml,nginx/"
+    target: /root/cmport-system/
+
+- name: Deploy na VPS
+  uses: appleboy/ssh-action@v1
+  with:
+    host: ${{ secrets.VPS_HOST }}
+    username: root
+    key: ${{ secrets.VPS_SSH_KEY }}
+    script: |
+      cd /root/cmport-system
+      docker compose -f docker-compose.prod.yml pull
+      docker compose -f docker-compose.prod.yml up -d
+      docker image prune -f
+      echo "==> Deploy concluído: $(date)"
+      docker compose -f docker-compose.prod.yml ps
 ```
 
-**Checklist Fase A:**
-- [ ] Wizard PRODUTO → aba "Via Orçamento" mostra lista de orçamentos
-- [ ] Wizard PRODUTO → aba "Manual" mostra campo texto livre
-- [ ] Wizard SERVIÇO → comportamento idêntico ao anterior (sem regressão)
+O SCP garante que mudanças em `nginx/nginx.conf` e `docker-compose.prod.yml` sejam aplicadas mesmo sem `git pull`.
+
+---
+
+### Fase D — Adicionar remote GitHub e push inicial
+
+```bash
+# Local — executar na raiz do projeto
+git remote add origin https://github.com/AtilaMoura/cmport-system.git
+git push origin master
+```
+
+Verificar `.gitignore` antes do push — já cobre `.env.production` e certificados Inter. Adicionar `.env` (sem extensão) se não estiver coberto.
+
+---
+
+### Fase E — Configurar remote `origin` na VPS
+
+Via SSH (acesso mantido):
+
+```bash
+ssh root@168.231.96.184
+cd /root/cmport-system
+git remote add origin https://github.com/AtilaMoura/cmport-system.git
+```
+
+Isso não é obrigatório para o fluxo principal (o SCP substitui o `git pull`), mas permite fazer `git pull origin master` manualmente na VPS quando necessário.
+
+---
+
+### Fase F — Simplificar hook post-receive na VPS
+
+**Arquivo na VPS:** `/root/cmport.git/hooks/post-receive`
+
+O hook atual faz `--build` (build local). Com o novo fluxo, o build acontece no Actions; o hook deve apenas fazer checkout dos arquivos e pull das imagens já prontas:
+
+```bash
+#!/bin/bash
+set -e
+GIT_WORK_TREE=/root/cmport-system git checkout -f
+cd /root/cmport-system
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+docker image prune -f
+echo "==> Deploy via git push concluído: $(date)"
+```
+
+**Resultado:** `git push vps master` continua funcionando — atualiza configs de nginx/compose e sobe as imagens mais recentes do Hub, sem rebuildar.
+
+---
+
+### Fase G — Atualizar CLAUDE.md
+
+Substituir a seção de deploy para refletir os dois fluxos:
+
+```
+git push origin master   # deploy primário — Actions builda + VPS faz pull (~3 min)
+git push vps master      # fallback/emergência — sync configs + docker pull (~1 min)
+```
+
+---
+
+### Checklist CI/CD
+
+- [ ] **A**: Docker Hub — conta + token gerados
+- [ ] **A**: Repositório GitHub público criado em `github.com/AtilaMoura/cmport-system`
+- [ ] **A**: 4 secrets configurados no GitHub (DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, VPS_HOST, VPS_SSH_KEY)
+- [ ] **B**: `docker-compose.prod.yml` com username hardcoded nas imagens backend e frontend
+- [ ] **C**: `deploy.yml` atualizado — SCP + SSH sem `git pull`
+- [ ] **D**: `git remote add origin` + `git push origin master` — repo aparece no GitHub com Actions
+- [ ] **E**: Remote `origin` configurado em `/root/cmport-system/.git/config` na VPS
+- [ ] **F**: Hook `/root/cmport.git/hooks/post-receive` simplificado (sem `--build`)
+- [ ] **G**: CLAUDE.md atualizado com os dois fluxos
+- [ ] **Verificação**: commit → `git push origin master` → Actions roda sem erro → imagens no Docker Hub → VPS sobe → site no ar
+- [ ] **Verificação**: `git push vps master` ainda funciona como fallback
+
+### Mapa de Arquivos
+
+| Arquivo | Tipo | O que muda |
+|---------|------|-----------|
+| `docker-compose.prod.yml` | local | Hardcodar DOCKERHUB_USERNAME nas imagens backend e frontend |
+| `.github/workflows/deploy.yml` | local | Trocar `git pull` por SCP + SSH simplificado |
+| `.gitignore` | local | Adicionar `.env` (sem extensão) se não coberto |
+| `CLAUDE.md` | local | Atualizar seção Deploy com os dois fluxos |
+| `/root/cmport.git/hooks/post-receive` | VPS | Remover `--build`, adicionar `docker compose pull` |
+| `/root/cmport-system/.git/config` | VPS | Adicionar remote `origin` GitHub |
+
+---
+
+## Prioridade 2 — Correções no Wizard: Valor, Datas e Número da OS
+
+### P2-A: Valor pré-preenchido por tipo de nota
+
+**Problema:** O campo "Valor Bruto" no Step 4 sempre exibe o valor do contrato registrado, mas para SERVIÇO e PRODUTO o valor correto deve vir do orçamento ou da OS — não do contrato.
+
+**Regras:**
+
+| Tipo | Origem do valor pré-preenchido |
+|------|-------------------------------|
+| MANUTENÇÃO | Valor do contrato (comportamento atual — manter) |
+| SERVIÇO | Valor do orçamento selecionado → se sem orçamento, valor da OS → se nenhum, campo vazio (usuário preenche) |
+| PRODUTO | Idem SERVIÇO |
+
+**Comportamento:**
+- Campo "Valor Bruto" sempre editável pelo usuário independente da origem
+- Quando orçamento é selecionado no Step 3 → preenche valor automaticamente (já acontece parcialmente, verificar)
+- Quando OS é selecionada sem orçamento → tentar puxar valor da OS se disponível
+- Se nenhuma origem → campo começa vazio para SERVIÇO/PRODUTO
+
+**Arquivos prováveis:**
+- `cmport-front/app/corpos-nota/novo/page.tsx` — lógica de preenchimento de `valorBruto`
+- Verificar função `selecionarOrcamento` e `selecionarCondominio` (onde valor é atribuído)
+
+---
+
+### P2-B: Campo "Datas dos Serviços Executados" — editável e manual
+
+**Problema:** O campo de data do serviço (`dataServico` / `dataServicoTexto`) não permite edição manual fácil quando nenhuma OS está vinculada, ou quando a data da OS não corresponde ao período real.
+
+**Comportamento esperado:**
+- Campo sempre editável pelo usuário (input de data ou texto livre)
+- Quando OS é selecionada → preenche automaticamente com a data da OS (comportamento atual)
+- Quando sem OS → campo em branco, usuário digita manualmente
+- Nunca bloquear edição mesmo quando auto-preenchido
+
+**Arquivos prováveis:**
+- `cmport-front/app/corpos-nota/novo/page.tsx` — Step 4, campo `dataServico`/`dataServicoTexto`
+
+---
+
+### P2-C: Campo "Número(s) da OS" — sempre editável e manual
+
+**Problema:** O campo "Número(s) da OS" é preenchido automaticamente quando OS é selecionada, mas o usuário pode não conseguir editar ou inserir manualmente quando não há OS no sistema.
+
+**Comportamento esperado:**
+- Campo sempre visível e editável (já implementado no Step 3, verificar se está funcionando)
+- Quando OS selecionada → preenche automaticamente
+- Usuário pode sobrescrever o valor a qualquer momento
+- Quando sem OS → campo em branco para digitação livre
+
+**Arquivos prováveis:**
+- `cmport-front/app/corpos-nota/novo/page.tsx` — state `numeroOs`, Step 3
+
+---
+
+### Checklist P2
+
+- [ ] **P2-A**: SERVIÇO/PRODUTO puxam valor do orçamento → se sem orçamento, da OS → se nenhum, vazio
+- [ ] **P2-A**: MANUTENÇÃO mantém valor do contrato (sem regressão)
+- [ ] **P2-A**: Campo sempre editável pelo usuário
+- [ ] **P2-B**: Data do serviço sempre editável, auto-preenchida da OS quando disponível
+- [ ] **P2-B**: Sem OS → campo vazio para digitação manual
+- [ ] **P2-C**: Número(s) da OS sempre editável, auto-preenchido quando OS selecionada
+- [ ] **P2-C**: Sem OS → campo em branco para digitação livre
 - [ ] `npx tsc --noEmit` zerado
+- [ ] Teste: corpo MANUTENÇÃO — valor do contrato preservado
+- [ ] Teste: corpo SERVIÇO com orçamento — valor do orçamento
+- [ ] Teste: corpo PRODUTO sem orçamento nem OS — campos editáveis e em branco
 
 ---
 
-## Fase B — Step 3: OS + Orçamento Simultâneos (sem abas)
-
-### Problema
-
-O modelo atual de abas mutuamente exclusivas (OS | Orçamento | Manual) impede selecionar OS **e** Orçamento ao mesmo tempo. O cliente pode querer vincular a OS do Auvo E o orçamento correspondente ao mesmo corpo.
-
-### Novo comportamento
-
-Remover as 3 abas. Step 3 passa a exibir **dois blocos verticais sempre visíveis**:
-
-```
-┌─ Step 3 — Origem ────────────────────────────────────────┐
-│                                                           │
-│  Ordens de Serviço encontradas (multi-seleção)           │
-│  ┌──────────────────────────────────────────────────┐    │
-│  │ ☐  OS #73787278 · 14.05.2026 · Instalação bomba │    │
-│  │ ☐  OS #73912345 · 20.05.2026 · Troca motor      │    │
-│  └──────────────────────────────────────────────────┘    │
-│  [nenhuma OS encontrada → campo texto livre aparece]      │
-│                                                           │
-│  ──── Orçamento (opcional) ──────────────── [SERV/PROD]  │
-│  ┌──────────────────────────────────────────────────┐    │
-│  │ ○  Orç. #1234 · R$ 2.800,00 · Motor MKN + Manta │    │
-│  │ ○  Orç. #1198 · R$ 1.500,00 · Bomba d'água      │    │
-│  └──────────────────────────────────────────────────┘    │
-│                                                           │
-│  Número(s) da OS — texto livre (editável sempre)         │
-│  [ OS nº 73787278 e OS nº 73912345           ]           │
-│                                                           │
-└───────────────────────────────────────────── [Próximo →] ┘
-```
-
-### Regras de seleção
-
-| Ação do usuário | Resultado |
-|----------------|-----------|
-| Seleciona 1+ OSs | `numero_os`, `data_servico`, `servico_id` preenchidos automaticamente |
-| Seleciona orçamento | `orcamento_id`, `valor_bruto`, `produtos_json` preenchidos automaticamente |
-| Seleciona OS + Orçamento | Ambos preenchidos; `servico_id` vem da OS |
-| Não seleciona nada | Campos ficam em branco → cliente preenche manualmente no Step 4 |
-| Campo "Número(s) da OS" | Sempre visível e editável, pré-preenchido quando OS é selecionada |
-
-### Mudanças no código
-
-**Arquivo:** `cmport-front/app/corpos-nota/novo/page.tsx`
-
-1. Remover state `abaOS` e a função `onAbaChange`
-2. Remover os 3 botões de tab (div com `flex gap-1 p-1 bg-slate-100 rounded-xl`)
-3. Manter o bloco OS sempre visível (multi-seleção existente — não muda lógica)
-4. Mover bloco Orçamento para abaixo das OSs, visível quando `tipoNota !== 'MANUTENCAO'`
-5. Campo texto "Número(s) da OS — texto livre" fica sempre visível ao final
-6. Bloco Manual deixa de existir como aba separada — é o estado natural de não selecionar nada
-
-**Estado do bloco Orçamento:**
-- Só aparece para SERVIÇO e PRODUTO
-- Carrega orçamentos ao montar o Step 3 (não precisa mais de trigger de aba)
-- Seleção única (radio), desmarcar clicando novamente
-
-**Checklist Fase B:**
-- [ ] Step 3 exibe OS + Orçamento verticais, sem tabs
-- [ ] Selecionar 2 OSs → `numero_os = "OS nº X e OS nº Y"`, `servico_id` da primeira
-- [ ] Selecionar OS + Orçamento → ambos preenchidos, `servico_id` vem da OS
-- [ ] Não selecionar nada → Step 4 com campos em branco (preenchimento manual)
-- [ ] Campo texto "Número da OS" sempre visível, editável
-- [ ] MANUTENÇÃO → bloco Orçamento não aparece (mantém comportamento atual)
-- [ ] `npx tsc --noEmit` zerado
-
----
-
-## Fase C — Garantia: Botões Fixos + Modal Termo Automático no Wizard
-
-### Problema
-
-Campo texto livre de garantia não padroniza o prazo e não abre o Termo automaticamente quando OS está vinculada.
-
-### Novo comportamento
-
-**Step 4 — seção Garantia:**
-
-```
-Garantia:
-  [ 3 meses ]  [ 6 meses ]  [ 1 ano ]    ← toggle, um de cada vez
-                                           Nenhum selecionado = sem garantia
-```
-
-Ao selecionar um prazo:
-- `tem_garantia = true`
-- `descricao_garantia = "3 meses"` | `"6 meses"` | `"1 ano"`
-- Se `servicoId` preenchido (OS selecionada) → **modal Termo abre automaticamente**
-- Se `servicoId` vazio → botão manual "Pré-gerar Termo" aparece abaixo dos botões
-
-### Modal "Pré-gerar Termo de Garantia"
-
-Abre automaticamente quando prazo é selecionado e `servicoId` está preenchido.
-
-```
-┌─ Termo de Garantia ──────────────────────────────────────┐
-│                                                           │
-│  Produtos / Serviços Garantidos:                         │
-│  [ 3x Motor MKN · 2x Manta asfáltica          ]  ← editável
-│  (pré-preenchido com produtos_json do Step 4)            │
-│                                                           │
-│  Prazo: 6 meses  (travado no selecionado)                │
-│                                                           │
-│  Data de início da garantia:                             │
-│  [ 14/05/2026 ]  ← pré-preenchido da OS se disponível   │
-│   ou  [ vazio — "Pendente (preencher após execução)" ]   │
-│                                                           │
-│          [Pular por agora]  [Salvar Termo]               │
-└──────────────────────────────────────────────────────────┘
-```
-
-**Ao clicar "Salvar Termo":**
-```
-POST /termos-garantia/
-  → { servico_id, produto_descricao, prazo_meses,
-      data_inicio: date | null,
-      data_fim: (data_inicio + prazo) | null,
-      orcamento_id }
-```
-- Salva `termoWizardId` no state
-- Na confirmação final (Step 6) → payload inclui `termo_garantia_id: termoWizardId`
-
-**Ao clicar "Pular por agora":**
-- Termo não é criado agora
-- `tem_garantia = true`, `descricao_garantia` preenchido
-- Usuário pode gerar Termo depois na página de detalhe do corpo (botão já existe)
-
-### Mudanças no código
-
-**Arquivo:** `cmport-front/app/corpos-nota/novo/page.tsx`
-
-1. Substituir `<input type="text" value={descricaoGarantia}>` por 3 botões toggle
-2. Novo state `prazoGarantia: 3 | 6 | 12 | null`
-3. Novo state `showModalTermoWizard: boolean`
-4. Novo state `termoWizardId: number | null`
-5. `descricaoGarantia` calculado a partir do prazo: `{ 3: '3 meses', 6: '6 meses', 12: '1 ano' }`
-6. Ao selecionar prazo + ter `servicoId` → `setShowModalTermoWizard(true)`
-7. Modal chama `POST /termos-garantia/` → salva `termoWizardId`
-8. Payload final (`confirmar`) inclui `termo_garantia_id: termoWizardId`
-
-**Arquivo:** `cmport-front/app/corpos-nota/novo/page.tsx` — `payloadBase()`:
-```typescript
-termo_garantia_id: termoWizardId || null,  // ← adicionar
-```
-
-**Arquivo:** `backend/app/schemas/corpo_nota_schema.py` — `CorpoNotaCreate`:
-```python
-termo_garantia_id: Optional[int] = None  # ← adicionar se não existe
-```
-
-**Checklist Fase C:**
-- [ ] Step 4: 3 botões de prazo substituem campo texto
-- [ ] Selecionar prazo com OS vinculada → modal abre automaticamente
-- [ ] Modal pré-preenche produtos do state e data da OS
-- [ ] "Salvar Termo" → cria Termo, fecha modal, `termoWizardId` salvo
-- [ ] "Pular por agora" → fecha modal, garantia registrada, Termo criado depois
-- [ ] Sem OS vinculada: selecionar prazo → mostra botão manual "Pré-gerar Termo"
-- [ ] Criar corpo → payload inclui `termo_garantia_id` se gerado
-- [ ] Detalhe do corpo criado → seção Termo mostra estado correto (gerado ou pendente)
-- [ ] `npx tsc --noEmit` zerado
-
----
-
-## Fase D — Model: `data_inicio` e `data_fim` Nullable
-
-### Problema
-
-`TermoGarantia.data_inicio` e `data_fim` são `NOT NULL` no banco. Não é possível criar Termo com data pendente.
-
-### Mudanças
-
-**Arquivo:** `backend/app/models/termo_garantia_model.py`
-```python
-# ANTES
-data_inicio = Column(Date, nullable=False)
-data_fim = Column(Date, nullable=False)
-
-# DEPOIS
-data_inicio = Column(Date, nullable=True)
-data_fim = Column(Date, nullable=True)
-```
-
-**Arquivo:** `backend/app/schemas/termo_garantia_schema.py`
-```python
-# Nos schemas de criação e response:
-data_inicio: Optional[date] = None
-data_fim: Optional[date] = None
-```
-
-**SQL no banco (VPS — rodar manualmente via SSH):**
-```sql
-ALTER TABLE termos_garantia
-  MODIFY data_inicio DATE NULL,
-  MODIFY data_fim DATE NULL;
-```
-
-**Arquivo:** `backend/app/services/termo_garantia_service.py` — `gerar_pdf()`:
-```python
-# Adicionar verificação antes de gerar
-if not termo.data_inicio:
-    raise ValueError("Termo com data de execução pendente — preencha a data para gerar o PDF")
-```
-
-**Checklist Fase D:**
-- [ ] `POST /termos-garantia/` aceita `data_inicio: null`
-- [ ] Termo criado sem data salva no banco sem erro
-- [ ] `GET /termos-garantia/{id}/pdf` com `data_inicio=null` retorna 400 com mensagem clara
-- [ ] Termos existentes no banco (com data preenchida) não são afetados
-
----
-
-## Fase E — Email: Não Anexar Termo Pendente
-
-### Problema
-
-Email do boleto tenta gerar PDF do Termo independente de `data_inicio` ser null. Se null, falha silenciosamente mas pode gerar log de erro.
-
-### Mudança
-
-**Arquivo:** `backend/app/services/boleto_service.py` — dois locais (linhas ~1449 e ~1617):
-
-```python
-# ANTES
-termo = TermoGarantiaRepository.get_by_servico_id(db, servico.id)
-if termo:
-    pdf_termo = TermoGarantiaService.gerar_pdf(db, termo.id)
-    anexos.append(...)
-
-# DEPOIS
-termo = TermoGarantiaRepository.get_by_servico_id(db, servico.id)
-if termo and termo.data_inicio is not None:  # ← só anexa se data completa
-    try:
-        pdf_termo = TermoGarantiaService.gerar_pdf(db, termo.id)
-        anexos.append(...)
-    except Exception as e:
-        logger.warning(f"Termo {termo.id} não incluído no email: {e}")
-```
-
-**Checklist Fase E:**
-- [ ] Email enviado com Termo pendente (data_inicio=null) → PDF não é anexado, email enviado normalmente
-- [ ] Email enviado com Termo completo → PDF anexado normalmente
-- [ ] Nenhum erro no log quando Termo está pendente
-
----
-
-## Fase F — Serviço `/servicos/[id]`: Indicador "Termo Pendente"
-
-### Problema
-
-Quando o corpo gera um Termo com `data_inicio=null`, o serviço vinculado não mostra nenhuma indicação. O cliente não sabe que precisa preencher a data.
-
-### Novo comportamento
-
-**Arquivo:** `cmport-front/app/servicos/[id]/page.tsx`
-
-Verificar o Termo do serviço. Se `termo.data_inicio === null`:
-
-```
-┌─ Termo de Garantia ──────────────────────────────────────┐
-│  ⏳ Data de execução pendente                             │
-│  Prazo: 6 meses · 3x Motor MKN · 2x Manta asfáltica     │
-│                                                           │
-│  Data de início do serviço:                              │
-│  [ __ / __ / ____ ]  [Salvar]                           │
-└──────────────────────────────────────────────────────────┘
-```
-
-Ao salvar:
-```
-PATCH /termos-garantia/{id}
-  → { data_inicio, data_fim: data_inicio + prazo_meses }
-```
-Após salvar: badge muda para "Termo completo" → botão "Ver PDF" aparece.
-
-**Checklist Fase F:**
-- [ ] Serviço com Termo `data_inicio=null` → exibe badge ⏳ + input de data
-- [ ] Preencher data + Salvar → PATCH enviado, `data_inicio` e `data_fim` atualizados
-- [ ] Após salvar: badge muda, botão "Ver PDF" aparece, PDF correto
-- [ ] Serviço com Termo completo → sem regressão (comportamento atual mantido)
-- [ ] `npx tsc --noEmit` zerado
-
----
-
-## Mapa de Arquivos
-
-| Arquivo | Fases | O que muda |
-|---------|-------|-----------|
-| `cmport-front/app/corpos-nota/novo/page.tsx` | A, B, C | Fix 2 condicionais + remover tabs + botões garantia + modal Termo |
-| `backend/app/models/termo_garantia_model.py` | D | `data_inicio` e `data_fim` nullable |
-| `backend/app/schemas/termo_garantia_schema.py` | D | campos Optional |
-| `backend/app/services/termo_garantia_service.py` | D | check `data_inicio` antes de gerar PDF |
-| `backend/app/services/boleto_service.py` | E | skip Termo pendente no email |
-| `cmport-front/app/servicos/[id]/page.tsx` | F | badge + input data execução |
-| SQL banco VPS | D | ALTER TABLE nullable |
-
-**Não mudam:**
-- `corpo_nota_model.py` — `termo_garantia_id` já existe
-- `corpo_nota_service.py` — helpers e `pre_gerar_termo` já implementados
-- `corpo_nota_router.py` — endpoint `pre-gerar-termo` já existe
-- `corpos-nota/[id]/page.tsx` — seção Termo já implementada
-- `_montar_texto_servico` / `_montar_texto_produto` — texto intocado
-
----
-
-## Ordem de Implementação
-
-```
-Fase A (2 linhas — fix urgente)
-    ↓
-Fase D (model nullable + SQL VPS)   ← antes de B porque B cria Termos sem data
-    ↓
-Fase B (Step 3 redesign — sem abas)
-    ↓
-Fase C (garantia botões + modal Termo no wizard)
-    ↓
-Fase E (email skip Termo pendente)
-    ↓
-Fase F (serviço indicador pendente)
-    ↓
-tsc + deploy + smoke test
-```
-
----
-
-## Checklist Final
-
-- [ ] **A**: Orçamento e Manual visíveis para PRODUTO no Step 3
-- [ ] **B**: Step 3 sem abas — OS + Orçamento simultâneos, ambos selecionáveis juntos
-- [ ] **C**: Garantia com botões 3/6/12 meses; modal Termo abre ao selecionar prazo com OS
-- [ ] **D**: `data_inicio` nullable; Termo criado sem data no banco; PDF retorna 400 se pendente
-- [ ] **E**: Email não anexa PDF de Termo pendente; email enviado normalmente
-- [ ] **F**: Serviço mostra "Termo pendente" + input data + salva PATCH
-- [ ] Regressão: corpo SERVIÇO e SERVIÇO+produto — texto idêntico ao anterior
-- [ ] Regressão: email com Termo completo → PDF anexado normalmente
-- [ ] `npx tsc --noEmit` zerado
-- [ ] Deploy VPS + smoke test
-
----
-
-## Histórico — Implementado nesta sessão (commit f69e945)
-
-- Tabs visíveis para PRODUTO (linha 891: `!== 'MANUTENCAO'`)
-- Auto-vínculo XML PRODUTO standalone (`_tentar_vincular_nota_produto_standalone`)
-- Endpoint `GET /corpos-nota/{id}/pre-gerar-termo` + schema `PreGerarTermoResponse`
-- Seção "Termo de Garantia" no detalhe do corpo com modal + download PDF
-
-## Histórico — Tarefa Anterior Concluída
-
-**Módulo Corpo da Nota — Fase 1 (Manutenção + Serviço + Produto)**
-Commits: `1167252` · `6754c46` · `1da01ed` — todas as fases A–G em produção.
+## Mapa de Arquivos (P2)
+
+| Arquivo | Tarefa | O que muda |
+|---------|--------|-----------|
+| `cmport-front/app/corpos-nota/novo/page.tsx` | P2-A, B, C | Lógica de preenchimento de valor, data e número OS |

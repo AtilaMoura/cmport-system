@@ -23,7 +23,7 @@ services:
 
   # ── Backend (FastAPI) ────────────────────────────────────────────────────────
   backend:
-    build: ./backend
+    image: cmport/cmport-api:latest
     container_name: cmport_api
     restart: unless-stopped
     env_file: .env.production
@@ -38,7 +38,7 @@ services:
 
   # ── Frontend (Next.js) ───────────────────────────────────────────────────────
   frontend:
-    build: ./cmport-front
+    image: cmport/cmport-front:latest
     container_name: cmport_front
     restart: unless-stopped
     environment:
