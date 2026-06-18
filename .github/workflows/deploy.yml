@@ -57,7 +57,8 @@ jobs:
           command_timeout: 30m
           script: |
             cd /root/cmport-system
-            docker compose -f docker-compose.prod.yml pull
+            docker pull cmport/cmport-api:latest
+            docker pull cmport/cmport-front:latest
             docker compose -f docker-compose.prod.yml up -d
             docker image prune -f
             echo "==> Deploy concluído: $(date)"
