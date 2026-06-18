@@ -31,10 +31,11 @@ cd cmport-front && npm run lint && npx tsc --noEmit
 ## Deploy (VPS Hostinger)
 
 ```bash
-git push vps master   # deploy automático via hook post-receive
+git push origin master   # deploy primário — Actions builda imagens → Docker Hub → VPS pull (~3 min)
+git push vps master      # fallback/emergência — sync configs + docker pull (sem rebuild)
 ```
 
-Hook executa: checkout → `docker compose up -d --build` → limpeza de imagens
+Fluxo primário: GitHub Actions → build backend+frontend → push Docker Hub (`cmport/cmport-api`, `cmport/cmport-front`) → SSH na VPS → `docker compose pull && up -d`
 
 **Servidor:** `root@168.231.96.184` | `/root/cmport-system` | SSH: `~/.ssh/id_ed25519`
 
