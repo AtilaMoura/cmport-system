@@ -176,10 +176,11 @@ def condominios_pendentes(
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    """Retorna condomínios que ainda não têm ciclo no mês/tipo informado.
+    """Retorna condomínios disponíveis para gerar corpo de nota.
 
-    SERVICO: todos os condomínios com ativo=True (sem exigir contrato).
-    MANUTENCAO / PRODUTO: apenas condomínios com contrato ativo.
+    SERVICO / PRODUTO: todos os condomínios ativos, sem restrição de mês
+                       e sem exigir contrato — pode haver múltiplos por mês.
+    MANUTENCAO: apenas condomínios com contrato ativo e sem corpo no mês.
     """
     from app.models.contrato_condominio_model import ContratoCondominio
     from app.models.ciclo_nota_model import CicloNota, TipoNotaCorpo
@@ -193,26 +194,11 @@ def condominios_pendentes(
 
     from app.models.corpo_nota_model import CorpoNota, StatusCorpoNota
 
-    # ── SERVIÇO: qualquer condomínio ativo, sem exigir contrato ──────────
-    if tipo_enum == TipoNotaCorpo.SERVICO:
-        ids_cond_com_corpo = (
-            db.query(CicloNota.condominio_id)
-            .join(CorpoNota, CorpoNota.ciclo_id == CicloNota.id)
-            .filter(
-                CicloNota.tipo_nota == tipo_enum,
-                CicloNota.ano == ano,
-                CicloNota.mes == mes,
-                CorpoNota.deletado_em.is_(None),
-                CorpoNota.status != StatusCorpoNota.CANCELADO,
-            )
-            .scalar_subquery()
-        )
+    # ── SERVIÇO / PRODUTO: todos os condomínios ativos, sem filtro de mês ─
+    if tipo_enum in (TipoNotaCorpo.SERVICO, TipoNotaCorpo.PRODUTO):
         condominios = (
             db.query(Condominio)
-            .filter(
-                Condominio.ativo.is_(True),
-                ~Condominio.id.in_(ids_cond_com_corpo),
-            )
+            .filter(Condominio.ativo.is_(True))
             .order_by(Condominio.nome)
             .all()
         )
@@ -230,7 +216,7 @@ def condominios_pendentes(
             for c in condominios
         ]
 
-    # ── MANUTENCAO / PRODUTO: retorna uma linha por contrato ativo ───────
+    # ── MANUTENCAO: retorna uma linha por contrato ativo, um por mês ─────
     # IDs de contratos que já têm corpo ativo neste ciclo
     contratos_com_corpo = (
         db.query(CicloNota.contrato_id)

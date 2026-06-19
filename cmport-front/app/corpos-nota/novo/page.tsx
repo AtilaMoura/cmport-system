@@ -345,7 +345,9 @@ function NovoCorpoNotaContent() {
     setErro(null);
 
     if (cond.descricao_padrao_servico) setDescricaoServico(cond.descricao_padrao_servico);
-    if (cond.valor_fixo_mensal) setValorBruto(String(cond.valor_fixo_mensal));
+    // Só pré-preenche valor do contrato para MANUTENÇÃO; SERVIÇO/PRODUTO usam valor do orçamento
+    if (tipoNota === 'MANUTENCAO' && cond.valor_fixo_mensal) setValorBruto(String(cond.valor_fixo_mensal));
+    else if (tipoNota !== 'MANUTENCAO') setValorBruto('');
     if (cond.dia_vencimento_padrao) {
       const dia = String(cond.dia_vencimento_padrao).padStart(2, '0');
       // Vencimento é no mês seguinte ao período de referência
@@ -428,11 +430,10 @@ function NovoCorpoNotaContent() {
       .filter(Boolean)
       .join(', ');
     if (descItens) setDescricaoServico(descItens);
-    if (orc.total_services > 0) setValorBruto(String(orc.total_services));
     if (orc.request_date) {
       setDataServicoTexto(orc.request_date.split('-').reverse().join('.'));
     }
-    // Pré-preenche produtos do orçamento
+    // Pré-preenche lista de produtos do orçamento (para ambos os tipos)
     const prodOrc = orc.itens
       .filter(i => i.tipo === 'PRODUTO' && i.nome)
       .map(i => ({ nome: i.nome || '', quantidade: String(Math.round(i.quantidade || 1)) }));
@@ -440,10 +441,20 @@ function NovoCorpoNotaContent() {
       setProdutos(prodOrc);
       setListarProdutos(true);
     }
-    // Nota de produto do orçamento
-    if (orc.total_products > 0) {
-      setValorNotaProduto(String(orc.total_products));
-      setTemNotaProduto(true);
+    if (tipoNota === 'PRODUTO') {
+      // Para PRODUTO: valorBruto = total do orçamento — não há NF de serviço separada
+      const valorOrc = (orc.total_products || 0) + (orc.total_services || 0);
+      if (valorOrc > 0) setValorBruto(String(valorOrc));
+      // Garantir que temNotaProduto nunca fique ativo para PRODUTO
+      setTemNotaProduto(false);
+      setValorNotaProduto('');
+    } else {
+      // Para SERVIÇO: NF serviço = total_services; NF produto = total_products (boleto conjunto)
+      if (orc.total_services > 0) setValorBruto(String(orc.total_services));
+      if (orc.total_products > 0) {
+        setValorNotaProduto(String(orc.total_products));
+        setTemNotaProduto(true);
+      }
     }
   };
 
@@ -817,7 +828,9 @@ function NovoCorpoNotaContent() {
                 <div>
                   <h2 className="text-lg font-black text-slate-800 dark:text-white">Selecionar Condomínio</h2>
                   <p className="text-sm text-slate-500 mt-1">
-                    Com contrato ativo sem corpo em {MESES_NOMES[mes - 1]}/{ano}
+                    {tipoNota === 'MANUTENCAO'
+                      ? `Com contrato ativo sem corpo em ${MESES_NOMES[mes - 1]}/${ano}`
+                      : 'Todos os condomínios ativos'}
                   </p>
                 </div>
                 {/* Alteração rápida de período */}
@@ -864,14 +877,18 @@ function NovoCorpoNotaContent() {
               </div>
 
               {buscandoConds ? (
-                <div className="text-slate-400 text-sm animate-pulse py-8 text-center">Buscando condomínios pendentes...</div>
+                <div className="text-slate-400 text-sm animate-pulse py-8 text-center">Buscando condomínios...</div>
               ) : condsPendentes.length === 0 ? (
                 <div className="text-center py-8">
-                  <div className="text-3xl mb-3">✅</div>
+                  <div className="text-3xl mb-3">📋</div>
                   <div className="font-semibold text-slate-700 dark:text-white mb-1">
-                    Todos os condomínios já possuem corpo de nota em {MESES_NOMES[mes - 1]}/{ano}
+                    {tipoNota === 'MANUTENCAO'
+                      ? `Todos os condomínios já possuem corpo de nota em ${MESES_NOMES[mes - 1]}/${ano}`
+                      : 'Nenhum condomínio ativo cadastrado.'}
                   </div>
-                  <div className="text-sm text-slate-500">Ou não há contratos ativos cadastrados.</div>
+                  {tipoNota === 'MANUTENCAO' && (
+                    <div className="text-sm text-slate-500">Ou não há contratos ativos cadastrados.</div>
+                  )}
                 </div>
               ) : condsFiltrados.length === 0 ? (
                 <div className="text-center py-6 text-slate-400 text-sm">
