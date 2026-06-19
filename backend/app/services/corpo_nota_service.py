@@ -86,13 +86,14 @@ class CorpoNotaService:
         # Obtém ou cria o ciclo do mês (inclui contrato_id para suporte a múltiplos contratos)
         ciclo = CicloNotaService.get_or_create(db, condominio_id, tipo_nota, ano, mes, contrato_id)
 
-        # Impede dois corpos ativos no mesmo ciclo
-        existente = CorpoNotaRepository.get_ativo_por_ciclo(db, ciclo.id)
-        if existente:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Já existe um corpo ativo (id={existente.id}) para este ciclo. Cancele-o antes de criar outro.",
-            )
+        # Impede dois corpos ativos no mesmo ciclo — apenas MANUTENÇÃO (SERVIÇO/PRODUTO permitem múltiplos)
+        if tipo_nota == TipoNotaCorpo.MANUTENCAO:
+            existente = CorpoNotaRepository.get_ativo_por_ciclo(db, ciclo.id)
+            if existente:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Já existe um corpo ativo (id={existente.id}) para este ciclo. Cancele-o antes de criar outro.",
+                )
 
         # Auto-fill a partir do contrato (baixa prioridade — sobreposto pelo operador e pela OS)
         from app.repositories.contrato_condominio_repository import ContratoCondominioRepository
