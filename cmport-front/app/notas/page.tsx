@@ -130,9 +130,9 @@ export default function NotasPage() {
     }
   };
 
-  // Notas elegíveis para vínculo: MANUT/ASSIST, sem vinculo atual
+  // Notas elegíveis para vínculo: ASSISTENCIA ou PRODUTO, sem vínculo atual
   const elegivel = (n: NotaFiscal) =>
-    (n.tipo === 'ASSISTENCIA' || n.tipo === 'MANUTENCAO') && !n.nota_vinculada_id;
+    (n.tipo === 'ASSISTENCIA' || n.tipo === 'PRODUTO') && !n.nota_vinculada_id;
 
   const toggleSelecionada = (id: number) => {
     setSelecionadas(prev => {
@@ -154,6 +154,13 @@ export default function NotasPage() {
     if (!notaA || !notaB) return;
     if (notaA.condominio_id !== notaB.condominio_id) {
       alert('As duas notas precisam ser do mesmo condomínio.');
+      return;
+    }
+    const tiposOk =
+      (notaA.tipo === 'ASSISTENCIA' && notaB.tipo === 'PRODUTO') ||
+      (notaA.tipo === 'PRODUTO' && notaB.tipo === 'ASSISTENCIA');
+    if (!tiposOk) {
+      alert('O vínculo só é permitido entre uma nota ASSISTENCIA e uma nota PRODUTO.');
       return;
     }
     setVinculando(true);
@@ -291,6 +298,10 @@ export default function NotasPage() {
   const notaSel1 = selecionadasArr[0] ? notas.find(n => n.id === selecionadasArr[0]) : null;
   const notaSel2 = selecionadasArr[1] ? notas.find(n => n.id === selecionadasArr[1]) : null;
   const condominiosIguais = notaSel1 && notaSel2 && notaSel1.condominio_id === notaSel2.condominio_id && notaSel1.condominio_id !== null;
+  const tiposCompativeis = notaSel1 && notaSel2 && (
+    (notaSel1.tipo === 'ASSISTENCIA' && notaSel2.tipo === 'PRODUTO') ||
+    (notaSel1.tipo === 'PRODUTO' && notaSel2.tipo === 'ASSISTENCIA')
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -537,7 +548,10 @@ export default function NotasPage() {
                   {selecionadasCount === 2 && !condominiosIguais && (
                     <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">As notas devem ser do mesmo condomínio</p>
                   )}
-                  {selecionadasCount === 2 && condominiosIguais && (
+                  {selecionadasCount === 2 && condominiosIguais && !tiposCompativeis && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Uma nota deve ser ASSISTENCIA e a outra PRODUTO</p>
+                  )}
+                  {selecionadasCount === 2 && condominiosIguais && tiposCompativeis && (
                     <p className="text-xs text-violet-600 dark:text-violet-400 mt-0.5">
                       {notaSel1?.numero_nota} + {notaSel2?.numero_nota} · Total: R$ {((notaSel1?.valor || 0) + (notaSel2?.valor || 0)).toFixed(2)}
                     </p>
@@ -549,7 +563,7 @@ export default function NotasPage() {
                     Cancelar
                   </button>
                   <button onClick={handleVincularNotas}
-                    disabled={selecionadasCount !== 2 || !condominiosIguais || vinculando}
+                    disabled={selecionadasCount !== 2 || !condominiosIguais || !tiposCompativeis || vinculando}
                     className="bg-violet-600 text-white px-6 py-2.5 rounded-xl font-black hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2">
                     {vinculando ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Vinculando...</> : <><span>🔗</span> Vincular Notas</>}
                   </button>

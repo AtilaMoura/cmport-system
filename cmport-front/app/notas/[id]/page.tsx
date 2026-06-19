@@ -1258,7 +1258,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                 {notaVinculada ? (
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
-                      {notaVinculada.tipo === 'ASSISTENCIA' ? '🔧' : '🛠️'}
+                      {notaVinculada.tipo === 'ASSISTENCIA' ? '🔧' : notaVinculada.tipo === 'PRODUTO' ? '📦' : '🛠️'}
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-slate-900 dark:text-white">Nota #{notaVinculada.numero_nota}</p>

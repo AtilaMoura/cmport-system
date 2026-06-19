@@ -1290,6 +1290,11 @@ class NotaFiscalService:
         if nota_a.condominio_id != nota_b.condominio_id:
             raise HTTPException(status_code=400, detail="As notas pertencem a condomínios diferentes.")
 
+        # Validar tipos: obrigatório um ASSISTENCIA + um PRODUTO
+        tipos = {nota_a.tipo, nota_b.tipo}
+        if tipos != {TipoNota.ASSISTENCIA, TipoNota.PRODUTO}:
+            raise HTTPException(status_code=400, detail="O vínculo só é permitido entre uma nota ASSISTENCIA e uma nota PRODUTO.")
+
         # Validar que nenhuma já está vinculada
         if nota_a.nota_vinculada_id is not None:
             raise HTTPException(status_code=400, detail=f"A nota {nota_a.numero_nota} já está vinculada a outra nota.")
@@ -1312,21 +1317,23 @@ class NotaFiscalService:
         for s in servicos:
             db.delete(s)
 
-        # Criar serviço único combinado (nota_fiscal_id = nota_a.id)
-        tipo_str = "assistencia" if nota_a.tipo == TipoNota.ASSISTENCIA else "manutencao"
+        # Serviço combinado sempre vinculado à nota ASSISTENCIA
+        nota_assist = nota_a if nota_a.tipo == TipoNota.ASSISTENCIA else nota_b
+        nota_prod   = nota_b if nota_a.tipo == TipoNota.ASSISTENCIA else nota_a
+        tipo_str = "assistencia"
         numero_os = None
         data_servico_real = None
-        if nota_a.xml_original:
+        if nota_assist.xml_original:
             try:
-                tipo_xml = detectar_tipo_xml(nota_a.xml_original)
+                tipo_xml = detectar_tipo_xml(nota_assist.xml_original)
                 if tipo_xml == 'NFSe':
-                    root_os = ET.fromstring(nota_a.xml_original)
+                    root_os = ET.fromstring(nota_assist.xml_original)
                     el_os = root_os.find('.//Discriminacao')
                     texto_desc = el_os.text if el_os is not None else ''
                     numero_os = extrair_numero_os(texto_desc)
                     data_servico_real = extrair_data_servico(texto_desc)
                 elif tipo_xml == 'NFe':
-                    root_os = ET.fromstring(nota_a.xml_original)
+                    root_os = ET.fromstring(nota_assist.xml_original)
                     ns_os = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
                     el_os = root_os.find('.//nfe:infAdic/nfe:infCpl', ns_os)
                     texto_desc = el_os.text if el_os is not None else ''
@@ -1335,13 +1342,13 @@ class NotaFiscalService:
             except Exception:
                 pass
 
-        valor_total = float(nota_a.valor) + float(nota_b.valor)
+        valor_total = float(nota_assist.valor) + float(nota_prod.valor)
         servico_combinado = ServicoCreate(
-            condominio_id=nota_a.condominio_id,
+            condominio_id=nota_assist.condominio_id,
             tipo=tipo_str,
-            data_servico=data_servico_real or nota_a.data_vencimento,
-            descricao=f"Notas vinculadas: {nota_a.numero_nota} + {nota_b.numero_nota} | Valor total: R$ {valor_total:.2f}",
-            nota_fiscal_id=nota_a_id,
+            data_servico=data_servico_real or nota_assist.data_vencimento,
+            descricao=f"Notas vinculadas: {nota_assist.numero_nota} + {nota_prod.numero_nota} | Valor total: R$ {valor_total:.2f}",
+            nota_fiscal_id=nota_assist.id,
             numero_os=numero_os,
         )
         novo_servico = ServicoService.create_servico(db, servico_combinado)
@@ -1445,7 +1452,7 @@ class NotaFiscalService:
         - AUTORIZADA
         - Sem nota_vinculada_id (não já vinculadas)
         - Sem boleto ativo (EMABERTO ou VENCIDO)
-        - Tipo ASSISTENCIA ou MANUTENCAO
+        - Tipo PRODUTO (vincula com nota ASSISTENCIA do serviço)
         - Diferente da nota atual do serviço
         """
         from app.models.nota_fiscal_model import NotaFiscal
@@ -1467,7 +1474,7 @@ class NotaFiscalService:
         candidatas = db.query(NotaFiscal).filter(
             NotaFiscal.condominio_id == condominio_id,
             NotaFiscal.status == StatusNota.AUTORIZADA,
-            NotaFiscal.tipo.in_([TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO]),
+            NotaFiscal.tipo == TipoNota.PRODUTO,
             NotaFiscal.nota_vinculada_id.is_(None),
             NotaFiscal.id != nota_atual_id,
             NotaFiscal.id.notin_(notas_com_boleto_ativo),
