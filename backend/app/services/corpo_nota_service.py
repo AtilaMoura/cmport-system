@@ -161,20 +161,27 @@ class CorpoNotaService:
                         conta.numero_nf_servico = numero_nf_atribuido + 1
                 db.add(conta)
 
-        # Para SERVICO com nota de produto: atribui numero_nf_produto do contador
+        # Para SERVICO com nota de produto: gera numero_nf_produto mesmo sem conta Inter configurada
         numero_nf_produto_atribuido = None
-        if tipo_nota == TipoNotaCorpo.SERVICO and corpo_dados.get("valor_nota_produto") and configuracao_inter_id:
+        if tipo_nota == TipoNotaCorpo.SERVICO and valor_nota_produto:
             from app.models.configuracao_model import ConfiguracaoInter as _CI
             conta_prod = (
                 db.query(_CI)
-                .filter(_CI.id == configuracao_inter_id)
+                .filter(_CI.tipo_nota == "PRODUTO", _CI.ativo == True)
                 .with_for_update()
                 .first()
             )
-            if conta_prod:
-                numero_nf_produto_atribuido = conta_prod.numero_nf_produto or 1
+            if conta_prod and conta_prod.numero_nf_produto:
+                numero_nf_produto_atribuido = conta_prod.numero_nf_produto
                 conta_prod.numero_nf_produto = numero_nf_produto_atribuido + 1
                 db.add(conta_prod)
+            else:
+                from sqlalchemy import func as _sqlfunc
+                max_num = db.query(_sqlfunc.max(CorpoNota.numero_nf_produto)).scalar() or 0
+                numero_nf_produto_atribuido = max_num + 1
+                if conta_prod:
+                    conta_prod.numero_nf_produto = numero_nf_produto_atribuido + 1
+                    db.add(conta_prod)
 
         corpo = CorpoNota(
             ciclo_id=ciclo.id,
@@ -494,6 +501,64 @@ class CorpoNotaService:
         logger.info(f"CorpoNota {corpo_id} vinculado manualmente à NotaFiscal {nota_fiscal_id}")
         return corpo
 
+    # ── Vínculo manual nota de produto ───────────────────────────────────────
+
+    @staticmethod
+    def vincular_nota_produto(db: Session, corpo_id: int, nota_fiscal_id: int) -> CorpoNota:
+        corpo = CorpoNotaService.get_by_id(db, corpo_id)
+
+        if corpo.tipo_nota != TipoNotaCorpo.SERVICO:
+            raise HTTPException(status_code=422, detail="Vínculo de nota de produto é exclusivo de corpos SERVIÇO.")
+        if corpo.status in (StatusCorpoNota.PAGO, StatusCorpoNota.CANCELADO):
+            raise HTTPException(status_code=403, detail="Não é possível vincular nota em status final.")
+
+        from app.models.nota_fiscal_model import NotaFiscal, TipoNota
+        nota = db.query(NotaFiscal).filter(NotaFiscal.id == nota_fiscal_id).first()
+        if not nota:
+            raise HTTPException(status_code=404, detail="Nota fiscal não encontrada.")
+        if nota.tipo != TipoNota.PRODUTO:
+            raise HTTPException(status_code=422, detail="Apenas notas do tipo PRODUTO podem ser vinculadas aqui.")
+        if nota.condominio_id and nota.condominio_id != corpo.condominio_id:
+            raise HTTPException(status_code=422, detail="Nota fiscal pertence a condomínio diferente.")
+
+        corpo.nota_produto_id = nota_fiscal_id
+        if corpo.nota_fiscal_id:
+            corpo.status = StatusCorpoNota.XML_VINCULADO
+        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        return CorpoNotaRepository.save(db, corpo)
+
+    @staticmethod
+    def desvincular_nota(db: Session, corpo_id: int) -> CorpoNota:
+        corpo = CorpoNotaService.get_by_id(db, corpo_id)
+
+        if corpo.status in (StatusCorpoNota.PAGO,):
+            raise HTTPException(status_code=403, detail="Não é possível desvincular nota em status PAGO.")
+
+        if corpo.nota_fiscal_id:
+            from app.models.nota_fiscal_model import NotaFiscal
+            nota = db.query(NotaFiscal).filter(NotaFiscal.id == corpo.nota_fiscal_id).first()
+            if nota:
+                nota.corpo_nota_id = None
+                db.add(nota)
+        corpo.nota_fiscal_id = None
+        if corpo.status == StatusCorpoNota.XML_VINCULADO:
+            corpo.status = StatusCorpoNota.EM_MONTAGEM
+        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        return CorpoNotaRepository.save(db, corpo)
+
+    @staticmethod
+    def desvincular_nota_produto(db: Session, corpo_id: int) -> CorpoNota:
+        corpo = CorpoNotaService.get_by_id(db, corpo_id)
+
+        if corpo.status in (StatusCorpoNota.PAGO,):
+            raise HTTPException(status_code=403, detail="Não é possível desvincular nota em status PAGO.")
+
+        corpo.nota_produto_id = None
+        if corpo.status == StatusCorpoNota.XML_VINCULADO and not corpo.nota_fiscal_id:
+            corpo.status = StatusCorpoNota.EM_MONTAGEM
+        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        return CorpoNotaRepository.save(db, corpo)
+
     # ── Soft delete ──────────────────────────────────────────────────────────
 
     @staticmethod
@@ -591,16 +656,21 @@ class CorpoNotaService:
         from app.models.configuracao_model import ConfiguracaoInter
         conta_prod = (
             db.query(ConfiguracaoInter)
-            .filter(ConfiguracaoInter.tipo_nota == "PRODUTO")
+            .filter(ConfiguracaoInter.tipo_nota == "PRODUTO", ConfiguracaoInter.ativo == True)
             .with_for_update()
             .first()
         )
-        if not conta_prod:
-            raise HTTPException(status_code=404, detail="Conta Inter de produto não configurada.")
-
-        num_prod = conta_prod.numero_nf_produto or 1
-        conta_prod.numero_nf_produto = num_prod + 1
-        db.add(conta_prod)
+        if conta_prod and conta_prod.numero_nf_produto:
+            num_prod = conta_prod.numero_nf_produto
+            conta_prod.numero_nf_produto = num_prod + 1
+            db.add(conta_prod)
+        else:
+            from sqlalchemy import func as _sqlfunc
+            max_num = db.query(_sqlfunc.max(CorpoNota.numero_nf_produto)).scalar() or 0
+            num_prod = max_num + 1
+            if conta_prod:
+                conta_prod.numero_nf_produto = num_prod + 1
+                db.add(conta_prod)
         corpo.numero_nf_produto = num_prod
         corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
@@ -1053,7 +1123,7 @@ class CorpoNotaService:
         elif valor_nota_produto:
             valor_total_boleto = (liquido or 0) + valor_nota_produto
 
-        texto_datas = data_servico_texto or (fmt_data_barra(data_servico) if data_servico else "")
+        texto_datas = data_servico_texto or (fmt_data_barra(data_servico) if data_servico else "Em andamento")
         tem_produto = valor_nota_produto is not None and valor_nota_produto > 0
         total_boleto = valor_total_boleto if tem_produto else (liquido if liquido else valor_bruto)
 
@@ -1222,7 +1292,7 @@ class CorpoNotaService:
             return d.replace(year=ano, month=mes, day=min(d.day, ultimo_dia))
 
         n_parc = len(parcelas_json) if parcelas_json else numero_parcelas
-        texto_datas = data_servico_texto or (fmt_data_barra(data_servico) if data_servico else "")
+        texto_datas = data_servico_texto or (fmt_data_barra(data_servico) if data_servico else "Em andamento")
         extenso_parc = CorpoNotaService._ordinal_extenso(n_parc)
         plural = "parcela" if n_parc == 1 else "parcelas"
 
@@ -1327,15 +1397,13 @@ class CorpoNotaService:
         }
         tipo_corpo = tipo_map.get(nota.tipo)
 
-        # Notas PRODUTO de CNPJ configurado como PRODUTO → tenta vincular ao CorpoNota SERVICO,
-        # com fallback para CorpoNota PRODUTO standalone se não encontrar corpo SERVICO.
+        # Notas PRODUTO → tenta vincular ao CorpoNota SERVICO (via nota_produto_id),
+        # com fallback para CorpoNota PRODUTO standalone.
         if not tipo_corpo and nota.tipo == TipoNota.PRODUTO:
-            from app.services.nota_fiscal_service import _cnpj_e_produto
-            if _cnpj_e_produto(db, nota.cnpj_emitente):
-                resultado = CorpoNotaService._tentar_vincular_nota_produto(db, nota)
-                if resultado is not None:
-                    return resultado
-                return CorpoNotaService._tentar_vincular_nota_produto_standalone(db, nota)
+            resultado = CorpoNotaService._tentar_vincular_nota_produto(db, nota)
+            if resultado is not None:
+                return resultado
+            return CorpoNotaService._tentar_vincular_nota_produto_standalone(db, nota)
 
         if not tipo_corpo:
             return None

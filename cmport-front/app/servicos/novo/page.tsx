@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -21,11 +21,16 @@ interface NotaFiscal {
 
 export default function NovoServicoPage() {
   const router = useRouter();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [condominios, setCondominios] = useState<Condominio[]>([]);
   const [notas, setNotas] = useState<NotaFiscal[]>([]);
 
+  // Combobox de condomínio
   const [condominioId, setCondominioId] = useState('');
+  const [condominioNome, setCondominioNome] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+
   const [tipo, setTipo] = useState<'manutencao' | 'assistencia'>('manutencao');
   const [dataServico, setDataServico] = useState(new Date().toISOString().split('T')[0]);
   const [descricao, setDescricao] = useState('');
@@ -41,21 +46,58 @@ export default function NovoServicoPage() {
     }).catch(() => {});
   }, []);
 
-  // Busca notas sem serviço vinculado ao selecionar condomínio
+  // Fecha dropdown ao clicar fora
   useEffect(() => {
-    if (!condominioId) { setNotas([]); setNotaFiscalId(''); return; }
-    api.get('/notas-fiscais', { params: { condominio_id: condominioId } })
-      .then(r => {
-        // Mostra notas sem nota_fiscal_id em serviço (sem filtro extra — usuário escolhe)
-        setNotas(r.data);
-      }).catch(() => setNotas([]));
-    setNotaFiscalId('');
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+        // Se nada selecionado, limpa o texto
+        if (!condominioId) setCondominioNome('');
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [condominioId]);
+
+  // Busca notas ao selecionar condomínio
+  useEffect(() => {
+    if (!condominioId) { setNotas([]); setNotaFiscalId(''); setFiltroNota(''); return; }
+    api.get('/notas-fiscais', { params: { condominio_id: condominioId } })
+      .then(r => setNotas(r.data))
+      .catch(() => setNotas([]));
+    setNotaFiscalId('');
+    setFiltroNota('');
+  }, [condominioId]);
+
+  const condominiosFiltrados = condominios.filter(c =>
+    c.nome.toLowerCase().includes(condominioNome.toLowerCase())
+  );
 
   const notasFiltradas = notas.filter(n => {
     if (!filtroNota) return true;
     return n.numero_nota.toLowerCase().includes(filtroNota.toLowerCase());
   });
+
+  // Auto-seleciona quando filtra para 1 resultado
+  useEffect(() => {
+    if (notasFiltradas.length === 1 && filtroNota) {
+      setNotaFiscalId(String(notasFiltradas[0].id));
+    }
+  }, [notasFiltradas.length, filtroNota]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function selecionarCondominio(c: Condominio) {
+    setCondominioId(String(c.id));
+    setCondominioNome(c.nome);
+    setShowDropdown(false);
+  }
+
+  function limparCondominio() {
+    setCondominioId('');
+    setCondominioNome('');
+    setNotas([]);
+    setNotaFiscalId('');
+    setFiltroNota('');
+  }
 
   const handleSubmit = async () => {
     if (!condominioId) { setErro('Selecione um condomínio.'); return; }
@@ -94,21 +136,59 @@ export default function NovoServicoPage() {
 
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-5">
 
-          {/* Condomínio */}
-          <div>
+          {/* Condomínio — combobox com busca */}
+          <div ref={dropdownRef} className="relative">
             <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
               Condomínio <span className="text-red-500">*</span>
             </label>
-            <select
-              value={condominioId}
-              onChange={e => setCondominioId(e.target.value)}
-              className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-            >
-              <option value="">Selecione...</option>
-              {condominios.map(c => (
-                <option key={c.id} value={c.id}>{c.nome}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                value={condominioNome}
+                onChange={e => {
+                  setCondominioNome(e.target.value);
+                  setCondominioId('');
+                  setShowDropdown(true);
+                }}
+                onFocus={() => setShowDropdown(true)}
+                placeholder="Digite para buscar..."
+                className="w-full px-4 py-3 pr-10 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400"
+              />
+              {condominioId ? (
+                <button
+                  type="button"
+                  onClick={limparCondominio}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none"
+                >
+                  ✕
+                </button>
+              ) : (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">▾</span>
+              )}
+            </div>
+            {showDropdown && condominiosFiltrados.length > 0 && (
+              <div className="absolute z-20 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                {condominiosFiltrados.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={() => selecionarCondominio(c)}
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors ${
+                      String(c.id) === condominioId
+                        ? 'text-violet-700 dark:text-violet-400 font-semibold bg-violet-50 dark:bg-violet-500/10'
+                        : 'text-slate-800 dark:text-white'
+                    }`}
+                  >
+                    {c.nome}
+                  </button>
+                ))}
+              </div>
+            )}
+            {showDropdown && condominioNome && condominiosFiltrados.length === 0 && (
+              <div className="absolute z-20 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg px-4 py-3 text-sm text-slate-400">
+                Nenhum condomínio encontrado.
+              </div>
+            )}
           </div>
 
           {/* Tipo */}
@@ -167,17 +247,18 @@ export default function NovoServicoPage() {
               <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
                 Vincular Nota Fiscal (opcional)
               </label>
-              {notas.length > 5 && (
-                <input
-                  type="text"
-                  value={filtroNota}
-                  onChange={e => setFiltroNota(e.target.value)}
-                  placeholder="Filtrar por número..."
-                  className="w-full px-3 py-2 mb-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                />
-              )}
+              {/* Busca por número — sempre visível */}
+              <input
+                type="text"
+                value={filtroNota}
+                onChange={e => setFiltroNota(e.target.value)}
+                placeholder="Buscar por número da nota..."
+                className="w-full px-3 py-2 mb-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+              />
               {notas.length === 0 ? (
                 <p className="text-xs text-slate-400 py-2">Nenhuma nota fiscal encontrada para este condomínio.</p>
+              ) : notasFiltradas.length === 0 ? (
+                <p className="text-xs text-slate-400 py-2">Nenhuma nota encontrada para &quot;{filtroNota}&quot;.</p>
               ) : (
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {/* Opção nenhuma */}

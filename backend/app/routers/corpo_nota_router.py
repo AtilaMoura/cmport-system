@@ -412,7 +412,7 @@ def listar_candidatos_nota(
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    """Retorna notas fiscais candidatas a vínculo com este corpo (mesmo condomínio, sem corpo vinculado)."""
+    """Retorna notas de serviço candidatas a vínculo (nota_fiscal_id)."""
     from app.models.nota_fiscal_model import NotaFiscal, TipoNota
     corpo = CorpoNotaService.get_by_id(db, corpo_id)
 
@@ -428,6 +428,46 @@ def listar_candidatos_nota(
             NotaFiscal.condominio_id == corpo.condominio_id,
             NotaFiscal.tipo.in_(tipos_validos),
             NotaFiscal.corpo_nota_id.is_(None),
+        )
+        .order_by(NotaFiscal.criado_em.desc())
+        .limit(50)
+        .all()
+    )
+
+    return [
+        {
+            "id": n.id,
+            "numero_nota": n.numero_nota,
+            "tipo": n.tipo.value if hasattr(n.tipo, "value") else n.tipo,
+            "status": n.status.value if hasattr(n.status, "value") else n.status,
+            "valor": float(n.valor) if n.valor else 0.0,
+            "data_vencimento": n.data_vencimento.isoformat() if n.data_vencimento else None,
+            "cliente_nome": n.cliente_nome,
+        }
+        for n in notas
+    ]
+
+
+@router.get("/{corpo_id}/candidatos-nota-produto")
+def listar_candidatos_nota_produto(
+    corpo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Retorna notas de PRODUTO candidatas a vínculo (nota_produto_id) para corpos SERVIÇO."""
+    from app.models.nota_fiscal_model import NotaFiscal, TipoNota
+    from app.models.corpo_nota_model import CorpoNota as _CN
+    corpo = CorpoNotaService.get_by_id(db, corpo_id)
+
+    # IDs de notas já vinculadas como nota_produto em algum corpo
+    vinculadas = db.query(_CN.nota_produto_id).filter(_CN.nota_produto_id.isnot(None)).subquery()
+
+    notas = (
+        db.query(NotaFiscal)
+        .filter(
+            NotaFiscal.condominio_id == corpo.condominio_id,
+            NotaFiscal.tipo == TipoNota.PRODUTO,
+            ~NotaFiscal.id.in_(vinculadas),
         )
         .order_by(NotaFiscal.criado_em.desc())
         .limit(50)
@@ -550,6 +590,37 @@ def vincular_nota(
     usuario=Depends(get_current_user),
 ):
     return CorpoNotaService.vincular_nota_fiscal(db, corpo_id, payload.nota_fiscal_id)
+
+
+@router.post("/{corpo_id}/vincular-nota-produto", response_model=CorpoNotaResponse)
+def vincular_nota_produto(
+    corpo_id: int,
+    payload: VincularNotaRequest,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Vincula manualmente uma nota de PRODUTO ao campo nota_produto_id do corpo SERVIÇO."""
+    return CorpoNotaService.vincular_nota_produto(db, corpo_id, payload.nota_fiscal_id)
+
+
+@router.delete("/{corpo_id}/desvincular-nota", response_model=CorpoNotaResponse)
+def desvincular_nota(
+    corpo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Remove o vínculo nota_fiscal_id e volta status para EM_MONTAGEM se necessário."""
+    return CorpoNotaService.desvincular_nota(db, corpo_id)
+
+
+@router.delete("/{corpo_id}/desvincular-nota-produto", response_model=CorpoNotaResponse)
+def desvincular_nota_produto(
+    corpo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Remove o vínculo nota_produto_id do corpo SERVIÇO."""
+    return CorpoNotaService.desvincular_nota_produto(db, corpo_id)
 
 
 @router.delete("/{corpo_id}", status_code=204)
