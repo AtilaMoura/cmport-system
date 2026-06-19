@@ -505,6 +505,13 @@ function NovoCorpoNotaContent() {
   };
 
   // helper para montar o payload base (sem parcelas)
+  const extrairErro = (e: unknown, fallback: string): string => {
+    const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+    if (Array.isArray(detail)) return detail.map((d: { msg?: string }) => d.msg || '').filter(Boolean).join('; ');
+    if (typeof detail === 'string') return detail;
+    return fallback;
+  };
+
   const payloadBase = () => {
     const mesRef = `${String(mes).padStart(2, '0')}/${ano}`;
     return {
@@ -515,8 +522,8 @@ function NovoCorpoNotaContent() {
       data_servico: dataServico || null,
       descricao_servico: descricaoServico,
       valor_bruto: Number(valorBruto),
-      data_vencimento: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && parcelas[0]?.data
-        ? parcelas[0].data : dataVencimento,
+      data_vencimento: ((tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') && parcelas[0]?.data
+        ? parcelas[0].data : dataVencimento) || null,
       observacoes: observacoes || null,
       data_servico_texto: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (dataServicoTexto || null) : null,
       descricao_garantia: (tipoNota === 'SERVICO' || tipoNota === 'PRODUTO') ? (descricaoGarantia || null) : null,
@@ -567,8 +574,7 @@ function NovoCorpoNotaContent() {
       }
       setStep(5);
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setErro(msg || 'Erro ao calcular impostos.');
+      setErro(extrairErro(e, 'Erro ao calcular impostos.'));
     } finally {
       setCalculandoImpostos(false);
     }
@@ -593,8 +599,7 @@ function NovoCorpoNotaContent() {
       setPreview(r.data);
       setStep(6);
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setErro(msg || 'Erro ao gerar preview.');
+      setErro(extrairErro(e, 'Erro ao gerar preview.'));
     } finally {
       setGerandoPreview(false);
     }
@@ -633,8 +638,7 @@ function NovoCorpoNotaContent() {
 
       router.push(`/corpos-nota/${r.data.id}`);
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setErro(msg || 'Erro ao criar corpo de nota.');
+      setErro(extrairErro(e, 'Erro ao criar corpo de nota.'));
     } finally {
       setLoading(false);
     }
