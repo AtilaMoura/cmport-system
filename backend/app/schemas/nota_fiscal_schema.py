@@ -74,6 +74,10 @@ class NotaFiscalResponse(BaseModel):
     pdf_object_key: Optional[str] = None
     pdf_disponivel: bool = False
 
+    # Emitente resolvido (CNPJ + razão social da ConfiguracaoInter)
+    cnpj_emitente_efetivo: Optional[str] = None
+    razao_social_emitente: Optional[str] = None
+
     criado_em: datetime
 
     model_config = {"from_attributes": True}

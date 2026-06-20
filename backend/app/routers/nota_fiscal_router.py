@@ -45,14 +45,13 @@ def list_notas(
 ):
     if condominio_id:
         from app.models.nota_fiscal_model import NotaFiscal
-        from app.schemas.nota_fiscal_schema import NotaFiscalResponse as NfResp
         notas = (
             db.query(NotaFiscal)
             .filter(NotaFiscal.condominio_id == condominio_id)
             .order_by(NotaFiscal.data_vencimento.desc())
             .all()
         )
-        return [NfResp.model_validate(n) for n in notas]
+        return NotaFiscalService._enriquecer_emitente(db, notas)
     return NotaFiscalService.get_all_notas(db)
 
 

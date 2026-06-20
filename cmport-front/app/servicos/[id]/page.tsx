@@ -76,6 +76,8 @@ interface NotaFiscal {
   nota_vinculada_id: number | null;
   imposto_config_vinculo: { aplicar_imposto_em: string; nota_a_id: number; nota_b_id: number } | null;
   pdf_object_key: string | null;
+  cnpj_emitente_efetivo: string | null;
+  razao_social_emitente: string | null;
 }
 
 
@@ -1461,6 +1463,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               </svg>
               <span className="hidden sm:inline">Voltar</span>
             </Link>
+
+            {notaFiscal?.cnpj_emitente_efetivo && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                {notaFiscal.razao_social_emitente ?? notaFiscal.cnpj_emitente_efetivo}
+                <span className="text-blue-400 dark:text-blue-500 font-normal">·</span>
+                {notaFiscal.cnpj_emitente_efetivo}
+              </span>
+            )}
+
             <div className="flex gap-2">
               {!editando ? (
                 <>

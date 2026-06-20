@@ -753,19 +753,54 @@ class NotaFiscalService:
         return db_nota
 
     @staticmethod
+    def _enriquecer_emitente(db: Session, notas: list) -> list:
+        """Resolve cnpj_emitente_efetivo e razao_social_emitente para uma lista de notas."""
+        from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+        from app.models.corpo_nota_model import CorpoNota
+
+        configs = {c.id: c for c in ConfiguracaoInterRepository.get_ativos(db)}
+
+        corpo_ids = [n.corpo_nota_id for n in notas if n.corpo_nota_id]
+        corpos = {}
+        if corpo_ids:
+            corpos = {c.id: c for c in db.query(CorpoNota).filter(CorpoNota.id.in_(corpo_ids)).all()}
+
+        cnpj_map = {"".join(filter(str.isdigit, c.cnpj or "")): c for c in configs.values()}
+
+        results = []
+        for nota in notas:
+            resp = NotaFiscalResponse.model_validate(nota)
+            cfg = None
+            if nota.cnpj_emitente:
+                cfg = cnpj_map.get("".join(filter(str.isdigit, nota.cnpj_emitente or "")))
+            elif nota.corpo_nota_id:
+                corpo = corpos.get(nota.corpo_nota_id)
+                if corpo and corpo.configuracao_inter_id:
+                    cfg = configs.get(corpo.configuracao_inter_id)
+            if cfg:
+                resp.cnpj_emitente_efetivo = _formatar_cnpj(cfg.cnpj)
+                resp.razao_social_emitente = cfg.razao_social
+            results.append(resp)
+        return results
+
+    @staticmethod
     def get_all_notas(db: Session):
         notas = NotaFiscalRepository.get_all(db)
-        return [NotaFiscalResponse.model_validate(n) for n in notas]
+        return NotaFiscalService._enriquecer_emitente(db, notas)
 
     @staticmethod
     def get_nota_by_id(db: Session, id: int):
         nota = NotaFiscalRepository.get_by_id(db, id)
-        return NotaFiscalResponse.model_validate(nota) if nota else None
+        if not nota:
+            return None
+        return NotaFiscalService._enriquecer_emitente(db, [nota])[0]
 
     @staticmethod
     def get_nota_by_numero(db: Session, numero: str):
         nota = NotaFiscalRepository.get_by_numero(db, numero)
-        return NotaFiscalResponse.model_validate(nota) if nota else None
+        if not nota:
+            return None
+        return NotaFiscalService._enriquecer_emitente(db, [nota])[0]
 
     @staticmethod
     def upload_pdf_nota(db: Session, nota_id: int, pdf_bytes: bytes, storage: StorageClient) -> str:

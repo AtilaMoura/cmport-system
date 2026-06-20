@@ -1223,16 +1223,34 @@ class BoletoService:
 
     @staticmethod
     def tem_inter(db: Session, nota_id: int) -> bool:
-        """Verifica se há ConfiguracaoInter ativa para emitir boleto desta nota."""
+        """Verifica se há ConfiguracaoInter ativa e completa para emitir boleto desta nota."""
         from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+        from app.models.nota_fiscal_model import NotaFiscal as NotaFiscalModel
+
+        def _config_completa(cfg) -> bool:
+            return bool(cfg and cfg.ativo and cfg.client_id and cfg.client_secret and cfg.conta_corrente)
+
         nota = NotaFiscalRepository.get_by_id(db, nota_id)
         if not nota:
             return False
+
+        # Caso 1: nota importada por XML — usa cnpj_emitente para encontrar a config
         if getattr(nota, "cnpj_emitente", None):
             cnpj_limpo = _limpar_cnpj(nota.cnpj_emitente)
-            return ConfiguracaoInterRepository.get_by_cnpj(db, cnpj_limpo) is not None
-        # Nota sem cnpj_emitente (gerada internamente, sem XML): usa fallback igual a _get_inter_client
-        return len(ConfiguracaoInterRepository.get_ativos(db)) > 0
+            cfg = ConfiguracaoInterRepository.get_by_cnpj(db, cnpj_limpo)
+            return _config_completa(cfg)
+
+        # Caso 2: nota gerada internamente com corpo_nota vinculado — usa a config do corpo
+        corpo_nota_id = getattr(nota, "corpo_nota_id", None)
+        if corpo_nota_id:
+            from app.models.corpo_nota_model import CorpoNota
+            corpo = db.query(CorpoNota).filter(CorpoNota.id == corpo_nota_id).first()
+            if corpo and corpo.configuracao_inter_id:
+                cfg = ConfiguracaoInterRepository.get_by_id(db, corpo.configuracao_inter_id)
+                return _config_completa(cfg)
+
+        # Fallback: verifica se existe alguma config ativa e completa
+        return any(_config_completa(c) for c in ConfiguracaoInterRepository.get_ativos(db))
 
     @staticmethod
     def preview_email_boleto(db: Session, boleto_id: int) -> dict:

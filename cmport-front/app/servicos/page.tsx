@@ -33,6 +33,8 @@ interface NotaFiscal {
   descricao_servico: string | null;
   parcelas_json: Array<{ parcela: number; valor: number; data: string | null }> | null;
   valor_boleto_parcela: number | null;
+  cnpj_emitente_efetivo: string | null;
+  razao_social_emitente: string | null;
 }
 
 interface Boleto {
@@ -127,6 +129,7 @@ export default function ServicosPage() {
   const [dataFim, setDataFim]               = useState('');
   const [condominioSelecionado, setCondominioSelecionado] = useState<number | null>(null);
   const [comNota, setComNota]               = useState<string>('todos');
+  const [filtroCnpj, setFiltroCnpj]         = useState<string>('');
   const [showFiltrosAvancados, setShowFiltrosAvancados]   = useState(false);
 
   // Modal gerar boleto (full)
@@ -456,10 +459,10 @@ export default function ServicosPage() {
 
   const limparFiltros = () => {
     setFiltroTipo('todos'); setSearch(''); setFiltroMes('');
-    setDataInicio(''); setDataFim(''); setCondominioSelecionado(null); setComNota('todos');
+    setDataInicio(''); setDataFim(''); setCondominioSelecionado(null); setComNota('todos'); setFiltroCnpj('');
   };
 
-  const temFiltroAtivo = filtroTipo !== 'todos' || search || filtroMes || dataInicio || dataFim || condominioSelecionado || comNota !== 'todos';
+  const temFiltroAtivo = filtroTipo !== 'todos' || search || filtroMes || dataInicio || dataFim || condominioSelecionado || comNota !== 'todos' || filtroCnpj !== '';
 
   const servicosFiltrados = useMemo(() => servicos.filter(s => {
     if (filtroTipo !== 'todos' && s.tipo !== filtroTipo) return false;
@@ -480,8 +483,12 @@ export default function ServicosPage() {
       if (comNota === 'com' && !s.nota_fiscal_id) return false;
       if (comNota === 'sem' && s.nota_fiscal_id) return false;
     }
+    if (filtroCnpj) {
+      const nota = s.nota_fiscal_id ? notas[s.nota_fiscal_id] : null;
+      if (nota?.cnpj_emitente_efetivo !== filtroCnpj) return false;
+    }
     return true;
-  }), [servicos, filtroTipo, search, filtroMes, dataInicio, dataFim, condominioSelecionado, comNota, condominios]);
+  }), [servicos, filtroTipo, search, filtroMes, dataInicio, dataFim, condominioSelecionado, comNota, condominios, filtroCnpj, notas]);
 
   const stats = useMemo(() => {
     const hoje = new Date();
@@ -956,6 +963,16 @@ export default function ServicosPage() {
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-purple-500 outline-none text-sm">
                   <option value="">Todos</option>
                   {Object.values(condominios).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">CNPJ Emitente</label>
+                <select value={filtroCnpj} onChange={e => setFiltroCnpj(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-purple-500 outline-none text-sm">
+                  <option value="">Todos</option>
+                  {Array.from(new Map(Object.values(notas).filter(n => n.cnpj_emitente_efetivo).map(n => [n.cnpj_emitente_efetivo, n.razao_social_emitente])).entries()).map(([cnpj, razao]) => (
+                    <option key={cnpj!} value={cnpj!}>{razao ?? cnpj}</option>
+                  ))}
                 </select>
               </div>
             </div>

@@ -25,6 +25,8 @@ interface NotaFiscal {
   criado_em: string;
   nota_vinculada_id: number | null;
   pdf_disponivel: boolean;
+  cnpj_emitente_efetivo: string | null;
+  razao_social_emitente: string | null;
 }
 
 interface Condominio {
@@ -83,6 +85,7 @@ export default function NotasPage() {
   const [revalidando, setRevalidando] = useState(false);
   const [revalidarMsg, setRevalidarMsg] = useState<string | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>('AUTORIZADA');
+  const [filtroCnpj, setFiltroCnpj] = useState<string>('');
 
   useEffect(() => { carregarDados(); }, []);
 
@@ -192,10 +195,10 @@ export default function NotasPage() {
   const limparFiltros = () => {
     setFiltroTipo('todos'); setSearch(''); setFiltroMes('');
     setDataInicio(''); setDataFim(''); setValorMin(''); setValorMax('');
-    setCondominioSelecionado(null); setFiltroStatus('AUTORIZADA');
+    setCondominioSelecionado(null); setFiltroStatus('AUTORIZADA'); setFiltroCnpj('');
   };
 
-  const temFiltroAtivo = filtroTipo !== 'todos' || search || filtroMes || dataInicio || dataFim || valorMin || valorMax || condominioSelecionado || filtroStatus !== 'AUTORIZADA';
+  const temFiltroAtivo = filtroTipo !== 'todos' || search || filtroMes || dataInicio || dataFim || valorMin || valorMax || condominioSelecionado || filtroStatus !== 'AUTORIZADA' || filtroCnpj !== '';
 
   // notasFiltradas reflete todos os filtros ativos
   const notasFiltradas = useMemo(() => notas.filter(nota => {
@@ -215,8 +218,9 @@ export default function NotasPage() {
     if (valorMin && nota.valor < parseFloat(valorMin)) return false;
     if (valorMax && nota.valor > parseFloat(valorMax)) return false;
     if (condominioSelecionado && nota.condominio_id !== condominioSelecionado) return false;
+    if (filtroCnpj && nota.cnpj_emitente_efetivo !== filtroCnpj) return false;
     return true;
-  }), [notas, filtroTipo, search, filtroMes, dataInicio, dataFim, valorMin, valorMax, condominioSelecionado]);
+  }), [notas, filtroTipo, search, filtroMes, dataInicio, dataFim, valorMin, valorMax, condominioSelecionado, filtroCnpj]);
 
   const notasAReceber = useMemo(() => notasFiltradas.filter(n => !n.data_pagamento), [notasFiltradas]);
 
@@ -435,6 +439,16 @@ export default function NotasPage() {
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm">
                   <option value="">Todos</option>
                   {condominios.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">CNPJ Emitente</label>
+                <select value={filtroCnpj} onChange={e => setFiltroCnpj(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm">
+                  <option value="">Todos</option>
+                  {Array.from(new Map(notas.filter(n => n.cnpj_emitente_efetivo).map(n => [n.cnpj_emitente_efetivo, n.razao_social_emitente])).entries()).map(([cnpj, razao]) => (
+                    <option key={cnpj!} value={cnpj!}>{razao ?? cnpj}</option>
+                  ))}
                 </select>
               </div>
             </div>
