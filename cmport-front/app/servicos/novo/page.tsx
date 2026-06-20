@@ -62,12 +62,15 @@ export default function NovoServicoPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [condominioId]);
 
-  // Busca notas sem serviço ao selecionar condomínio
+  // Busca todas as notas sem serviço ao montar
   useEffect(() => {
-    if (!condominioId) { setNotas([]); setNotaFiscalId(''); setFiltroNota(''); return; }
-    api.get('/notas-fiscais', { params: { condominio_id: condominioId, sem_servico: true } })
+    api.get('/notas-fiscais', { params: { sem_servico: true } })
       .then(r => setNotas(r.data))
       .catch(() => setNotas([]));
+  }, []);
+
+  // Limpa nota selecionada ao trocar condomínio
+  useEffect(() => {
     setNotaFiscalId('');
     setFiltroNota('');
   }, [condominioId]);
