@@ -42,6 +42,18 @@ def resumo_financeiro(
     return ServicoService.resumo_financeiro(db, mes, ano)
 
 
+@router.get("/por-nota/{nota_id}", response_model=ServicoResponse)
+def get_servico_por_nota(nota_id: int, db: Session = Depends(get_db)):
+    """Retorna o serviço vinculado a uma nota fiscal específica."""
+    from app.models.servico_model import ManutencaoAssistencia
+    servico = db.query(ManutencaoAssistencia).filter(
+        ManutencaoAssistencia.nota_fiscal_id == nota_id
+    ).first()
+    if not servico:
+        raise HTTPException(status_code=404, detail="Nenhum serviço vinculado a esta nota.")
+    return servico
+
+
 @router.get("/{servico_id}", response_model=ServicoResponse)
 def get_servico(servico_id: int, db: Session = Depends(get_db)):
     servico = ServicoService.get_servico_by_id(db, servico_id)

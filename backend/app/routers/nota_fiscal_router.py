@@ -41,17 +41,31 @@ def create_nota(nota: NotaFiscalCreate, db: Session = Depends(get_db)):
 @router.get("", response_model=List[NotaFiscalResponse])
 def list_notas(
     condominio_id: Optional[int] = Query(None),
+    sem_servico: bool = Query(False),
     db: Session = Depends(get_db),
 ):
+    from app.models.nota_fiscal_model import NotaFiscal, TipoNota
+    from app.models.servico_model import ManutencaoAssistencia
+
+    query = db.query(NotaFiscal)
+
     if condominio_id:
-        from app.models.nota_fiscal_model import NotaFiscal
-        notas = (
-            db.query(NotaFiscal)
-            .filter(NotaFiscal.condominio_id == condominio_id)
-            .order_by(NotaFiscal.data_vencimento.desc())
-            .all()
+        query = query.filter(NotaFiscal.condominio_id == condominio_id)
+
+    if sem_servico:
+        query = query.filter(
+            NotaFiscal.tipo.in_([TipoNota.ASSISTENCIA, TipoNota.MANUTENCAO])
+        ).outerjoin(
+            ManutencaoAssistencia,
+            ManutencaoAssistencia.nota_fiscal_id == NotaFiscal.id
+        ).filter(
+            ManutencaoAssistencia.id == None
         )
+
+    if condominio_id or sem_servico:
+        notas = query.order_by(NotaFiscal.data_vencimento.desc()).all()
         return NotaFiscalService._enriquecer_emitente(db, notas)
+
     return NotaFiscalService.get_all_notas(db)
 
 
