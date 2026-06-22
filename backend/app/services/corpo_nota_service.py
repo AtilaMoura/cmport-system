@@ -161,27 +161,18 @@ class CorpoNotaService:
                         conta.numero_nf_servico = numero_nf_atribuido + 1
                 db.add(conta)
 
-        # Para SERVICO com nota de produto: gera numero_nf_produto mesmo sem conta Inter configurada
+        # Para SERVICO com nota de produto: usa o mesmo CNPJ selecionado (numero_nf_produto do mesmo conta)
         numero_nf_produto_atribuido = None
-        if tipo_nota == TipoNotaCorpo.SERVICO and valor_nota_produto:
-            from app.models.configuracao_model import ConfiguracaoInter as _CI
-            conta_prod = (
-                db.query(_CI)
-                .filter(_CI.tipo_nota == "PRODUTO", _CI.ativo == True)
-                .with_for_update()
-                .first()
-            )
-            if conta_prod and conta_prod.numero_nf_produto:
-                numero_nf_produto_atribuido = conta_prod.numero_nf_produto
-                conta_prod.numero_nf_produto = numero_nf_produto_atribuido + 1
-                db.add(conta_prod)
+        if tipo_nota == TipoNotaCorpo.SERVICO and valor_nota_produto and configuracao_inter_id and conta:
+            numero_nf_produto_atribuido = conta.numero_nf_produto
+            if numero_nf_produto_atribuido:
+                conta.numero_nf_produto = numero_nf_produto_atribuido + 1
             else:
                 from sqlalchemy import func as _sqlfunc
                 max_num = db.query(_sqlfunc.max(CorpoNota.numero_nf_produto)).scalar() or 0
                 numero_nf_produto_atribuido = max_num + 1
-                if conta_prod:
-                    conta_prod.numero_nf_produto = numero_nf_produto_atribuido + 1
-                    db.add(conta_prod)
+                conta.numero_nf_produto = numero_nf_produto_atribuido + 1
+            db.add(conta)
 
         corpo = CorpoNota(
             ciclo_id=ciclo.id,
@@ -622,26 +613,19 @@ class CorpoNotaService:
             db.add(conta)
             corpo.numero_nf = numero
 
-            # Para corpo SERVICO com nota de produto: atribui numero_nf_produto também
+            # Para corpo SERVICO com nota de produto: usa o mesmo CNPJ para numero_nf_produto
             if corpo.valor_nota_produto and not corpo.numero_nf_produto:
-                conta_prod = (
-                    db.query(ConfiguracaoInter)
-                    .filter(ConfiguracaoInter.tipo_nota == "PRODUTO")
-                    .with_for_update()
-                    .first()
-                )
-                if conta_prod:
-                    num_prod = conta_prod.numero_nf_produto or 1
-                    conta_prod.numero_nf_produto = num_prod + 1
-                    db.add(conta_prod)
-                    corpo.numero_nf_produto = num_prod
+                num_prod = conta.numero_nf_produto or 1
+                conta.numero_nf_produto = num_prod + 1
+                db.add(conta)
+                corpo.numero_nf_produto = num_prod
 
         corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
 
     @staticmethod
     def gerar_numero_nf_produto(db: Session, corpo_id: int) -> CorpoNota:
-        """Atribui/reatribui numero_nf_produto em corpo SERVICO com valor_nota_produto."""
+        """Atribui/reatribui numero_nf_produto em corpo SERVICO usando o mesmo CNPJ do corpo."""
         corpo = CorpoNotaService.get_by_id(db, corpo_id)
 
         if corpo.tipo_nota != TipoNotaCorpo.SERVICO:
@@ -653,24 +637,22 @@ class CorpoNotaService:
         if corpo.status in (StatusCorpoNota.PAGO, StatusCorpoNota.CANCELADO):
             raise HTTPException(status_code=403, detail="Não é possível gerar número em status final.")
 
+        if not corpo.configuracao_inter_id:
+            raise HTTPException(status_code=422, detail="Selecione um CNPJ/Conta Inter antes de gerar o número NF de produto.")
+
         from app.models.configuracao_model import ConfiguracaoInter
-        conta_prod = (
+        conta = (
             db.query(ConfiguracaoInter)
-            .filter(ConfiguracaoInter.tipo_nota == "PRODUTO", ConfiguracaoInter.ativo == True)
+            .filter(ConfiguracaoInter.id == corpo.configuracao_inter_id)
             .with_for_update()
             .first()
         )
-        if conta_prod and conta_prod.numero_nf_produto:
-            num_prod = conta_prod.numero_nf_produto
-            conta_prod.numero_nf_produto = num_prod + 1
-            db.add(conta_prod)
-        else:
-            from sqlalchemy import func as _sqlfunc
-            max_num = db.query(_sqlfunc.max(CorpoNota.numero_nf_produto)).scalar() or 0
-            num_prod = max_num + 1
-            if conta_prod:
-                conta_prod.numero_nf_produto = num_prod + 1
-                db.add(conta_prod)
+        if not conta:
+            raise HTTPException(status_code=404, detail="Conta Inter não encontrada.")
+
+        num_prod = conta.numero_nf_produto or 1
+        conta.numero_nf_produto = num_prod + 1
+        db.add(conta)
         corpo.numero_nf_produto = num_prod
         corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
@@ -1582,19 +1564,19 @@ class CorpoNotaService:
             corpo = candidatos[0]
             corpo.nota_produto_id = nota.id
 
-            # Atribui numero_nf_produto do contador se ainda não atribuído
-            if not corpo.numero_nf_produto:
+            # Atribui numero_nf_produto do contador do mesmo CNPJ do corpo
+            if not corpo.numero_nf_produto and corpo.configuracao_inter_id:
                 from app.models.configuracao_model import ConfiguracaoInter
-                conta_prod = (
+                conta_vinculo = (
                     db.query(ConfiguracaoInter)
-                    .filter(ConfiguracaoInter.tipo_nota == "PRODUTO")
+                    .filter(ConfiguracaoInter.id == corpo.configuracao_inter_id)
                     .with_for_update()
                     .first()
                 )
-                if conta_prod:
-                    num_prod = conta_prod.numero_nf_produto or 1
-                    conta_prod.numero_nf_produto = num_prod + 1
-                    db.add(conta_prod)
+                if conta_vinculo:
+                    num_prod = conta_vinculo.numero_nf_produto or 1
+                    conta_vinculo.numero_nf_produto = num_prod + 1
+                    db.add(conta_vinculo)
                     corpo.numero_nf_produto = num_prod
 
             # Cria vínculo simétrico nota_vinculada_id entre NF serviço ↔ NF produto
