@@ -1734,8 +1734,11 @@ class CorpoNotaService:
             # Cria serviço vinculado se o corpo tem OS e ainda não tem servico_id
             if corpo.numero_os and not corpo.servico_id:
                 try:
+                    import re as _re
                     from app.schemas.servico_schema import ServicoCreate
                     from app.services.servico_service import ServicoService
+                    # Extrai só os dígitos (corpo.numero_os pode ter "OS nº XXXXX")
+                    numero_os_limpo = _re.sub(r'\D', '', corpo.numero_os) or corpo.numero_os
                     data_svc = corpo.data_servico or nota.data_vencimento
                     novo_servico = ServicoService.create_servico(db, ServicoCreate(
                         condominio_id=corpo.condominio_id,
@@ -1743,7 +1746,7 @@ class CorpoNotaService:
                         data_servico=data_svc,
                         descricao=corpo.descricao_servico,
                         nota_fiscal_id=nota.id,
-                        numero_os=corpo.numero_os,
+                        numero_os=numero_os_limpo,
                     ))
                     corpo.servico_id = novo_servico.id
                     CorpoNotaRepository.save(db, corpo)
