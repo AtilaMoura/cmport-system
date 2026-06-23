@@ -147,13 +147,52 @@ def _html_boleto(
             f'{linha_digitavel}</span></td></tr>'
         )
 
-    assinatura_bloco = ""
-    if _ASSINATURA_B64:
-        assinatura_bloco = (
-            f'<img src="data:image/jpeg;base64,{_ASSINATURA_B64}" '
-            'alt="Assinatura CM Port" '
-            'style="max-width:150px;width:100%;height:auto;display:block;margin:0 auto;" />'
-        )
+    logo_url = f"data:image/jpeg;base64,{_ASSINATURA_B64}" if _ASSINATURA_B64 else ""
+    assinatura_bloco = f"""<!-- ASSINATURA CM PORT -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;font-family:Arial,Helvetica,sans-serif;">
+  <tr><td style="padding:0;margin:0;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr><td style="height:10px;background-color:#1f4e79;font-size:0;line-height:0;">&nbsp;</td></tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+      <tr>
+        <td align="center" valign="middle" style="padding:16px 20px;background-color:#ffffff;">
+          <table cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;">
+            <tr>
+              <td valign="middle" align="center" style="width:38%;padding:6px 16px 6px 0;">
+                <img src="{logo_url}" alt="CM Port" style="display:block;max-width:70px;width:100%;height:auto;border:0;" />
+              </td>
+              <td valign="middle" style="width:2%;padding:0;">
+                <div style="width:3px;height:80px;background-color:#1f4e79;margin:0 auto;border-radius:2px;"></div>
+              </td>
+              <td valign="middle" style="width:60%;padding:6px 0 6px 16px;">
+                <div style="font-size:17px;font-weight:700;color:#1f4e79;">Fabiana Pedretti</div>
+                <div style="font-size:13px;color:#6a6a6a;margin-top:4px;">Gerente Comercial</div>
+                <table cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
+                  <tr>
+                    <td style="padding:3px 8px 3px 0;font-size:13px;color:#6a6a6a;">✉</td>
+                    <td style="padding:3px 0;font-size:12px;color:#5b7690;">comercial@cmport.com.br</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:3px 8px 3px 0;font-size:13px;color:#6a6a6a;">🌐</td>
+                    <td style="padding:3px 0;font-size:12px;color:#5b7690;">www.cmport.com.br</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:3px 8px 3px 0;font-size:13px;color:#6a6a6a;">☎</td>
+                    <td style="padding:3px 0;font-size:12px;color:#5b7690;">(11) 94034-1682</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr><td style="height:10px;background-color:#1f4e79;font-size:0;line-height:0;">&nbsp;</td></tr>
+    </table>
+  </td></tr>
+</table>"""
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
