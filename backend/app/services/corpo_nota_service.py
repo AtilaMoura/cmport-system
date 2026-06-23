@@ -1731,6 +1731,26 @@ class CorpoNotaService:
             db.add(nota)
             CorpoNotaRepository.save(db, corpo)
 
+            # Cria serviço vinculado se o corpo tem OS e ainda não tem servico_id
+            if corpo.numero_os and not corpo.servico_id:
+                try:
+                    from app.schemas.servico_schema import ServicoCreate
+                    from app.services.servico_service import ServicoService
+                    data_svc = corpo.data_servico or nota.data_vencimento
+                    novo_servico = ServicoService.create_servico(db, ServicoCreate(
+                        condominio_id=corpo.condominio_id,
+                        tipo="assistencia",
+                        data_servico=data_svc,
+                        descricao=corpo.descricao_servico,
+                        nota_fiscal_id=nota.id,
+                        numero_os=corpo.numero_os,
+                    ))
+                    corpo.servico_id = novo_servico.id
+                    CorpoNotaRepository.save(db, corpo)
+                    logger.info(f"[PRODUTO-standalone] Serviço {novo_servico.id} criado para CorpoNota {corpo.id}")
+                except Exception as e:
+                    logger.warning(f"[PRODUTO-standalone] Falha ao criar serviço para CorpoNota {corpo.id}: {e}")
+
             ciclo = CicloNotaRepository.get_by_id(db, corpo.ciclo_id)
             if ciclo:
                 CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
