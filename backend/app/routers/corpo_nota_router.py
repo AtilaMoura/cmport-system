@@ -91,9 +91,6 @@ def buscar_os_para_corpo(
         OrdemServico.task_date <= datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59),
     )
 
-    if tipo_nota != "SERVICO":
-        query = query.filter(OrdemServico.task_type_description.ilike("%Manuten%"))
-
     ordens = query.order_by(OrdemServico.task_date.desc()).all()
 
     if not ordens:
