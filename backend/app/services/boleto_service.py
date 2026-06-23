@@ -1365,6 +1365,7 @@ class BoletoService:
         storage: Optional[StorageClient] = None,
         dados_manutencao_manual: Optional[dict] = None,
         cc_emails: Optional[List[str]] = None,
+        incluir_orcamento: bool = False,
     ) -> dict:
         """
         Baixa o PDF do boleto no Inter, busca o XML da nota e envia por email
@@ -1473,6 +1474,15 @@ class BoletoService:
                     print(f"[Email] Termo de garantia do serviço #{servico_os.id} anexado.")
                 except Exception as e:
                     print(f"[Email] Aviso: não foi possível gerar PDF do termo: {e}")
+
+        if incluir_orcamento and servico_os and servico_os.orcamento_id:
+            try:
+                from app.services.orcamento_service import OrcamentoService
+                pdf_orc = OrcamentoService.gerar_pdf(db, servico_os.orcamento_id)
+                lista_anexos.append(("orcamento.pdf", pdf_orc, "application/pdf"))
+                print(f"[Email] PDF do orçamento #{servico_os.orcamento_id} anexado.")
+            except Exception as e:
+                print(f"[Email] PDF do orçamento indisponível: {e}")
 
         EmailService.enviar_boleto(
             destinatarios=destinatarios,

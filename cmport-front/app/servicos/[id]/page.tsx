@@ -1224,7 +1224,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     setComposerCorpoHtml('');
     setComposerAnexos([]);
     setComposerCC('');
-    setIncluirOrcamentoPdf(false);
+    // incluirOrcamentoPdf persiste para que "Enviar direto/todos" fora do composer use o mesmo estado
     // envioLoteAtivo, composerBoletoId, composerManutencao, composerAssunto,
     // composerSaudacao, composerCorpo e composerRodape persistem para que o
     // botão do modal principal (Enviar direto OU Enviar todos) use as edições feitas
@@ -1303,6 +1303,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       if (composerRodape) fd.append('rodape', composerRodape);
       for (const arq of composerAnexos) fd.append('arquivos', arq);
       if (listaCC.length > 0) fd.append('cc', JSON.stringify(listaCC));
+      fd.append('incluir_orcamento', incluirOrcamentoPdf ? 'true' : 'false');
       if (composerManutencao) {
         // Garante que a saudação atualizada vá para os dados de manutenção também
         const dadosCompletos = { ...composerManutencao, saudacao: composerSaudacao };

@@ -186,6 +186,7 @@ async def enviar_email_boleto(
     arquivos: List[UploadFile] = File(default=[]),
     dados_manutencao: Optional[str] = Form(None),
     cc: Optional[str] = Form(None),
+    incluir_orcamento: bool = Form(False),
     db: Session = Depends(get_db),
     storage: StorageClient = Depends(get_storage_client),
 ):
@@ -199,7 +200,7 @@ async def enviar_email_boleto(
         manut_data = json.loads(dados_manutencao) if dados_manutencao else None
         lista_cc = json.loads(cc) if cc else []
         return BoletoService.enviar_email_boleto(
-            db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras, storage, manut_data, lista_cc
+            db, boleto_id, lista_dest, assunto, saudacao, corpo, rodape, anexos_extras, storage, manut_data, lista_cc, incluir_orcamento
         )
     except Exception as e:
         print(f"[ERRO enviar-email boleto {boleto_id}] {traceback.format_exc()}")
