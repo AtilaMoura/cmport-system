@@ -54,6 +54,7 @@ class ConfiguracaoEmpresaSchema(BaseModel):
     site:               Optional[str] = None
     emails_copia:       Optional[List[str]] = None
     meses_historico_os: int = 2
+    endereco_fiscal:    Optional[str] = None
 
     @field_validator('emails_copia', mode='before')
     @classmethod

@@ -355,6 +355,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [mostraSugestoes, setMostraSugestoes] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Declarações Fiscais
+  const [baixandoDeclaracaoInss, setBaixandoDeclaracaoInss] = useState(false);
+  const [baixandoDeclaracaoSimples, setBaixandoDeclaracaoSimples] = useState(false);
+
   useEffect(() => {
     params.then(p => setId(p.id));
   }, [params]);
@@ -1982,6 +1986,69 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 )}
               </div>
             </div>
+
+            {/* Declarações Fiscais — disponível quando há nota fiscal vinculada */}
+            {notaFiscal && (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 bg-indigo-50 dark:bg-indigo-500/10 border-b border-indigo-200 dark:border-indigo-800/30 flex items-center justify-between flex-wrap gap-2">
+                  <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-xl">📋</span> Declarações Fiscais
+                  </h2>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={async () => {
+                        setBaixandoDeclaracaoInss(true);
+                        try {
+                          const resp = await api.get(`/servicos/${id}/declaracao-inss/pdf`, { responseType: 'blob' });
+                          const url = URL.createObjectURL(resp.data);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `declaracao_inss_servico_${id}.pdf`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch { alert('Erro ao gerar Declaração INSS.'); }
+                        finally { setBaixandoDeclaracaoInss(false); }
+                      }}
+                      disabled={baixandoDeclaracaoInss}
+                      className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all disabled:opacity-40 flex items-center gap-1"
+                    >
+                      {baixandoDeclaracaoInss
+                        ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+                      Declaração INSS
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setBaixandoDeclaracaoSimples(true);
+                        try {
+                          const resp = await api.get(`/servicos/${id}/declaracao-simples/pdf`, { responseType: 'blob' });
+                          const url = URL.createObjectURL(resp.data);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `declaracao_simples_servico_${id}.pdf`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch { alert('Erro ao gerar Declaração Simples.'); }
+                        finally { setBaixandoDeclaracaoSimples(false); }
+                      }}
+                      disabled={baixandoDeclaracaoSimples}
+                      className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all disabled:opacity-40 flex items-center gap-1"
+                    >
+                      {baixandoDeclaracaoSimples
+                        ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+                      Declaração Simples
+                    </button>
+                  </div>
+                </div>
+                <div className="px-6 py-4">
+                  <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+                    Documentos gerados automaticamente com os dados da nota fiscal <strong className="text-slate-700 dark:text-slate-300">nº {notaFiscal.numero_nota}</strong> e do condomínio.
+                    São anexados automaticamente ao email do boleto.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Nota Fiscal Vinculada — detalhes completos */}
             {notaFiscal ? (

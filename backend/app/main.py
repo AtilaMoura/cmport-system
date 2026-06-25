@@ -60,6 +60,7 @@ from app.routers.fin_movimentacao_router import router as fin_mov_router
 from app.routers.fin_categoria_router    import router as fin_cat_router
 from app.routers.cliente_router import router as clientes_router
 from app.routers.recibo_router import router as recibos_router
+from app.routers.declaracao_fiscal_router import router as declaracoes_router
 
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
@@ -140,6 +141,8 @@ def _run_migrations():
         "ALTER TABLE manutencoes_assistencias ADD COLUMN recibo_id INT NULL",
         "ALTER TABLE manutencoes_assistencias ADD INDEX idx_servico_recibo (recibo_id)",
         "ALTER TABLE manutencoes_assistencias ADD CONSTRAINT fk_servico_recibo FOREIGN KEY (recibo_id) REFERENCES recibos(id) ON DELETE SET NULL",
+        # Declarações Fiscais — endereço da empresa para os templates
+        "ALTER TABLE configuracao_empresa ADD COLUMN endereco_fiscal VARCHAR(500) NULL",
     ]
     try:
         for stmt in stmts:
@@ -367,6 +370,7 @@ app.include_router(fin_mov_router,      prefix="/api/v1/financeiro",            
 app.include_router(fin_cat_router,      prefix="/api/v1/categorias-financeiras",  tags=["Financeiro"],         dependencies=_auth)
 app.include_router(clientes_router,     prefix="/api/v1/clientes",                tags=["Clientes"],           dependencies=_auth)
 app.include_router(recibos_router,      prefix="/api/v1/recibos",                 tags=["Recibos"],            dependencies=_auth)
+app.include_router(declaracoes_router,  prefix="/api/v1/servicos",                tags=["Declarações Fiscais"], dependencies=_auth)
 
 
 @app.get("/", tags=["Root"])

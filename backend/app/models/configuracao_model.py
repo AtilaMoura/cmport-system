@@ -36,6 +36,7 @@ class ConfiguracaoEmpresa(Base):
     site            = Column(String(200), nullable=True)
     emails_copia       = Column(Text, nullable=True)  # JSON: ["email1@...", "email2@..."]
     meses_historico_os = Column(Integer, nullable=False, default=2, server_default='2')
+    endereco_fiscal    = Column(String(500), nullable=True)
     atualizado_em      = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #fff; }
+  @page { size: 794px 1123px; margin: 0; }
+  .doc {
+    width: 794px;
+    height: 1123px;
+    position: relative;
+    overflow: hidden;
+    background: #fff;
+  }
+  .doc-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 794px;
+    height: 1123px;
+    object-fit: fill;
+    z-index: 0;
+    display: block;
+  }
+  .doc-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 794px;
+    height: 1123px;
+    z-index: 1;
+  }
+  .doc-body {
+    position: absolute;
+    top: 205px;
+    left: 64px;
+    right: 64px;
+    font-family: 'Liberation Sans', Arial, Helvetica, sans-serif;
+    font-size: 10.5pt;
+    color: #111;
+    line-height: 1.52;
+  }
+  .doc-title {
+    font-weight: 700;
+    font-style: italic;
+    font-size: 11pt;
+    margin-bottom: 16px;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+  .doc-dest { font-style: italic; margin-bottom: 4px; }
+  .doc-nf   { font-style: italic; margin-bottom: 16px; }
+  .doc-body p {
+    font-style: italic;
+    margin-bottom: 10px;
+    text-align: justify;
+  }
+  .doc-body ul {
+    margin: 0 0 10px 36px;
+    list-style: disc;
+  }
+  .doc-body ul li {
+    font-style: italic;
+    margin-bottom: 4px;
+    text-align: justify;
+  }
+  .doc-date-fim { font-style: italic; margin-top: 20px; margin-bottom: 30px; }
+  .doc-sigs {
+    text-align: center;
+    font-style: italic;
+    font-size: 10.5pt;
+    line-height: 1.6;
+    margin-top: 10px;
+    position: relative;
+    padding-top: 66px;
+  }
+  .doc-sigs img {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    width: 110px;
+    margin: 0 auto;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<div class="doc">
+  <img class="doc-bg" src="data:image/png;base64,{{ timbrado_b64 }}">
+
+  <div class="doc-layer">
+    <div class="doc-body">
+
+      <div class="doc-title">DECLARAÇÃO – PESSOA JURÍDICA OPTANTE PELO SIMPLES NACIONAL</div>
+
+      <div class="doc-dest"><em>Ao {{ cliente_nome }}</em></div>
+      <div class="doc-nf"><em>(NF nº {{ numero_nota }})</em></div>
+
+      <p><em><strong>{{ empresa_nome_completo }}</strong> com sede na <strong>{{ empresa_sede }}</strong>,
+      inscrita no CNPJ sob o nº <strong>{{ empresa_cnpj }}</strong> declara ao <strong>{{ cliente_nome }}</strong>,
+      para fins de não incidência na fonte do IRPJ, da Contribuição Social sobre o Lucro Líquido (CSLL),
+      da Contribuição para o Financiamento da Seguridade Social (Cofins), e da Contribuição para o
+      PIS/Pasep, a que se refere o art. 64 da Lei nº 9.430, de 27 de dezembro de 1996, que é
+      regularmente inscrita no Regime Especial Unificado de Arrecadação de Tributos e Contribuições
+      devidos pelas Microempresas e Empresas de Pequeno Porte - Simples Nacional, de que trata o
+      art. 12 da Lei Complementar 123, de 14 de dezembro de 2006.</em></p>
+
+      <p><em>Para esse efeito, a declarante informa que:</em></p>
+
+      <p><em>I – Preenche os seguintes requisitos:</em></p>
+
+      <ul>
+        <li>conserva em boa ordem, pelo prazo de 5 (cinco) anos, contado da data da emissão,
+        os documentos que comprovam a origem de suas receitas e a efetivação de suas despesas,
+        bem como a realização de quaisquer outros atos ou operações que venham a modificar sua
+        situação patrimonial; e</li>
+        <li>cumpre as obrigações acessórias a que está sujeita, em conformidade com a legislação
+        pertinente;</li>
+      </ul>
+
+      <p><em>II – o signatário é representante legal desta empresa, assumindo o compromisso de
+      informar à Secretaria da Receita Federal do Brasil e à pessoa jurídica pagadora, imediatamente,
+      eventual desenquadramento da presente situação e está ciente de que a falsidade na prestação
+      dessas informações, sem prejuízo do disposto no art. 32 da Lei 9.430, de 1996, o sujeitará,
+      com as demais pessoas que para ela concorrem, às penalidades previstas na legislação criminal
+      e tributária, relativas à falsidade ideológica (art. 299 do Decreto-Lei nº 2.848, de 7 de
+      dezembro de 1940 - Código Penal) e ao crime contra a ordem tributária (art. 1º da Lei nº
+      8.137, de 27 de dezembro de 1990).</em></p>
+
+      <div class="doc-date-fim"><em>{{ data_hoje }}</em></div>
+
+      <div class="doc-sigs">
+        <img src="{{ assinatura_src }}" alt="Assinatura">
+        <em>{{ empresa_nome }}<br>André Moreira Rosa</em>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

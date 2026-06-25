@@ -21,6 +21,7 @@ interface Empresa {
   site: string | null;
   emails_copia: string[] | null;
   meses_historico_os: number;
+  endereco_fiscal: string | null;
 }
 
 interface ContaInter {
@@ -54,7 +55,7 @@ const INTER_VAZIO: InterForm = {
   numero_nf_servico: '', numero_nf_produto: '',
 };
 
-const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '', emails_copia: [], meses_historico_os: 2 };
+const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '', emails_copia: [], meses_historico_os: 2, endereco_fiscal: '' };
 
 const FORM_VAZIO = {
   nome: '', email: '', ativo: false, tipo: 'SMTP',
@@ -105,7 +106,7 @@ export default function ConfiguracoesPage() {
   const carregarEmpresa = async () => {
     try {
       const { data } = await api.get('/configuracoes/empresa');
-      setEmpresa({ ...data, telefone: data.telefone ?? '', site: data.site ?? '', emails_copia: data.emails_copia ?? [] });
+      setEmpresa({ ...data, telefone: data.telefone ?? '', site: data.site ?? '', emails_copia: data.emails_copia ?? [], endereco_fiscal: data.endereco_fiscal ?? '' });
     } catch { /* silencioso */ }
     finally { setLoadingEmpresa(false); }
   };
@@ -446,6 +447,16 @@ export default function ConfiguracoesPage() {
                   <option value={4}>4 — Mês atual + 3 anteriores</option>
                   <option value={5}>5 — Mês atual + 4 anteriores</option>
                 </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Endereço fiscal (usado nas declarações INSS e Simples)</label>
+                <input
+                  type="text"
+                  value={empresa.endereco_fiscal ?? ''}
+                  onChange={e => setEmpresa(p => ({ ...p, endereco_fiscal: e.target.value }))}
+                  placeholder="Rua: Chiquinha Gonzaga, 343 – CEP: 03389-050 – Vila Primavera"
+                  className={inputCls}
+                />
               </div>
             </div>
             <div className="flex items-center gap-3 pt-2">

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #fff; }
+  @page { size: 794px 1123px; margin: 0; }
+  .doc {
+    width: 794px;
+    height: 1123px;
+    position: relative;
+    overflow: hidden;
+    background: #fff;
+  }
+  .doc-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 794px;
+    height: 1123px;
+    object-fit: fill;
+    z-index: 0;
+    display: block;
+  }
+  .doc-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 794px;
+    height: 1123px;
+    z-index: 1;
+  }
+  .doc-body {
+    position: absolute;
+    top: 205px;
+    left: 64px;
+    right: 64px;
+    font-family: 'Liberation Sans', Arial, Helvetica, sans-serif;
+    font-size: 10.5pt;
+    color: #111;
+    line-height: 1.52;
+  }
+  .doc-date { font-style: italic; margin-bottom: 20px; }
+  .doc-dest { font-style: italic; margin-bottom: 4px; }
+  .doc-nf   { font-style: italic; margin-bottom: 20px; }
+  .doc-title {
+    font-weight: 700;
+    font-style: italic;
+    font-size: 11pt;
+    margin-bottom: 20px;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+  .doc-body p {
+    font-style: italic;
+    margin-bottom: 12px;
+    text-align: justify;
+  }
+  .doc-sigs {
+    text-align: center;
+    font-style: italic;
+    font-size: 10.5pt;
+    line-height: 1.6;
+    margin-top: 50px;
+    position: relative;
+    padding-top: 66px;
+  }
+  .doc-sigs img {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    width: 110px;
+    margin: 0 auto;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<div class="doc">
+  <img class="doc-bg" src="data:image/png;base64,{{ timbrado_b64 }}">
+
+  <div class="doc-layer">
+    <div class="doc-body">
+
+      <div class="doc-date"><em>{{ data_hoje }}</em></div>
+
+      <div class="doc-dest"><em>Ao {{ cliente_nome }}</em></div>
+      <div class="doc-nf"><em>(NF nº {{ numero_nota }})</em></div>
+
+      <div class="doc-title">DECLARAÇÃO&nbsp;&nbsp;( NF {{ numero_nota_simples }} )</div>
+
+      <p><em><strong>{{ empresa_nome_completo }}</strong>, com sede na <strong>{{ empresa_sede }}</strong>,
+      por seu representante legal, infra-assinado, com base na lei complementar 123 de 14 de
+      dezembro de 2006, declara sob as penas da lei ser optante pelo Simples Nacional, enquadrado
+      no anexo III e não sujeito à retenção do INSS sobre serviços prestados, conforme artigo 191,
+      inciso II, da IN RFB nr. 971, publicada no Diário Oficial da União em 17.11.2009.</em></p>
+
+      <div class="doc-sigs">
+        <img src="{{ assinatura_src }}" alt="Assinatura">
+        <em>{{ empresa_nome }}<br>André Moreira Rosa</em>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
