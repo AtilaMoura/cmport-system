@@ -83,7 +83,7 @@ def _build_context(db: Session, servico_id: int) -> dict:
     if inter is None:
         inter = db.query(ConfiguracaoInter).first()
 
-    empresa_cnpj = inter.cnpj if inter and inter.cnpj else ""
+    empresa_cnpj = _fmt_cnpj(inter.cnpj) if inter and inter.cnpj else ""
     empresa_nome_razao = (
         (inter.razao_social if inter and inter.razao_social else None)
         or (empresa_obj.nome if empresa_obj and empresa_obj.nome else _EMPRESA_FALLBACK)
