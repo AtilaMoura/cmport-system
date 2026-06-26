@@ -30,6 +30,7 @@ import app.models.ordem_servico_model     # ordens de serviço (cache Auvo)
 import app.models.produto_model           # produtos (cache Auvo)
 import app.models.orcamento_model         # orçamentos (cache Auvo)
 import app.models.termo_garantia_model     # termos de garantia
+import app.models.declaracao_fiscal_model   # declarações fiscais geradas
 import app.models.contrato_condominio_model  # contratos simples por condomínio
 import app.models.ciclo_nota_model           # ciclos mensais de faturamento
 import app.models.corpo_nota_model           # corpo da nota (pré-nota)

@@ -1475,19 +1475,21 @@ class BoletoService:
                 except Exception as e:
                     print(f"[Email] Aviso: não foi possível gerar PDF do termo: {e}")
 
-            if getattr(servico_os, 'nota_fiscal', None):
-                from app.services.declaracao_fiscal_service import DeclaracaoFiscalService
-                for tipo_decl in ["inss", "simples"]:
-                    try:
-                        pdf_decl = DeclaracaoFiscalService.gerar_pdf(db, servico_os.id, tipo_decl)
-                        lista_anexos.append((
-                            f"declaracao_{tipo_decl}_servico_{servico_os.id}.pdf",
-                            pdf_decl.getvalue(),
-                            "application/pdf"
-                        ))
-                        print(f"[Email] Declaração {tipo_decl.upper()} do serviço #{servico_os.id} anexada.")
-                    except Exception as e:
-                        print(f"[Email] Aviso: declaração {tipo_decl} indisponível: {e}")
+            from app.repositories.declaracao_fiscal_repository import DeclaracaoFiscalRepository as _DeclRepo
+            from app.services.declaracao_fiscal_service import DeclaracaoFiscalService as _DeclSvc
+            for tipo_decl in ["inss", "simples"]:
+                if not _DeclRepo.get_by_servico_tipo(db, servico_os.id, tipo_decl):
+                    continue
+                try:
+                    pdf_decl = _DeclSvc.gerar_pdf(db, servico_os.id, tipo_decl)
+                    lista_anexos.append((
+                        f"declaracao_{tipo_decl}_servico_{servico_os.id}.pdf",
+                        pdf_decl.getvalue(),
+                        "application/pdf"
+                    ))
+                    print(f"[Email] Declaração {tipo_decl.upper()} do serviço #{servico_os.id} anexada.")
+                except Exception as e:
+                    print(f"[Email] Aviso: declaração {tipo_decl} indisponível: {e}")
 
         if incluir_orcamento and servico_os and servico_os.orcamento_id:
             try:
@@ -1662,16 +1664,21 @@ class BoletoService:
         except Exception as e:
             print(f"[EmailServico] Erro ao buscar termo de garantia: {e}")
 
-        # Declarações Fiscais (INSS e Simples) — somente se nota fiscal vinculada
-        if getattr(servico, 'nota_fiscal', None):
-            from app.services.declaracao_fiscal_service import DeclaracaoFiscalService
+        # Declarações Fiscais — somente se foram geradas pelo usuário (registro no DB)
+        try:
+            from app.repositories.declaracao_fiscal_repository import DeclaracaoFiscalRepository as _DeclRepo2
+            from app.services.declaracao_fiscal_service import DeclaracaoFiscalService as _DeclSvc2
             for tipo_decl in ["inss", "simples"]:
+                if not _DeclRepo2.get_by_servico_tipo(db, servico.id, tipo_decl):
+                    continue
                 try:
-                    pdf_decl = DeclaracaoFiscalService.gerar_pdf(db, servico.id, tipo_decl)
+                    pdf_decl = _DeclSvc2.gerar_pdf(db, servico.id, tipo_decl)
                     anexos.append((f"declaracao_{tipo_decl}_servico_{servico.id}.pdf", pdf_decl.getvalue(), "application/pdf"))
                     print(f"[EmailServico] Declaração {tipo_decl.upper()} do serviço #{servico.id} anexada.")
                 except Exception as e:
                     print(f"[EmailServico] Declaração {tipo_decl} indisponível: {e}")
+        except Exception as e:
+            print(f"[EmailServico] Erro ao buscar declarações fiscais: {e}")
 
         # Arquivos extras enviados pelo usuário
         if anexos_extras:

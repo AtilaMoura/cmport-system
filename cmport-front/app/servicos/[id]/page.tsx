@@ -133,6 +133,11 @@ interface TermoGarantia {
   criado_em: string;
 }
 
+interface DeclaracaoGerada {
+  tipo: 'inss' | 'simples';
+  gerada_em: string;
+}
+
 interface OrcamentoCandidato {
   id: number;
   auvo_public_id: number;
@@ -356,8 +361,14 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Declarações Fiscais
-  const [baixandoDeclaracaoInss, setBaixandoDeclaracaoInss] = useState(false);
-  const [baixandoDeclaracaoSimples, setBaixandoDeclaracaoSimples] = useState(false);
+  const [declaracaoInss, setDeclaracaoInss] = useState<DeclaracaoGerada | null>(null);
+  const [declaracaoSimples, setDeclaracaoSimples] = useState<DeclaracaoGerada | null>(null);
+  const [gerandoDeclaracao, setGerandoDeclaracao] = useState<'inss' | 'simples' | null>(null);
+  const [baixandoDeclaracao, setBaixandoDeclaracao] = useState<'inss' | 'simples' | null>(null);
+  const [removendoDeclaracao, setRemovendoDeclaracao] = useState<'inss' | 'simples' | null>(null);
+  const [previewDeclaracaoTipo, setPreviewDeclaracaoTipo] = useState<'inss' | 'simples' | null>(null);
+  const [previewDeclaracaoHtml, setPreviewDeclaracaoHtml] = useState<string | null>(null);
+  const [carregandoPreviewDeclaracao, setCarregandoPreviewDeclaracao] = useState(false);
 
   useEffect(() => {
     params.then(p => setId(p.id));
@@ -446,6 +457,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         setTermoGarantia(t);
       } catch {
         setTermoGarantia(null);
+      }
+
+      // Carregar Declarações Fiscais geradas
+      try {
+        const { data: decls } = await api.get<DeclaracaoGerada[]>(`/servicos/${id}/declaracoes`);
+        setDeclaracaoInss(decls.find(d => d.tipo === 'inss') ?? null);
+        setDeclaracaoSimples(decls.find(d => d.tipo === 'simples') ?? null);
+      } catch {
+        setDeclaracaoInss(null);
+        setDeclaracaoSimples(null);
       }
     } catch {
       alert('Serviço não encontrado');
@@ -1456,6 +1477,68 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
   };
 
+  const handleGerarDeclaracao = async (tipo: 'inss' | 'simples') => {
+    if (!id) return;
+    setGerandoDeclaracao(tipo);
+    try {
+      const { data } = await api.post<DeclaracaoGerada>(`/servicos/${id}/declaracao/${tipo}/gerar`);
+      if (tipo === 'inss') setDeclaracaoInss(data);
+      else setDeclaracaoSimples(data);
+    } catch {
+      alert(`Erro ao gerar Declaração ${tipo.toUpperCase()}.`);
+    } finally {
+      setGerandoDeclaracao(null);
+    }
+  };
+
+  const handleRemoverDeclaracao = async (tipo: 'inss' | 'simples') => {
+    if (!id || !confirm(`Remover a Declaração ${tipo.toUpperCase()}?`)) return;
+    setRemovendoDeclaracao(tipo);
+    try {
+      await api.delete(`/servicos/${id}/declaracao/${tipo}`);
+      if (tipo === 'inss') setDeclaracaoInss(null);
+      else setDeclaracaoSimples(null);
+    } catch {
+      alert(`Erro ao remover Declaração ${tipo.toUpperCase()}.`);
+    } finally {
+      setRemovendoDeclaracao(null);
+    }
+  };
+
+  const baixarPdfDeclaracao = async (tipo: 'inss' | 'simples') => {
+    if (!id) return;
+    setBaixandoDeclaracao(tipo);
+    try {
+      const res = await api.get(`/servicos/${id}/declaracao/${tipo}/pdf`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `declaracao_${tipo}_servico_${id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert(`Erro ao baixar Declaração ${tipo.toUpperCase()}.`);
+    } finally {
+      setBaixandoDeclaracao(null);
+    }
+  };
+
+  const abrirPreviewDeclaracao = async (tipo: 'inss' | 'simples') => {
+    if (!id) return;
+    setPreviewDeclaracaoTipo(tipo);
+    setPreviewDeclaracaoHtml(null);
+    setCarregandoPreviewDeclaracao(true);
+    try {
+      const res = await api.get(`/servicos/${id}/declaracao/${tipo}/preview-html`, { responseType: 'text' });
+      setPreviewDeclaracaoHtml(res.data);
+    } catch {
+      alert(`Erro ao carregar preview da Declaração ${tipo.toUpperCase()}.`);
+      setPreviewDeclaracaoTipo(null);
+    } finally {
+      setCarregandoPreviewDeclaracao(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
@@ -1987,65 +2070,88 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               </div>
             </div>
 
-            {/* Declarações Fiscais — disponível quando há nota fiscal vinculada */}
+            {/* Declarações Fiscais */}
             {notaFiscal && (
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                <div className="px-6 py-4 bg-indigo-50 dark:bg-indigo-500/10 border-b border-indigo-200 dark:border-indigo-800/30 flex items-center justify-between flex-wrap gap-2">
+                <div className="px-6 py-4 bg-indigo-50 dark:bg-indigo-500/10 border-b border-indigo-200 dark:border-indigo-800/30">
                   <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
                     <span className="text-xl">📋</span> Declarações Fiscais
                   </h2>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      onClick={async () => {
-                        setBaixandoDeclaracaoInss(true);
-                        try {
-                          const resp = await api.get(`/servicos/${id}/declaracao-inss/pdf`, { responseType: 'blob' });
-                          const url = URL.createObjectURL(resp.data);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `declaracao_inss_servico_${id}.pdf`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        } catch { alert('Erro ao gerar Declaração INSS.'); }
-                        finally { setBaixandoDeclaracaoInss(false); }
-                      }}
-                      disabled={baixandoDeclaracaoInss}
-                      className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all disabled:opacity-40 flex items-center gap-1"
-                    >
-                      {baixandoDeclaracaoInss
-                        ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
-                      Declaração INSS
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setBaixandoDeclaracaoSimples(true);
-                        try {
-                          const resp = await api.get(`/servicos/${id}/declaracao-simples/pdf`, { responseType: 'blob' });
-                          const url = URL.createObjectURL(resp.data);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `declaracao_simples_servico_${id}.pdf`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        } catch { alert('Erro ao gerar Declaração Simples.'); }
-                        finally { setBaixandoDeclaracaoSimples(false); }
-                      }}
-                      disabled={baixandoDeclaracaoSimples}
-                      className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all disabled:opacity-40 flex items-center gap-1"
-                    >
-                      {baixandoDeclaracaoSimples
-                        ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
-                      Declaração Simples
-                    </button>
-                  </div>
                 </div>
-                <div className="px-6 py-4">
-                  <p className="text-sm text-slate-500 dark:text-slate-400 italic">
-                    Documentos gerados automaticamente com os dados da nota fiscal <strong className="text-slate-700 dark:text-slate-300">nº {notaFiscal.numero_nota}</strong> e do condomínio.
-                    São anexados automaticamente ao email do boleto.
-                  </p>
+                <div className="p-6 space-y-4">
+                  {(['inss', 'simples'] as const).map((tipo) => {
+                    const decl = tipo === 'inss' ? declaracaoInss : declaracaoSimples;
+                    const label = tipo === 'inss' ? 'Declaração INSS' : 'Declaração Simples Nacional';
+                    const isGerando = gerandoDeclaracao === tipo;
+                    const isBaixando = baixandoDeclaracao === tipo;
+                    const isRemovendo = removendoDeclaracao === tipo;
+                    const isPreviewLoading = carregandoPreviewDeclaracao && previewDeclaracaoTipo === tipo;
+                    return (
+                      <div key={tipo} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
+                        <div>
+                          <p className="font-bold text-sm text-slate-900 dark:text-white">{label}</p>
+                          {decl ? (
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              Gerada em {new Date(decl.gerada_em).toLocaleString('pt-BR')} · será anexada ao email
+                            </p>
+                          ) : (
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 italic">Não gerada — não será anexada ao email</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                          {decl ? (
+                            <>
+                              <button
+                                onClick={() => abrirPreviewDeclaracao(tipo)}
+                                disabled={isPreviewLoading}
+                                className="px-3 py-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-700 rounded-lg hover:brightness-95 transition-all disabled:opacity-40 flex items-center gap-1"
+                              >
+                                {isPreviewLoading
+                                  ? <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                  : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>}
+                                Visualizar
+                              </button>
+                              <button
+                                onClick={() => baixarPdfDeclaracao(tipo)}
+                                disabled={isBaixando}
+                                className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all disabled:opacity-40 flex items-center gap-1"
+                              >
+                                {isBaixando
+                                  ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+                                Baixar PDF
+                              </button>
+                              <button
+                                onClick={() => handleGerarDeclaracao(tipo)}
+                                disabled={isGerando}
+                                className="px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg hover:brightness-95 transition-all disabled:opacity-40"
+                              >
+                                {isGerando ? 'Regerando...' : 'Regerar'}
+                              </button>
+                              <button
+                                onClick={() => handleRemoverDeclaracao(tipo)}
+                                disabled={isRemovendo}
+                                className="px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-lg hover:brightness-95 transition-all disabled:opacity-40"
+                              >
+                                {isRemovendo ? 'Removendo...' : 'Remover'}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleGerarDeclaracao(tipo)}
+                              disabled={isGerando}
+                              className="px-3 py-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-500/20 rounded-lg hover:brightness-105 transition-all disabled:opacity-40 flex items-center gap-1"
+                            >
+                              {isGerando
+                                ? <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>}
+                              {isGerando ? 'Gerando...' : 'Gerar'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -3545,6 +3651,51 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
       )}
+      {/* Modal Preview Declaração Fiscal */}
+      {previewDeclaracaoTipo && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden" style={{ width: 860, maxHeight: '95vh' }}>
+            <div className="flex items-center justify-between px-5 py-3 bg-indigo-600 text-white flex-shrink-0">
+              <span className="font-bold text-sm flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                Preview — {previewDeclaracaoTipo === 'inss' ? 'Declaração INSS' : 'Declaração Simples Nacional'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => baixarPdfDeclaracao(previewDeclaracaoTipo!)}
+                  disabled={baixandoDeclaracao === previewDeclaracaoTipo}
+                  className="px-3 py-1.5 text-xs font-bold text-indigo-700 bg-white rounded-lg hover:bg-indigo-50 transition-all disabled:opacity-60 flex items-center gap-1"
+                >
+                  {baixandoDeclaracao === previewDeclaracaoTipo
+                    ? <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                    : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+                  Baixar PDF
+                </button>
+                <button
+                  onClick={() => { setPreviewDeclaracaoTipo(null); setPreviewDeclaracaoHtml(null); }}
+                  className="p-1.5 rounded-lg hover:bg-white/20 transition-all"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+            <div className="overflow-auto flex-1 flex justify-center bg-gray-200 p-4">
+              {carregandoPreviewDeclaracao ? (
+                <div className="flex items-center justify-center w-full">
+                  <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : previewDeclaracaoHtml ? (
+                <iframe
+                  srcDoc={previewDeclaracaoHtml}
+                  style={{ width: 794, height: 1123, border: 'none', flexShrink: 0, background: '#fff' }}
+                  title="Preview Declaração Fiscal"
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Termo de Garantia */}
       {modalTermo && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">

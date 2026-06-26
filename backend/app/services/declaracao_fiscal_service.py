@@ -113,6 +113,18 @@ def _build_context(db: Session, servico_id: int) -> dict:
 class DeclaracaoFiscalService:
 
     @staticmethod
+    def gerar(db: Session, servico_id: int, tipo: str):
+        """Valida que o serviço tem nota e registra/atualiza o registro no DB."""
+        _build_context(db, servico_id)  # levanta ValueError se inválido
+        from app.repositories.declaracao_fiscal_repository import DeclaracaoFiscalRepository
+        return DeclaracaoFiscalRepository.criar_ou_atualizar(db, servico_id, tipo)
+
+    @staticmethod
+    def remover(db: Session, servico_id: int, tipo: str) -> bool:
+        from app.repositories.declaracao_fiscal_repository import DeclaracaoFiscalRepository
+        return DeclaracaoFiscalRepository.deletar(db, servico_id, tipo)
+
+    @staticmethod
     def gerar_html_preview(db: Session, servico_id: int, tipo: str) -> str:
         """tipo: 'inss' | 'simples'"""
         context = _build_context(db, servico_id)
