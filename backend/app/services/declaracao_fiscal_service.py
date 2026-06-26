@@ -27,6 +27,14 @@ def _b64_file(path: str) -> str:
         return base64.b64encode(f.read()).decode()
 
 
+def _fmt_cnpj(cnpj_raw: str) -> str:
+    """Formata string de dígitos como XX.XXX.XXX/XXXX-XX."""
+    digits = re.sub(r'\D', '', cnpj_raw or "")
+    if len(digits) != 14:
+        return cnpj_raw
+    return f"{digits[:2]}.{digits[2:5]}.{digits[5:8]}/{digits[8:12]}-{digits[12:]}"
+
+
 def _fmt_numero_nota_simples(numero_raw: str, tipo_servico) -> tuple[str, str]:
     """Retorna (numero_formatado, numero_simples): ex. ('00024-M', '0024 M')."""
     clean = str(numero_raw).strip().replace('.', '')
@@ -53,9 +61,27 @@ def _build_context(db: Session, servico_id: int) -> dict:
     condominio = servico.condominio
     nota = servico.nota_fiscal
 
-    # Dados da empresa — ConfiguracaoInter (CNPJ + razao_social) + ConfiguracaoEmpresa (nome + sede)
-    inter = db.query(ConfiguracaoInter).first()
     empresa_obj = db.query(ConfiguracaoEmpresa).first()
+
+    # Descobre o ConfiguracaoInter correto pela cadeia: nota → corpo_nota → configuracao_inter
+    inter = None
+    if getattr(nota, 'corpo_nota_id', None):
+        from app.models.corpo_nota_model import CorpoNota
+        corpo = db.query(CorpoNota).filter_by(id=nota.corpo_nota_id).first()
+        if corpo and corpo.configuracao_inter_id:
+            inter = db.query(ConfiguracaoInter).filter_by(id=corpo.configuracao_inter_id).first()
+
+    # Fallback: cnpj_emitente da NF → match na tabela
+    if inter is None and getattr(nota, 'cnpj_emitente', None):
+        cnpj_raw = re.sub(r'\D', '', nota.cnpj_emitente)
+        for ci in db.query(ConfiguracaoInter).all():
+            if re.sub(r'\D', '', ci.cnpj) == cnpj_raw:
+                inter = ci
+                break
+
+    # Último fallback: primeiro registro
+    if inter is None:
+        inter = db.query(ConfiguracaoInter).first()
 
     empresa_cnpj = inter.cnpj if inter and inter.cnpj else ""
     empresa_nome_razao = (
