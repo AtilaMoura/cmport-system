@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func as sqlfunc
 from typing import List, Optional
 
-from app.models.configuracao_model import ConfiguracaoEmail, ConfiguracaoEmpresa, ConfiguracaoInter
+from app.models.configuracao_model import ConfiguracaoEmail, ConfiguracaoEmpresa, ConfiguracaoInter, ConfiguracaoSyncAuto
 
 
 class ConfiguracaoEmailRepository:
@@ -123,6 +123,30 @@ class ConfiguracaoInterRepository:
     @staticmethod
     def ativar(db: Session, obj: ConfiguracaoInter) -> ConfiguracaoInter:
         obj.ativo = True
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+
+class ConfiguracaoSyncAutoRepository:
+
+    @staticmethod
+    def get_all(db: Session) -> list[ConfiguracaoSyncAuto]:
+        return db.query(ConfiguracaoSyncAuto).order_by(ConfiguracaoSyncAuto.tipo).all()
+
+    @staticmethod
+    def get_by_tipo(db: Session, tipo: str) -> ConfiguracaoSyncAuto | None:
+        return db.query(ConfiguracaoSyncAuto).filter(ConfiguracaoSyncAuto.tipo == tipo).first()
+
+    @staticmethod
+    def upsert(db: Session, tipo: str, data: dict) -> ConfiguracaoSyncAuto:
+        obj = db.query(ConfiguracaoSyncAuto).filter(ConfiguracaoSyncAuto.tipo == tipo).first()
+        if obj:
+            for k, v in data.items():
+                setattr(obj, k, v)
+        else:
+            obj = ConfiguracaoSyncAuto(tipo=tipo, **data)
+            db.add(obj)
         db.commit()
         db.refresh(obj)
         return obj

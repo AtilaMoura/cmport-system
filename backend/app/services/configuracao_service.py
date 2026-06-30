@@ -10,12 +10,14 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.configuracao_model import ConfiguracaoEmail, ConfiguracaoEmpresa
 from app.repositories.configuracao_repository import (
-    ConfiguracaoEmailRepository, ConfiguracaoEmpresaRepository, ConfiguracaoInterRepository,
+    ConfiguracaoEmailRepository, ConfiguracaoEmpresaRepository,
+    ConfiguracaoInterRepository, ConfiguracaoSyncAutoRepository,
 )
 from app.schemas.configuracao_schema import (
     ConfiguracaoEmailCreate, ConfiguracaoEmailUpdate,
     ConfiguracaoEmailResponse, ConfiguracaoEmpresaSchema, TestarEmailResponse,
     ConfiguracaoInterCreate, ConfiguracaoInterUpdate, ConfiguracaoInterResponse,
+    ConfiguracaoSyncAutoUpdate, ConfiguracaoSyncAutoResponse,
 )
 
 
@@ -272,3 +274,22 @@ class ConfiguracaoService:
             raise Exception("Configuração Inter não encontrada.")
         obj = ConfiguracaoInterRepository.ativar(db, obj)
         return ConfiguracaoInterResponse.model_validate(obj)
+
+    # ── Sync Auto ─────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def listar_sync_auto(db: Session) -> list[ConfiguracaoSyncAutoResponse]:
+        return [ConfiguracaoSyncAutoResponse.model_validate(c)
+                for c in ConfiguracaoSyncAutoRepository.get_all(db)]
+
+    @staticmethod
+    def salvar_sync_auto(db: Session, tipo: str, req: ConfiguracaoSyncAutoUpdate) -> ConfiguracaoSyncAutoResponse:
+        dados = {k: v for k, v in req.model_dump().items() if v is not None}
+        obj = ConfiguracaoSyncAutoRepository.upsert(db, tipo, dados)
+        # Reconfigura o scheduler dinamicamente sem reiniciar a aplicação
+        try:
+            import app.main as _main
+            _main.reconfigurar_sync_auto(db)
+        except Exception as e:
+            print(f"[SyncAuto] Aviso ao reconfigurar scheduler: {e}")
+        return ConfiguracaoSyncAutoResponse.model_validate(obj)

@@ -40,6 +40,18 @@ class ConfiguracaoEmpresa(Base):
     atualizado_em      = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class ConfiguracaoSyncAuto(Base):
+    __tablename__ = "configuracao_sync_auto"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    tipo            = Column(String(20), nullable=False, unique=True)   # "OS" | "ORCAMENTO"
+    ativo           = Column(Boolean, nullable=False, default=True)
+    dias_semana     = Column(String(50), nullable=False, default="mon,tue,wed,thu,fri")
+    intervalo_horas = Column(Integer, nullable=False, default=2)
+    janela_dias     = Column(Integer, nullable=False, default=7)
+    atualizado_em   = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class ConfiguracaoInter(Base):
     __tablename__ = "configuracao_inter"
 

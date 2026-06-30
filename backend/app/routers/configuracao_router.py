@@ -7,6 +7,7 @@ from app.schemas.configuracao_schema import (
     ConfiguracaoEmailCreate, ConfiguracaoEmailUpdate,
     ConfiguracaoEmailResponse, ConfiguracaoEmpresaSchema, TestarEmailResponse,
     ConfiguracaoInterCreate, ConfiguracaoInterUpdate, ConfiguracaoInterResponse,
+    ConfiguracaoSyncAutoUpdate, ConfiguracaoSyncAutoResponse,
 )
 from app.services.configuracao_service import ConfiguracaoService
 
@@ -118,5 +119,22 @@ def desativar_inter(id: int, db: Session = Depends(get_db)):
 def ativar_inter(id: int, db: Session = Depends(get_db)):
     try:
         return ConfiguracaoService.ativar_inter(db, id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Sincronização Automática ───────────────────────────────────────────────────
+
+@router.get("/sync-auto", response_model=List[ConfiguracaoSyncAutoResponse])
+def listar_sync_auto(db: Session = Depends(get_db)):
+    return ConfiguracaoService.listar_sync_auto(db)
+
+
+@router.put("/sync-auto/{tipo}", response_model=ConfiguracaoSyncAutoResponse)
+def salvar_sync_auto(tipo: str, req: ConfiguracaoSyncAutoUpdate, db: Session = Depends(get_db)):
+    if tipo not in ("OS", "ORCAMENTO"):
+        raise HTTPException(status_code=400, detail="tipo deve ser OS ou ORCAMENTO")
+    try:
+        return ConfiguracaoService.salvar_sync_auto(db, tipo, req)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 
 interface ContaEmail {
@@ -57,6 +57,28 @@ const INTER_VAZIO: InterForm = {
 
 const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '', emails_copia: [], meses_historico_os: 2, endereco_fiscal: '' };
 
+interface SyncAutoConfig {
+  tipo: string;
+  ativo: boolean;
+  dias_semana: string;
+  intervalo_horas: number;
+  janela_dias: number;
+}
+
+const DIAS_OPTIONS = [
+  { label: 'Seg', value: 'mon' },
+  { label: 'Ter', value: 'tue' },
+  { label: 'Qua', value: 'wed' },
+  { label: 'Qui', value: 'thu' },
+  { label: 'Sex', value: 'fri' },
+  { label: 'Sáb', value: 'sat' },
+  { label: 'Dom', value: 'sun' },
+];
+
+const INTERVALO_OPTIONS = [1, 2, 4, 6, 12, 24];
+
+const SYNC_VAZIO: SyncAutoConfig = { tipo: '', ativo: true, dias_semana: 'mon,tue,wed,thu,fri', intervalo_horas: 2, janela_dias: 7 };
+
 const FORM_VAZIO = {
   nome: '', email: '', ativo: false, tipo: 'SMTP',
   senha: '',
@@ -87,6 +109,15 @@ export default function ConfiguracoesPage() {
   const [ativandoInter, setAtivandoInter] = useState<number | null>(null);
   const [mostrarInterSecret, setMostrarInterSecret] = useState(false);
 
+  // ── Sync Auto ──────────────────────────────────────────────────────────────
+  const [syncConfigs, setSyncConfigs] = useState<Record<string, SyncAutoConfig>>({
+    OS:        { ...SYNC_VAZIO, tipo: 'OS',        intervalo_horas: 2,  janela_dias: 7  },
+    ORCAMENTO: { ...SYNC_VAZIO, tipo: 'ORCAMENTO', intervalo_horas: 4,  janela_dias: 30 },
+  });
+  const [loadingSync, setLoadingSync] = useState(true);
+  const [salvandoSync, setSalvandoSync] = useState(false);
+  const [syncSalvo, setSyncSalvo] = useState(false);
+
   // ── Empresa ────────────────────────────────────────────────────────────────
   const [empresa, setEmpresa] = useState<Empresa>(EMPRESA_VAZIA);
   const [loadingEmpresa, setLoadingEmpresa] = useState(true);
@@ -102,6 +133,19 @@ export default function ConfiguracoesPage() {
     } catch { /* silencioso */ }
     finally { setLoadingContas(false); }
   };
+
+  const carregarSyncAuto = useCallback(async () => {
+    try {
+      const { data } = await api.get('/configuracoes/sync-auto');
+      const mapa: Record<string, SyncAutoConfig> = { ...syncConfigs };
+      for (const cfg of data as SyncAutoConfig[]) {
+        mapa[cfg.tipo] = cfg;
+      }
+      setSyncConfigs(mapa);
+    } catch { /* silencioso */ }
+    finally { setLoadingSync(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const carregarEmpresa = async () => {
     try {
@@ -119,7 +163,7 @@ export default function ConfiguracoesPage() {
     finally { setLoadingInter(false); }
   };
 
-  useEffect(() => { carregarContas(); carregarEmpresa(); carregarInter(); }, []);
+  useEffect(() => { carregarContas(); carregarEmpresa(); carregarInter(); carregarSyncAuto(); }, [carregarSyncAuto]);
 
   // ── Conta Email ────────────────────────────────────────────────────────────
   const abrirNovaConta = () => {
@@ -308,6 +352,37 @@ export default function ConfiguracoesPage() {
       setTimeout(() => setEmpresaSalva(false), 3000);
     } catch { alert('Erro ao salvar dados da empresa.'); }
     finally { setSalvandoEmpresa(false); }
+  };
+
+  // ── Sync Auto ──────────────────────────────────────────────────────────────
+  const toggleDia = (tipo: string, dia: string) => {
+    setSyncConfigs(prev => {
+      const cfg = { ...prev[tipo] };
+      const dias = cfg.dias_semana ? cfg.dias_semana.split(',').filter(Boolean) : [];
+      const idx = dias.indexOf(dia);
+      if (idx >= 0) dias.splice(idx, 1); else dias.push(dia);
+      const ordem = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+      cfg.dias_semana = ordem.filter(d => dias.includes(d)).join(',');
+      return { ...prev, [tipo]: cfg };
+    });
+  };
+
+  const salvarSyncAuto = async () => {
+    setSalvandoSync(true);
+    try {
+      for (const tipo of ['OS', 'ORCAMENTO']) {
+        const cfg = syncConfigs[tipo];
+        await api.put(`/configuracoes/sync-auto/${tipo}`, {
+          ativo:           cfg.ativo,
+          dias_semana:     cfg.dias_semana || 'mon',
+          intervalo_horas: cfg.intervalo_horas,
+          janela_dias:     cfg.janela_dias,
+        });
+      }
+      setSyncSalvo(true);
+      setTimeout(() => setSyncSalvo(false), 3000);
+    } catch { alert('Erro ao salvar configuração de sincronização.'); }
+    finally { setSalvandoSync(false); }
   };
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -932,6 +1007,100 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       )}
+      {/* ── Sincronização Automática ── */}
+      <section>
+        <div className="mb-4">
+          <h2 className="text-lg font-black text-slate-800 dark:text-white">🔄 Sincronização Automática</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">OS e Orçamentos sincronizados periodicamente com o Auvo</p>
+        </div>
+
+        {loadingSync ? (
+          <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : (
+          <div className="space-y-4">
+            {(['OS', 'ORCAMENTO'] as const).map(tipo => {
+              const cfg = syncConfigs[tipo];
+              const dias = cfg.dias_semana ? cfg.dias_semana.split(',') : [];
+              const label = tipo === 'OS' ? 'Ordens de Serviço' : 'Orçamentos';
+              return (
+                <div key={tipo} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-slate-900 dark:text-white">{label}</p>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={cfg.ativo}
+                        onChange={e => setSyncConfigs(prev => ({ ...prev, [tipo]: { ...prev[tipo], ativo: e.target.checked } }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:bg-blue-600 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+                      <span className="ml-2 text-sm font-medium text-slate-600 dark:text-slate-300">{cfg.ativo ? 'Ativo' : 'Inativo'}</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <p className={labelCls}>Dias da semana</p>
+                    <div className="flex flex-wrap gap-2">
+                      {DIAS_OPTIONS.map(d => (
+                        <button
+                          key={d.value}
+                          type="button"
+                          onClick={() => toggleDia(tipo, d.value)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                            dias.includes(d.value)
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelCls}>Intervalo</label>
+                      <select
+                        value={cfg.intervalo_horas}
+                        onChange={e => setSyncConfigs(prev => ({ ...prev, [tipo]: { ...prev[tipo], intervalo_horas: Number(e.target.value) } }))}
+                        className={inputCls}
+                      >
+                        {INTERVALO_OPTIONS.map(h => (
+                          <option key={h} value={h}>{h === 24 ? '1x por dia' : `A cada ${h}h`}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Janela de dados (dias)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={90}
+                        value={cfg.janela_dias}
+                        onChange={e => setSyncConfigs(prev => ({ ...prev, [tipo]: { ...prev[tipo], janela_dias: Number(e.target.value) } }))}
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="flex justify-end">
+              <button
+                onClick={salvarSyncAuto}
+                disabled={salvandoSync}
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {salvandoSync
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
+                  : syncSalvo ? '✓ Salvo!' : '💾 Salvar Configuração'}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -76,6 +76,23 @@ class TestarEmailResponse(BaseModel):
     mensagem: str
 
 
+class ConfiguracaoSyncAutoUpdate(BaseModel):
+    ativo:           Optional[bool] = None
+    dias_semana:     Optional[str]  = None   # "mon,tue,wed,thu,fri"
+    intervalo_horas: Optional[int]  = None   # 1 | 2 | 4 | 6 | 12 | 24
+    janela_dias:     Optional[int]  = None   # dias para trás na janela de busca
+
+
+class ConfiguracaoSyncAutoResponse(BaseModel):
+    tipo:            str
+    ativo:           bool
+    dias_semana:     str
+    intervalo_horas: int
+    janela_dias:     int
+
+    model_config = {"from_attributes": True}
+
+
 class ConfiguracaoInterCreate(BaseModel):
     cnpj:              str
     razao_social:      Optional[str] = None

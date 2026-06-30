@@ -269,6 +269,38 @@ def _seed_categorias_financeiras():
 _seed_categorias_financeiras()
 
 
+def _seed_sync_auto():
+    """Cria as configurações padrão de sync auto se a tabela estiver vazia."""
+    from app.core.database import SessionLocal
+    from app.models.configuracao_model import ConfiguracaoSyncAuto
+    db = SessionLocal()
+    try:
+        if db.query(ConfiguracaoSyncAuto).count() == 0:
+            db.add_all([
+                ConfiguracaoSyncAuto(tipo="OS",        ativo=True, dias_semana="mon,tue,wed,thu,fri", intervalo_horas=2,  janela_dias=7),
+                ConfiguracaoSyncAuto(tipo="ORCAMENTO", ativo=True, dias_semana="mon,tue,wed,thu,fri", intervalo_horas=4,  janela_dias=30),
+            ])
+            db.commit()
+            print("[seed] Configurações de sync auto criadas com padrões.")
+    except Exception as e:
+        db.rollback()
+        print(f"[seed_sync_auto] erro: {e}")
+    finally:
+        db.close()
+
+
+_seed_sync_auto()
+
+
+# ── Scheduler global ─────────────────────────────────────────────────────────
+
+_scheduler: BackgroundScheduler | None = None
+_os_sync_running = False
+_orcamento_sync_running = False
+_JOB_OS = "sync_os_auto"
+_JOB_ORC = "sync_orcamento_auto"
+
+
 # ── Sincronização automática de boletos ──────────────────────────────────────
 
 def _sincronizar_boletos_auto():
@@ -296,18 +328,120 @@ def _sincronizar_boletos_auto():
         db.close()
 
 
+def _sincronizar_os_auto():
+    global _os_sync_running
+    if _os_sync_running:
+        return
+    _os_sync_running = True
+    from app.core.database import SessionLocal
+    from app.services.ordem_servico_service import OrdemServicoService
+    from app.repositories.configuracao_repository import ConfiguracaoSyncAutoRepository
+    from datetime import date, timedelta
+    db = SessionLocal()
+    try:
+        cfg = ConfiguracaoSyncAutoRepository.get_by_tipo(db, "OS")
+        janela = cfg.janela_dias if cfg else 7
+        hoje = date.today()
+        inicio = (hoje - timedelta(days=janela)).isoformat()
+        fim = hoje.isoformat()
+        resultado = OrdemServicoService.sincronizar(db, inicio, fim)
+        print(f"[AutoSync-OS] {resultado} ({inicio} a {fim})")
+    except Exception as e:
+        print(f"[AutoSync-OS] Erro: {e}")
+    finally:
+        _os_sync_running = False
+        db.close()
+
+
+def _sincronizar_orcamentos_auto():
+    global _orcamento_sync_running
+    if _orcamento_sync_running:
+        return
+    _orcamento_sync_running = True
+    from app.core.database import SessionLocal
+    from app.services.orcamento_service import OrcamentoService
+    from app.repositories.configuracao_repository import ConfiguracaoSyncAutoRepository
+    from datetime import date, timedelta
+    db = SessionLocal()
+    try:
+        cfg = ConfiguracaoSyncAutoRepository.get_by_tipo(db, "ORCAMENTO")
+        janela = cfg.janela_dias if cfg else 30
+        hoje = date.today()
+        inicio = (hoje - timedelta(days=janela)).isoformat()
+        fim = hoje.isoformat()
+        resultado = OrcamentoService.sincronizar(db, inicio, fim)
+        print(f"[AutoSync-ORC] {resultado} ({inicio} a {fim})")
+    except Exception as e:
+        print(f"[AutoSync-ORC] Erro: {e}")
+    finally:
+        _orcamento_sync_running = False
+        db.close()
+
+
+def reconfigurar_sync_auto(db=None):
+    """Lê configs do banco e recria jobs de OS e Orçamentos no scheduler."""
+    global _scheduler
+    if _scheduler is None:
+        return
+    from app.repositories.configuracao_repository import ConfiguracaoSyncAutoRepository
+    from app.core.database import SessionLocal
+
+    fechar = False
+    if db is None:
+        db = SessionLocal()
+        fechar = True
+    try:
+        for job_id in [_JOB_OS, _JOB_ORC]:
+            try:
+                _scheduler.remove_job(job_id)
+            except Exception:
+                pass
+
+        cfg_os = ConfiguracaoSyncAutoRepository.get_by_tipo(db, "OS")
+        if cfg_os and cfg_os.ativo:
+            _scheduler.add_job(
+                _sincronizar_os_auto,
+                trigger="cron",
+                id=_JOB_OS,
+                day_of_week=cfg_os.dias_semana,
+                hour=f"*/{cfg_os.intervalo_horas}",
+                minute=20,
+                replace_existing=True,
+            )
+            print(f"[AutoSync-OS] Job recriado: dias={cfg_os.dias_semana} intervalo={cfg_os.intervalo_horas}h janela={cfg_os.janela_dias}d")
+
+        cfg_orc = ConfiguracaoSyncAutoRepository.get_by_tipo(db, "ORCAMENTO")
+        if cfg_orc and cfg_orc.ativo:
+            _scheduler.add_job(
+                _sincronizar_orcamentos_auto,
+                trigger="cron",
+                id=_JOB_ORC,
+                day_of_week=cfg_orc.dias_semana,
+                hour=f"*/{cfg_orc.intervalo_horas}",
+                minute=40,
+                replace_existing=True,
+            )
+            print(f"[AutoSync-ORC] Job recriado: dias={cfg_orc.dias_semana} intervalo={cfg_orc.intervalo_horas}h janela={cfg_orc.janela_dias}d")
+    finally:
+        if fechar:
+            db.close()
+
+
 @asynccontextmanager
 async def lifespan(app):
-    scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
-    # Executa de 1 em 1 hora das 8h às 19h (8,9,10,11,12,13,14,15,16,17,18,19)
-    scheduler.add_job(
+    global _scheduler
+    _scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
+    # Boletos: a cada hora das 8h às 19h
+    _scheduler.add_job(
         _sincronizar_boletos_auto,
         trigger="cron",
         hour="8-19",
         minute=0,
     )
-    scheduler.start()
-    print("[AutoSync] Scheduler iniciado — sincronização a cada hora das 8h às 19h (Brasília)")
+    _scheduler.start()
+    # OS e Orçamentos: carrega config do banco e agenda
+    reconfigurar_sync_auto()
+    print("[AutoSync] Scheduler iniciado — boletos a cada hora das 8h às 19h (Brasília)")
     
     # ── Storage Bucket Initialization ─────────────────────────────────────────
     from app.core.dependencies import get_storage_client
@@ -320,7 +454,7 @@ async def lifespan(app):
         print(f"[Storage] Erro ao inicializar storage: {e}")
 
     yield
-    scheduler.shutdown()
+    _scheduler.shutdown()
     print("[AutoSync] Scheduler encerrado")
 
 
