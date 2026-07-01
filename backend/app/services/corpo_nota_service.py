@@ -927,6 +927,14 @@ class CorpoNotaService:
         return f"{s[:3]}.{s[3:6]}.{s[6:]}"
 
     @staticmethod
+    def _fmt_numero_os(numero_os: Optional[str]) -> str:
+        """Formata numero_os (armazenado como dígitos, múltiplos separados por 'e') para exibição: 'OS nº X e OS nº Y'."""
+        if not numero_os:
+            return ""
+        partes = [p.strip() for p in numero_os.split(" e ") if p.strip()]
+        return " e ".join(p if not p.isdigit() else f"OS nº {p}" for p in partes)
+
+    @staticmethod
     def _ordinal_extenso(n: int) -> str:
         ORDINAIS = {1:"uma",2:"duas",3:"três",4:"quatro",5:"cinco",6:"seis",
                     7:"sete",8:"oito",9:"nove",10:"dez",11:"onze",12:"doze"}
@@ -1000,7 +1008,7 @@ class CorpoNotaService:
         if data_servico:
             sumario.append(f"Data de execução: {fmt_data_pontos(data_servico)}")
         if numero_os:
-            sumario.append(f"Ordem de Serviço: {numero_os}")
+            sumario.append(f"Ordem de Serviço: {CorpoNotaService._fmt_numero_os(numero_os)}")
         sumario.append("Quantidade de parcelas: 01")
         linhas.append(" | ".join(sumario))
         linhas.append("")
@@ -1125,7 +1133,7 @@ class CorpoNotaService:
             f"Serviços Executados: {descricao_servico or ''}",
             "",
             f"Datas dos Serviços Executados: {texto_datas}",
-            f"Ordens de Serviço: {numero_os or ''}",
+            f"Ordens de Serviço: {CorpoNotaService._fmt_numero_os(numero_os)}",
             f"Quantidade de Parcelas: {numero_parcelas:02d} ({extenso_parc}) {plural}",
         ]
 
@@ -1285,7 +1293,7 @@ class CorpoNotaService:
         linhas += [
             f"Serviços Executados: {descricao_servico or ''}",
             f"Datas dos Serviços Executados: {texto_datas}",
-            f"Ordens de Serviços: {numero_os or ''}",
+            f"Ordens de Serviços: {CorpoNotaService._fmt_numero_os(numero_os)}",
             f"Quantidade de Parcelas: {n_parc:02d} ({extenso_parc}) {plural}",
         ]
 

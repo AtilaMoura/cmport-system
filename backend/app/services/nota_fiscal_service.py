@@ -114,6 +114,27 @@ def extrair_numero_os(texto: str) -> Optional[str]:
     return None
 
 
+def _buscar_pdf_correspondente(
+    xml_base_name: str,
+    numero_nota: str,
+    pdfs_no_zip: dict,
+    total_xmls: int,
+) -> Optional[bytes]:
+    """
+    Localiza o PDF correspondente a um XML dentro do lote importado.
+    Estratégia 1: mesmo nome-base do XML e do PDF dentro do mesmo zip
+                  (padrão real do cliente: "<chave>-nfse.xml" / "<chave>-nfse.pdf").
+    Estratégia 2: nome do PDF bate com o número da nota (ex: "123.pdf" para nota "123").
+    Estratégia 3: fallback — se o lote inteiro tem só 1 XML e 1 PDF, assume que são o par.
+    """
+    pdf_bytes = pdfs_no_zip.get(xml_base_name)
+    if not pdf_bytes:
+        pdf_bytes = pdfs_no_zip.get(numero_nota.lower())
+    if not pdf_bytes and total_xmls == 1 and len(pdfs_no_zip) == 1:
+        pdf_bytes = list(pdfs_no_zip.values())[0]
+    return pdf_bytes
+
+
 def extrair_data_servico(discriminacao: str) -> Optional[date]:
     """
     Extrai a data real de execução do serviço a partir da discriminação/infCpl.
@@ -1160,6 +1181,7 @@ class NotaFiscalService:
 
         for xml_data in xmls_para_processar:
             filename = xml_data['filename']
+            xml_base_name = filename.split('/')[-1].split('\\')[-1].rsplit('.', 1)[0].lower()
             try:
                 xml_bytes = xml_data['content']
                 try:
@@ -1204,9 +1226,19 @@ class NotaFiscalService:
                         erros.append({"arquivo": filename, "numero": dados_nota['numero_nota'], "erro": "Status da nota nao reconhecido no XML - nao importada.", "tipo_erro": "desconhecido"})
                     continue
 
-                if NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota']):
+                nota_existente = NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota'])
+                if nota_existente:
                     print(f"[IMPORT] Nota {dados_nota['numero_nota']} ja existe - pulando")
                     ja_existentes += 1
+                    # Nota ja existe mas pode estar sem PDF (ex: importacao anterior sem os PDFs) — tenta anexar agora
+                    if storage and not nota_existente.pdf_object_key:
+                        pdf_bytes = _buscar_pdf_correspondente(xml_base_name, dados_nota['numero_nota'], pdfs_no_zip, len(xmls_para_processar))
+                        if pdf_bytes:
+                            try:
+                                NotaFiscalService.upload_pdf_nota(db, nota_existente.id, pdf_bytes, storage)
+                                print(f"[IMPORT] PDF vinculado retroativamente para nota existente {dados_nota['numero_nota']}")
+                            except Exception as e:
+                                print(f"[IMPORT] Aviso: falha ao vincular PDF retroativo para nota {dados_nota['numero_nota']}: {e}")
                     continue
 
                 nota_importada = NotaFiscalImportada(**dados_nota)
@@ -1219,15 +1251,7 @@ class NotaFiscalService:
 
                 # Tentar vincular PDF se houver match
                 if storage:
-                    pdf_bytes = None
-                    # Estratégia 1: Numero da nota bate com nome do PDF (ex: "123.pdf" para nota "123")
-                    numero_limpo = db_nota.numero_nota.lower()
-                    pdf_bytes = pdfs_no_zip.get(numero_limpo)
-                    
-                    # Estratégia 2: Se ZIP tem exatamente 1 XML e 1 PDF, assume-se que são o par
-                    if not pdf_bytes and len(xmls_para_processar) == 1 and len(pdfs_no_zip) == 1:
-                        pdf_bytes = list(pdfs_no_zip.values())[0]
-                    
+                    pdf_bytes = _buscar_pdf_correspondente(xml_base_name, db_nota.numero_nota, pdfs_no_zip, len(xmls_para_processar))
                     if pdf_bytes:
                         try:
                             # Reutiliza upload_pdf_nota para salvar no storage e atualizar db_nota.pdf_object_key
@@ -1266,8 +1290,10 @@ class NotaFiscalService:
                             from app.models.corpo_nota_model import CorpoNota as _CorpoNota
                             corpo = db.query(_CorpoNota).filter(_CorpoNota.id == db_nota.corpo_nota_id).first()
                             if corpo and corpo.numero_os:
-                                dados_nota['numero_os'] = corpo.numero_os
-                                print(f"[IMPORT] OS '{corpo.numero_os}' obtida do corpo da nota para nota {db_nota.numero_nota}")
+                                # corpo.numero_os pode conter texto de exibição (ex: "OS nº 12345") — extrai só os dígitos
+                                numero_os_limpo = re.sub(r'\D', '', corpo.numero_os) or corpo.numero_os
+                                dados_nota['numero_os'] = numero_os_limpo
+                                print(f"[IMPORT] OS '{numero_os_limpo}' obtida do corpo da nota para nota {db_nota.numero_nota}")
                     except Exception as e:
                         print(f"[IMPORT] Aviso: falha ao buscar OS do corpo da nota: {e}")
 

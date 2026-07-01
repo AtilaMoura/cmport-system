@@ -399,7 +399,7 @@ function NovoCorpoNotaContent() {
       const jaEsta = prev.some(o => o.numero_os === os.numero_os);
       const novas = jaEsta ? prev.filter(o => o.numero_os !== os.numero_os) : [...prev, os];
       // Atualiza campos derivados
-      const nums = novas.map(o => o.numero_os ? `OS nº ${o.numero_os}` : '').filter(Boolean);
+      const nums = novas.map(o => o.numero_os || '').filter(Boolean);
       setNumeroOs(nums.join(' e '));
       const datas = novas.map(o => o.data_servico ? o.data_servico.split('-').reverse().join('.') : '').filter(Boolean);
       const datasUnicas = [...new Set(datas)];
@@ -422,7 +422,7 @@ function NovoCorpoNotaContent() {
     setOrcamentoSelecionado(orc);
 
     if (orc.task_ids.length > 0 && ossSelecionadas.length === 0) {
-      setNumeroOs(orc.task_ids.map(id => `OS nº ${id}`).join(' e '));
+      setNumeroOs(orc.task_ids.join(' e '));
     }
     const descItens = orc.itens
       .filter(i => i.tipo === 'SERVICO')
@@ -1093,16 +1093,16 @@ function NovoCorpoNotaContent() {
               {tipoNota !== 'MANUTENCAO' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
-                    Número(s) da OS — texto livre
+                    Número(s) da OS
                   </label>
                   <input
                     type="text"
                     value={numeroOs}
                     onChange={e => setNumeroOs(e.target.value)}
-                    placeholder="Ex: OS nº 73787278 e OS nº 74220219"
+                    placeholder="Ex: 73787278 e 74220219"
                     className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                   />
-                  <p className="text-xs text-slate-500 mt-1">Você pode digitar múltiplos números separados por &quot;e&quot;.</p>
+                  <p className="text-xs text-slate-500 mt-1">Digite apenas os números, separados por &quot;e&quot; se houver mais de uma OS. O prefixo &quot;OS nº&quot; é adicionado automaticamente no corpo da nota.</p>
                 </div>
               )}
 
