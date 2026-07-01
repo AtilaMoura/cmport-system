@@ -55,23 +55,26 @@ def _calcular_valor_liquido(db: Session, nota, pcts_override: dict = None) -> fl
     except Exception:
         config = None
 
-    if config:
-        pct_pis    = (pcts_override or {}).get('pct_pis',    float(config.pct_pis))
-        pct_cofins = (pcts_override or {}).get('pct_cofins', float(config.pct_cofins))
-        pct_inss   = (pcts_override or {}).get('pct_inss',   float(config.pct_inss))
-        pct_csll   = (pcts_override or {}).get('pct_csll',   float(config.pct_csll))
-    else:
+    if not config:
         # Fallback: usa valores absolutos do XML se não houver config
         impostos = sum(x for x in [nota.pis, nota.cofins, nota.inss, nota.csll] if x)
         return max(round(float(nota.valor) - impostos, 2), 0.01)
 
-    v_bruto = float(nota.valor)
-    i_pis    = round(v_bruto * (pct_pis / 100), 2)
-    i_cofins = round(v_bruto * (pct_cofins / 100), 2)
-    i_inss   = round(v_bruto * (pct_inss / 100), 2)
-    i_csll   = round(v_bruto * (pct_csll / 100), 2)
-    total_impostos = i_pis + i_cofins + i_inss + i_csll
-    return max(round(v_bruto - total_impostos, 2), 0.01)
+    from app.services.imposto_service import ImpostoService
+    # ImpostoService trata percentuais_override como tudo-ou-nada (chave ausente = 0%),
+    # então mescla com a config para preservar overrides parciais (ex.: só pct_pis alterado).
+    pcts_completo = {
+        'pct_pis':    (pcts_override or {}).get('pct_pis',    float(config.pct_pis)),
+        'pct_cofins': (pcts_override or {}).get('pct_cofins', float(config.pct_cofins)),
+        'pct_inss':   (pcts_override or {}).get('pct_inss',   float(config.pct_inss)),
+        'pct_csll':   (pcts_override or {}).get('pct_csll',   float(config.pct_csll)),
+        'pct_iss':    float(getattr(config, 'pct_iss', 0) or 0),
+    }
+    resultado = ImpostoService.calcular_impostos(
+        db, float(nota.valor), tipo_servico_str=nota.tipo.value,
+        percentuais_override=pcts_completo,
+    )
+    return resultado.valor_liquido
 
 
 def _montar_mensagem_payload(mensagem: str | None, numero_nota: str, numero_os: str | None) -> dict | None:

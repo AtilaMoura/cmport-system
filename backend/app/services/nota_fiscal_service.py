@@ -594,22 +594,23 @@ def _validar_impostos_vs_config(db: Session, db_nota) -> None:
     """
     try:
         from app.models.configuracao_impostos_model import ConfiguracaoImpostosServico, TipoServicoConfig
+        from app.services.imposto_service import ImpostoService
         tipo_config = TipoServicoConfig(db_nota.tipo.value)
         config = db.query(ConfiguracaoImpostosServico).filter_by(tipo_servico=tipo_config, ativo=True).first()
         if not config:
             return
 
         valor = float(db_nota.valor or 0)
+        resultado = ImpostoService.calcular_impostos(db, valor, tipo_servico_str=db_nota.tipo.value)
         campos = {
-            'pis':    (float(config.pct_pis),    float(db_nota.pis or 0)),
-            'cofins': (float(config.pct_cofins), float(db_nota.cofins or 0)),
-            'inss':   (float(config.pct_inss),   float(db_nota.inss or 0)),
-            'csll':   (float(config.pct_csll),   float(db_nota.csll or 0)),
+            'pis':    (resultado.percentual_pis,    resultado.valor_pis,    float(db_nota.pis or 0)),
+            'cofins': (resultado.percentual_cofins, resultado.valor_cofins, float(db_nota.cofins or 0)),
+            'inss':   (resultado.percentual_inss,   resultado.valor_inss,   float(db_nota.inss or 0)),
+            'csll':   (resultado.percentual_csll,   resultado.valor_csll,   float(db_nota.csll or 0)),
         }
 
         divergencias = {}
-        for campo, (pct, xml_val) in campos.items():
-            config_val = round(valor * pct / 100, 2)
+        for campo, (pct, config_val, xml_val) in campos.items():
             if abs(config_val - xml_val) > 0.10:
                 divergencias[campo] = {
                     'pct': pct,
