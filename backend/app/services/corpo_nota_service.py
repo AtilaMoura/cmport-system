@@ -696,9 +696,8 @@ class CorpoNotaService:
         data_servico: Optional[date],
         descricao_servico: Optional[str],
     ) -> dict:
-        from app.models.servico_model import ManutencaoAssistencia, TipoServico
-
-        resultado = {
+        """Repassa os dados de OS informados pelo operador — nunca inventa OS/serviço quando nada foi selecionado."""
+        return {
             "servico_id": servico_id,
             "numero_os": numero_os,
             "data_servico": data_servico,
@@ -706,35 +705,6 @@ class CorpoNotaService:
             "valor_bruto": None,
             "preenchimento_manual": bool(numero_os or data_servico or descricao_servico),
         }
-
-        if servico_id:
-            return resultado
-
-        if tipo_nota != TipoNotaCorpo.MANUTENCAO:
-            return resultado
-
-        # Busca OS de manutenção mais recente do condomínio (sem filtro de data/nota)
-        servico = (
-            db.query(ManutencaoAssistencia)
-            .filter(
-                ManutencaoAssistencia.condominio_id == condominio_id,
-                ManutencaoAssistencia.tipo == TipoServico.MANUTENCAO,
-            )
-            .order_by(ManutencaoAssistencia.data_servico.desc())
-            .first()
-        )
-
-        if servico:
-            resultado["servico_id"] = servico.id
-            if not resultado["numero_os"]:
-                resultado["numero_os"] = servico.numero_os
-            if not resultado["data_servico"]:
-                resultado["data_servico"] = servico.data_servico
-            if not resultado["descricao_servico"]:
-                resultado["descricao_servico"] = servico.descricao
-            resultado["preenchimento_manual"] = False
-
-        return resultado
 
     @staticmethod
     def _validar_campos_para_gerar(corpo: CorpoNota) -> None:
