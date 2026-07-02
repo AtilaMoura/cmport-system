@@ -10,6 +10,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { calcularImposto } from '@/lib/impostos';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 
 interface Servico {
@@ -272,10 +273,10 @@ export default function ServicosPage() {
     const cofins = mbAplicarCofins ? parseFloat(mbPctCofins || '0') : 0;
     const inss   = mbAplicarInss   ? parseFloat(mbPctInss   || '0') : 0;
     const csll   = mbAplicarCsll   ? parseFloat(mbPctCsll   || '0') : 0;
-    const v_pis    = Math.round(bruto * (pis / 100) * 100) / 100;
-    const v_cofins = Math.round(bruto * (cofins / 100) * 100) / 100;
-    const v_inss   = Math.round(bruto * (inss / 100) * 100) / 100;
-    const v_csll   = Math.round(bruto * (csll / 100) * 100) / 100;
+    const v_pis    = calcularImposto(bruto, pis);
+    const v_cofins = calcularImposto(bruto, cofins);
+    const v_inss   = calcularImposto(bruto, inss);
+    const v_csll   = calcularImposto(bruto, csll);
     const liquido = bruto - (v_pis + v_cofins + v_inss + v_csll);
     return Math.max(Math.round(liquido * 100) / 100, 0.01);
   };
@@ -325,10 +326,10 @@ export default function ServicosPage() {
     const cofins = item.aplicarCofins ? parseFloat(item.pctCofins || '0') : 0;
     const inss   = item.aplicarInss   ? parseFloat(item.pctInss   || '0') : 0;
     const csll   = item.aplicarCsll   ? parseFloat(item.pctCsll   || '0') : 0;
-    const v_pis    = Math.round(bruto * (pis / 100) * 100) / 100;
-    const v_cofins = Math.round(bruto * (cofins / 100) * 100) / 100;
-    const v_inss   = Math.round(bruto * (inss / 100) * 100) / 100;
-    const v_csll   = Math.round(bruto * (csll / 100) * 100) / 100;
+    const v_pis    = calcularImposto(bruto, pis);
+    const v_cofins = calcularImposto(bruto, cofins);
+    const v_inss   = calcularImposto(bruto, inss);
+    const v_csll   = calcularImposto(bruto, csll);
     const liquido = bruto - (v_pis + v_cofins + v_inss + v_csll);
     return Math.max(Math.round(liquido * 100) / 100, 0.01);
   };
@@ -1330,7 +1331,7 @@ export default function ServicosPage() {
                             <span className="text-xs text-slate-400">%</span>
                           </div>
                           <span className={`text-xs w-24 text-right ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
-                            {aplicar ? `- ${brl(mbConfigImpostos.valor_bruto * parseFloat(pct || '0') / 100)}` : '—'}
+                            {aplicar ? `- ${brl(calcularImposto(mbConfigImpostos.valor_bruto, parseFloat(pct || '0')))}` : '—'}
                           </span>
                         </div>
                       ))}
@@ -1339,7 +1340,12 @@ export default function ServicosPage() {
                           <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
                             <span>Total Impostos</span>
                             <span className="font-bold text-red-600 dark:text-red-400">
-                              - {brl(mbConfigImpostos.valor_bruto * ((mbAplicarPis ? parseFloat(mbPctPis||'0') : 0) + (mbAplicarCofins ? parseFloat(mbPctCofins||'0') : 0) + (mbAplicarInss ? parseFloat(mbPctInss||'0') : 0) + (mbAplicarCsll ? parseFloat(mbPctCsll||'0') : 0)) / 100)}
+                              - {brl(
+                                calcularImposto(mbConfigImpostos.valor_bruto, mbAplicarPis ? parseFloat(mbPctPis||'0') : 0) +
+                                calcularImposto(mbConfigImpostos.valor_bruto, mbAplicarCofins ? parseFloat(mbPctCofins||'0') : 0) +
+                                calcularImposto(mbConfigImpostos.valor_bruto, mbAplicarInss ? parseFloat(mbPctInss||'0') : 0) +
+                                calcularImposto(mbConfigImpostos.valor_bruto, mbAplicarCsll ? parseFloat(mbPctCsll||'0') : 0)
+                              )}
                             </span>
                           </div>
                         )}

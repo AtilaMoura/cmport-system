@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { calcularImposto } from '@/lib/impostos';
 
 interface Servico {
   id: number;
@@ -671,17 +672,17 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     if (configImpostos.nota_vinculada_id) {
       const valorB = configImpostos.valor_nota_vinculada || 0;
       const valorA = bruto - valorB;
-      const impA = Math.round(valorA * (pis/100)*100)/100 + Math.round(valorA * (cofins/100)*100)/100 + Math.round(valorA * (inss/100)*100)/100 + Math.round(valorA * (csll/100)*100)/100;
-      const impB = Math.round(valorB * (pis/100)*100)/100 + Math.round(valorB * (cofins/100)*100)/100 + Math.round(valorB * (inss/100)*100)/100 + Math.round(valorB * (csll/100)*100)/100;
+      const impA = calcularImposto(valorA, pis) + calcularImposto(valorA, cofins) + calcularImposto(valorA, inss) + calcularImposto(valorA, csll);
+      const impB = calcularImposto(valorB, pis) + calcularImposto(valorB, cofins) + calcularImposto(valorB, inss) + calcularImposto(valorB, csll);
       if (vinculoAplicarImpostoEm === 'nota_a')  return Math.max(Math.round(((valorA - impA) + valorB) * 100) / 100, 0.01);
       if (vinculoAplicarImpostoEm === 'nota_b')  return Math.max(Math.round((valorA + (valorB - impB)) * 100) / 100, 0.01);
       if (vinculoAplicarImpostoEm === 'ambas')   return Math.max(Math.round((bruto - impA - impB) * 100) / 100, 0.01);
       return bruto; // nenhuma
     }
-    const v_pis    = Math.round(bruto * (pis / 100) * 100) / 100;
-    const v_cofins = Math.round(bruto * (cofins / 100) * 100) / 100;
-    const v_inss   = Math.round(bruto * (inss / 100) * 100) / 100;
-    const v_csll   = Math.round(bruto * (csll / 100) * 100) / 100;
+    const v_pis    = calcularImposto(bruto, pis);
+    const v_cofins = calcularImposto(bruto, cofins);
+    const v_inss   = calcularImposto(bruto, inss);
+    const v_csll   = calcularImposto(bruto, csll);
     return Math.max(Math.round((bruto - (v_pis + v_cofins + v_inss + v_csll)) * 100) / 100, 0.01);
   };
 
@@ -695,17 +696,17 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     if (configImpostos.nota_vinculada_id) {
       const valorB = configImpostos.valor_nota_vinculada || 0;
       const valorA = bruto - valorB;
-      const impA = Math.round(valorA*(pis/100)*100)/100 + Math.round(valorA*(cofins/100)*100)/100 + Math.round(valorA*(inss/100)*100)/100 + Math.round(valorA*(csll/100)*100)/100;
-      const impB = Math.round(valorB*(pis/100)*100)/100 + Math.round(valorB*(cofins/100)*100)/100 + Math.round(valorB*(inss/100)*100)/100 + Math.round(valorB*(csll/100)*100)/100;
+      const impA = calcularImposto(valorA, pis) + calcularImposto(valorA, cofins) + calcularImposto(valorA, inss) + calcularImposto(valorA, csll);
+      const impB = calcularImposto(valorB, pis) + calcularImposto(valorB, cofins) + calcularImposto(valorB, inss) + calcularImposto(valorB, csll);
       if (vinculoAplicarImpostoEm === 'nota_a')  return Math.round(impA * 100) / 100;
       if (vinculoAplicarImpostoEm === 'nota_b')  return Math.round(impB * 100) / 100;
       if (vinculoAplicarImpostoEm === 'ambas')   return Math.round((impA + impB) * 100) / 100;
       return 0; // nenhuma
     }
-    const v_pis    = Math.round(bruto * (pis / 100) * 100) / 100;
-    const v_cofins = Math.round(bruto * (cofins / 100) * 100) / 100;
-    const v_inss   = Math.round(bruto * (inss / 100) * 100) / 100;
-    const v_csll   = Math.round(bruto * (csll / 100) * 100) / 100;
+    const v_pis    = calcularImposto(bruto, pis);
+    const v_cofins = calcularImposto(bruto, cofins);
+    const v_inss   = calcularImposto(bruto, inss);
+    const v_csll   = calcularImposto(bruto, csll);
     return Math.round((v_pis + v_cofins + v_inss + v_csll) * 100) / 100;
   };
 
@@ -2785,7 +2786,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                             <span className="text-xs text-slate-400">%</span>
                           </div>
                           <span className={`text-xs w-24 text-right ${aplicar ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
-                            {aplicar ? `- ${fmt(baseImposto * parseFloat(pct || '0') / 100)}` : '—'}
+                            {aplicar ? `- ${fmt(calcularImposto(baseImposto, parseFloat(pct || '0')))}` : '—'}
                           </span>
                         </div>
                         );
