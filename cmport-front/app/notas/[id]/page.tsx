@@ -49,6 +49,15 @@ interface Condominio {
   cnpj: string;
 }
 
+interface ServicoVinculado {
+  id: number;
+  tipo: 'manutencao' | 'assistencia';
+  numero_os: string | null;
+  data_servico: string;
+  descricao: string | null;
+  condominio_id: number;
+}
+
 interface Boleto {
   id: number;
   codigo_solicitacao: string | null;
@@ -155,6 +164,7 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   const [cancelandoBoletoId, setCancelandoBoletoId] = useState<number | null>(null);
   const [deletandoBoletoId, setDeletandoBoletoId] = useState<number | null>(null);
   const [notaVinculada, setNotaVinculada] = useState<NotaFiscal | null>(null);
+  const [servicoVinculado, setServicoVinculado] = useState<ServicoVinculado | null>(null);
   const [desvinculando, setDesvinculando] = useState(false);
   const [reprocessando, setReprocessando] = useState(false);
   const [reprocessarMsg, setReprocessarMsg] = useState<{ avisos: string[]; erro?: string } | null>(null);
@@ -203,6 +213,15 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
     }
   }, [id]);
 
+  const buscarServicoPorNota = async (notaId: number): Promise<ServicoVinculado | null> => {
+    try {
+      const res = await api.get(`/servicos/por-nota/${notaId}`);
+      return res.data;
+    } catch {
+      return null;
+    }
+  };
+
   const carregarDados = async () => {
     if (!id) return;
 
@@ -224,6 +243,15 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       if (condoRes) setCondominio(condoRes.data);
       setBoletos(boletosRes.data || []);
       setNotaVinculada(vinculadaRes ? vinculadaRes.data : null);
+
+      // Serviço vinculado: tenta pela própria nota; se não achar e houver nota
+      // vinculada (caso ASSISTENCIA+PRODUTO), o serviço combinado fica só na
+      // nota ASSISTENCIA, então tenta pela nota vinculada tambem.
+      let servico = await buscarServicoPorNota(notaData.id);
+      if (!servico && notaData.nota_vinculada_id) {
+        servico = await buscarServicoPorNota(notaData.nota_vinculada_id);
+      }
+      setServicoVinculado(servico);
     } catch (error) {
       console.error('Erro ao carregar nota:', error);
       alert('Nota fiscal nao encontrada');
@@ -949,6 +977,44 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
               </div>
             </div>
           </div>
+
+          {/* Serviço vinculado */}
+          {servicoVinculado && (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-blue-200 dark:border-blue-800/40 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-blue-50 dark:bg-blue-500/10 border-b border-blue-200 dark:border-blue-800/40">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="text-xl">🔧</span>
+                  Serviço Vinculado
+                </h3>
+              </div>
+              <div className="p-4 sm:p-6">
+                <Link
+                  href={`/servicos/${servicoVinculado.id}`}
+                  className="group flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-sm shrink-0">
+                    <span className="text-xl">{servicoVinculado.tipo === 'assistencia' ? '🔧' : '🛠️'}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      {servicoVinculado.tipo === 'assistencia' ? 'Assistência' : 'Manutenção'}
+                      {servicoVinculado.numero_os ? ` · OS ${servicoVinculado.numero_os}` : ''}
+                    </p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                      {parseDateLocal(servicoVinculado.data_servico)}
+                      {servicoVinculado.descricao ? ` · ${servicoVinculado.descricao}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 shrink-0 flex items-center gap-1">
+                    Ver Serviço
+                    <svg className="w-5 h-5 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </span>
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Descrição do serviço */}
           {nota.descricao_servico && (
