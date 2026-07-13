@@ -12,13 +12,17 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detectar mudanças
         id: changes
         run: |
-          echo "backend=$(git diff --name-only HEAD~1 HEAD | grep -q '^backend/' && echo true || echo false)" >> $GITHUB_OUTPUT
-          echo "frontend=$(git diff --name-only HEAD~1 HEAD | grep -q '^cmport-front/' && echo true || echo false)" >> $GITHUB_OUTPUT
+          BASE_SHA="${{ github.event.before }}"
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA" 2>/dev/null; then
+            BASE_SHA=$(git rev-parse HEAD~1)
+          fi
+          echo "backend=$(git diff --name-only $BASE_SHA HEAD | grep -q '^backend/' && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "frontend=$(git diff --name-only $BASE_SHA HEAD | grep -q '^cmport-front/' && echo true || echo false)" >> $GITHUB_OUTPUT
 
       - name: Login no Docker Hub
         if: steps.changes.outputs.backend == 'true' || steps.changes.outputs.frontend == 'true'
