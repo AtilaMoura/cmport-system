@@ -1388,18 +1388,32 @@ class CorpoNotaService:
 
         import re as _re
 
-        # Extrai numero_nf da nota para matching direto (sem filtro de mês)
-        try:
-            numero_nf_int = int(_re.sub(r"\D", "", nota.numero_nota or "")) if nota.numero_nota else None
-        except ValueError:
-            numero_nf_int = None
+        # Extrai numero_nf da nota para matching direto (sem filtro de mês).
+        # numero_nota vem como "número-série" (ex: "137-2") — pega só a parte
+        # antes do traço, senão "137-2" vira 1372 e nunca bate com nada.
+        numero_nf_int = None
+        if nota.numero_nota:
+            parte = nota.numero_nota.split('-')[0].strip()
+            if parte.isdigit():
+                numero_nf_int = int(parte)
 
-        # Rota 1: matching por numero_nf (sem filtro de mês — vencimento pode ser mês seguinte)
+        # Rota 1: matching por numero_nf + CNPJ (sem filtro de mês nem de tipo —
+        # o número da nota já identifica a nota física; tipo é só metadado e pode
+        # divergir da classificação automática por série, ex: NFe série 2 força
+        # ASSISTENCIA mesmo quando o corpo cadastrado é PRODUTO).
         if numero_nf_int:
+            cnpj_nf = _re.sub(r"\D", "", nota.cnpj_emitente or "")
             candidatos_nf = CorpoNotaRepository.list_candidatos_por_numero_nf(
-                db, nota.condominio_id, tipo_corpo, numero_nf_int
+                db, nota.condominio_id, numero_nf_int, cnpj_nf or None
             )
             if len(candidatos_nf) == 1:
+                if candidatos_nf[0].tipo_nota != tipo_corpo:
+                    logger.warning(
+                        f"CorpoNota {candidatos_nf[0].id} (tipo={candidatos_nf[0].tipo_nota}) "
+                        f"vinculado à NotaFiscal {nota.id} (tipo={nota.tipo}) via numero_nf "
+                        f"apesar do tipo divergente — numero_nf+CNPJ é sinal mais forte que a "
+                        f"classificação automática por série."
+                    )
                 corpo = candidatos_nf[0]
                 corpo.nota_fiscal_id = nota.id
                 corpo.status = StatusCorpoNota.XML_VINCULADO

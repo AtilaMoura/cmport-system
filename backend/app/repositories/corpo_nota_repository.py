@@ -98,26 +98,49 @@ class CorpoNotaRepository:
     def list_candidatos_por_numero_nf(
         db: Session,
         condominio_id: int,
-        tipo_nota: TipoNotaCorpo,
         numero_nf: int,
+        cnpj: Optional[str] = None,
     ) -> List[CorpoNota]:
-        """Busca corpo pelo numero_nf exato — sem filtro de mês (vencimento pode ser mês seguinte)."""
-        return (
-            db.query(CorpoNota)
-            .filter(
-                CorpoNota.condominio_id == condominio_id,
-                CorpoNota.tipo_nota == tipo_nota,
-                CorpoNota.numero_nf == numero_nf,
-                CorpoNota.status.in_([
-                    StatusCorpoNota.PENDENTE,
-                    StatusCorpoNota.EM_MONTAGEM,
-                    StatusCorpoNota.GERADO,
-                ]),
-                CorpoNota.nota_fiscal_id.is_(None),
-                CorpoNota.deletado_em.is_(None),
-            )
+        """Busca corpo pelo numero_nf exato — sem filtro de mês nem de tipo (o número
+        da nota já identifica a nota física; tipo é só metadado). Se `cnpj` (só dígitos)
+        for informado, restringe aos corpos cuja conta Inter tenha esse CNPJ — corpos
+        sem conta vinculada não são excluídos, pois não há como validar o CNPJ deles."""
+        from app.models.configuracao_model import ConfiguracaoInter
+
+        q = db.query(CorpoNota).filter(
+            CorpoNota.condominio_id == condominio_id,
+            CorpoNota.numero_nf == numero_nf,
+            CorpoNota.status.in_([
+                StatusCorpoNota.PENDENTE,
+                StatusCorpoNota.EM_MONTAGEM,
+                StatusCorpoNota.GERADO,
+            ]),
+            CorpoNota.nota_fiscal_id.is_(None),
+            CorpoNota.deletado_em.is_(None),
+        )
+        candidatos = q.all()
+        if not cnpj:
+            return candidatos
+
+        contas_ids = {
+            c.configuracao_inter_id for c in candidatos if c.configuracao_inter_id
+        }
+        if not contas_ids:
+            return candidatos
+
+        contas = (
+            db.query(ConfiguracaoInter)
+            .filter(ConfiguracaoInter.id.in_(contas_ids))
             .all()
         )
+        cnpj_por_conta = {
+            c.id: "".join(filter(str.isdigit, c.cnpj or "")) for c in contas
+        }
+        com_cnpj = [
+            c for c in candidatos
+            if not c.configuracao_inter_id or cnpj_por_conta.get(c.configuracao_inter_id) == cnpj
+        ]
+        return com_cnpj if com_cnpj else candidatos
 
     @staticmethod
     def list_candidatos_produto_por_numero_nf(
