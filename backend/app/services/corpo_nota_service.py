@@ -332,6 +332,9 @@ class CorpoNotaService:
                     corpo.valor_csll = impostos.valor_csll
                     corpo.valor_liquido = impostos.valor_liquido
 
+        if numero_os is not None:
+            CorpoNotaService._resync_servico_id(db, corpo)
+
         # Regenera o texto com os dados atualizados
         corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
@@ -485,6 +488,7 @@ class CorpoNotaService:
         corpo.nota_fiscal_id = nota_fiscal_id
         corpo.status = StatusCorpoNota.XML_VINCULADO
         nota.corpo_nota_id = corpo_id
+        CorpoNotaService._resync_servico_id(db, corpo)
 
         db.add(nota)
         corpo = CorpoNotaRepository.save(db, corpo)
@@ -709,6 +713,44 @@ class CorpoNotaService:
             "valor_bruto": None,
             "preenchimento_manual": bool(numero_os or data_servico or descricao_servico),
         }
+
+    @staticmethod
+    def _resync_servico_id(db: Session, corpo: CorpoNota) -> None:
+        """Reavalia corpo.servico_id contra o numero_os/nota_fiscal_id atuais do corpo.
+
+        Sem isso, servico_id fica congelado no valor setado na criação do corpo —
+        se depois numero_os ou nota_fiscal_id mudarem (edição manual ou vínculo
+        automático de XML), o corpo passa a documentar outro serviço mas o campo
+        continua apontando para o antigo. Prioriza match exato por nota_fiscal_id
+        (1:1 com o serviço) e cai para (condominio_id, numero_os) quando não há
+        nota vinculada ainda.
+        """
+        from app.models.servico_model import ManutencaoAssistencia
+
+        servico = None
+        if corpo.nota_fiscal_id:
+            servico = (
+                db.query(ManutencaoAssistencia)
+                .filter(ManutencaoAssistencia.nota_fiscal_id == corpo.nota_fiscal_id)
+                .first()
+            )
+        if not servico and corpo.numero_os:
+            servico = (
+                db.query(ManutencaoAssistencia)
+                .filter(
+                    ManutencaoAssistencia.condominio_id == corpo.condominio_id,
+                    ManutencaoAssistencia.numero_os == corpo.numero_os,
+                )
+                .order_by(ManutencaoAssistencia.criado_em.desc())
+                .first()
+            )
+        if servico and servico.id != corpo.servico_id:
+            logger.info(
+                f"CorpoNota {corpo.id}: servico_id ressincronizado de "
+                f"{corpo.servico_id} para {servico.id} (numero_os={corpo.numero_os}, "
+                f"nota_fiscal_id={corpo.nota_fiscal_id})"
+            )
+            corpo.servico_id = servico.id
 
     @staticmethod
     def _validar_campos_para_gerar(corpo: CorpoNota) -> None:
@@ -1426,6 +1468,7 @@ class CorpoNotaService:
                         nota.nota_vinculada_id = nota_prod.id
                         nota_prod.nota_vinculada_id = nota.id
                         db.add(nota_prod)
+                CorpoNotaService._resync_servico_id(db, corpo)
                 db.add(nota)
                 CorpoNotaRepository.save(db, corpo)
                 ciclo = CicloNotaRepository.get_by_id(db, corpo.ciclo_id)
@@ -1486,6 +1529,7 @@ class CorpoNotaService:
                     nota.nota_vinculada_id = nota_prod.id
                     nota_prod.nota_vinculada_id = nota.id
                     db.add(nota_prod)
+            CorpoNotaService._resync_servico_id(db, corpo)
             db.add(nota)
             CorpoNotaRepository.save(db, corpo)
 
