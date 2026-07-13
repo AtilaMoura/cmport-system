@@ -724,6 +724,14 @@ export default function DetalheCorpoNotaPage() {
                 <InfoItem label="Nº Referência" value={corpo.numero_referencia ?? '—'} />
                 <InfoItem label="OS" value={corpo.numero_os ?? '—'} />
                 <InfoItem label="Mês de Referência" value={corpo.mes_referencia ?? '—'} />
+                {corpo.servico_id && (
+                  <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-1">Serviço Vinculado</div>
+                    <Link href={`/servicos/${corpo.servico_id}`} className="text-sm font-bold text-violet-600 dark:text-violet-400 hover:underline inline-flex items-center gap-1">
+                      Ver Serviço →
+                    </Link>
+                  </div>
+                )}
                 {corpo.data_servico_texto
                   ? <InfoItem label="Data(s) do Serviço" value={corpo.data_servico_texto} />
                   : <InfoItem label="Data do Serviço" value={fmt(corpo.data_servico)} />}

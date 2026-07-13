@@ -81,6 +81,14 @@ interface NotaFiscal {
   razao_social_emitente: string | null;
 }
 
+interface CorpoNotaVinculado {
+  id: number;
+  numero_referencia: string | null;
+  tipo_nota: string;
+  status: string;
+  valor_liquido: number | null;
+  mes_referencia: string | null;
+}
 
 interface Boleto {
   id: number;
@@ -218,6 +226,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [servico, setServico] = useState<Servico | null>(null);
   const [condominio, setCondominio] = useState<Condominio | null>(null);
   const [notaFiscal, setNotaFiscal] = useState<NotaFiscal | null>(null);
+  const [corpoNota, setCorpoNota] = useState<CorpoNotaVinculado | null>(null);
   const [boletos, setBoletos] = useState<Boleto[]>([]);
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState(false);
@@ -432,6 +441,14 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         setNotaFiscal(null);
         setBoletos([]);
         setNotaVinculada(null);
+      }
+
+      // Carregar Corpo da Nota vinculado (vínculo via servico_id, independente da nota_fiscal_id)
+      try {
+        const { data: cn } = await api.get(`/corpos-nota/por-servico/${id}`);
+        setCorpoNota(cn);
+      } catch {
+        setCorpoNota(null);
       }
 
       // Carregar Orçamento vinculado: tenta task_id direto, fallback para mais recente candidato
@@ -2285,6 +2302,40 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 <span className="text-3xl sm:text-4xl mb-3 block">📄</span>
                 <p className="text-slate-500 dark:text-slate-400 font-semibold">Sem nota fiscal vinculada</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Este serviço não está associado a nenhuma nota fiscal.</p>
+              </div>
+            )}
+
+            {/* Corpo da Nota Vinculado */}
+            {corpoNota && (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 bg-violet-50 dark:bg-violet-500/10 border-b border-violet-200 dark:border-violet-800/30 flex items-center justify-between flex-wrap gap-2">
+                  <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-xl">📝</span> Corpo da Nota Vinculado
+                  </h2>
+                  <Link href={`/corpos-nota/${corpoNota.id}`}
+                    className="px-3 py-1.5 text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-500/20 rounded-lg hover:brightness-105 transition-all flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    Abrir corpo da nota
+                  </Link>
+                </div>
+                <div className="p-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Referência</p>
+                    <p className="font-black text-slate-900 dark:text-white">{corpoNota.numero_referencia ?? '—'}</p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Status</p>
+                    <p className="font-bold text-slate-900 dark:text-white">{corpoNota.status}</p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Mês de Referência</p>
+                    <p className="font-bold text-slate-900 dark:text-white">{corpoNota.mes_referencia ?? '—'}</p>
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-500/10 rounded-xl p-3">
+                    <p className="text-xs font-bold text-green-600 dark:text-green-400 uppercase mb-1">Valor Líquido</p>
+                    <p className="font-black text-green-700 dark:text-green-300 text-lg">{corpoNota.valor_liquido != null ? fmt(corpoNota.valor_liquido) : '—'}</p>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -29,6 +29,16 @@ class CorpoNotaRepository:
         )
 
     @staticmethod
+    def get_by_servico_id(db: Session, servico_id: int) -> Optional[CorpoNota]:
+        """Retorna o corpo de nota (mais recente) vinculado a um serviço."""
+        return (
+            db.query(CorpoNota)
+            .filter(CorpoNota.servico_id == servico_id, CorpoNota.deletado_em.is_(None))
+            .order_by(CorpoNota.criado_em.desc())
+            .first()
+        )
+
+    @staticmethod
     def list_by_condominio(
         db: Session,
         condominio_id: int,

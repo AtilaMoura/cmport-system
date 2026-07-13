@@ -47,6 +47,19 @@ def listar_corpos(
     raise HTTPException(status_code=422, detail="Informe condominio_id ou ciclo_id.")
 
 
+@router.get("/por-servico/{servico_id}", response_model=CorpoNotaResponse)
+def get_corpo_por_servico(
+    servico_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Retorna o corpo de nota vinculado a um serviço específico."""
+    corpo = CorpoNotaService.get_by_servico_id(db, servico_id)
+    if not corpo:
+        raise HTTPException(status_code=404, detail="Nenhum corpo de nota vinculado a este serviço.")
+    return corpo
+
+
 @router.get("/buscar-os")
 def buscar_os_para_corpo(
     condominio_id: int,

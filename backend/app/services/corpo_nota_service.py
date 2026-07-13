@@ -49,6 +49,10 @@ class CorpoNotaService:
     def list_by_ciclo(db: Session, ciclo_id: int) -> List[CorpoNota]:
         return CorpoNotaRepository.list_by_ciclo(db, ciclo_id)
 
+    @staticmethod
+    def get_by_servico_id(db: Session, servico_id: int) -> Optional[CorpoNota]:
+        return CorpoNotaRepository.get_by_servico_id(db, servico_id)
+
     # ── Criação ──────────────────────────────────────────────────────────────
 
     @staticmethod
