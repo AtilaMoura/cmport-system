@@ -1,6 +1,6 @@
 from typing import List, Optional
 from datetime import date
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -112,7 +112,8 @@ def marcar_pago(
 @router.delete("/{recibo_id}", status_code=204)
 def deletar(
     recibo_id: int,
+    motivo: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    ReciboService.deletar(db, recibo_id)
+    ReciboService.deletar(db, recibo_id, motivo)

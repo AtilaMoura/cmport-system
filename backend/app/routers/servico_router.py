@@ -54,6 +54,18 @@ def get_servico_por_nota(nota_id: int, db: Session = Depends(get_db)):
     return servico
 
 
+@router.get("/por-recibo/{recibo_id}", response_model=ServicoResponse)
+def get_servico_por_recibo(recibo_id: int, db: Session = Depends(get_db)):
+    """Retorna o serviço vinculado a um recibo específico."""
+    from app.models.servico_model import ManutencaoAssistencia
+    servico = db.query(ManutencaoAssistencia).filter(
+        ManutencaoAssistencia.recibo_id == recibo_id
+    ).first()
+    if not servico:
+        raise HTTPException(status_code=404, detail="Nenhum serviço vinculado a este recibo.")
+    return servico
+
+
 @router.get("/{servico_id}", response_model=ServicoResponse)
 def get_servico(servico_id: int, db: Session = Depends(get_db)):
     servico = ServicoService.get_servico_by_id(db, servico_id)

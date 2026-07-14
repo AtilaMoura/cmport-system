@@ -166,8 +166,20 @@ class ReciboService:
         return ReciboRepository.save(db, r)
 
     @staticmethod
-    def deletar(db: Session, recibo_id: int) -> None:
+    def deletar(db: Session, recibo_id: int, motivo: Optional[str] = None) -> None:
+        from app.routers.auditoria_router import registrar_exclusao
         r = ReciboService.get_by_id(db, recibo_id)
+        dados = {
+            "id": r.id,
+            "numero_recibo": r.numero_recibo,
+            "tipo": r.tipo,
+            "valor": str(r.valor),
+            "status": r.status,
+            "condominio_id": r.condominio_id,
+            "cliente_id": r.cliente_id,
+            "data_emissao": str(r.data_emissao),
+        }
+        registrar_exclusao(db, "recibo", recibo_id, dados, motivo)
         r.deletado_em = datetime.utcnow()
         r.status = "CANCELADO"
         ReciboRepository.save(db, r)

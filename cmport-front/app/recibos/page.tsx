@@ -154,7 +154,7 @@ export default function RecibosPage() {
                 const nome = r.cliente?.nome || r.cliente_nome_avulso || '—';
                 const apto = r.cliente?.apartamento;
                 return (
-                  <div key={r.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <Link key={r.id} href={`/recibos/${r.id}`} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-sm text-slate-900 dark:text-white font-mono">{r.numero_recibo}</span>
@@ -174,7 +174,7 @@ export default function RecibosPage() {
                       <div className="font-black text-base text-slate-900 dark:text-white">{fmtValor(r.valor)}</div>
                       {r.status === 'PENDENTE' && (
                         <button
-                          onClick={() => marcarPago(r.id)}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); marcarPago(r.id); }}
                           disabled={marcandoPago === r.id}
                           className="px-2.5 py-1 bg-green-600 text-white text-[10px] font-bold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                         >
@@ -182,7 +182,7 @@ export default function RecibosPage() {
                         </button>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
