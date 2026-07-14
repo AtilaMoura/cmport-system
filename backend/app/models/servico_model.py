@@ -37,3 +37,4 @@ class ManutencaoAssistencia(Base):
     nota_fiscal = relationship("NotaFiscal")
     ordem_servico = relationship("OrdemServico")
     orcamento = relationship("Orcamento")
+    recibo = relationship("Recibo", foreign_keys=[recibo_id], back_populates="servicos")

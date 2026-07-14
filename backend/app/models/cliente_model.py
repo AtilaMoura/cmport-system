@@ -13,6 +13,10 @@ class Cliente(Base):
     condominio_id = Column(Integer, ForeignKey("condominios.id", ondelete="SET NULL"), nullable=True, index=True)
     condominio = relationship("Condominio", lazy="joined")
 
+    # ID do Customer no Auvo — usado para localizar OS desse cliente quando ele
+    # é cadastrado como Customer próprio (ex.: PF/PJ fora do condomínio)
+    auvo_id = Column(Integer, nullable=True, unique=True, index=True)
+
     nome = Column(String(255), nullable=False)
     tipo = Column(String(2), nullable=False, default="PF")  # PF | PJ
     cpf_cnpj = Column(String(18), nullable=True)

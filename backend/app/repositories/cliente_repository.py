@@ -26,10 +26,13 @@ class ClienteRepository:
         condominio_id: Optional[int] = None,
         apenas_ativos: bool = False,
         busca: Optional[str] = None,
+        sem_condominio: bool = False,
     ) -> List[Cliente]:
         q = db.query(Cliente).filter(Cliente.deletado_em.is_(None))
         if condominio_id:
             q = q.filter(Cliente.condominio_id == condominio_id)
+        elif sem_condominio:
+            q = q.filter(Cliente.condominio_id.is_(None))
         if apenas_ativos:
             q = q.filter(Cliente.ativo.is_(True))
         if busca:

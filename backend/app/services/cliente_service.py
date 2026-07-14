@@ -22,6 +22,7 @@ class ClienteService:
             telefone=payload.telefone,
             observacao=payload.observacao,
             ativo=payload.ativo,
+            auvo_id=payload.auvo_id,
         )
         return ClienteRepository.create(db, cliente)
 
@@ -33,8 +34,14 @@ class ClienteService:
         return c
 
     @staticmethod
-    def list_all(db: Session, condominio_id: Optional[int] = None, apenas_ativos: bool = False, busca: Optional[str] = None) -> List[Cliente]:
-        return ClienteRepository.list_all(db, condominio_id, apenas_ativos, busca)
+    def list_all(
+        db: Session,
+        condominio_id: Optional[int] = None,
+        apenas_ativos: bool = False,
+        busca: Optional[str] = None,
+        sem_condominio: bool = False,
+    ) -> List[Cliente]:
+        return ClienteRepository.list_all(db, condominio_id, apenas_ativos, busca, sem_condominio)
 
     @staticmethod
     def list_by_condominio(db: Session, condominio_id: int, apenas_ativos: bool = False) -> List[Cliente]:
@@ -59,6 +66,8 @@ class ClienteService:
             c.observacao = payload.observacao
         if payload.ativo is not None:
             c.ativo = payload.ativo
+        if payload.auvo_id is not None:
+            c.auvo_id = payload.auvo_id
         return ClienteRepository.save(db, c)
 
     @staticmethod

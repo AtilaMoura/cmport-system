@@ -31,9 +31,13 @@ class ReciboService:
 
         recibo = Recibo(
             numero_recibo=numero,
+            tipo=payload.tipo,
             cliente_id=payload.cliente_id,
             condominio_id=condominio_id,
             cliente_nome_avulso=payload.cliente_nome_avulso,
+            configuracao_inter_id=payload.configuracao_inter_id,
+            cnpj_emitente=payload.cnpj_emitente,
+            cnpj_cliente=payload.cnpj_cliente,
             descricao_servico=payload.descricao_servico,
             valor=payload.valor,
             data_emissao=payload.data_emissao,
@@ -44,23 +48,68 @@ class ReciboService:
         )
         recibo = ReciboRepository.create(db, recibo)
 
-        # Cria serviço de ASSISTENCIA automaticamente se houver condomínio
-        if condominio_id:
-            ReciboService._criar_servico(db, recibo, condominio_id)
+        if condominio_id and payload.numero_os:
+            ReciboService._vincular_ou_criar_servico_por_os(
+                db, recibo, condominio_id, payload.numero_os, payload.data_servico, tipo=payload.tipo_servico,
+            )
+        elif payload.gerar_servico and condominio_id:
+            ReciboService._criar_servico(db, recibo, condominio_id, tipo=payload.tipo_servico)
 
         return recibo
 
     @staticmethod
-    def _criar_servico(db: Session, recibo: Recibo, condominio_id: int) -> None:
+    def _vincular_ou_criar_servico_por_os(
+        db: Session,
+        recibo: Recibo,
+        condominio_id: int,
+        numero_os: str,
+        data_servico: Optional[date],
+        tipo: str = "ASSISTENCIA",
+    ) -> None:
+        """Reaproveita a OS já cadastrada (mesmo padrão do Corpo de Nota — nunca duplica
+        ManutencaoAssistencia para a mesma (condominio_id, numero_os)). Se a OS encontrada
+        já pertence a outro recibo, não a rouba — cria uma nova em vez de sobrescrever."""
+        from app.models.servico_model import ManutencaoAssistencia
+
+        servico = (
+            db.query(ManutencaoAssistencia)
+            .filter(
+                ManutencaoAssistencia.condominio_id == condominio_id,
+                ManutencaoAssistencia.numero_os == numero_os,
+            )
+            .order_by(ManutencaoAssistencia.criado_em.desc())
+            .first()
+        )
+        if servico and servico.recibo_id and servico.recibo_id != recibo.id:
+            servico = None
+
+        if servico:
+            servico.recibo_id = recibo.id
+            db.commit()
+            return
+
+        ReciboService._criar_servico(db, recibo, condominio_id, tipo=tipo, numero_os=numero_os, data_servico=data_servico)
+
+    @staticmethod
+    def _criar_servico(
+        db: Session,
+        recibo: Recibo,
+        condominio_id: int,
+        tipo: str = "ASSISTENCIA",
+        numero_os: Optional[str] = None,
+        data_servico: Optional[date] = None,
+    ) -> None:
         from app.models.servico_model import ManutencaoAssistencia, TipoServico
         nome_cliente = (
             recibo.cliente.nome if recibo.cliente_id and recibo.cliente
             else recibo.cliente_nome_avulso or "Cliente"
         )
+        tipo_enum = TipoServico.MANUTENCAO if tipo == "MANUTENCAO" else TipoServico.ASSISTENCIA
         servico = ManutencaoAssistencia(
             condominio_id=condominio_id,
-            tipo=TipoServico.ASSISTENCIA,
-            data_servico=recibo.data_emissao,
+            tipo=tipo_enum,
+            numero_os=numero_os,
+            data_servico=data_servico or recibo.data_emissao,
             descricao=f"{recibo.descricao_servico} — {nome_cliente}",
             recibo_id=recibo.id,
         )
@@ -88,10 +137,18 @@ class ReciboService:
     @staticmethod
     def atualizar(db: Session, recibo_id: int, payload: ReciboUpdate) -> Recibo:
         r = ReciboService.get_by_id(db, recibo_id)
+        if payload.tipo is not None:
+            r.tipo = payload.tipo
         if payload.cliente_id is not None:
             r.cliente_id = payload.cliente_id
         if payload.cliente_nome_avulso is not None:
             r.cliente_nome_avulso = payload.cliente_nome_avulso
+        if payload.configuracao_inter_id is not None:
+            r.configuracao_inter_id = payload.configuracao_inter_id
+        if payload.cnpj_emitente is not None:
+            r.cnpj_emitente = payload.cnpj_emitente
+        if payload.cnpj_cliente is not None:
+            r.cnpj_cliente = payload.cnpj_cliente
         if payload.descricao_servico is not None:
             r.descricao_servico = payload.descricao_servico
         if payload.valor is not None:

@@ -13,6 +13,7 @@ class ClienteCreate(BaseModel):
     telefone: Optional[str] = None
     observacao: Optional[str] = None
     ativo: bool = True
+    auvo_id: Optional[int] = None
 
 
 class ClienteUpdate(BaseModel):
@@ -24,6 +25,7 @@ class ClienteUpdate(BaseModel):
     telefone: Optional[str] = None
     observacao: Optional[str] = None
     ativo: Optional[bool] = None
+    auvo_id: Optional[int] = None
 
 
 class ClienteResponse(BaseModel):
@@ -38,6 +40,7 @@ class ClienteResponse(BaseModel):
     telefone: Optional[str] = None
     observacao: Optional[str] = None
     ativo: bool
+    auvo_id: Optional[int] = None
     criado_em: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

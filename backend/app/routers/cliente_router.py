@@ -23,10 +23,11 @@ def listar(
     condominio_id: Optional[int] = None,
     apenas_ativos: bool = False,
     busca: Optional[str] = None,
+    sem_condominio: bool = False,
     db: Session = Depends(get_db),
     usuario=Depends(get_current_user),
 ):
-    clientes = ClienteService.list_all(db, condominio_id, apenas_ativos, busca)
+    clientes = ClienteService.list_all(db, condominio_id, apenas_ativos, busca, sem_condominio)
     result = []
     for c in clientes:
         d = ClienteResponse.model_validate(c)

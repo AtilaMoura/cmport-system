@@ -6,173 +6,91 @@
 
 ---
 
-## Tarefas Concluídas (sessão 2026-06-17)
+## Tarefa Anterior (P2 — Corpo de Nota, sessão 2026-06-17) — ARQUIVADA
 
-| Fase | Descrição | Commit | Status |
-|------|-----------|--------|--------|
-| A | Fix condicionais PRODUTO (Via Orçamento + Manual) | 1fb6cd6 | ✅ |
-| B | Step 3 sem abas — OS + Orçamento simultâneos | d33545b | ✅ |
-| C | Garantia: 3 botões toggle + modal Termo automático | d33545b | ✅ |
-| D | TermoGarantia: data_inicio/data_fim nullable | d33545b | ✅ |
-| E | Email: não anexar PDF de Termo com data pendente | d33545b | ✅ |
-| F | Serviço: badge ⏳ + input data + PATCH quando Termo pendente | d33545b | ✅ |
-| — | Config meses histórico OS (Step 3, default 2) | 1644b06 | ✅ |
-| — | Fix: emitente não some ao trocar tipo de nota (Step 1) | 68aed7d | ✅ |
-| — | Deploy VPS + ALTER TABLE (termos_garantia + configuracao_empresa) | — | ✅ |
+Todos os itens `P2-A/B/C` implementados e confirmados no código em 2026-07-14 (ver `cmport-front/app/corpos-nota/novo/page.tsx`). Checklist de testes manuais que ainda não foi marcado está em `PENDENCIAS.md`. Trabalho continuou em commits posteriores (`8712de6`, `f80c59e`, `9bffe63`, `261db4c`).
 
 ---
 
-## Corpo de Nota de Referência (exemplo gerado 2026-06-17)
+## Tarefa Ativa — Feature Recibo: tipo ENTRADA/SAIDA + vínculo com serviço
 
-> Caso de teste real — usado para validar o fluxo PRODUTO com orçamento e sem OS.
+### Objetivo
 
-| Campo | Valor |
-|-------|-------|
-| Número | PRD-2026/0003 |
-| Tipo | PRODUTO |
-| Condomínio | CONDOMINIO EDIFICIO VERMONT |
-| Mês de Referência | 06/2026 |
-| OS | — (sem OS vinculada — preenchimento manual) |
-| Data do Serviço | — (em branco) |
-| Vencimento | 24/06/2026 |
-| Nota Fiscal | 0126 (XML aguardando) |
-| Preenchimento | Manual |
-| CNPJ / Conta Inter | 22.761.557/0001-88 — CMPORT SISTEMAS DE ELETRONICOS DE SEGURANCA LTDA |
-| Orçamento | #15 |
+Reescrever o wizard de `/recibos/novo` de 3 para 5 passos (Tipo → Vínculo → Contraparte → OS → Financeiro), suportando:
+- **Tipo**: ENTRADA (cliente pagou a CMPort) ou SAIDA (CMPort pagou subcontratado)
+- **Vínculo**: recibo com ou sem condomínio (cliente externo PF/PJ fora do condomínio)
+- **Contraparte**: o próprio condomínio, morador cadastrado, cliente externo (com cadastro rápido inline), ou nome avulso
+- **OS**: reaproveitar OS já sincronizada do Auvo (evita duplicar `ManutencaoAssistencia`) ou seguir sem OS
+- **Financeiro**: valor, datas, CNPJ/conta Inter emitente, opção de gerar serviço vinculado
 
-**Observações para P2:** este corpo foi gerado sem OS e sem data do serviço — ilustra exatamente os cenários P2-B (data vazia) e P2-C (número OS vazio). O valor deve ter vindo do orçamento #15 (P2-A).
+### Estado no início desta sessão (2026-07-14)
 
----
+Todo o código já estava escrito por uma sessão anterior, **não commitado**:
+`backend/app/models/recibo_model.py`, `backend/app/models/servico_model.py`, `backend/app/schemas/recibo_schema.py`, `backend/app/services/recibo_service.py`, `backend/app/routers/recibo_router.py`, `backend/app/main.py` (migrações incrementais), `cmport-front/app/recibos/novo/page.tsx`.
 
-## Prioridade 1 — CI/CD: GitHub Actions + Docker Hub → VPS Pull ✅ CONCLUÍDO
+O `PENDENCIAS.md` já apontava que essa feature estava desalinhada do `Refatoracao.md` — este arquivo agora documenta o plano técnico retroativamente e os resultados do teste local.
 
-### Checklist CI/CD
+### Migração de banco — já resolvida
 
-- [x] **A**: Docker Hub — conta `cmport` + token gerados
-- [x] **A**: Repositório GitHub público criado em `github.com/AtilaMoura/cmport-system`
-- [x] **A**: 4 secrets configurados no GitHub (DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, VPS_HOST, VPS_SSH_KEY)
-- [x] **B**: `docker-compose.prod.yml` com username hardcoded (`cmport/cmport-api:latest`, `cmport/cmport-front:latest`)
-- [x] **C**: `deploy.yml` — SCP + SSH, `command_timeout: 30m`, pull só de api+front (não mysql/nginx/minio)
-- [x] **D**: `git remote add origin` + primeiro `git push origin master` (commit `ea7ab8e`)
-- [x] **F**: Hook `post-receive` simplificado + `nohup` (deploy em background, conexão SSH não derruba o processo)
-- [x] **G**: CLAUDE.md atualizado com os dois fluxos
-- [x] **Verificação**: run `27779777075` em progresso — build backend+frontend OK, deploy na VPS em andamento
-- [x] **Verificação**: containers VPS rodando com `cmport/cmport-api:latest` e `cmport/cmport-front:latest`
+`backend/app/main.py` tem uma rotina `_run_migrations()` que roda `ALTER TABLE ... ADD COLUMN` de forma idempotente a cada start (captura erro de coluna duplicada e segue). As colunas novas de `recibos` (`tipo`, `configuracao_inter_id`, `cnpj_emitente`, `cnpj_cliente`) e `clientes.auvo_id` já estão nessa lista (linhas ~148-154). **Não é necessário ALTER TABLE manual** — nem local nem na VPS, a próxima subida do backend já aplica.
 
-### Estado Atual do deploy.yml (commit ea7ab8e)
+### Sessão de Teste Local (2026-07-14)
 
-```yaml
-- name: Build e push — Backend   # sempre builda (otimização pendente — ver P1-H)
-- name: Build e push — Frontend  # sempre builda (otimização pendente — ver P1-H)
-- name: Sincronizar arquivos de infra para VPS  # SCP: docker-compose.prod.yml + nginx/
-- name: Deploy na VPS            # SSH: docker pull api+front → up -d → prune
-  command_timeout: 30m
-```
+Ambiente: Docker `cmport_db` (MySQL local), backend uvicorn, frontend `next dev`, login com usuário DEV, navegação via Playwright.
 
-### P1-H — Otimização: buildar só o que mudou (EM IMPLEMENTAÇÃO)
+#### Bug 1 — `limit=1000` excede cap do backend (422 ao carregar condomínios)
 
-**Problema:** toda push rebuilda backend E frontend, mesmo que só um lado mudou.
+`cmport-front/app/recibos/novo/page.tsx:94` pedia `/condominios?ativo=true&limit=1000`, mas `condominio_router.py:100` define `Query(700, ge=1, le=700)`. Toda vez que o Step 2 tentava carregar a lista de condomínios, a API retornava 422 e a lista ficava vazia.
+**Fix aplicado:** `limit=1000` → `limit=700` no fetch do wizard de recibo.
+**Nota:** o mesmo bug existe em `cmport-front/app/clientes/novo/page.tsx:35` (pré-existente, fora do escopo desta tarefa — mencionar se for mexer nessa página).
 
-**Solução:** detectar mudanças por pasta com `git diff` e condicionar cada step com `if:`:
+#### Bug 2 — Lista de OS sempre mostrava "OS nº —" + warning de `key` duplicada
 
-```yaml
-- name: Detectar mudanças
-  id: changes
-  run: |
-    echo "backend=$(git diff --name-only HEAD~1 HEAD | grep -q '^backend/' && echo true || echo false)" >> $GITHUB_OUTPUT
-    echo "frontend=$(git diff --name-only HEAD~1 HEAD | grep -q '^cmport-front/' && echo true || echo false)" >> $GITHUB_OUTPUT
+`GET /recibos/buscar-os` devolvia os campos brutos de `OrdemServicoService._enriquecer()` (`task_id`, `task_date`, `task_type_description`, `orientation`...), mas o frontend (`OsDisponivel` interface) esperava `numero_os`, `data_servico`, `descricao_preview`, `descricao_completa` — campos que nunca existiram na resposta. Resultado: todos os botões da lista de OS ficavam idênticos ("OS nº —"), com warning de React por `key={os.numero_os}` undefined repetido.
+**Fix aplicado:** `backend/app/routers/recibo_router.py` — endpoint `buscar_os` agora mapeia a lista para o formato esperado, seguindo exatamente o padrão já usado em `corpo_nota_router.py:112-124` (`numero_os = str(task_id)`, `data_servico = task_date.date().isoformat()`, `descricao_preview`/`descricao_completa` a partir de `task_type_description`/`orientation`).
+**Importante:** não alterei `OrdemServicoService._enriquecer()` nem `listar_disponiveis_condominio/cliente`, pois `ordem_servico_router.py:66` depende do formato bruto original — a transformação foi feita só na camada do router de recibo.
 
-- name: Build e push — Backend
-  if: steps.changes.outputs.backend == 'true'
-  ...
+#### Bug 3 — Data da OS exibida um dia antes (offset de fuso horário)
 
-- name: Build e push — Frontend
-  if: steps.changes.outputs.frontend == 'true'
-  ...
-```
+`cmport-front/app/recibos/novo/page.tsx:441` fazia `new Date(os.data_servico).toLocaleDateString('pt-BR')` sobre uma string `"YYYY-MM-DD"`. `new Date()` interpreta strings date-only como UTC meia-noite; convertida para o fuso local (Brasil, UTC-3), o dia exibido ficava um a menos (API retornava `2026-04-10`, tela mostrava `09/04/2026`).
+**Fix aplicado:** troquei para `os.data_servico.split('-').reverse().join('/')`, sem passar pelo `Date`.
 
-Na VPS, o script SSH só faz `docker pull` da imagem que foi rebuilda.
+### Resultado dos testes end-to-end (após os 3 fixes)
 
-- [ ] Implementar detecção de mudanças no `deploy.yml`
-- [ ] Testar: mudar só frontend → Actions pula build do backend
-- [ ] Testar: mudar só backend → Actions pula build do frontend
+- ✅ **ENTRADA + condomínio (VERMONT) + "o próprio condomínio" + OS reaproveitada**: criou `Recibo` (`REC-2026-019`, tipo ENTRADA, condominio_id, configuracao_inter_id, cnpj_emitente corretos) **e** vinculou/criou `ManutencaoAssistencia` com `numero_os`/`data_servico` corretos e `recibo_id` preenchido — confirmado direto no banco.
+- ✅ **SAIDA + fora do condomínio + cadastro rápido de cliente externo + sem OS**: criou `Cliente` novo (`condominio_id NULL`, `auvo_id NULL`) e `Recibo` (`REC-2026-020`, tipo SAIDA, `cliente_id` preenchido, `condominio_id NULL`) — confirmado no banco. Step 4 corretamente mostrou "Nenhuma OS disponível" (cliente sem `auvo_id`) e o checkbox "Gerar OS vinculada" ficou desabilitado (correto, só disponível com condomínio).
+- Sem erros de console em nenhum dos dois fluxos após os fixes.
+
+### Nota de ambiente (não é bug do código)
+
+Neste ambiente local, a porta 8000 já está ocupada por outro projeto (`nia_backend`, container Docker). Isso causa roteamento ambíguo entre IPv4/IPv6 quando o backend do CMPort também tenta subir na 8000 (Windows permite dois binds simultâneos em `0.0.0.0:8000`, e o SO escolhe de forma não-determinística qual processo responde). Para testar localmente, usei backend na porta 8001 + `BACKEND_URL=http://127.0.0.1:8001` em `.env.local` (revertido ao final). Se for comum testar os dois projetos ao mesmo tempo, vale considerar fixar uma porta alternativa permanente para o CMPort.
+
+### Pendências / Checklist
+
+- [x] Bug 1 — limit=700 no fetch de condomínios do wizard de recibo
+- [x] Bug 2 — mapeamento correto de campos em `/recibos/buscar-os`
+- [x] Bug 3 — parse de data sem offset de fuso
+- [x] Teste local: ENTRADA + condomínio + contraparte condomínio + OS reaproveitada
+- [x] Teste local: SAIDA + cliente externo (cadastro rápido) + sem OS
+- [ ] Teste local: contraparte "Morador cadastrado" (dentro do condomínio)
+- [ ] Teste local: "Digitar nome avulso" (sem cadastro, sem OS)
+- [ ] Teste local: checkbox "Gerar OS vinculada ao recibo" quando há condomínio mas nenhuma OS para reaproveitar
+- [ ] Revisar página de listagem `/recibos` e eventual detalhe para exibir os campos novos (`tipo`, `cnpj_emitente`, `cnpj_cliente`) — não verificado nesta sessão
+- [x] `npx tsc --noEmit` no frontend após os fixes — zerado
+- [ ] Commitar tudo (models, schema, service, router, main.py, frontend) — hoje está 100% uncommitted
+- [ ] Confirmar que o próximo deploy da VPS aplica a auto-migração sem erro (idempotente, mas validar em produção)
+- [ ] (Fora do escopo, achado ao investigar) `clientes/novo/page.tsx:35` tem o mesmo bug do `limit=1000` — considerar corrigir numa próxima tarefa
 
 ---
 
-## Prioridade 2 — Correções no Wizard: Valor, Datas e Número da OS
+## Mapa de Arquivos (Recibo)
 
-### P2-A: Valor pré-preenchido por tipo de nota
-
-**Problema:** O campo "Valor Bruto" no Step 4 sempre exibe o valor do contrato registrado, mas para SERVIÇO e PRODUTO o valor correto deve vir do orçamento ou da OS — não do contrato.
-
-**Regras:**
-
-| Tipo | Origem do valor pré-preenchido |
-|------|-------------------------------|
-| MANUTENÇÃO | Valor do contrato (comportamento atual — manter) |
-| SERVIÇO | Valor do orçamento selecionado → se sem orçamento, valor da OS → se nenhum, campo vazio (usuário preenche) |
-| PRODUTO | Idem SERVIÇO |
-
-**Comportamento:**
-- Campo "Valor Bruto" sempre editável pelo usuário independente da origem
-- Quando orçamento é selecionado no Step 3 → preenche valor automaticamente (já acontece parcialmente, verificar)
-- Quando OS é selecionada sem orçamento → tentar puxar valor da OS se disponível
-- Se nenhuma origem → campo começa vazio para SERVIÇO/PRODUTO
-
-**Arquivos prováveis:**
-- `cmport-front/app/corpos-nota/novo/page.tsx` — lógica de preenchimento de `valorBruto`
-- Verificar função `selecionarOrcamento` e `selecionarCondominio` (onde valor é atribuído)
-
----
-
-### P2-B: Campo "Datas dos Serviços Executados" — editável e manual
-
-**Problema:** O campo de data do serviço (`dataServico` / `dataServicoTexto`) não permite edição manual fácil quando nenhuma OS está vinculada, ou quando a data da OS não corresponde ao período real.
-
-**Comportamento esperado:**
-- Campo sempre editável pelo usuário (input de data ou texto livre)
-- Quando OS é selecionada → preenche automaticamente com a data da OS (comportamento atual)
-- Quando sem OS → campo em branco, usuário digita manualmente
-- Nunca bloquear edição mesmo quando auto-preenchido
-
-**Arquivos prováveis:**
-- `cmport-front/app/corpos-nota/novo/page.tsx` — Step 4, campo `dataServico`/`dataServicoTexto`
-
----
-
-### P2-C: Campo "Número(s) da OS" — sempre editável e manual
-
-**Problema:** O campo "Número(s) da OS" é preenchido automaticamente quando OS é selecionada, mas o usuário pode não conseguir editar ou inserir manualmente quando não há OS no sistema.
-
-**Comportamento esperado:**
-- Campo sempre visível e editável (já implementado no Step 3, verificar se está funcionando)
-- Quando OS selecionada → preenche automaticamente
-- Usuário pode sobrescrever o valor a qualquer momento
-- Quando sem OS → campo em branco para digitação livre
-
-**Arquivos prováveis:**
-- `cmport-front/app/corpos-nota/novo/page.tsx` — state `numeroOs`, Step 3
-
----
-
-### Checklist P2
-
-- [ ] **P2-A**: SERVIÇO/PRODUTO puxam valor do orçamento → se sem orçamento, da OS → se nenhum, vazio
-- [ ] **P2-A**: MANUTENÇÃO mantém valor do contrato (sem regressão)
-- [ ] **P2-A**: Campo sempre editável pelo usuário
-- [ ] **P2-B**: Data do serviço sempre editável, auto-preenchida da OS quando disponível
-- [ ] **P2-B**: Sem OS → campo vazio para digitação manual
-- [ ] **P2-C**: Número(s) da OS sempre editável, auto-preenchido quando OS selecionada
-- [ ] **P2-C**: Sem OS → campo em branco para digitação livre
-- [ ] `npx tsc --noEmit` zerado
-- [ ] Teste: corpo MANUTENÇÃO — valor do contrato preservado
-- [ ] Teste: corpo SERVIÇO com orçamento — valor do orçamento
-- [ ] Teste: corpo PRODUTO sem orçamento nem OS — campos editáveis e em branco
-
----
-
-## Mapa de Arquivos (P2)
-
-| Arquivo | Tarefa | O que muda |
-|---------|--------|-----------|
-| `cmport-front/app/corpos-nota/novo/page.tsx` | P2-A, B, C | Lógica de preenchimento de valor, data e número OS |
+| Arquivo | O que muda |
+|---------|-----------|
+| `backend/app/models/recibo_model.py` | Campos `tipo`, `configuracao_inter_id`, `cnpj_emitente`, `cnpj_cliente` + relação `servicos` |
+| `backend/app/models/servico_model.py` | Relação `recibo` (coluna `recibo_id` já existia) |
+| `backend/app/schemas/recibo_schema.py` | `ReciboCreate`/`Update`/`Response` com os campos novos + `gerar_servico`, `tipo_servico`, `numero_os`, `data_servico` |
+| `backend/app/services/recibo_service.py` | `_vincular_ou_criar_servico_por_os` (reaproveita OS sem duplicar) + `_criar_servico` parametrizado |
+| `backend/app/routers/recibo_router.py` | Endpoint `GET /recibos/buscar-os` (corrigido nesta sessão) |
+| `backend/app/main.py` | Migrações incrementais idempotentes (linhas ~148-154) |
+| `cmport-front/app/recibos/novo/page.tsx` | Wizard 5 passos (corrigido: limit=700, mapeamento OS, parse de data) |

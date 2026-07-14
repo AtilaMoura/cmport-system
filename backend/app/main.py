@@ -144,6 +144,14 @@ def _run_migrations():
         "ALTER TABLE manutencoes_assistencias ADD CONSTRAINT fk_servico_recibo FOREIGN KEY (recibo_id) REFERENCES recibos(id) ON DELETE SET NULL",
         # Declarações Fiscais — endereço da empresa para os templates
         "ALTER TABLE configuracao_empresa ADD COLUMN endereco_fiscal VARCHAR(500) NULL",
+        # Recibo — tipo ENTRADA/SAIDA + CNPJ emitente/cliente + reaproveitamento de OS via Auvo
+        "ALTER TABLE recibos ADD COLUMN tipo VARCHAR(10) NOT NULL DEFAULT 'SAIDA'",
+        "ALTER TABLE recibos ADD COLUMN configuracao_inter_id INT NULL",
+        "ALTER TABLE recibos ADD CONSTRAINT fk_recibos_configuracao_inter FOREIGN KEY (configuracao_inter_id) REFERENCES configuracao_inter(id) ON DELETE SET NULL",
+        "ALTER TABLE recibos ADD COLUMN cnpj_emitente VARCHAR(20) NULL",
+        "ALTER TABLE recibos ADD COLUMN cnpj_cliente VARCHAR(20) NULL",
+        "ALTER TABLE clientes ADD COLUMN auvo_id INT NULL",
+        "ALTER TABLE clientes ADD UNIQUE INDEX uq_clientes_auvo_id (auvo_id)",
     ]
     try:
         for stmt in stmts:
