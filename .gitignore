@@ -75,9 +75,14 @@ cmport-front/.env.production
 # =========================
 backend/app/auth/*.crt
 backend/app/auth/*.key
+certificado-digital/
+*.pfx
+*.p12
 
 # =========================
 # Arquivos não usados no sistema
 # =========================
 _arquivo/
 ~$*
+.playwright-mcp/
+bash.exe.stackdump
