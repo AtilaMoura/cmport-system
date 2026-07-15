@@ -8,7 +8,8 @@ import { calcularImposto } from '@/lib/impostos';
 
 interface Servico {
   id: number;
-  condominio_id: number;
+  condominio_id: number | null;
+  recibo_id: number | null;
   tipo: 'manutencao' | 'assistencia';
   data_servico: string;
   descricao: string | null;
@@ -19,6 +20,23 @@ interface Servico {
   atualizado_em: string;
   email_enviado_em: string | null;
   email_destinatarios: string[] | null;
+}
+
+interface ClienteRecibo {
+  id: number;
+  nome: string;
+  email: string | null;
+  condominio_id: number | null;
+  condominio_nome: string | null;
+}
+
+interface ReciboVinculado {
+  id: number;
+  numero_recibo: string;
+  cliente_id: number | null;
+  cliente: ClienteRecibo | null;
+  cliente_nome_avulso: string | null;
+  condominio_id: number | null;
 }
 
 interface ConfigImpostos {
@@ -225,6 +243,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const router = useRouter();
   const [servico, setServico] = useState<Servico | null>(null);
   const [condominio, setCondominio] = useState<Condominio | null>(null);
+  const [reciboVinculado, setReciboVinculado] = useState<ReciboVinculado | null>(null);
   const [notaFiscal, setNotaFiscal] = useState<NotaFiscal | null>(null);
   const [corpoNota, setCorpoNota] = useState<CorpoNotaVinculado | null>(null);
   const [boletos, setBoletos] = useState<Boleto[]>([]);
@@ -397,8 +416,24 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       setDataServico(s.data_servico);
       setDescricao(s.descricao || '');
 
-      const condoRes = await api.get(`/condominios/${s.condominio_id}`);
-      setCondominio(condoRes.data);
+      if (s.condominio_id) {
+        const condoRes = await api.get(`/condominios/${s.condominio_id}`);
+        setCondominio(condoRes.data);
+      } else {
+        setCondominio(null);
+      }
+
+      // Serviço nascido de Recibo pode não ter condomínio — carrega dados do recibo/cliente
+      if (s.recibo_id) {
+        try {
+          const { data: rec } = await api.get(`/recibos/${s.recibo_id}`);
+          setReciboVinculado(rec);
+        } catch {
+          setReciboVinculado(null);
+        }
+      } else {
+        setReciboVinculado(null);
+      }
 
       if (s.numero_os) {
         try {
@@ -1687,6 +1722,38 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                     </div>
                     <svg className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Origem: Recibo (serviço sem nota fiscal, gerado a partir de um recibo) */}
+            {reciboVinculado && (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                  <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><span>🧾</span> Origem: Recibo</h3>
+                </div>
+                <div className="p-4 space-y-2">
+                  <Link href={`/recibos/${reciboVinculado.id}`}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white text-sm font-black shrink-0">
+                      {(reciboVinculado.cliente?.nome || reciboVinculado.cliente_nome_avulso || '??').substring(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                        {reciboVinculado.cliente?.nome || reciboVinculado.cliente_nome_avulso || 'Cliente'}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">{reciboVinculado.numero_recibo}</p>
+                    </div>
+                    <svg className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </Link>
+                  {reciboVinculado.cliente?.email && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 px-3">📧 {reciboVinculado.cliente.email}</p>
+                  )}
+                  <p className="text-xs px-3 font-bold">
+                    {reciboVinculado.cliente?.condominio_id
+                      ? <span className="text-emerald-600 dark:text-emerald-400">Cliente também vinculado ao condomínio {reciboVinculado.cliente.condominio_nome || `#${reciboVinculado.cliente.condominio_id}`}</span>
+                      : <span className="text-slate-400">Cliente sem condomínio vinculado</span>}
+                  </p>
                 </div>
               </div>
             )}
