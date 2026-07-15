@@ -78,9 +78,18 @@ def _build_context(db: Session, termo_id: int) -> dict:
         if getattr(servico, 'ordem_servico', None):
             produto_desc = servico.ordem_servico.report or ""
 
+    # Serviço nascido de Recibo pode não ter condomínio — usa nome do cliente do recibo.
+    if condominio:
+        cliente_nome = condominio.nome
+    elif getattr(servico, 'recibo', None):
+        recibo = servico.recibo
+        cliente_nome = recibo.cliente.nome if recibo.cliente_id and recibo.cliente else (recibo.cliente_nome_avulso or "Cliente")
+    else:
+        cliente_nome = "Cliente"
+
     return {
         "data_hoje":         f"São Paulo, {_fmt_data_extenso(datetime.now())}",
-        "cliente_nome":      condominio.nome,
+        "cliente_nome":      cliente_nome,
         "cliente_endereco":  endereco_str,
         "produto_descricao": produto_desc,
         "data_servico":      _fmt_date(servico.data_servico),

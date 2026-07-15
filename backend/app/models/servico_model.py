@@ -15,7 +15,9 @@ class ManutencaoAssistencia(Base):
     __tablename__ = "manutencoes_assistencias"
 
     id = Column(Integer, primary_key=True, index=True)
-    condominio_id = Column(Integer, ForeignKey("condominios.id"), nullable=False, index=True)
+    # Nullable: serviço gerado a partir de Recibo pode não ter condomínio (usa dados do
+    # próprio recibo/cliente nesse caso — ver ReciboService). Nota Fiscal sempre preenche.
+    condominio_id = Column(Integer, ForeignKey("condominios.id"), nullable=True, index=True)
     nota_fiscal_id = Column(Integer, ForeignKey("notas_fiscais.id"), nullable=True, index=True)
     ordem_servico_id = Column(Integer, ForeignKey("ordens_servico.id"), nullable=True, index=True)
 

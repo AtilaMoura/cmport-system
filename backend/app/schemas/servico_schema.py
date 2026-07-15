@@ -19,7 +19,9 @@ class ServicoBase(BaseModel):
 
 
 class ServicoCreate(ServicoBase):
-    condominio_id: int
+    # Opcional: serviço gerado a partir de Recibo pode não ter condomínio (usa dados
+    # do próprio recibo/cliente nesse caso) — Nota Fiscal continua sempre preenchendo.
+    condominio_id: Optional[int] = None
 
 
 class ServicoUpdate(BaseModel):
@@ -34,7 +36,8 @@ class ServicoUpdate(BaseModel):
 
 class ServicoResponse(ServicoBase):
     id: int
-    condominio_id: int
+    condominio_id: Optional[int] = None
+    recibo_id: Optional[int] = None
     numero_os: Optional[str] = None
     orcamento_id: Optional[int] = None
     criado_em: datetime

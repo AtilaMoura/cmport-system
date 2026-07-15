@@ -152,6 +152,9 @@ def _run_migrations():
         "ALTER TABLE recibos ADD COLUMN cnpj_cliente VARCHAR(20) NULL",
         "ALTER TABLE clientes ADD COLUMN auvo_id INT NULL",
         "ALTER TABLE clientes ADD UNIQUE INDEX uq_clientes_auvo_id (auvo_id)",
+        # Serviço gerado a partir de Recibo pode não ter condomínio (usa dados do próprio
+        # recibo/cliente) — Nota Fiscal continua sempre preenchendo esse campo
+        "ALTER TABLE manutencoes_assistencias MODIFY condominio_id INT NULL",
     ]
     try:
         for stmt in stmts:

@@ -3,6 +3,34 @@ import pytest
 from unittest.mock import MagicMock, patch
 from decimal import Decimal
 
+# Garante que todos os models estejam registrados no registry do SQLAlchemy antes de
+# qualquer teste instanciar um model real (ex: Recibo(...), ManutencaoAssistencia(...)) —
+# evita "InvalidRequestError: ... failed to locate a name" ao resolver relationships
+# declaradas por nome de string (mesmo padrão de import usado em app/main.py).
+import app.models.condominio_model
+import app.models.endereco_model
+import app.models.contato_model
+import app.models.servico_model
+import app.models.nota_fiscal_model
+import app.models.exclusao_model
+import app.models.boleto_model
+import app.models.configuracao_impostos_model
+import app.models.usuario_model
+import app.models.configuracao_model
+import app.models.ordem_servico_model
+import app.models.produto_model
+import app.models.orcamento_model
+import app.models.termo_garantia_model
+import app.models.declaracao_fiscal_model
+import app.models.contrato_condominio_model
+import app.models.ciclo_nota_model
+import app.models.corpo_nota_model
+import app.models.fin_categoria_model
+import app.models.fin_movimentacao_model
+import app.models.fin_saldo_inicial_model
+import app.models.cliente_model
+import app.models.recibo_model
+
 
 def make_nota_fiscal(
     id=1,

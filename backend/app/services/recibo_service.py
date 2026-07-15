@@ -49,10 +49,16 @@ class ReciboService:
         recibo = ReciboRepository.create(db, recibo)
 
         if condominio_id and payload.numero_os:
+            # Reaproveita OS existente — só possível quando há condomínio para identificá-la.
             ReciboService._vincular_ou_criar_servico_por_os(
                 db, recibo, condominio_id, payload.numero_os, payload.data_servico, tipo=payload.tipo_servico,
             )
+        elif payload.tipo == "ENTRADA":
+            # ENTRADA sempre gera serviço usando os dados do próprio recibo/cliente,
+            # com ou sem condomínio vinculado — nunca depende de checkbox.
+            ReciboService._criar_servico(db, recibo, condominio_id, tipo=payload.tipo_servico)
         elif payload.gerar_servico and condominio_id:
+            # SAIDA continua opcional via checkbox (pagamento a terceiro, não serviço ao cliente).
             ReciboService._criar_servico(db, recibo, condominio_id, tipo=payload.tipo_servico)
 
         return recibo
@@ -94,7 +100,7 @@ class ReciboService:
     def _criar_servico(
         db: Session,
         recibo: Recibo,
-        condominio_id: int,
+        condominio_id: Optional[int],
         tipo: str = "ASSISTENCIA",
         numero_os: Optional[str] = None,
         data_servico: Optional[date] = None,
