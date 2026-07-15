@@ -15,7 +15,7 @@ import { Line, Bar, Doughnut } from 'react-chartjs-2';
 
 interface Servico {
   id: number;
-  condominio_id: number;
+  condominio_id: number | null;
   tipo: 'manutencao' | 'assistencia';
   data_servico: string;
   descricao: string | null;
@@ -107,6 +107,11 @@ function pd(s: string): Date {
 
 const brl = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+// Servico gerado a partir de Recibo pode nao ter condominio_id — evita indexar o
+// Record<number, Condominio> com null e quebrar o .nome encadeado.
+const getCondominio = (condominios: Record<number, Condominio>, condominioId: number | null) =>
+  condominioId != null ? condominios[condominioId] : undefined;
 
 export default function ServicosPage() {
   const [servicos, setServicos]           = useState<Servico[]>([]);
@@ -354,7 +359,7 @@ export default function ServicosPage() {
       const faltantes = Array.from({ length: total }, (_, i) => i + 1).filter(p => !existentes.includes(p));
       return {
         servicoId: s.id, notaId: nota.id,
-        condominio: condominios[s.condominio_id]?.nome || 'Desconhecido',
+        condominio: getCondominio(condominios, s.condominio_id)?.nome || 'Desconhecido',
         numeroNota: nota.numero_nota, valor: String(nota.valor),
         parcelasTotal: total, parcelasFaltantes: faltantes, parcelasSelecionadas: [...faltantes],
         selecionado: true,
@@ -467,7 +472,7 @@ export default function ServicosPage() {
 
   const servicosFiltrados = useMemo(() => servicos.filter(s => {
     if (filtroTipo !== 'todos' && s.tipo !== filtroTipo) return false;
-    const nomeCondominio = condominios[s.condominio_id]?.nome || '';
+    const nomeCondominio = getCondominio(condominios, s.condominio_id)?.nome || '';
     if (search) {
       const q = search.toLowerCase();
       if (!nomeCondominio.toLowerCase().includes(q) && !s.descricao?.toLowerCase().includes(q)) return false;
@@ -690,10 +695,10 @@ export default function ServicosPage() {
               <div key={servico.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white shadow-sm shrink-0">
-                    <span className="text-sm font-bold">{condominios[servico.condominio_id]?.nome.substring(0, 2).toUpperCase() || '??'}</span>
+                    <span className="text-sm font-bold">{(getCondominio(condominios, servico.condominio_id)?.nome || '??').substring(0, 2).toUpperCase()}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-slate-900 dark:text-white truncate">{condominios[servico.condominio_id]?.nome || 'Desconhecido'}</p>
+                    <p className="font-bold text-slate-900 dark:text-white truncate">{getCondominio(condominios, servico.condominio_id)?.nome || 'Desconhecido'}</p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${getTipoColor(servico.tipo)}`}>
                         {getTipoIcon(servico.tipo)} {servico.tipo === 'manutencao' ? 'Manut.' : 'Assist.'}
@@ -779,11 +784,11 @@ export default function ServicosPage() {
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white shadow-sm">
-                            <span className="text-sm font-bold">{condominios[servico.condominio_id]?.nome.substring(0, 2).toUpperCase() || '??'}</span>
+                            <span className="text-sm font-bold">{(getCondominio(condominios, servico.condominio_id)?.nome || '??').substring(0, 2).toUpperCase()}</span>
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900 dark:text-white">{condominios[servico.condominio_id]?.nome || 'Desconhecido'}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">ID: {servico.condominio_id}</p>
+                            <p className="font-bold text-slate-900 dark:text-white">{getCondominio(condominios, servico.condominio_id)?.nome || 'Desconhecido'}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{servico.condominio_id != null ? `ID: ${servico.condominio_id}` : 'Sem condomínio'}</p>
                           </div>
                         </div>
                       </td>
@@ -1257,7 +1262,7 @@ export default function ServicosPage() {
                 <div>
                   <h2 className="text-xl font-black text-slate-900 dark:text-white">Pré-visualização — Boleto Inter</h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                    {condominios[modalBoleto.servico.condominio_id]?.nome}
+                    {getCondominio(condominios, modalBoleto.servico.condominio_id)?.nome}
                   </p>
                 </div>
                 <button onClick={() => setModalBoleto(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1">
