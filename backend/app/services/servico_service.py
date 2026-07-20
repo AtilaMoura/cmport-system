@@ -129,8 +129,16 @@ class ServicoService:
 
     @staticmethod
     def resumo_financeiro(db: Session, mes: Optional[int] = None, ano: Optional[int] = None) -> dict:
-        """Resumo PAGO/PENDENTE por data de pagamento (visão caixa — igual à planilha)."""
+        """Resumo PAGO/PENDENTE por data de pagamento (visão caixa — igual à planilha).
+
+        Combina Boleto (serviços com nota fiscal) e Recibo tipo ENTRADA (serviços
+        nascidos de recibo, sem nota fiscal) — nunca soma os dois para o mesmo
+        serviço: o filtro nota_fiscal_id.is_(None) na parte de Recibo garante isso,
+        inclusive se uma nota for vinculada depois via "+ Vincular nota".
+        """
         from app.models.boleto_model import Boleto, SituacaoBoleto
+        from app.models.recibo_model import Recibo
+        from app.models.servico_model import ManutencaoAssistencia
 
         q_pago = db.query(
             func.count(Boleto.id).label("qtd"),
@@ -142,27 +150,69 @@ class ServicoService:
             func.coalesce(func.sum(Boleto.valor_nominal), 0).label("valor"),
         ).filter(Boleto.situacao.in_([SituacaoBoleto.EMABERTO, SituacaoBoleto.VENCIDO]))
 
+        q_recibo_pago = (
+            db.query(
+                func.count(ManutencaoAssistencia.id).label("qtd"),
+                func.coalesce(func.sum(Recibo.valor), 0).label("valor"),
+            )
+            .join(Recibo, Recibo.id == ManutencaoAssistencia.recibo_id)
+            .filter(
+                ManutencaoAssistencia.nota_fiscal_id.is_(None),
+                Recibo.tipo == "ENTRADA",
+                Recibo.status == "PAGO",
+                Recibo.deletado_em.is_(None),
+            )
+        )
+        q_recibo_pend = (
+            db.query(
+                func.count(ManutencaoAssistencia.id).label("qtd"),
+                func.coalesce(func.sum(Recibo.valor), 0).label("valor"),
+            )
+            .join(Recibo, Recibo.id == ManutencaoAssistencia.recibo_id)
+            .filter(
+                ManutencaoAssistencia.nota_fiscal_id.is_(None),
+                Recibo.tipo == "ENTRADA",
+                Recibo.status == "PENDENTE",
+                Recibo.deletado_em.is_(None),
+            )
+        )
+
         if mes and ano:
             # PAGO: filtra pela data real de pagamento (visão caixa)
             q_pago = q_pago.filter(
                 func.year(Boleto.data_pagamento) == ano,
                 func.month(Boleto.data_pagamento) == mes,
             )
-            # PENDENTE: filtra pela data de vencimento
+            q_recibo_pago = q_recibo_pago.filter(
+                func.year(Recibo.data_pagamento) == ano,
+                func.month(Recibo.data_pagamento) == mes,
+            )
+            # PENDENTE: filtra pela data de vencimento (recibo cai para data_emissao quando sem vencimento)
             q_pend = q_pend.filter(
                 func.year(Boleto.data_vencimento) == ano,
                 func.month(Boleto.data_vencimento) == mes,
             )
+            data_pend_recibo = func.coalesce(Recibo.data_vencimento, Recibo.data_emissao)
+            q_recibo_pend = q_recibo_pend.filter(
+                func.year(data_pend_recibo) == ano,
+                func.month(data_pend_recibo) == mes,
+            )
         elif ano:
             q_pago = q_pago.filter(func.year(Boleto.data_pagamento) == ano)
+            q_recibo_pago = q_recibo_pago.filter(func.year(Recibo.data_pagamento) == ano)
             q_pend = q_pend.filter(func.year(Boleto.data_vencimento) == ano)
+            q_recibo_pend = q_recibo_pend.filter(
+                func.year(func.coalesce(Recibo.data_vencimento, Recibo.data_emissao)) == ano
+            )
 
         r_pago = q_pago.one()
         r_pend = q_pend.one()
+        r_recibo_pago = q_recibo_pago.one()
+        r_recibo_pend = q_recibo_pend.one()
 
         return {
-            "valor_pago":     float(r_pago.valor),
-            "qtd_pago":       int(r_pago.qtd),
-            "valor_pendente": float(r_pend.valor),
-            "qtd_pendente":   int(r_pend.qtd),
+            "valor_pago":     float(r_pago.valor) + float(r_recibo_pago.valor),
+            "qtd_pago":       int(r_pago.qtd) + int(r_recibo_pago.qtd),
+            "valor_pendente": float(r_pend.valor) + float(r_recibo_pend.valor),
+            "qtd_pendente":   int(r_pend.qtd) + int(r_recibo_pend.qtd),
         }
