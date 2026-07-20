@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #fff; }
+  @page { size: 794px 1123px; margin: 0; }
+  .doc {
+    width: 794px;
+    height: 1123px;
+    position: relative;
+    overflow: hidden;
+    background: #fff;
+  }
+  .doc-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 794px;
+    height: 1123px;
+    object-fit: fill;
+    z-index: 0;
+    display: block;
+  }
+  .doc-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 794px;
+    height: 1123px;
+    z-index: 1;
+  }
+  .doc-body {
+    position: absolute;
+    top: 205px;
+    left: 64px;
+    right: 64px;
+    font-family: 'Liberation Sans', Arial, Helvetica, sans-serif;
+    font-size: 10.5pt;
+    color: #111;
+    line-height: 1.6;
+  }
+  .doc-date {
+    font-style: italic;
+    margin-bottom: 13px;
+  }
+  .doc-title {
+    font-weight: 700;
+    font-style: italic;
+    font-size: 12pt;
+    margin-bottom: 22px;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+  .doc-valor {
+    text-align: center;
+    font-weight: 700;
+    font-size: 16pt;
+    margin-bottom: 22px;
+  }
+  .doc-body p {
+    font-style: italic;
+    margin-bottom: 10px;
+    text-align: justify;
+  }
+  .doc-campos {
+    margin: 16px 0 22px 0;
+  }
+  .doc-campos .linha {
+    font-style: italic;
+    margin-bottom: 6px;
+  }
+  .doc-sigs {
+    text-align: center;
+    font-style: italic;
+    font-size: 10.5pt;
+    line-height: 1.6;
+    margin-top: 40px;
+    position: relative;
+    padding-top: 66px;
+  }
+  .doc-sigs img {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    width: 110px;
+    margin: 0 auto;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<div class="doc">
+  <img class="doc-bg" src="data:image/png;base64,{{ timbrado_b64 }}">
+
+  <div class="doc-layer">
+    <div class="doc-body">
+      <div class="doc-date"><em>{{ data_hoje }}</em></div>
+      <div class="doc-title">RECIBO Nº {{ numero_recibo }}{% if tipo_label %} — {{ tipo_label }}{% endif %}</div>
+
+      <div class="doc-valor">{{ valor_fmt }}</div>
+
+      <p><em>Recebemos de <strong>{{ cliente_nome }}</strong> a quantia acima referente a
+      <strong>{{ descricao_servico }}</strong>.</em></p>
+
+      <div class="doc-campos">
+        <div class="linha"><em><strong>Data de emissão:</strong> {{ data_emissao }}</em></div>
+        {% if data_pagamento %}
+        <div class="linha"><em><strong>Data de pagamento:</strong> {{ data_pagamento }}</em></div>
+        {% endif %}
+        {% if cnpj_cliente %}
+        <div class="linha"><em><strong>CNPJ/CPF:</strong> {{ cnpj_cliente }}</em></div>
+        {% endif %}
+      </div>
+
+      <p>Para clareza e para os devidos fins, firmamos o presente recibo.</p>
+
+      <div class="doc-sigs">
+        <img src="{{ assinatura_src }}" alt="Assinatura">
+        <em>{{ empresa_nome }}</em>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

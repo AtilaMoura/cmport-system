@@ -247,3 +247,82 @@ def test_termo_garantia_servico_sem_condominio_usa_nome_cliente():
 
     assert contexto["cliente_nome"] == "Maria da Silva"
     assert contexto["cliente_endereco"] == ""
+
+
+# ─── 8-9. Retrofit: editar recibo antigo com condominio_id novo (Passo 7) ────
+
+def test_atualizar_condominio_novo_entrada_sem_servico_cria_retroativo():
+    """Recibo ENTRADA antigo sem condomínio e sem serviço nenhum: ao informar
+    condominio_id no PATCH, dispara a criação retroativa do serviço."""
+    from app.models.recibo_model import Recibo
+    from app.services.recibo_service import ReciboService
+    from app.schemas.recibo_schema import ReciboUpdate
+
+    recibo = Recibo(
+        id=950, numero_recibo="REC-2026-021", tipo="ENTRADA", condominio_id=None,
+        valor=650.0, data_emissao=date(2026, 2, 16), status="PENDENTE",
+        descricao_servico="Servico Eraseg",
+    )
+    recibo.servicos = []
+
+    db = _db_mock()
+
+    with (
+        patch("app.repositories.recibo_repository.ReciboRepository.get_by_id", return_value=recibo),
+        patch("app.repositories.recibo_repository.ReciboRepository.save", side_effect=lambda db_arg, r: r),
+        patch("app.services.recibo_service.ReciboService._criar_servico") as mock_criar,
+    ):
+        ReciboService.atualizar(db, 950, ReciboUpdate(condominio_id=77))
+
+    mock_criar.assert_called_once_with(db, recibo, 77, tipo="ASSISTENCIA")
+
+
+def test_atualizar_condominio_novo_recibo_ja_tem_servico_nao_duplica():
+    """Recibo que já tem serviço vinculado: mudar condominio_id não deve
+    disparar criação de um segundo serviço."""
+    from app.models.recibo_model import Recibo
+    from app.services.recibo_service import ReciboService
+    from app.schemas.recibo_schema import ReciboUpdate
+
+    recibo = Recibo(
+        id=951, numero_recibo="REC-2026-022", tipo="ENTRADA", condominio_id=10,
+        valor=500.0, data_emissao=date(2026, 2, 20), status="PENDENTE",
+        descricao_servico="Servico ja com OS",
+    )
+    recibo.servicos = [MagicMock()]
+
+    db = _db_mock()
+
+    with (
+        patch("app.repositories.recibo_repository.ReciboRepository.get_by_id", return_value=recibo),
+        patch("app.repositories.recibo_repository.ReciboRepository.save", side_effect=lambda db_arg, r: r),
+        patch("app.services.recibo_service.ReciboService._criar_servico") as mock_criar,
+    ):
+        ReciboService.atualizar(db, 951, ReciboUpdate(condominio_id=99))
+
+    mock_criar.assert_not_called()
+
+
+def test_atualizar_sem_mudanca_de_condominio_nao_dispara_retrofit():
+    """condominio_id ausente do payload (None) não conta como mudança — não dispara nada."""
+    from app.models.recibo_model import Recibo
+    from app.services.recibo_service import ReciboService
+    from app.schemas.recibo_schema import ReciboUpdate
+
+    recibo = Recibo(
+        id=952, numero_recibo="REC-2026-023", tipo="ENTRADA", condominio_id=None,
+        valor=300.0, data_emissao=date(2026, 2, 21), status="PENDENTE",
+        descricao_servico="Servico sem mudanca",
+    )
+    recibo.servicos = []
+
+    db = _db_mock()
+
+    with (
+        patch("app.repositories.recibo_repository.ReciboRepository.get_by_id", return_value=recibo),
+        patch("app.repositories.recibo_repository.ReciboRepository.save", side_effect=lambda db_arg, r: r),
+        patch("app.services.recibo_service.ReciboService._criar_servico") as mock_criar,
+    ):
+        ReciboService.atualizar(db, 952, ReciboUpdate(observacao="so um texto novo"))
+
+    mock_criar.assert_not_called()

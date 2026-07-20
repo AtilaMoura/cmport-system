@@ -1,12 +1,13 @@
 from typing import List, Optional
 from datetime import date
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.core.dependencies import get_current_user
-from app.schemas.recibo_schema import ReciboCreate, ReciboUpdate, ReciboResponse
+from app.schemas.recibo_schema import ReciboCreate, ReciboUpdate, ReciboResponse, EnviarEmailReciboRequest
 from app.services.recibo_service import ReciboService
 from app.services.ordem_servico_service import OrdemServicoService
 
@@ -117,3 +118,27 @@ def deletar(
     usuario=Depends(get_current_user),
 ):
     ReciboService.deletar(db, recibo_id, motivo)
+
+
+@router.get("/{recibo_id}/pdf")
+def baixar_pdf(
+    recibo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    buffer = ReciboService.gerar_pdf(db, recibo_id)
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=recibo_{recibo_id}.pdf"},
+    )
+
+
+@router.post("/{recibo_id}/enviar-email")
+def enviar_email(
+    recibo_id: int,
+    payload: EnviarEmailReciboRequest,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    return ReciboService.enviar_email(db, recibo_id, payload.destinatarios, payload.cc_emails)

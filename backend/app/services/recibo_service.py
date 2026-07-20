@@ -1,11 +1,41 @@
+import base64
+import io
+import json
+import os
 from datetime import datetime, date
 from typing import List, Optional
 from fastapi import HTTPException
+from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm import Session
 
 from app.models.recibo_model import Recibo
 from app.repositories.recibo_repository import ReciboRepository
 from app.schemas.recibo_schema import ReciboCreate, ReciboUpdate
+
+_EMPRESA_FALLBACK = "CMPORT Sistemas Eletrônicos de Segurança"
+_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
+_TIMBRADO_PATH = os.path.join(_ASSETS_DIR, "timbrado.png")
+_ASSINATURA_PATH = os.path.join(_ASSETS_DIR, "assinatura_andre.png")
+_JINJA_ENV = Environment(loader=FileSystemLoader(_ASSETS_DIR), autoescape=False)
+
+
+def _fmt_date(d) -> str:
+    return d.strftime('%d/%m/%Y') if d else ""
+
+
+def _fmt_valor(v) -> str:
+    return f"R$ {float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _fmt_data_extenso(d) -> str:
+    meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+             "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+    return f"{d.day} de {meses[d.month - 1]} de {d.year}"
+
+
+def _b64_file(path: str) -> str:
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
 
 
 class ReciboService:
@@ -143,8 +173,15 @@ class ReciboService:
     @staticmethod
     def atualizar(db: Session, recibo_id: int, payload: ReciboUpdate) -> Recibo:
         r = ReciboService.get_by_id(db, recibo_id)
+
+        condominio_novo = (
+            payload.condominio_id is not None and payload.condominio_id != r.condominio_id
+        )
+
         if payload.tipo is not None:
             r.tipo = payload.tipo
+        if payload.condominio_id is not None:
+            r.condominio_id = payload.condominio_id
         if payload.cliente_id is not None:
             r.cliente_id = payload.cliente_id
         if payload.cliente_nome_avulso is not None:
@@ -169,7 +206,15 @@ class ReciboService:
             r.status = payload.status
         if payload.observacao is not None:
             r.observacao = payload.observacao
-        return ReciboRepository.save(db, r)
+        r = ReciboRepository.save(db, r)
+
+        # Retrofit: recibo ENTRADA que nunca gerou serviço (ex: criado antes da
+        # correção, sem condomínio identificado) ganha o serviço retroativamente
+        # assim que o condomínio é informado — mesma lógica do Passo 2.3, sem duplicar.
+        if condominio_novo and r.tipo == "ENTRADA" and not r.servicos:
+            ReciboService._criar_servico(db, r, r.condominio_id, tipo="ASSISTENCIA")
+
+        return r
 
     @staticmethod
     def deletar(db: Session, recibo_id: int, motivo: Optional[str] = None) -> None:
@@ -196,3 +241,87 @@ class ReciboService:
         r.status = "PAGO"
         r.data_pagamento = data_pagamento or date.today()
         return ReciboRepository.save(db, r)
+
+    # ── PDF + Email ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _nome_cliente(recibo: Recibo) -> str:
+        if recibo.cliente_id and recibo.cliente:
+            return recibo.cliente.nome
+        return recibo.cliente_nome_avulso or "Cliente"
+
+    @staticmethod
+    def _build_context_pdf(db: Session, recibo: Recibo) -> dict:
+        from app.models.configuracao_model import ConfiguracaoEmpresa
+        empresa_obj = db.query(ConfiguracaoEmpresa).first()
+        empresa_nome = empresa_obj.nome if empresa_obj and empresa_obj.nome else _EMPRESA_FALLBACK
+
+        return {
+            "data_hoje":        f"São Paulo, {_fmt_data_extenso(datetime.now())}",
+            "numero_recibo":    recibo.numero_recibo,
+            "tipo_label":       "Entrada" if recibo.tipo == "ENTRADA" else "Saída",
+            "valor_fmt":        _fmt_valor(recibo.valor),
+            "cliente_nome":     ReciboService._nome_cliente(recibo),
+            "descricao_servico": recibo.descricao_servico,
+            "data_emissao":     _fmt_date(recibo.data_emissao),
+            "data_pagamento":   _fmt_date(recibo.data_pagamento) if recibo.data_pagamento else None,
+            "cnpj_cliente":     recibo.cnpj_cliente,
+            "empresa_nome":     empresa_nome,
+            "timbrado_b64":     _b64_file(_TIMBRADO_PATH),
+        }
+
+    @staticmethod
+    def gerar_pdf(db: Session, recibo_id: int) -> io.BytesIO:
+        from weasyprint import HTML
+        recibo = ReciboService.get_by_id(db, recibo_id)
+        context = ReciboService._build_context_pdf(db, recibo)
+        context["assinatura_src"] = f"data:image/png;base64,{_b64_file(_ASSINATURA_PATH)}"
+        tpl = _JINJA_ENV.get_template("recibo_template.html")
+        html_str = tpl.render(**context)
+        base_url = f"file://{os.path.abspath(_ASSETS_DIR)}/"
+        pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
+        return io.BytesIO(pdf_bytes)
+
+    @staticmethod
+    def enviar_email(
+        db: Session,
+        recibo_id: int,
+        destinatarios: Optional[List[str]] = None,
+        cc_emails: Optional[List[str]] = None,
+    ) -> dict:
+        from app.services.email_service import EmailService
+
+        recibo = ReciboService.get_by_id(db, recibo_id)
+
+        _destinatarios = destinatarios
+        if not _destinatarios:
+            if recibo.cliente_id and recibo.cliente and recibo.cliente.email:
+                _destinatarios = [recibo.cliente.email]
+            else:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Informe destinatários — cliente sem email cadastrado.",
+                )
+
+        pdf_buffer = ReciboService.gerar_pdf(db, recibo_id)
+
+        EmailService.enviar_recibo(
+            destinatarios=_destinatarios,
+            recibo_pdf=pdf_buffer.getvalue(),
+            numero_recibo=recibo.numero_recibo,
+            nome_cliente=ReciboService._nome_cliente(recibo),
+            valor=float(recibo.valor),
+            tipo=recibo.tipo,
+            data_emissao=recibo.data_emissao,
+            cc_emails=cc_emails,
+            db=db,
+        )
+
+        if recibo.servicos:
+            for servico in recibo.servicos:
+                servico.email_enviado_em = datetime.utcnow()
+                servico.email_destinatarios = json.dumps(_destinatarios)
+                db.add(servico)
+            db.commit()
+
+        return {"enviado": True, "destinatarios": _destinatarios}

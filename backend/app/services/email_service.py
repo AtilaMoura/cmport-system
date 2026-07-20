@@ -279,6 +279,96 @@ def _html_boleto(
 </html>"""
 
 
+_RODAPE_RECIBO_PADRAO = "O recibo em PDF está anexado a este email."
+
+
+def _html_recibo(
+    numero_recibo: str,
+    nome_cliente: str,
+    valor: float,
+    tipo: str,
+    data_emissao,
+    saudacao: Optional[str] = None,
+    corpo: Optional[str] = None,
+    rodape: Optional[str] = None,
+) -> str:
+    _saudacao = (saudacao or _SAUDACAO_PADRAO).replace("\n", "<br>")
+    tipo_label = "Entrada" if (tipo or "").upper() == "ENTRADA" else "Saída"
+    _corpo = (corpo or (
+        f"Segue em anexo o recibo <strong>#{numero_recibo}</strong> — "
+        f"<strong>{nome_cliente}</strong>."
+    )).replace("\n", "<br>")
+    _rodape = (rodape or _RODAPE_RECIBO_PADRAO).replace("\n", "<br>")
+
+    logo_url = f"data:image/jpeg;base64,{_ASSINATURA_B64}" if _ASSINATURA_B64 else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:12px;overflow:hidden;
+                    box-shadow:0 4px 24px rgba(0,0,0,.08);">
+
+        <tr>
+          <td style="background:#1e40af;padding:32px 40px;text-align:center;">
+            <p style="margin:0;color:#93c5fd;font-size:13px;font-weight:600;
+                      text-transform:uppercase;letter-spacing:2px;">CMPort</p>
+            <h1 style="margin:8px 0 0;color:#ffffff;font-size:24px;font-weight:800;">
+              Recibo Disponível
+            </h1>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:40px;">
+            <p style="margin:0 0 24px;color:#374151;font-size:15px;">
+              {_saudacao}<br><br>{_corpo}
+            </p>
+
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="border-collapse:collapse;margin-bottom:24px;">
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">
+                  <span style="color:#64748b;font-size:13px;">Recibo</span><br>
+                  <span style="font-size:16px;font-weight:700;color:#1e293b;">
+                    #{numero_recibo} &nbsp;<span style="font-size:13px;font-weight:400;color:#64748b;">({tipo_label})</span>
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">
+                  <span style="color:#64748b;font-size:13px;">Valor</span><br>
+                  <span style="font-size:22px;font-weight:800;color:#1e40af;">
+                    {_fmt_valor(valor)}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">
+                  <span style="color:#64748b;font-size:13px;">Data de Emissão</span><br>
+                  <span style="font-size:16px;font-weight:700;color:#1e293b;">
+                    {_fmt_data(data_emissao)}
+                  </span>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0 0 8px;color:#64748b;font-size:13px;">
+              {_rodape}
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
 def _html_manutencao(
     saudacao: str,
     servico: str,
@@ -681,6 +771,36 @@ class EmailService:
                 rodape=rodape,
             )
 
+        EmailService._enviar_com_anexos(
+            destinatarios=destinatarios,
+            assunto=assunto,
+            html=html,
+            todos_anexos=todos_anexos,
+            cc_emails=cc_final,
+            db=db,
+            email_remetente=email_remetente,
+            senha_remetente=senha_remetente,
+            from_name=from_name,
+        )
+
+    @staticmethod
+    def _enviar_com_anexos(
+        destinatarios: List[str],
+        assunto: str,
+        html: str,
+        todos_anexos: List[tuple],
+        cc_emails: Optional[List[str]] = None,
+        db=None,
+        email_remetente: Optional[str] = None,
+        senha_remetente: Optional[str] = None,
+        from_name: Optional[str] = None,
+    ) -> None:
+        """
+        Núcleo de envio compartilhado por todos os fluxos de email (boleto, recibo, ...).
+        Quando `db` é fornecido, detecta a conta ativa (SMTP ou Graph API) automaticamente.
+        """
+        cc_final = list(cc_emails or [])
+
         # ── Detecta conta ativa ───────────────────────────────────────────────
         if db is not None:
             from app.services.configuracao_service import get_config_ativa
@@ -738,6 +858,60 @@ class EmailService:
             smtp.login(_email, _senha)
             todos_dest = destinatarios + cc_final
             smtp.sendmail(_email, todos_dest, msg.as_bytes())
+
+    @staticmethod
+    def enviar_recibo(
+        destinatarios: List[str],
+        recibo_pdf: bytes,
+        numero_recibo: str,
+        nome_cliente: str,
+        valor: float,
+        tipo: str,
+        data_emissao,
+        assunto_override: Optional[str] = None,
+        saudacao: Optional[str] = None,
+        corpo: Optional[str] = None,
+        rodape: Optional[str] = None,
+        cc_emails: Optional[List[str]] = None,
+        db=None,
+    ) -> None:
+        """Envia email com o PDF do recibo anexado. Mesma infra de conta/SMTP/Graph de enviar_boleto."""
+        if not destinatarios:
+            raise Exception("Nenhum destinatário informado.")
+
+        import json as _json
+        cc_final: List[str] = list(cc_emails or [])
+        if db is not None:
+            try:
+                from app.models.configuracao_model import ConfiguracaoEmpresa as _Empresa
+                _empresa = db.query(_Empresa).first()
+                if _empresa and _empresa.emails_copia:
+                    cc_global = _json.loads(_empresa.emails_copia)
+                    cc_final = list(set(cc_final + cc_global))
+            except Exception:
+                pass
+
+        assunto = assunto_override or f"Recibo #{numero_recibo} — {nome_cliente}"
+        html = _html_recibo(
+            numero_recibo=numero_recibo,
+            nome_cliente=nome_cliente,
+            valor=valor,
+            tipo=tipo,
+            data_emissao=data_emissao,
+            saudacao=saudacao,
+            corpo=corpo,
+            rodape=rodape,
+        )
+        todos_anexos = [(f"recibo_{numero_recibo}.pdf", recibo_pdf, "application/pdf")]
+
+        EmailService._enviar_com_anexos(
+            destinatarios=destinatarios,
+            assunto=assunto,
+            html=html,
+            todos_anexos=todos_anexos,
+            cc_emails=cc_final,
+            db=db,
+        )
 
     @staticmethod
     def _enviar_graph(

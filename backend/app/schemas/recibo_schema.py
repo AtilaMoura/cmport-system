@@ -32,6 +32,7 @@ class ReciboCreate(BaseModel):
 class ReciboUpdate(BaseModel):
     tipo: Optional[Literal["ENTRADA", "SAIDA"]] = None
     cliente_id: Optional[int] = None
+    condominio_id: Optional[int] = None
     cliente_nome_avulso: Optional[str] = None
     configuracao_inter_id: Optional[int] = None
     cnpj_emitente: Optional[str] = None
@@ -43,6 +44,11 @@ class ReciboUpdate(BaseModel):
     data_pagamento: Optional[date] = None
     status: Optional[str] = None
     observacao: Optional[str] = None
+
+
+class EnviarEmailReciboRequest(BaseModel):
+    destinatarios: Optional[List[str]] = None
+    cc_emails: Optional[List[str]] = None
 
 
 class ReciboResponse(BaseModel):
