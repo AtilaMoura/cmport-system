@@ -67,6 +67,14 @@ def detectar_tipo_automatico(tipo_fornecido: Optional[str], descricao: str) -> T
     return TipoNota.PRODUTO
 
 
+def _nat_op_e_produto(nat_op: Optional[str]) -> bool:
+    """Retorna True se a natureza da operação (<natOp> da NFe) indica venda de mercadoria/produto."""
+    if not nat_op:
+        return False
+    nat_op_upper = _strip_accents(nat_op).upper()
+    return "VENDA" in nat_op_upper or "MERCADORIA" in nat_op_upper
+
+
 def _cnpj_e_produto(db: Session, cnpj_emit: Optional[str]) -> bool:
     """Retorna True se o CNPJ emitente pertence a uma conta Inter marcada como PRODUTO."""
     if not db or not cnpj_emit:
@@ -390,6 +398,7 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
 
     numero = get('.//nfe:ide/nfe:nNF')
     serie  = get('.//nfe:ide/nfe:serie')
+    nat_op = get('.//nfe:ide/nfe:natOp')
     data_emissao_str = get('.//nfe:ide/nfe:dhEmi')
     cnpj_emit = get('.//nfe:emit/nfe:CNPJ')
     razao_emit = get('.//nfe:emit/nfe:xNome')
@@ -401,7 +410,8 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
     c_stat = get('.//nfe:protNFe/nfe:infProt/nfe:cStat')
     status = detectar_status_nfe(c_stat)
 
-    # Tipo: NFe série 2 = ASSISTENCIA; tipo_fornecido pode sobrescrever
+    # Tipo: natOp (Venda de Mercadoria) é sinal mais forte que a série e tem prioridade;
+    # série 2 = ASSISTENCIA é só um fallback para quando natOp não indica produto.
     if tipo_fornecido:
         tipo_upper = tipo_fornecido.upper()
         if tipo_upper == "MANUTENCAO":
@@ -410,6 +420,8 @@ def extrair_dados_nfe(xml_str: str, db: Session, tipo_fornecido: Optional[str]) 
             tipo = TipoNota.ASSISTENCIA
         else:
             tipo = TipoNota.PRODUTO
+    elif _nat_op_e_produto(nat_op):
+        tipo = TipoNota.PRODUTO
     elif serie == '2':
         tipo = TipoNota.ASSISTENCIA
     else:

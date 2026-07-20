@@ -1381,6 +1381,16 @@ class CorpoNotaService:
     # ── Matching interno (chamado pela nota fiscal service) ───────────────────
 
     @staticmethod
+    def _tipo_nota_do_corpo(tipo_corpo: TipoNotaCorpo) -> "TipoNota":
+        """O corpo dita o tipo: mapeia TipoNotaCorpo -> TipoNota para correção automática."""
+        from app.models.nota_fiscal_model import TipoNota
+        return {
+            TipoNotaCorpo.MANUTENCAO: TipoNota.MANUTENCAO,
+            TipoNotaCorpo.SERVICO: TipoNota.ASSISTENCIA,
+            TipoNotaCorpo.PRODUTO: TipoNota.PRODUTO,
+        }[tipo_corpo]
+
+    @staticmethod
     def tentar_vincular_por_nota_fiscal(db: Session, nota_fiscal_id: int) -> Optional[list]:
         """
         Tenta vincular a nota fiscal a um CorpoNota existente.
@@ -1450,12 +1460,15 @@ class CorpoNotaService:
             )
             if len(candidatos_nf) == 1:
                 if candidatos_nf[0].tipo_nota != tipo_corpo:
+                    tipo_correto = CorpoNotaService._tipo_nota_do_corpo(candidatos_nf[0].tipo_nota)
                     logger.warning(
                         f"CorpoNota {candidatos_nf[0].id} (tipo={candidatos_nf[0].tipo_nota}) "
                         f"vinculado à NotaFiscal {nota.id} (tipo={nota.tipo}) via numero_nf "
-                        f"apesar do tipo divergente — numero_nf+CNPJ é sinal mais forte que a "
-                        f"classificação automática por série."
+                        f"apesar do tipo divergente — corpo dita o tipo (numero_nf+CNPJ é sinal "
+                        f"mais forte que a classificação automática por série). "
+                        f"nota.tipo corrigido: {nota.tipo} -> {tipo_correto}"
                     )
+                    nota.tipo = tipo_correto
                 corpo = candidatos_nf[0]
                 corpo.nota_fiscal_id = nota.id
                 corpo.status = StatusCorpoNota.XML_VINCULADO
