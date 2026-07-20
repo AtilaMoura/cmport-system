@@ -20,7 +20,18 @@ interface Servico {
   data_servico: string;
   descricao: string | null;
   nota_fiscal_id: number | null;
+  recibo_id: number | null;
   criado_em: string;
+}
+
+interface ReciboLite {
+  id: number;
+  tipo: 'ENTRADA' | 'SAIDA';
+  status: string;
+  valor: number;
+  data_emissao: string;
+  data_vencimento: string | null;
+  data_pagamento: string | null;
 }
 
 interface NotaFiscal {
@@ -113,11 +124,24 @@ const brl = (value: number) =>
 const getCondominio = (condominios: Record<number, Condominio>, condominioId: number | null) =>
   condominioId != null ? condominios[condominioId] : undefined;
 
+// Valor do servico: nota fiscal quando existir; senao, recibo tipo ENTRADA (SAIDA
+// e despesa a terceiro, nunca entra em faturamento/cobranca). Nunca soma os dois —
+// um servico so tem nota_fiscal_id OU recibo_id preenchido de cada vez.
+const valorServico = (s: Servico, notas: Record<number, NotaFiscal>, recibos: Record<number, ReciboLite>): number => {
+  if (s.nota_fiscal_id) return notas[s.nota_fiscal_id]?.valor ?? 0;
+  if (s.recibo_id) {
+    const r = recibos[s.recibo_id];
+    return r?.tipo === 'ENTRADA' ? r.valor : 0;
+  }
+  return 0;
+};
+
 export default function ServicosPage() {
   const [servicos, setServicos]           = useState<Servico[]>([]);
   const [condominios, setCondominios]     = useState<Record<number, Condominio>>({});
   const [notas, setNotas]                 = useState<Record<number, NotaFiscal>>({});
   const [boletosPorNota, setBoletosPorNota] = useState<Record<number, Boleto[]>>({});
+  const [recibos, setRecibos]             = useState<Record<number, ReciboLite>>({});
   const [loading, setLoading]             = useState(true);
   const [activeTab, setActiveTab]         = useState<TabType>('geral');
 
@@ -188,10 +212,11 @@ export default function ServicosPage() {
 
   const carregarDados = async () => {
     try {
-      const [condosRes, servicosRes, notasRes] = await Promise.all([
+      const [condosRes, servicosRes, notasRes, recibosRes] = await Promise.all([
         api.get('/condominios'),
         api.get('/servicos'),
         api.get('/notas-fiscais'),
+        api.get('/recibos').catch(() => ({ data: [] })),
       ]);
 
       const condosMap: Record<number, Condominio> = {};
@@ -202,6 +227,10 @@ export default function ServicosPage() {
       const notasMap: Record<number, NotaFiscal> = {};
       notasRes.data.forEach((n: NotaFiscal) => { notasMap[n.id] = n; });
       setNotas(notasMap);
+
+      const recibosMap: Record<number, ReciboLite> = {};
+      recibosRes.data.forEach((r: ReciboLite) => { recibosMap[r.id] = r; });
+      setRecibos(recibosMap);
 
       try {
         const boletosRes = await api.get('/boletos');
@@ -498,10 +527,7 @@ export default function ServicosPage() {
 
   const stats = useMemo(() => {
     const hoje = new Date();
-    const valorTotal = servicosFiltrados.reduce((acc, s) => {
-      if (s.nota_fiscal_id) acc += notas[s.nota_fiscal_id]?.valor ?? 0;
-      return acc;
-    }, 0);
+    const valorTotal = servicosFiltrados.reduce((acc, s) => acc + valorServico(s, notas, recibos), 0);
     const valorRecebido = servicosFiltrados.reduce((acc, s) => {
       if (s.nota_fiscal_id) {
         const boletos = boletosPorNota[s.nota_fiscal_id] ?? [];
@@ -521,7 +547,7 @@ export default function ServicosPage() {
       valorTotal,
       valorRecebido,
     };
-  }, [servicosFiltrados, notas, boletosPorNota]);
+  }, [servicosFiltrados, notas, boletosPorNota, recibos]);
 
   const notasSemServico = useMemo(() =>
     Object.values(notas).filter(n => n.status === 'AUTORIZADA').sort((a, b) => a.numero_nota.localeCompare(b.numero_nota)),
@@ -557,10 +583,7 @@ export default function ServicosPage() {
             const d = pd(s.data_servico);
             return d.getMonth() === m.mes && d.getFullYear() === m.ano;
           });
-          return servicosDoMes.reduce((acc, s) => {
-            if (s.nota_fiscal_id) acc += notas[s.nota_fiscal_id]?.valor ?? 0;
-            return acc;
-          }, 0);
+          return servicosDoMes.reduce((acc, s) => acc + valorServico(s, notas, recibos), 0);
         }),
         backgroundColor: 'rgba(16,185,129,0.1)',
         borderColor: '#10b981',
@@ -570,7 +593,7 @@ export default function ServicosPage() {
         yAxisID: 'y1',
       },
     ],
-  }), [servicosFiltrados, notas, ultimos6Meses]);
+  }), [servicosFiltrados, notas, recibos, ultimos6Meses]);
 
   const distribuicaoTipoData = useMemo(() => ({
     labels: ['Manutencao', 'Assistencia'],
@@ -585,10 +608,7 @@ export default function ServicosPage() {
     const totals = Object.values(condominios)
       .map(c => {
         const servicosCondo = servicosFiltrados.filter(s => s.condominio_id === c.id);
-        const valorCondo = servicosCondo.reduce((acc, s) => {
-          if (s.nota_fiscal_id) acc += notas[s.nota_fiscal_id]?.valor ?? 0;
-          return acc;
-        }, 0);
+        const valorCondo = servicosCondo.reduce((acc, s) => acc + valorServico(s, notas, recibos), 0);
         return {
           nome: c.nome.length > 20 ? c.nome.slice(0, 20) + '…' : c.nome,
           qtd: servicosCondo.length,
@@ -605,25 +625,32 @@ export default function ServicosPage() {
         { label: 'Valor (R$)', data: totals.map(c => c.valor), backgroundColor: '#10b981', borderRadius: 8 },
       ],
     };
-  }, [condominios, servicosFiltrados, notas]);
+  }, [condominios, servicosFiltrados, notas, recibos]);
 
   const resumoFinanceiro = useMemo(() => {
     let valorPago = 0, qtdPago = 0, valorPendente = 0, qtdPendente = 0;
     for (const s of servicosFiltrados) {
-      if (!s.nota_fiscal_id) continue;
-      const boletos = boletosPorNota[s.nota_fiscal_id] ?? [];
-      for (const b of boletos) {
-        if (b.situacao === 'PAGO' || b.situacao === 'BAIXADO') {
-          valorPago += b.valor_nominal ?? 0;
-          qtdPago++;
-        } else if (b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO') {
-          valorPendente += b.valor_nominal ?? 0;
-          qtdPendente++;
+      if (s.nota_fiscal_id) {
+        const boletos = boletosPorNota[s.nota_fiscal_id] ?? [];
+        for (const b of boletos) {
+          if (b.situacao === 'PAGO' || b.situacao === 'BAIXADO') {
+            valorPago += b.valor_nominal ?? 0;
+            qtdPago++;
+          } else if (b.situacao === 'EMABERTO' || b.situacao === 'VENCIDO') {
+            valorPendente += b.valor_nominal ?? 0;
+            qtdPendente++;
+          }
+        }
+      } else if (s.recibo_id) {
+        const r = recibos[s.recibo_id];
+        if (r?.tipo === 'ENTRADA') {
+          if (r.status === 'PAGO') { valorPago += r.valor; qtdPago++; }
+          else if (r.status === 'PENDENTE') { valorPendente += r.valor; qtdPendente++; }
         }
       }
     }
     return { valorPago, qtdPago, valorPendente, qtdPendente };
-  }, [servicosFiltrados, boletosPorNota]);
+  }, [servicosFiltrados, boletosPorNota, recibos]);
 
   const getTipoColor = (tipo: string) => tipo === 'manutencao'
     ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400'
@@ -652,6 +679,9 @@ export default function ServicosPage() {
     if (s.nota_fiscal_id) {
       const boletos = boletosPorNota[s.nota_fiscal_id] ?? [];
       acc += boletos.reduce((sum, b) => sum + (b.valor_nominal ?? 0), 0);
+    } else if (s.recibo_id) {
+      // Recibo nao emite boleto — o proprio recibo E a cobranca.
+      acc += valorServico(s, notas, recibos);
     }
     return acc;
   }, 0);
@@ -1077,7 +1107,7 @@ export default function ServicosPage() {
                   <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">PAGO</span>
                 </div>
                 <p className="text-xl sm:text-3xl font-black text-emerald-900 dark:text-emerald-400 mb-1">{brl(resumoBackend?.valor_pago ?? resumoFinanceiro.valorPago)}</p>
-                <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-500 font-semibold">{resumoBackend?.qtd_pago ?? resumoFinanceiro.qtdPago} boletos pagos</p>
+                <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-500 font-semibold">{resumoBackend?.qtd_pago ?? resumoFinanceiro.qtdPago} cobrancas pagas</p>
               </div>
               <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 p-4 lg:p-6 rounded-2xl border border-orange-200 dark:border-orange-800/50 shadow-sm">
                 <div className="flex items-center justify-between mb-3 lg:mb-4">
@@ -1085,7 +1115,7 @@ export default function ServicosPage() {
                   <span className="text-xs font-bold text-orange-700 dark:text-orange-400">PENDENTE</span>
                 </div>
                 <p className="text-xl sm:text-3xl font-black text-orange-900 dark:text-orange-400 mb-1">{brl(resumoBackend?.valor_pendente ?? resumoFinanceiro.valorPendente)}</p>
-                <p className="text-xs sm:text-sm text-orange-700 dark:text-orange-500 font-semibold">{resumoBackend?.qtd_pendente ?? resumoFinanceiro.qtdPendente} boletos em aberto</p>
+                <p className="text-xs sm:text-sm text-orange-700 dark:text-orange-500 font-semibold">{resumoBackend?.qtd_pendente ?? resumoFinanceiro.qtdPendente} cobrancas em aberto</p>
               </div>
             </div>
 
