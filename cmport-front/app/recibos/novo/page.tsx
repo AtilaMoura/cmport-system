@@ -186,7 +186,7 @@ function NovoReciboContent() {
         data_emissao: dataEmissao,
         data_vencimento: dataVencimento || null,
         observacao: observacao || null,
-        gerar_servico: !osSelecionada && gerarServico,
+        gerar_servico: tipoRecibo === 'SAIDA' ? (!osSelecionada && gerarServico) : true,
         tipo_servico: tipoServico,
         numero_os: osSelecionada?.numero_os ?? null,
         data_servico: osSelecionada?.data_servico ?? null,
@@ -512,8 +512,36 @@ function NovoReciboContent() {
                 </div>
               </div>
 
-              {/* Gerar OS vinculada — só quando não veio de uma OS já existente */}
-              {!osSelecionada && (
+              {/* ENTRADA: serviço é sempre criado automaticamente — sem checkbox, só o tipo é escolhido.
+                  SAIDA: continua opcional via checkbox (pagamento a terceiro, não serviço ao cliente). */}
+              {!osSelecionada && tipoRecibo === 'ENTRADA' && (
+                <div className="border border-violet-200 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-500/5 rounded-xl p-4 space-y-3">
+                  <p className="text-sm font-bold text-violet-700 dark:text-violet-400">
+                    ✓ Um serviço será criado automaticamente vinculado a este recibo
+                  </p>
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Tipo de Serviço</p>
+                    <div className="flex gap-2">
+                      {(['ASSISTENCIA', 'MANUTENCAO'] as const).map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setTipoServico(t)}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-bold border-2 transition-all ${
+                            tipoServico === t
+                              ? 'border-violet-600 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-300'
+                          }`}
+                        >
+                          {t === 'ASSISTENCIA' ? 'Assistência' : 'Manutenção'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!osSelecionada && tipoRecibo === 'SAIDA' && (
                 <div className={`border rounded-xl p-4 space-y-3 transition-colors ${gerarServico ? 'border-violet-400 dark:border-violet-600 bg-violet-50/50 dark:bg-violet-500/5' : 'border-slate-200 dark:border-slate-700'}`}>
                   <label className="flex items-center gap-3 cursor-pointer select-none">
                     <input
@@ -568,7 +596,12 @@ function NovoReciboContent() {
                         OS nº {osSelecionada.numero_os} será reaproveitada
                       </div>
                     )}
-                    {!osSelecionada && gerarServico && temCondominio && (
+                    {!osSelecionada && tipoRecibo === 'ENTRADA' && (
+                      <div className="pt-1 mt-1 border-t border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-400 font-semibold">
+                        Serviço de {tipoServico === 'ASSISTENCIA' ? 'Assistência' : 'Manutenção'} será criado automaticamente
+                      </div>
+                    )}
+                    {!osSelecionada && tipoRecibo === 'SAIDA' && gerarServico && temCondominio && (
                       <div className="pt-1 mt-1 border-t border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-400 font-semibold">
                         OS {tipoServico === 'ASSISTENCIA' ? 'Assistência' : 'Manutenção'} será criada automaticamente
                       </div>

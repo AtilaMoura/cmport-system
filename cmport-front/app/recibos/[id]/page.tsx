@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
-interface Cliente { id: number; nome: string; apartamento: string | null; }
+interface Cliente { id: number; nome: string; apartamento: string | null; email: string | null; }
 
 interface Recibo {
   id: number;
@@ -78,6 +78,12 @@ export default function ReciboDetalhePage() {
   const [modalExcluir, setModalExcluir] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [excluindo, setExcluindo] = useState(false);
+
+  const [modalEmail, setModalEmail] = useState(false);
+  const [emailDestinatario, setEmailDestinatario] = useState('');
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [emailErro, setEmailErro] = useState<string | null>(null);
+  const [emailSucesso, setEmailSucesso] = useState(false);
 
   // Form — só campos financeiros/descritivos (tipo, condomínio e cliente ficam travados)
   const [clienteNomeAvulso, setClienteNomeAvulso] = useState('');
@@ -160,6 +166,28 @@ export default function ReciboDetalhePage() {
       alert('Erro ao salvar recibo.');
     } finally {
       setSalvando(false);
+    }
+  };
+
+  const abrirModalEmail = () => {
+    setEmailDestinatario(recibo?.cliente?.email || '');
+    setEmailErro(null);
+    setEmailSucesso(false);
+    setModalEmail(true);
+  };
+
+  const handleEnviarEmail = async () => {
+    if (!emailDestinatario) { setEmailErro('Informe um email de destino.'); return; }
+    setEnviandoEmail(true);
+    setEmailErro(null);
+    try {
+      await api.post(`/recibos/${id}/enviar-email`, { destinatarios: [emailDestinatario] });
+      setEmailSucesso(true);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setEmailErro(msg || 'Erro ao enviar email.');
+    } finally {
+      setEnviandoEmail(false);
     }
   };
 
@@ -351,7 +379,7 @@ export default function ReciboDetalhePage() {
 
         {/* Card — Serviço Vinculado */}
         {servicoVinculado && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-2">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-3">
             <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wide">Serviço Vinculado</h2>
             <Link href={`/servicos/${servicoVinculado.id}`} className="block hover:bg-slate-50 dark:hover:bg-slate-800/50 -mx-2 px-2 py-2 rounded-xl transition-colors">
               <div className="text-sm font-bold text-violet-700 dark:text-violet-400">
@@ -362,6 +390,16 @@ export default function ReciboDetalhePage() {
                 {servicoVinculado.descricao ? ` · ${servicoVinculado.descricao}` : ''}
               </div>
             </Link>
+            <div className="flex gap-2 pt-1">
+              <button onClick={abrirModalEmail}
+                className="px-3 py-1.5 text-xs font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">
+                📧 Enviar por Email
+              </button>
+              <Link href={`/servicos/${servicoVinculado.id}?abrirTermo=1`}
+                className="px-3 py-1.5 text-xs font-bold bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 rounded-lg hover:bg-teal-100 dark:hover:bg-teal-500/20 transition-colors">
+                🛡️ Gerar Termo de Garantia
+              </Link>
+            </div>
           </div>
         )}
       </div>
@@ -387,6 +425,46 @@ export default function ReciboDetalhePage() {
                 {excluindo ? 'Excluindo...' : 'Confirmar Exclusão'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Enviar Email */}
+      {modalEmail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full space-y-4">
+            <h2 className="text-lg font-black text-slate-900 dark:text-white">Enviar Recibo por Email</h2>
+            {emailSucesso ? (
+              <>
+                <p className="text-sm text-green-600 bg-green-50 dark:bg-green-500/10 rounded-xl p-3">
+                  Email enviado com sucesso para {emailDestinatario}.
+                </p>
+                <button onClick={() => setModalEmail(false)}
+                  className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">
+                  Fechar
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-slate-500">O PDF do recibo será anexado automaticamente ao email.</p>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Destinatário</label>
+                  <input type="email" value={emailDestinatario} onChange={e => setEmailDestinatario(e.target.value)}
+                    placeholder="cliente@email.com"
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
+                </div>
+                {emailErro && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 rounded-xl p-3">{emailErro}</p>}
+                <div className="flex gap-3">
+                  <button onClick={() => setModalEmail(false)}
+                    className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">
+                    Cancelar
+                  </button>
+                  <button onClick={handleEnviarEmail} disabled={enviandoEmail}
+                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50">
+                    {enviandoEmail ? 'Enviando...' : 'Enviar'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

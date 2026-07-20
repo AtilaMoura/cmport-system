@@ -37,7 +37,19 @@ interface ReciboVinculado {
   cliente: ClienteRecibo | null;
   cliente_nome_avulso: string | null;
   condominio_id: number | null;
+  valor: number;
+  status: string;
+  descricao_servico: string;
+  data_emissao: string;
+  data_vencimento: string | null;
+  data_pagamento: string | null;
 }
+
+const RECIBO_STATUS_CLS: Record<string, string> = {
+  PENDENTE:  'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400',
+  PAGO:      'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400',
+  CANCELADO: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
+};
 
 interface ConfigImpostos {
   pct_pis: number;
@@ -406,6 +418,17 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   useEffect(() => {
     if (id) carregarDados();
   }, [id]);
+
+  // Vindo de /recibos/[id] com "Gerar Termo de Garantia" — abre o wizard automaticamente
+  useEffect(() => {
+    if (!servico || termoGarantia) return;
+    const abrirTermo = new URLSearchParams(window.location.search).get('abrirTermo');
+    if (abrirTermo === '1') {
+      abrirModalTermo();
+      router.replace(`/servicos/${id}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servico, termoGarantia]);
 
   const carregarDados = async () => {
     if (!id) return;
@@ -1662,6 +1685,12 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 sm:px-5 py-2 sm:py-3 border border-white/20 text-center">
                   <p className="text-xs opacity-75 uppercase font-bold mb-0.5">Valor Nota</p>
                   <p className="text-base sm:text-xl font-black">{fmt(notaFiscal.valor)}</p>
+                </div>
+              )}
+              {!notaFiscal && reciboVinculado && (
+                <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 sm:px-5 py-2 sm:py-3 border border-white/20 text-center">
+                  <p className="text-xs opacity-75 uppercase font-bold mb-0.5">Valor Recibo</p>
+                  <p className="text-base sm:text-xl font-black">{fmt(reciboVinculado.valor)}</p>
                 </div>
               )}
               {boletos.length > 0 && (
