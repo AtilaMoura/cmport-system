@@ -679,7 +679,6 @@ class BoletoService:
             try:
                 data_base = data_vencimento_override or nota.data_vencimento
                 data_venc = data_base + timedelta(days=30 * (numero_parcela - 1))
-                data_inter = max(data_venc, date.today() + timedelta(days=5))
                 valor = valor_ultima if numero_parcela == total_parcelas else valor_parcela
 
                 from app.models.nota_fiscal_model import TipoNota
@@ -698,7 +697,7 @@ class BoletoService:
                 payload = {
                     "seuNumero": seu_numero,
                     "valorNominal": valor,
-                    "dataVencimento": data_inter.strftime("%Y-%m-%d"),
+                    "dataVencimento": data_venc.strftime("%Y-%m-%d"),
                     "pagador": pagador,
                 }
                 if msg_payload:
@@ -716,7 +715,7 @@ class BoletoService:
                     "valor_juros": 0.0,
                     "valor_multa": 0.0,
                     "data_emissao": date.today(),
-                    "data_vencimento": data_inter,
+                    "data_vencimento": data_venc,
                     "situacao": SituacaoBoleto.EMABERTO,
                     "numero_parcela": numero_parcela,
                     "total_parcelas": total_parcelas,
@@ -860,6 +859,11 @@ class BoletoService:
                 if nova_situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO):
                     print(f"[SyncStatus] Boleto {boleto.codigo_solicitacao} PAGO — resposta Inter: {dados}")
                 data_pag_str = dados.get("dataPagamento") or pag_obj.get("dataPagamento")
+                if not data_pag_str and nova_situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO):
+                    # Cobrança v3 do Inter não retorna "dataPagamento" - o campo real é "dataSituacao".
+                    # So usar como data de pagamento quando a situação já é PAGO/BAIXADO (nunca para
+                    # EXPIRADO/CANCELADO, onde dataSituacao é só a data da mudança de status).
+                    data_pag_str = dados.get("dataSituacao")
                 valor_rec = dados.get("valorTotalRecebido") or pag_obj.get("valorPago") or pag_obj.get("valorTotalRecebido")
                 multa = dados.get("multa") or pag_obj.get("valorMulta")
                 mora = dados.get("mora") or pag_obj.get("valorJurosMora")
@@ -934,6 +938,11 @@ class BoletoService:
                 # dataPagamento pode estar no nível raiz ou dentro de cobranca["pagamento"]
                 pag_obj = cobranca.get("pagamento") or {}
                 data_pag_str = cobranca.get("dataPagamento") or pag_obj.get("dataPagamento")
+                if not data_pag_str and nova_situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO):
+                    # Cobrança v3 do Inter não retorna "dataPagamento" - o campo real é "dataSituacao".
+                    # So usar como data de pagamento quando a situação já é PAGO/BAIXADO (nunca para
+                    # EXPIRADO/CANCELADO, onde dataSituacao é só a data da mudança de status).
+                    data_pag_str = cobranca.get("dataSituacao")
                 valor_rec = cobranca.get("valorTotalRecebido") or pag_obj.get("valorPago") or pag_obj.get("valorTotalRecebido")
                 multa = cobranca.get("multa") or pag_obj.get("valorMulta")
                 mora = cobranca.get("mora") or pag_obj.get("valorJurosMora")
