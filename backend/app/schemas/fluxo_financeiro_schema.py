@@ -1,0 +1,41 @@
+from pydantic import BaseModel
+from datetime import date
+from typing import List, Optional
+
+
+class FluxoFinanceiroLinha(BaseModel):
+    condominio_id: Optional[int] = None
+    condominio_nome: str
+    numero_nota: str
+    numero_nota_normalizado: str
+    tipo: str  # MANUTENCAO | ASSISTENCIA | RECIBO
+    valor: float
+    data_pagamento: date
+    origem: str  # BOLETO | RECIBO
+
+
+class FluxoFinanceiroCnpj(BaseModel):
+    cnpj: str
+    razao_social: Optional[str] = None
+    total_manutencao: float
+    total_assistencia: float
+    total_recibos: float
+    total_geral: float
+    linhas: List[FluxoFinanceiroLinha]
+
+
+class FluxoFinanceiroResponse(BaseModel):
+    ano: int
+    mes: int
+    cnpjs: List[FluxoFinanceiroCnpj]
+    total_geral: float
+
+
+class AlertaDuplicata(BaseModel):
+    condominio_id: Optional[int] = None
+    condominio_nome: str
+    numero_nota_1: str
+    numero_nota_2: str
+    valor: float
+    data_pagamento_1: date
+    data_pagamento_2: date

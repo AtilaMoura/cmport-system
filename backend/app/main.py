@@ -59,6 +59,7 @@ from app.routers.ciclo_nota_router import router as ciclos_nota_router
 from app.routers.corpo_nota_router import router as corpos_nota_router
 from app.routers.fin_movimentacao_router import router as fin_mov_router
 from app.routers.fin_categoria_router    import router as fin_cat_router
+from app.routers.fluxo_financeiro_router import router as fluxo_financeiro_router
 from app.routers.cliente_router import router as clientes_router
 from app.routers.recibo_router import router as recibos_router
 from app.routers.declaracao_fiscal_router import router as declaracoes_router
@@ -514,6 +515,7 @@ app.include_router(ciclos_nota_router,  prefix="/api/v1/ciclos-nota",   tags=["C
 app.include_router(corpos_nota_router,  prefix="/api/v1/corpos-nota",   tags=["Corpo da Nota"],      dependencies=_auth)
 app.include_router(fin_mov_router,      prefix="/api/v1/financeiro",              tags=["Financeiro"],         dependencies=_auth)
 app.include_router(fin_cat_router,      prefix="/api/v1/categorias-financeiras",  tags=["Financeiro"],         dependencies=_auth)
+app.include_router(fluxo_financeiro_router, prefix="/api/v1/financeiro",          tags=["Financeiro"],         dependencies=_auth)
 app.include_router(clientes_router,     prefix="/api/v1/clientes",                tags=["Clientes"],           dependencies=_auth)
 app.include_router(recibos_router,      prefix="/api/v1/recibos",                 tags=["Recibos"],            dependencies=_auth)
 app.include_router(declaracoes_router,  prefix="/api/v1/servicos",                tags=["Declarações Fiscais"], dependencies=_auth)
