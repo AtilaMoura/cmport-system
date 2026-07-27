@@ -15,6 +15,7 @@ class NotaFiscalBase(BaseModel):
     observacao: Optional[str] = None
     descricao_servico: Optional[str] = None
     condominio_id: Optional[int] = None
+    cnpj_emitente: Optional[str] = None
 
 
 class NotaFiscalCreate(NotaFiscalBase):

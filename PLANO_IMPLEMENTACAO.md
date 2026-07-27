@@ -70,6 +70,7 @@ Convenções: `[x]` concluído · `[ ]` a fazer.
 | N2 | Leitura Nota de Entrada + Gerar Serviço | Import NF-e de entrada → auto-criar serviço — nenhum endpoint `importar-entrada` nem campo `nota_entrada_id` encontrados no backend |
 | F1.3 | Financeiro — Frontend | Não existe módulo `/financeiro` dedicado. Em vez disso, indicadores financeiros (cards PAGO/PENDENTE, gráficos, `resumo-financeiro`) foram embutidos direto em `/servicos/[id]` — decidir se isso substitui o escopo original ou se o módulo dedicado (sidebar 4 grupos, dashboard, categorização, sync Inter) ainda será construído |
 | F1.4 | Financeiro — QA + Entrega | Depende da decisão acima sobre F1.3 |
+| **F2** | **Fluxo Financeiro — página que substitui a planilha manual** | Plano técnico completo em `Refatoracao.md` (tarefa ativa, 2026-07-27). Objetivo: página `/fluxo-financeiro` que replica a estrutura da planilha (Manutenção+Assistência+Recibos, por CNPJ) direto de `notas_fiscais`/`boletos`/`recibos`, com detecção automática de duplicata — resolve a causa raiz dos 3 bugs de duplicidade encontrados nesta sessão. Pré-requisito: `cnpj_emitente` confiável (hoje NULL em 694/706 notas) |
 
 ### ⏸ Fora do Escopo Atual
 
