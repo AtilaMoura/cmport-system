@@ -41,7 +41,8 @@ export default function Sidebar() {
     {
       label: 'FINANCEIRO',
       items: [
-        { name: 'Recibos', icon: '🧾', href: '/recibos', roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Fluxo Financeiro', icon: '💰', href: '/fluxo-financeiro', roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Recibos',          icon: '🧾', href: '/recibos',          roles: ['DEV', 'ADMIN', 'USUARIO'] },
       ],
     },
     {
