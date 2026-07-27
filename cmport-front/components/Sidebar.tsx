@@ -14,21 +14,44 @@ export default function Sidebar() {
 
   const isDev = user?.role === 'DEV';
 
-  const menuItems = [
-    { name: 'Dashboard',    icon: '📊', href: '/',            roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Condomínios',  icon: '🏢', href: '/condominios', roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Produtos',     icon: '📦', href: '/produtos',    roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Orçamentos',   icon: '📋', href: '/orcamentos',  roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Serviços',          icon: '🛠️', href: '/servicos',         roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Ordens de Serviço', icon: '📋', href: '/ordens-servico',   roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Notas Fiscais',     icon: '📄', href: '/notas',            roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Corpos de Nota',    icon: '📝', href: '/corpos-nota',      roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Boletos',        icon: '🏦', href: '/boletos',        roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Clientes',       icon: '👥', href: '/clientes',       roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Recibos',        icon: '🧾', href: '/recibos',        roles: ['DEV', 'ADMIN', 'USUARIO'] },
-    { name: 'Configurações', icon: '⚙️', href: '/configuracoes', roles: ['DEV', 'ADMIN'] },
-    { name: 'Dev / Teste',   icon: '🔧', href: '/dev',            roles: ['DEV'] },
-  ].filter(item => !user || item.roles.includes(user.role));
+  type MenuItem = { name: string; icon: string; href: string; roles: string[] };
+  type MenuGroup = { label: string; items: MenuItem[] };
+
+  const menuGroups: MenuGroup[] = [
+    {
+      label: 'OPERACIONAL',
+      items: [
+        { name: 'Dashboard',          icon: '📊', href: '/',               roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Condomínios',        icon: '🏢', href: '/condominios',    roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Serviços',           icon: '🛠️', href: '/servicos',       roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Ordens de Serviço',  icon: '📋', href: '/ordens-servico', roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Orçamentos',         icon: '📑', href: '/orcamentos',     roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Clientes',           icon: '👥', href: '/clientes',       roles: ['DEV', 'ADMIN', 'USUARIO'] },
+      ],
+    },
+    {
+      label: 'FISCAL',
+      items: [
+        { name: 'Notas Fiscais',  icon: '📄', href: '/notas',       roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Corpos de Nota', icon: '📝', href: '/corpos-nota', roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Boletos',        icon: '🏦', href: '/boletos',     roles: ['DEV', 'ADMIN', 'USUARIO'] },
+        { name: 'Produtos',       icon: '📦', href: '/produtos',    roles: ['DEV', 'ADMIN', 'USUARIO'] },
+      ],
+    },
+    {
+      label: 'FINANCEIRO',
+      items: [
+        { name: 'Recibos', icon: '🧾', href: '/recibos', roles: ['DEV', 'ADMIN', 'USUARIO'] },
+      ],
+    },
+    {
+      label: 'SISTEMA',
+      items: [
+        { name: 'Configurações', icon: '⚙️', href: '/configuracoes', roles: ['DEV', 'ADMIN'] },
+        { name: 'Dev / Teste',   icon: '🔧', href: '/dev',            roles: ['DEV'] },
+      ],
+    },
+  ];
 
   const fechar = () => setOpen(false);
 
@@ -102,34 +125,48 @@ export default function Sidebar() {
         </div>
 
         {/* ── Navegação ── */}
-        <nav className="flex-1 p-3 lg:p-4 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== '/' && pathname.startsWith(item.href));
+        <nav className="flex-1 p-3 lg:p-4 overflow-y-auto space-y-4">
+          {menuGroups.map((group) => {
+            const visibleItems = group.items.filter(item => !user || item.roles.includes(user.role));
+            if (visibleItems.length === 0) return null;
 
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={fechar}
-                className={[
-                  'group flex items-center gap-3 px-3 py-2.5 lg:px-4 lg:py-3',
-                  'rounded-xl font-semibold text-sm',
-                  'transition-all duration-200 relative overflow-hidden',
-                  isActive
-                    ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-900 dark:text-blue-400 shadow-sm'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white',
-                ].join(' ')}
-              >
-                {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-900 dark:bg-blue-400 rounded-r-full" />
-                )}
-                <span className="text-lg lg:text-xl opacity-80 group-hover:scale-110 transition-transform shrink-0">
-                  {item.icon}
-                </span>
-                <span className="truncate">{item.name}</span>
-              </Link>
+              <div key={group.label}>
+                <p className="px-3 mb-1 text-[10px] font-bold tracking-widest text-slate-400 dark:text-slate-600 uppercase">
+                  {group.label}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const isActive =
+                      pathname === item.href ||
+                      (item.href !== '/' && pathname.startsWith(item.href));
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={fechar}
+                        className={[
+                          'group flex items-center gap-3 px-3 py-2.5 lg:px-4 lg:py-3',
+                          'rounded-xl font-semibold text-sm',
+                          'transition-all duration-200 relative overflow-hidden',
+                          isActive
+                            ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-900 dark:text-blue-400 shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white',
+                        ].join(' ')}
+                      >
+                        {isActive && (
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-900 dark:bg-blue-400 rounded-r-full" />
+                        )}
+                        <span className="text-lg lg:text-xl opacity-80 group-hover:scale-110 transition-transform shrink-0">
+                          {item.icon}
+                        </span>
+                        <span className="truncate">{item.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>
