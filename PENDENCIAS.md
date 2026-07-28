@@ -5,6 +5,18 @@
 
 ---
 
+## ⏸ Tarefa pausada em 2026-07-28 — Recibo: parcelas + ENTRADA gera serviço + SAÍDA gera despesa
+
+Plano técnico completo em `Refatoracao.md` (tarefa ativa), nenhum código escrito ainda. Regra de negócio fechada com o usuário:
+- **ENTRADA** → gera serviço, checkbox editável (default marcado)
+- **SAÍDA** → nunca gera serviço, gera despesa em `fin_movimentacoes` (categoria obrigatória no formulário); se parcelado, uma despesa por parcela **paga** (não na criação, só quando `status` vira PAGO)
+- Parcelamento novo pra Recibo (`numero_parcela`/`total_parcelas`/`recibo_pai_id`, self-FK igual `notas_fiscais.nota_vinculada_id`), efeito colateral (serviço/despesa) só uma vez por grupo — exceto despesa parcelada, que é por parcela paga
+- Adiado: alerta/controle de vencimento de despesa parcelada (feature separada, não decidida ainda)
+
+Próxima sessão: começar pela Fase A do plano (model + schema + migration).
+
+---
+
 ## ⚠️ Dívida técnica conhecida (não bloqueia tarefas atuais)
 
 **✅ Bug em `boleto_service.py` (`sincronizar_status` e `sincronizar_do_inter`) — campo errado da API do Inter — CORRIGIDO em 2026-07-27** (commit `dd78776`, deploy em produção confirmado): o código lia `dados.get("dataPagamento")`, mas a Cobrança v3 do Inter **não retorna esse campo** — o campo real é `dataSituacao`. Resultado: todo boleto que virava PAGO via sincronização automática ficava com `data_pagamento` `NULL` para sempre (a `situacao` ficava correta, só a data que não era gravada), e como `BoletoRepository.get_pendentes()` só processa EMABERTO/VENCIDO, o gap nunca se autocorrigia. Fix: fallback para `dataSituacao` só quando a nova situação já é PAGO/BAIXADO (nunca para EXPIRADO/CANCELADO). Testado contra a API real (caso PAGO extrai a data certa, caso EXPIRADO continua sem gerar data falsa) e suíte de testes (38 passaram, mesmas 3 falhas pré-existentes).
