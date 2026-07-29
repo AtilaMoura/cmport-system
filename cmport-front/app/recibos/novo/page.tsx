@@ -17,6 +17,16 @@ type ContraparteTipo = 'CONDOMINIO' | 'MORADOR' | 'CLIENTE_EXTERNO' | 'AVULSO';
 const TOTAL_STEPS = 5;
 const STEP_LABELS = ['Tipo', 'Vínculo', 'Contraparte', 'OS', 'Financeiro'];
 
+// Mesmo cálculo do backend (_calcular_valores_parcelas): divide igual, última parcela
+// absorve o resto do arredondamento — usado como sugestão inicial editável.
+function splitIgual(total: number, n: number): string[] {
+  if (!total || n <= 1) return [total ? total.toFixed(2) : ''];
+  const base = Math.round((total / n) * 100) / 100;
+  const valores = Array(n - 1).fill(base);
+  const ultima = Math.round((total - base * (n - 1)) * 100) / 100;
+  return [...valores, ultima].map(v => v.toFixed(2));
+}
+
 function NovoReciboContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -67,6 +77,8 @@ function NovoReciboContent() {
   const [gerarServico, setGerarServico] = useState(true);
   const [tipoServico, setTipoServico] = useState<'ASSISTENCIA' | 'MANUTENCAO'>('ASSISTENCIA');
   const [parcelas, setParcelas] = useState('1');
+  const [valoresParcelas, setValoresParcelas] = useState<string[]>([]);
+  const [parcelasCustomizadas, setParcelasCustomizadas] = useState(false);
   const [categorias, setCategorias] = useState<CategoriaFin[]>([]);
   const [categoriaId, setCategoriaId] = useState<number | null>(null);
 
@@ -143,6 +155,31 @@ function NovoReciboContent() {
       .catch(() => setCategorias([]));
   }, [step, tipoRecibo]);
 
+  // Recalcula o split igual quando o número de parcelas muda (sempre) ou quando o valor
+  // muda e o usuário ainda não customizou manualmente nenhuma parcela.
+  useEffect(() => {
+    const n = Math.max(1, parseInt(parcelas, 10) || 1);
+    setValoresParcelas(prev => {
+      if (!parcelasCustomizadas || prev.length !== n) return splitIgual(Number(valor), n);
+      return prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parcelas, valor]);
+
+  const dividirIgualmente = () => {
+    const n = Math.max(1, parseInt(parcelas, 10) || 1);
+    setValoresParcelas(splitIgual(Number(valor), n));
+    setParcelasCustomizadas(false);
+  };
+
+  const alterarValorParcela = (index: number, novoValor: string) => {
+    setValoresParcelas(prev => prev.map((v, i) => (i === index ? novoValor : v)));
+    setParcelasCustomizadas(true);
+  };
+
+  const somaParcelas = valoresParcelas.reduce((s, v) => s + (parseFloat(v) || 0), 0);
+  const parcelasBatem = Math.abs(somaParcelas - Number(valor || 0)) < 0.01;
+
   const condsFiltrados = condominios.filter(c => !filtroCond || c.nome.toLowerCase().includes(filtroCond.toLowerCase()));
 
   const cadastrarClienteExterno = async () => {
@@ -183,6 +220,7 @@ function NovoReciboContent() {
     if (!descricao || !valor) { setErro('Preencha descrição e valor.'); return; }
     if (tipoRecibo === 'SAIDA' && !categoriaId) { setErro('Selecione a categoria da despesa.'); return; }
     const nParcelas = Math.max(1, parseInt(parcelas, 10) || 1);
+    if (nParcelas > 1 && !parcelasBatem) { setErro('A soma das parcelas precisa bater com o valor total.'); return; }
     setLoading(true); setErro(null);
     try {
       const contraparteNome = clienteSelecionado?.nome || nomeAvulso || condSelecionado?.nome;
@@ -205,6 +243,7 @@ function NovoReciboContent() {
         numero_os: osSelecionada?.numero_os ?? null,
         data_servico: osSelecionada?.data_servico ?? null,
         parcelas: nParcelas,
+        valores_parcelas: nParcelas > 1 ? valoresParcelas.map(Number) : null,
         categoria_id: tipoRecibo === 'SAIDA' ? categoriaId : null,
       });
       router.push('/recibos');
@@ -514,9 +553,27 @@ function NovoReciboContent() {
                 </div>
               </div>
               {Number(parcelas) > 1 && valor && (
-                <p className="text-xs text-slate-500 -mt-2">
-                  {Number(parcelas)}x de {fmtValor(Number(valor) / Number(parcelas))} (última parcela ajusta o arredondamento) · vencimentos a cada 30 dias a partir de {dataVencimento ? 'vencimento informado' : 'data de emissão'}
-                </p>
+                <div className={`rounded-xl border p-4 space-y-2 -mt-2 ${parcelasBatem ? 'border-slate-200 dark:border-slate-700' : 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-500/5'}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Valor de cada parcela</p>
+                    <button type="button" onClick={dividirIgualmente}
+                      className="text-xs font-bold text-violet-600 hover:underline">Dividir igualmente</button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {valoresParcelas.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-16 shrink-0">Parcela {i + 1}</span>
+                        <input type="number" step="0.01" min="0" value={v}
+                          onChange={e => alterarValorParcela(i, e.target.value)}
+                          className="flex-1 px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
+                      </div>
+                    ))}
+                  </div>
+                  <p className={`text-xs font-semibold ${parcelasBatem ? 'text-slate-500' : 'text-red-600 dark:text-red-400'}`}>
+                    Soma: {fmtValor(somaParcelas)} {parcelasBatem ? '✓ bate com o valor total' : `— precisa bater com ${fmtValor(Number(valor))}`}
+                  </p>
+                  <p className="text-xs text-slate-400">Vencimentos a cada 30 dias a partir de {dataVencimento ? 'vencimento informado' : 'data de emissão'}.</p>
+                </div>
               )}
 
               <div>
@@ -606,7 +663,7 @@ function NovoReciboContent() {
                     <div><span className="font-semibold">Serviço:</span> {descricao}</div>
                     <div><span className="font-semibold">Valor:</span> {fmtValor(Number(valor))}</div>
                     {Number(parcelas) > 1 && (
-                      <div><span className="font-semibold">Parcelas:</span> {Number(parcelas)}x de {fmtValor(Number(valor) / Number(parcelas))}</div>
+                      <div><span className="font-semibold">Parcelas:</span> {valoresParcelas.map(v => fmtValor(Number(v) || 0)).join(' + ')}</div>
                     )}
                     {osSelecionada && tipoRecibo === 'ENTRADA' && gerarServico && (
                       <div className="pt-1 mt-1 border-t border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-400 font-semibold">
@@ -641,7 +698,7 @@ function NovoReciboContent() {
 
               <div className="flex gap-3">
                 <button onClick={() => { setErro(null); setStep(4); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">← Voltar</button>
-                <button onClick={confirmar} disabled={loading}
+                <button onClick={confirmar} disabled={loading || (Number(parcelas) > 1 && !parcelasBatem)}
                   className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors disabled:opacity-50 shadow-lg shadow-violet-600/20">
                   {loading ? 'Salvando...' : '✓ Criar Recibo'}
                 </button>

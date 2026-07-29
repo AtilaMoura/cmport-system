@@ -254,6 +254,84 @@ def test_saida_sem_categoria_id_rejeitada():
     assert exc_info.value.status_code == 422
 
 
+# ─── 10-12. Parcelas com valores customizados (valores_parcelas) ─────────────
+
+def test_entrada_parcelas_customizadas_soma_correta_aplica_valores():
+    """Usuário editou o valor de cada parcela na mão — soma bate com o total,
+    então os valores exatos informados são aplicados (sem recalcular split igual)."""
+    from app.schemas.recibo_schema import ReciboCreate
+    from app.services.recibo_service import ReciboService
+
+    cliente = _cliente_mock(20, "Cliente Parcelado", condominio_id=50)
+    db = _db_mock()
+    db.get.return_value = cliente
+
+    criados = []
+
+    def _create(db_arg, recibo_obj):
+        recibo_obj.id = 910 + len(criados)
+        recibo_obj.cliente = cliente
+        criados.append(recibo_obj)
+        return recibo_obj
+
+    p1, p2, p3 = _patches(_create)
+    with p1, p2, p3:
+        payload = ReciboCreate(
+            tipo="ENTRADA", cliente_id=20, descricao_servico="Servico parcelado",
+            valor=500.0, data_emissao=date(2026, 3, 12), parcelas=3,
+            valores_parcelas=[200.0, 150.0, 150.0], gerar_servico=False,
+        )
+        ReciboService.criar(db, payload)
+
+    assert [r.valor for r in criados] == [200.0, 150.0, 150.0]
+
+
+def test_entrada_parcelas_customizadas_soma_errada_rejeitada():
+    """Soma das parcelas customizadas não bate com o valor total -> 422, nada é criado."""
+    from app.schemas.recibo_schema import ReciboCreate
+    from app.services.recibo_service import ReciboService
+    from fastapi import HTTPException
+
+    db = _db_mock()
+    payload = ReciboCreate(
+        tipo="ENTRADA", cliente_nome_avulso="Cliente X", descricao_servico="Servico",
+        valor=500.0, data_emissao=date(2026, 3, 12), parcelas=3,
+        valores_parcelas=[200.0, 150.0, 100.0],  # soma 450, nao bate com 500
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        ReciboService.criar(db, payload)
+    assert exc_info.value.status_code == 422
+    db.add.assert_not_called()
+
+
+def test_entrada_sem_valores_parcelas_usa_split_automatico():
+    """Retrocompatibilidade: sem valores_parcelas, split automático continua igual a antes."""
+    from app.schemas.recibo_schema import ReciboCreate
+    from app.services.recibo_service import ReciboService
+
+    cliente = _cliente_mock(21, "Cliente Auto", condominio_id=51)
+    db = _db_mock()
+    db.get.return_value = cliente
+
+    criados = []
+
+    def _create(db_arg, recibo_obj):
+        recibo_obj.id = 920 + len(criados)
+        recibo_obj.cliente = cliente
+        criados.append(recibo_obj)
+        return recibo_obj
+
+    p1, p2, p3 = _patches(_create)
+    with p1, p2, p3:
+        payload = ReciboCreate(
+            tipo="ENTRADA", cliente_id=21, descricao_servico="Servico automatico",
+            valor=100.0, data_emissao=date(2026, 3, 13), parcelas=3, gerar_servico=False,
+        )
+        ReciboService.criar(db, payload)
+
+    assert [r.valor for r in criados] == [33.33, 33.33, 33.34]
+
+
 # ─── 7. Termo de Garantia para serviço sem condomínio → usa nome do cliente ──
 
 def test_termo_garantia_servico_sem_condominio_usa_nome_cliente():

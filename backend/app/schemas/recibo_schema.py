@@ -32,6 +32,10 @@ class ReciboCreate(BaseModel):
     # Número de parcelas (default 1 = à vista). Efeito colateral (serviço/despesa)
     # só a partir da parcela 1 — despesa de SAIDA parcelada é gerada por parcela paga.
     parcelas: int = Field(default=1, ge=1)
+    # Valor de cada parcela, na ordem (parcela 1, 2, ...). Opcional — se omitido, o
+    # valor total é dividido igualmente (último absorve o arredondamento, como hoje).
+    # Se enviado, precisa ter len == parcelas e soma == valor (validado no service).
+    valores_parcelas: Optional[List[float]] = None
     # Obrigatório quando tipo=SAIDA (grupo DESPESA ou FORNECEDOR) — validado no service.
     categoria_id: Optional[int] = None
 

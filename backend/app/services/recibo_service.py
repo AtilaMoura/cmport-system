@@ -57,7 +57,10 @@ class ReciboService:
                 condominio_id = cliente.condominio_id
 
         n_parcelas = max(1, payload.parcelas)
-        valores = ReciboService._calcular_valores_parcelas(payload.valor, n_parcelas)
+        if payload.valores_parcelas is not None:
+            valores = ReciboService._validar_valores_parcelas(payload.valores_parcelas, n_parcelas, payload.valor)
+        else:
+            valores = ReciboService._calcular_valores_parcelas(payload.valor, n_parcelas)
 
         recibo_mae = ReciboService._criar_um_recibo(
             db, payload, condominio_id, valor=valores[0],
@@ -111,6 +114,26 @@ class ReciboService:
         valores = [base] * (n - 1)
         valores.append(round(valor_total - sum(valores), 2))  # última parcela absorve o resto do arredondamento
         return valores
+
+    @staticmethod
+    def _validar_valores_parcelas(valores: List[float], n_parcelas: int, valor_total: float) -> List[float]:
+        """Valores customizados por parcela (usuário editou manualmente) — precisa ter
+        uma entrada por parcela e a soma precisa bater com o valor total (tolerância de
+        1 centavo, nunca comparação exata, mesmo padrão usado na geração de boleto)."""
+        if len(valores) != n_parcelas:
+            raise HTTPException(
+                status_code=422,
+                detail=f"valores_parcelas precisa ter {n_parcelas} valor(es), recebeu {len(valores)}.",
+            )
+        if any(v <= 0 for v in valores):
+            raise HTTPException(status_code=422, detail="Cada valor de parcela precisa ser maior que zero.")
+        soma = round(sum(valores), 2)
+        if abs(soma - round(valor_total, 2)) >= 0.01:
+            raise HTTPException(
+                status_code=422,
+                detail=f"A soma das parcelas (R$ {soma:.2f}) não bate com o valor total (R$ {valor_total:.2f}).",
+            )
+        return [round(v, 2) for v in valores]
 
     @staticmethod
     def _criar_um_recibo(

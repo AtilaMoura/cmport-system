@@ -8,7 +8,13 @@
 
 ## Tarefas Anteriores — ARQUIVADAS
 
+**Recibo: parcelas + gerar_servico editável + despesa por parcela paga (sessão 2026-07-28/29):** feature completa, testada localmente (pytest + Playwright), commitada em `247d11a`. Inclui: parcelamento (`numero_parcela`/`total_parcelas`/`recibo_pai_id`), checkbox "gerar serviço" editável pra ENTRADA (funciona mesmo com OS selecionada), categoria obrigatória + despesa por parcela paga pra SAÍDA, endpoint `GET /recibos/{id}/parcelas`, cascade delete (excluir recibo remove o serviço vinculado), cards "Recibo Vinculado"/"Cobranças por Parcela" no detalhe do serviço. Migração `categoria_id` aplicada em produção em 2026-07-29 (só isso — o resto do código **ainda não foi enviado pra produção**, ver lista completa no final deste arquivo). **Ainda em aberto dessa tarefa:** decisão sobre CNPJ obrigatório no formulário (usuário não decidiu, ficou como estava); `npm run lint` não rodado.
+
+**Análise de recibos duplicados por falta de parcela (sessão 2026-07-29):** varredura dos 39 recibos existentes encontrou 2 casos suspeitos — ver `Analise_Recibos_Parcelas_Duplicadas.md`. **Decisão do usuário:** vai resolver, mas **depois** de implementar a tarefa ativa abaixo (parcela com valor editável) — faz sentido corrigir os dados manualmente usando a UI já corrigida, ao invés de duas vezes.
+
 **Fluxo Financeiro — Fases 1-3 (sessão 2026-07-27/28):** CNPJ backfill em notas/recibos, endpoint `GET /financeiro/fluxo-mensal` (+ alertas de duplicata), página `/fluxo-financeiro` com 4 subpáginas, importação histórica Jan-Julho pra `fin_movimentacoes` (1168 registros). Tudo commitado local (`f197fb0` até `e0337cb`), **nada foi enviado pra produção ainda** (só os scripts de dados, que já rodaram nos dois ambientes, e o dump/restore de sincronização). Detalhes em `PENDENCIAS.md`.
+
+**Mapeamento das planilhas de Fluxo Financeiro (sessão 2026-07-29):** ver `Mapeamento_Planilhas_Fluxo_Financeiro.md` — mapa completo das seções/totais mensais das duas planilhas (CMPORT principal + TEC), análise de onde existe parcelamento real (só em Assistência e alguns acordos de Fornecedores). Comparação com o sistema (Fase 2) parcialmente feita: Manutenção e Entrada/Bancos bateram exato Jan-Jun; achado um bug de fórmula na própria planilha (Entrada de julho). Falta comparar Assistência mês a mês (é onde mora o parcelamento real) e Despesas/Fornecedores.
 
 **Reconciliação D2-D6 + limpeza de 3 categorias de duplicata (sessão 2026-07-27):** ver `PENDENCIAS.md`.
 
@@ -16,122 +22,56 @@
 
 ---
 
-## Tarefa Ativa — Recibo: parcelas + ENTRADA gera serviço (opcional) + SAÍDA gera despesa
+## Tarefa Ativa — Recibo parcelado: valor de cada parcela editável (com validação de soma)
 
-### Objetivo e escopo
+### Status: ✅ implementada e testada (2026-07-29)
 
-Regra de negócio confirmada com o usuário:
+- **Fase A (backend):** feita — `valores_parcelas` opcional em `ReciboCreate`, validado em `_validar_valores_parcelas` (len, valores > 0, soma com tolerância 0.01), usado em `criar()` no lugar do split automático quando enviado.
+- **Fase B (frontend):** feita — inputs editáveis por parcela em `recibos/novo/page.tsx`, soma ao vivo com indicador visual, botão "Dividir igualmente", botão "Criar Recibo" desabilitado enquanto a soma não bate, resumo final mostra os valores reais.
+- **Fase C (testes):** feita — 3 testes novos em `test_recibo_gera_servico.py` (soma correta aplica valores exatos; soma errada rejeitada com 422; sem `valores_parcelas` mantém o split automático de antes). Suíte: 42 passed / 3 falhas pré-existentes não relacionadas (`test_corpo_nota_produto.py`).
+- **Testado no navegador (Playwright):** criação com 3 parcelas customizadas (150/100/50), validação de soma errada bloqueando o botão, correção e submissão com sucesso — valores exatos aplicados nos 3 recibos criados.
+- **`npm run lint`:** rodado — 9 erros/33 warnings pré-existentes no restante do código (não relacionados a esta tarefa; `recibos/novo/page.tsx` só tem 1 warning pré-existente, `semOs` não usado, que já existia antes desta mudança).
+- **Não commitado ainda** — aguardando o usuário pedir explicitamente (regra: só commitar quando pedido).
 
-| Tipo | Gera o quê | Como |
-|---|---|---|
-| **ENTRADA** | Serviço (`ManutencaoAssistencia`) | Checkbox "Gerar serviço" visível, **default marcado**, editável — usuário pode desmarcar pra criar só o recibo puro |
-| **SAÍDA** | Despesa (`MovimentacaoFinanceira`, tipo `SAIDA`) | **Nunca** gera serviço. Sempre gera uma movimentação financeira. Categoria é **obrigatória**, selecionada no formulário (combobox com as categorias `DESPESA`/`FORNECEDOR` já semeadas em `fin_categorias`) |
+### Objetivo
 
-Parcelamento (ambos os tipos):
-- Recibo não tem parcela hoje — é um registro único. Vou adicionar a opção "número de parcelas" (default 1) na criação.
-- Se parcelado: gera N registros `Recibo` (mesmo padrão self-referencial de `notas_fiscais.nota_vinculada_id`). **Só a parcela 1 gera o efeito colateral** (serviço, se ENTRADA; despesa, se SAÍDA) — as demais parcelas são só o registro do recebimento/pagamento daquele mês.
-- Cada parcela marcada como paga (`data_pagamento` preenchida) aparece automaticamente no Fluxo Financeiro do mês correspondente — isso **já funciona hoje**, não precisa de código novo (o endpoint `/financeiro/fluxo-mensal` já filtra recibo ENTRADA/PAGO por `data_pagamento`; a despesa em `fin_movimentacoes` idem via `data`).
+Hoje, ao parcelar um recibo (`parcelas > 1`), o sistema sempre divide o valor total **igualmente** entre as parcelas (`_calcular_valores_parcelas`: `round(total/n, 2)`, última parcela absorve o arredondamento). O usuário quer poder **editar o valor de cada parcela individualmente** (parcelas não precisam ser iguais — ex: parcela 1 = R$300, parcela 2 = R$150, parcela 3 = R$150), mas o sistema **sempre precisa validar que a soma das parcelas bate com o valor total** antes de permitir salvar (mesmo padrão já usado no fluxo de boleto/Inter: `servicos/[id]/page.tsx`, `somaParcelasModal()`, tolerância pequena, nunca comparar `=== 0` — ver regra já documentada no `CLAUDE.md`: `|soma_parcelas - liquido| < 0.005`).
 
-**Fora de escopo:** mudar o fluxo de reaproveitamento de OS existente (`numero_os`) — continua igual, só se aplica à parcela 1 de recibos ENTRADA.
+### Escopo
 
-### Análise dos arquivos existentes
+- Só a criação do recibo (não editar parcelas depois de criado — isso fica fora de escopo)
+- Só o valor de cada parcela (data de vencimento continua automática: `base + 30*(N-1)` dias, como hoje)
+- Aplica pros dois tipos (ENTRADA e SAÍDA) — a lógica de parcelamento é a mesma pros dois
 
-| Arquivo | Papel atual | Mudança necessária |
-|---|---|---|
-| `backend/app/models/recibo_model.py` | Sem parcela, sem link pra `fin_movimentacoes` | Adicionar `numero_parcela`, `total_parcelas`, `recibo_pai_id` (self-FK) |
-| `backend/app/models/fin_movimentacao_model.py` | Sem link pra `Recibo` | Adicionar `recibo_id` (FK nullable, `SET NULL`) — rastreia que a despesa nasceu de um recibo SAÍDA |
-| `backend/app/schemas/recibo_schema.py` | `gerar_servico` default `False`, só usado se SAIDA; sem `parcelas`/`categoria_id` | `gerar_servico: bool = True` (agora só se aplica a ENTRADA); `parcelas: int = 1`; `categoria_id: Optional[int] = None` (obrigatório quando `tipo=SAIDA`, validado no service) |
-| `backend/app/services/recibo_service.py` (`criar`, linha 44-94) | ENTRADA sempre força serviço; SAIDA cria serviço opcional | Reescrever: ENTRADA respeita `gerar_servico` (default True); SAIDA **nunca** cria serviço, sempre cria `MovimentacaoFinanceira` (categoria obrigatória); parcelamento gera N recibos, efeito colateral só na parcela 1 |
-| `backend/app/repositories/recibo_repository.py` (`proximo_numero`) | Sequencial simples `REC-{ano}-{seq:03d}` | Não mexer — cada parcela recebe próprio número sequencial |
-| `backend/app/repositories/fin_movimentacao_repository.py` | CRUD de movimentação | Conferir se aceita criação vinda de outro service sem duplicar lógica (reaproveitar `FinMovimentacaoRepository`/model direto, sem passar pelo router) |
-| `cmport-front/app/recibos/novo/page.tsx` | Checkbox só pra SAIDA (linha 544-561); sem parcelas; sem seleção de categoria | Campo "Parcelas" (default 1) + preview; pra ENTRADA: checkbox "Gerar serviço" (default marcado); pra SAIDA: combobox de categoria (obrigatório), sem checkbox de serviço (nunca gera) |
-| `cmport-front/app/recibos/page.tsx`, `[id]/page.tsx` | Sem indicação de parcela | Badge "Parcela X/Y"; no detalhe, link pras parcelas irmãs e, se SAIDA, link pra despesa gerada |
+### Fase A — Backend
 
-### Regras de negócio e validações
+- **A1.** `ReciboCreate` (`recibo_schema.py`): novo campo opcional `valores_parcelas: Optional[List[float]] = None`
+- **A2.** `ReciboService.criar()` (`recibo_service.py`): antes de chamar `_calcular_valores_parcelas`, se `payload.valores_parcelas` foi enviado:
+  - Validar `len(valores_parcelas) == n_parcelas` (422 se não bater)
+  - Validar cada valor `> 0` (422 se algum for zero/negativo)
+  - Validar `abs(sum(valores_parcelas) - payload.valor) < 0.01` (422 com mensagem clara se a soma não bater com o total)
+  - Se passou na validação, usar `valores_parcelas` no lugar do split automático
+  - Se `valores_parcelas` não foi enviado: comportamento atual, sem mudança (retrocompatível)
+- **A3.** Nenhuma migration necessária (não é campo novo de banco, é só um campo de entrada do payload — os valores já viram o campo `valor` de cada `Recibo` individual, que já existe)
 
-- **Agrupamento de parcelas:** parcela 1 = "mãe" (`recibo_pai_id=NULL`), demais apontam pra ela. Cada parcela é um `Recibo` completo e independente (número próprio, pode virar PAGO individualmente).
-- **Cálculo de valor por parcela:** `round(valor_total / parcelas, 2)`; última parcela = `valor_total - soma_das_anteriores` (evita perda de centavo).
-- **Vencimento por parcela:** parcela N = `data_vencimento_base + 30*(N-1)` dias (mesmo padrão já documentado no `CLAUDE.md` pra boleto).
-- **ENTRADA:** `gerar_servico` default `true`, editável. Serviço só na parcela 1.
-- **SAÍDA:** nunca gera serviço. Sempre gera 1 `MovimentacaoFinanceira` (só na parcela 1), com `categoria_id` obrigatório (`grupo` da categoria deve ser `DESPESA` ou `FORNECEDOR` — validar no service, rejeitar `RECEITA`), `valor=recibo.valor`, `data=recibo.data_pagamento or recibo.data_emissao`, `origem="MANUAL"`, `status="PENDENTE"`, `recibo_id=recibo.id`.
-- **Sincronização básica:** se o recibo SAÍDA for atualizado depois (valor, status, data_pagamento) e tiver `MovimentacaoFinanceira` vinculada, atualizar os mesmos campos nela (`ReciboService.atualizar`).
-- **Retrocompatibilidade:** recibos existentes = `numero_parcela=1, total_parcelas=1, recibo_pai_id=NULL` (default de coluna cobre, sem backfill necessário).
-- Seguir `CLAUDE.md`: nunca pular camada, comentários em português, zero erros `tsc`, soft delete (nunca hard delete).
+### Fase B — Frontend (`recibos/novo/page.tsx`)
 
-### Passo a passo por fase
+- **B1.** Quando `Number(parcelas) > 1`: trocar o texto de preview atual por uma lista de inputs editáveis, um valor por parcela — pré-preenchidos com o split igual sugerido (mesmo cálculo de hoje), mas editáveis
+- **B2.** Soma ao vivo dos valores editados, comparada com o valor total (`Number(valor)`), com indicador visual (verde se bate dentro da tolerância, vermelho/aviso se não)
+- **B3.** Botão "Criar Recibo" desabilitado enquanto a soma não bater (mesma tolerância usada no resto do sistema — nunca comparação exata)
+- **B4.** Botão auxiliar "Dividir igualmente" pra resetar rápido pro split automático (conveniência, evita ter que editar tudo na mão se só quiser o padrão)
+- **B5.** Enviar `valores_parcelas` no payload de `POST /recibos` quando os valores tiverem sido customizados (ou sempre enviar, já que o backend aceita e valida de qualquer forma)
 
-#### Fase A — Backend: model + schema
-- [ ] A1. `recibo_model.py`: `numero_parcela`, `total_parcelas` (Integer, default 1), `recibo_pai_id` (self-FK nullable)
-- [ ] A2. `fin_movimentacao_model.py`: `recibo_id` (FK `recibos.id`, `ondelete=SET NULL`, nullable)
-- [ ] A3. `ALTER TABLE` manual local + produção pras 2 tabelas (sem quebrar dado existente — colunas nullable/com default)
-- [ ] A4. `ReciboCreate`: `gerar_servico: bool = True`, `parcelas: int = 1` (`ge=1`), `categoria_id: Optional[int] = None`
-- [ ] A5. `ReciboResponse`: incluir `numero_parcela`, `total_parcelas`, `recibo_pai_id`
+### Fase C — Testes
 
-#### Fase B — Backend: service
-- [ ] B1. Validar: se `tipo=SAIDA`, `categoria_id` é obrigatório e a categoria precisa ter `grupo in (DESPESA, FORNECEDOR)` — 422 se faltar ou for `RECEITA`
-- [ ] B2. ENTRADA: `if payload.gerar_servico:` cria serviço (comportamento igual ao de hoje, só que agora checável)
-- [ ] B3. SAIDA: nunca chama `_criar_servico`; sempre cria `MovimentacaoFinanceira` com os campos da regra acima
-- [ ] B4. Parcelamento (`payload.parcelas > 1`): criar parcela 1 completa (com efeito colateral); loop parcelas 2..N só com os campos do recibo (sem side-effect), `recibo_pai_id` apontando pra parcela 1
-- [ ] B5. `ReciboService.atualizar`: se recibo tiver `MovimentacaoFinanceira` vinculada (buscar por `recibo_id`), sincronizar `valor`/`data`/status equivalente
+- Atualizar `test_recibo_gera_servico.py`: caso de parcelas com valores customizados que somam certo (sucesso, valores exatos aplicados); caso que não soma (422); caso sem `valores_parcelas` (retrocompatibilidade — split automático continua igual a hoje)
 
-#### Fase C — Frontend
-- [ ] C1. Campo "Parcelas" (default 1, min 1) — visível pros dois tipos
-- [ ] C2. Preview de parcelas (nº, valor, vencimento) quando `parcelas > 1`
-- [ ] C3. ENTRADA: checkbox "Gerar serviço" sempre visível, default marcado
-- [ ] C4. SAIDA: combobox de categoria (`GET /categorias-financeiras?grupo=DESPESA` + `?grupo=FORNECEDOR`, ou os dois juntos com label de grupo), obrigatório antes de submeter — **sem** checkbox de serviço (nunca se aplica)
-- [ ] C5. `recibos/page.tsx`: badge "Parcela X/Y"
-- [ ] C6. `recibos/[id]/page.tsx`: seção "Parcelas relacionadas"; se SAIDA, link pra despesa gerada em `/fluxo-financeiro/despesas` ou `/fornecedores`
+### Fora de escopo (não fazer nesta tarefa)
 
-### Checklist final
-- [x] Migrations aplicadas **local**. Produção: `numero_parcela`/`total_parcelas`/`recibo_pai_id` (em `recibos`) e `recibo_id` (em `fin_movimentacoes`) já confirmados em produção (aplicados numa etapa anterior, antes da instrução de "validar local antes de subir"). A coluna `categoria_id` em `recibos` está confirmada **só local** — produção não verificada, não pushar sem checar antes.
-- [x] Recibo ENTRADA 1x, gerar_servico=true (default) → 1 recibo + 1 serviço
-- [x] Recibo ENTRADA 1x, gerar_servico=false → 1 recibo, 0 serviço
-- [x] Recibo SAIDA 1x → 1 recibo + 1 `MovimentacaoFinanceira` (categoria escolhida), 0 serviço
-- [x] Recibo ENTRADA 3x → 3 recibos com parcelas somando o valor exato (última parcela absorve arredondamento), 1 serviço só na parcela 1
-- [x] Recibo SAIDA parcelado → despesa gerada **por parcela paga** (não só na parcela 1) — decisão já registrada abaixo
-- [x] Marcar uma parcela como PAGO → aparece no Fluxo Financeiro do mês em que foi paga (não o mês de vencimento) — confirmado via teste real no navegador
-- [x] `npx tsc --noEmit` zerado. `npm run lint` não rodado explicitamente nesta sessão (rodar antes de subir pra produção)
-- [x] Teste manual completo no navegador (Playwright): criação, marcar pago, cascade delete — todos passaram
+- Editar valores de parcelas depois de criado o recibo
+- Editar data de vencimento por parcela (só valor)
+- Aplicar o mesmo conceito em Nota Fiscal/Boleto (já tem esse recurso lá, é só o Recibo que não tinha)
 
-### Fases A–D — status: **implementadas e testadas nesta sessão (2026-07-29)**
+### Depois desta tarefa
 
-- **Fase A (model/schema/migration):** feita.
-- **Fase B (service):** feita — `criar()`, `atualizar()`, `marcar_pago()`, `deletar()` reescritos em `recibo_service.py`. 11 testes em `test_recibo_gera_servico.py` passando; suíte completa 39 passed / 3 falhas pré-existentes não relacionadas (`test_corpo_nota_produto.py`).
-- **Fase C (router):** confirmado que não precisa de mudança — os campos novos passam automaticamente pelos schemas já atualizados.
-- **Fase D (frontend):** feita —
-  - `recibos/novo/page.tsx`: campo "Parcelas" + preview; ENTRADA com checkbox "Gerar serviço vinculado" (editável, default marcado, **agora funciona mesmo com OS selecionada** — antes ficava travado); SAIDA com combobox de categoria obrigatório (sem opção de gerar serviço).
-  - `recibos/page.tsx`: badge "Parcela X/Y" na listagem.
-  - `recibos/[id]/page.tsx`: card "Parcelas Relacionadas", card "Despesa Vinculada" (SAIDA), card "Serviço Vinculado" (link direto pro serviço criado).
-  - `servicos/[id]/page.tsx`: quando o serviço nasce de um recibo, o card "Sem nota fiscal vinculada" virou um card completo **"Recibo Vinculado"** (mesmo estilo do card de Nota Fiscal) com sub-seção **"Cobranças por Parcela"** dentro dele (mesmo padrão visual da nota, adaptado — círculo numerado, badge de status, botão "✓ Marcar Pago" por parcela). Marcar uma parcela como paga aqui já reflete no Fluxo Financeiro.
-
-### Bug encontrado e corrigido nesta sessão: cascade delete órfão
-
-`ManutencaoAssistencia` (serviço) não tem soft-delete, e `ReciboService.deletar()` não tocava no serviço vinculado — deletar um recibo ENTRADA deixava o serviço órfão (apontando pra um `recibo_id` que não existe mais, quebrando os cards "Recibo Vinculado"/"Origem: Recibo"). Corrigido: `deletar()` agora busca `ManutencaoAssistencia` por `recibo_id` e chama `ServicoService.delete_servico()` (mesmo padrão de auditoria já usado pra exclusão manual de serviço). Testado via API: apagar só o recibo agora remove o serviço em cascata automaticamente. Órfãos pré-existentes da própria sessão (servicos 1335/1336/1337/1342) foram limpos manualmente.
-
-### Bug encontrado (não é bug, é dado incompleto): recibo sem CNPJ nunca aparece no Fluxo Financeiro
-
-Um recibo ENTRADA criado sem CNPJ/Conta Inter selecionado (`cnpj_emitente=NULL`) fica **invisível pro Fluxo Financeiro em qualquer mês** — a query de `/financeiro/fluxo-mensal` agrupa estritamente por CNPJ configurado. Não é um bug de mês (a parcela aparece no mês em que foi **marcada como paga**, não no mês de vencimento — isso é o comportamento correto e já esperado). Foi o que aconteceu com o teste do usuário (`REC-2026-055` a `059`, 5 parcelas, sem CNPJ) — corrigido manualmente via `PATCH` nos 5 registros (CNPJ principal aplicado).
-
-**Em aberto, sem decisão ainda:** tornar a seleção de CNPJ obrigatória no formulário (`recibos/novo/page.tsx`, Passo 5) pra evitar recorrência. Cheguei a implementar (label com `*`, pré-seleção automática da primeira conta, aviso quando vazio) e o usuário pediu pra reverter ("não troca, deixa como está — vou ver ainda se vai ficar assim ou se vai ser diferente"). **Reversão já aplicada** — o campo voltou a ser opcional, sem pré-seleção. Retomar essa decisão quando o usuário definir o que prefere.
-
-### Decisão registrada (2026-07-28) — SAÍDA parcelado
-
-**Resolvido:** cada parcela de um recibo SAÍDA, quando marcada como **paga**, gera sua própria `MovimentacaoFinanceira` naquele mês (uma despesa por parcela paga, não só na parcela 1). Motivo: despesa representa dinheiro saindo de fato a cada mês — diferente do serviço (ENTRADA), que representa um trabalho prestado uma única vez. Essa granularidade também evita perder informação (dá pra agregar visualmente depois, não dá pra recuperar o que não foi registrado).
-
-**Ajuste no plano acima (Fase B):** a criação da `MovimentacaoFinanceira` pra recibo SAIDA não acontece necessariamente na criação do recibo — acontece quando a parcela é marcada como **PAGO** (`data_pagamento` preenchida), não na criação em si (uma parcela futura, ainda pendente, não é despesa realizada ainda). Se o recibo já nasce com `status=PAGO` (pagamento imediato), a despesa é criada na hora. Se nasce `PENDENTE`, a despesa só é criada quando o status virar `PAGO` (endpoint que já existe: marcar recibo como pago).
-
-**Adiado pra depois (fora de escopo desta tarefa):** alerta/controle de vencimento de despesa parcelada (ex: avisar quando uma parcela de despesa está prestes a vencer). Anotar como possível item futuro em `PLANO_IMPLEMENTACAO.md` quando chegar a hora.
-
----
-
-## ⏸ PAUSADO em 2026-07-29 — retomar por aqui
-
-**Feature completa (Fases A-D) e testada localmente.** Commit local feito nesta sessão com todo o código (models, schemas, repositories, services, routers, frontend). **Nada foi enviado pra produção** — segue valendo "validar local antes de subir".
-
-Pendências pra retomar amanhã:
-
-1. **Decisão em aberto:** CNPJ obrigatório no formulário de novo recibo? Usuário disse "vou ver ainda se vai ficar assim ou se vai ser diferente" — não decidiu. Ficou como estava (opcional, sem pré-seleção). Se decidir por obrigatório, a mudança é pequena (já foi prototipada e revertida — ver seção acima).
-2. **`npm run lint`** não foi rodado nesta sessão — rodar antes de considerar a feature pronta pra subir.
-3. **Migração de produção:** coluna `categoria_id` em `recibos` está só local. Antes de subir pra produção, aplicar essa migração lá (as outras 4 colunas novas já estão confirmadas em produção).
-4. **Verificar se há mais órfãos antigos** de recibo→serviço no banco de produção (o bug do cascade delete existia desde antes desta sessão — o `servico_id=824`/`recibo_id=11`, de 14/07, foi identificado mas **não mexido**, por ser anterior a esta tarefa e não ter certeza se é seguro limpar sem confirmar com o usuário).
-5. Depois de tudo validado: retomar o fluxo "sobe o que está pronto pra produção" que o usuário pediu no início desta tarefa.
+Retomar a correção dos recibos duplicados (`Analise_Recibos_Parcelas_Duplicadas.md`) — usando a UI já com parcela editável pra reconstruir o caso do "Edgar" corretamente (parcela 1 com o serviço, parcelas seguintes só como pagamento) e corrigir a duplicata da "Cristina Maria Coelho".
