@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { api } from '@/lib/api';
 import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
 import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
 import { DetalheMovimentacoes } from '@/components/fluxo-financeiro/DetalheMovimentacoes';
 import { type Movimentacao } from '@/lib/fluxoFinanceiro';
 
-export default function FornecedoresPage() {
+function FornecedoresContent() {
   const { ano, mes, setAno, setMes } = useFiltrosFluxo();
   const [movs, setMovs] = useState<Movimentacao[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,5 +45,13 @@ export default function FornecedoresPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function FornecedoresPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-400">Carregando...</div>}>
+      <FornecedoresContent />
+    </Suspense>
   );
 }

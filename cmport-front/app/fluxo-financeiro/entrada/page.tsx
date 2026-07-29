@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { api } from '@/lib/api';
 import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
 import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
@@ -9,7 +9,7 @@ import {
   type FluxoFinanceiroResponse, type AlertaDuplicata,
 } from '@/lib/fluxoFinanceiro';
 
-export default function EntradaServicosPage() {
+function EntradaServicosContent() {
   const { ano, mes, cnpjFiltro, setAno, setMes, setCnpjFiltro } = useFiltrosFluxo();
   const [dados, setDados] = useState<FluxoFinanceiroResponse | null>(null);
   const [alertas, setAlertas] = useState<AlertaDuplicata[]>([]);
@@ -137,5 +137,13 @@ export default function EntradaServicosPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function EntradaServicosPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-400">Carregando...</div>}>
+      <EntradaServicosContent />
+    </Suspense>
   );
 }
