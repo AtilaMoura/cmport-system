@@ -83,15 +83,36 @@ Parcelamento (ambos os tipos):
 - [ ] C6. `recibos/[id]/page.tsx`: seção "Parcelas relacionadas"; se SAIDA, link pra despesa gerada em `/fluxo-financeiro/despesas` ou `/fornecedores`
 
 ### Checklist final
-- [ ] Migrations aplicadas local e produção
-- [ ] Recibo ENTRADA 1x, gerar_servico=true (default) → 1 recibo + 1 serviço — igual ao comportamento de hoje
-- [ ] Recibo ENTRADA 1x, gerar_servico=false → 1 recibo, 0 serviço (comportamento novo)
-- [ ] Recibo SAIDA 1x → 1 recibo + 1 `MovimentacaoFinanceira` (categoria escolhida), 0 serviço (muda o comportamento de hoje, que às vezes criava serviço pra SAIDA)
-- [ ] Recibo ENTRADA 3x (R$1000) → 3 recibos (parcelas somando R$1000 exato), 1 serviço só na parcela 1
-- [ ] Recibo SAIDA 3x → 3 recibos, 1 `MovimentacaoFinanceira` só na parcela 1 (valor da parcela 1, não do total — ou vale considerar se a despesa deveria refletir o total; **decidir**: a despesa representa só o que foi de fato pago na parcela 1, as próximas não geram despesa nova — checar com o usuário se isso é o esperado ou se cada parcela paga devia gerar sua própria despesa)
-- [ ] Marcar uma parcela futura como PAGO → aparece no Fluxo Financeiro do mês certo automaticamente (sem código novo)
-- [ ] `npx tsc --noEmit` e `npm run lint` zerados
-- [ ] Teste manual completo no navegador
+- [x] Migrations aplicadas **local**. Produção: `numero_parcela`/`total_parcelas`/`recibo_pai_id` (em `recibos`) e `recibo_id` (em `fin_movimentacoes`) já confirmados em produção (aplicados numa etapa anterior, antes da instrução de "validar local antes de subir"). A coluna `categoria_id` em `recibos` está confirmada **só local** — produção não verificada, não pushar sem checar antes.
+- [x] Recibo ENTRADA 1x, gerar_servico=true (default) → 1 recibo + 1 serviço
+- [x] Recibo ENTRADA 1x, gerar_servico=false → 1 recibo, 0 serviço
+- [x] Recibo SAIDA 1x → 1 recibo + 1 `MovimentacaoFinanceira` (categoria escolhida), 0 serviço
+- [x] Recibo ENTRADA 3x → 3 recibos com parcelas somando o valor exato (última parcela absorve arredondamento), 1 serviço só na parcela 1
+- [x] Recibo SAIDA parcelado → despesa gerada **por parcela paga** (não só na parcela 1) — decisão já registrada abaixo
+- [x] Marcar uma parcela como PAGO → aparece no Fluxo Financeiro do mês em que foi paga (não o mês de vencimento) — confirmado via teste real no navegador
+- [x] `npx tsc --noEmit` zerado. `npm run lint` não rodado explicitamente nesta sessão (rodar antes de subir pra produção)
+- [x] Teste manual completo no navegador (Playwright): criação, marcar pago, cascade delete — todos passaram
+
+### Fases A–D — status: **implementadas e testadas nesta sessão (2026-07-29)**
+
+- **Fase A (model/schema/migration):** feita.
+- **Fase B (service):** feita — `criar()`, `atualizar()`, `marcar_pago()`, `deletar()` reescritos em `recibo_service.py`. 11 testes em `test_recibo_gera_servico.py` passando; suíte completa 39 passed / 3 falhas pré-existentes não relacionadas (`test_corpo_nota_produto.py`).
+- **Fase C (router):** confirmado que não precisa de mudança — os campos novos passam automaticamente pelos schemas já atualizados.
+- **Fase D (frontend):** feita —
+  - `recibos/novo/page.tsx`: campo "Parcelas" + preview; ENTRADA com checkbox "Gerar serviço vinculado" (editável, default marcado, **agora funciona mesmo com OS selecionada** — antes ficava travado); SAIDA com combobox de categoria obrigatório (sem opção de gerar serviço).
+  - `recibos/page.tsx`: badge "Parcela X/Y" na listagem.
+  - `recibos/[id]/page.tsx`: card "Parcelas Relacionadas", card "Despesa Vinculada" (SAIDA), card "Serviço Vinculado" (link direto pro serviço criado).
+  - `servicos/[id]/page.tsx`: quando o serviço nasce de um recibo, o card "Sem nota fiscal vinculada" virou um card completo **"Recibo Vinculado"** (mesmo estilo do card de Nota Fiscal) com sub-seção **"Cobranças por Parcela"** dentro dele (mesmo padrão visual da nota, adaptado — círculo numerado, badge de status, botão "✓ Marcar Pago" por parcela). Marcar uma parcela como paga aqui já reflete no Fluxo Financeiro.
+
+### Bug encontrado e corrigido nesta sessão: cascade delete órfão
+
+`ManutencaoAssistencia` (serviço) não tem soft-delete, e `ReciboService.deletar()` não tocava no serviço vinculado — deletar um recibo ENTRADA deixava o serviço órfão (apontando pra um `recibo_id` que não existe mais, quebrando os cards "Recibo Vinculado"/"Origem: Recibo"). Corrigido: `deletar()` agora busca `ManutencaoAssistencia` por `recibo_id` e chama `ServicoService.delete_servico()` (mesmo padrão de auditoria já usado pra exclusão manual de serviço). Testado via API: apagar só o recibo agora remove o serviço em cascata automaticamente. Órfãos pré-existentes da própria sessão (servicos 1335/1336/1337/1342) foram limpos manualmente.
+
+### Bug encontrado (não é bug, é dado incompleto): recibo sem CNPJ nunca aparece no Fluxo Financeiro
+
+Um recibo ENTRADA criado sem CNPJ/Conta Inter selecionado (`cnpj_emitente=NULL`) fica **invisível pro Fluxo Financeiro em qualquer mês** — a query de `/financeiro/fluxo-mensal` agrupa estritamente por CNPJ configurado. Não é um bug de mês (a parcela aparece no mês em que foi **marcada como paga**, não no mês de vencimento — isso é o comportamento correto e já esperado). Foi o que aconteceu com o teste do usuário (`REC-2026-055` a `059`, 5 parcelas, sem CNPJ) — corrigido manualmente via `PATCH` nos 5 registros (CNPJ principal aplicado).
+
+**Em aberto, sem decisão ainda:** tornar a seleção de CNPJ obrigatória no formulário (`recibos/novo/page.tsx`, Passo 5) pra evitar recorrência. Cheguei a implementar (label com `*`, pré-seleção automática da primeira conta, aviso quando vazio) e o usuário pediu pra reverter ("não troca, deixa como está — vou ver ainda se vai ficar assim ou se vai ser diferente"). **Reversão já aplicada** — o campo voltou a ser opcional, sem pré-seleção. Retomar essa decisão quando o usuário definir o que prefere.
 
 ### Decisão registrada (2026-07-28) — SAÍDA parcelado
 
@@ -103,6 +124,14 @@ Parcelamento (ambos os tipos):
 
 ---
 
-## ⏸ PAUSADO em 2026-07-28 — retomar por aqui
+## ⏸ PAUSADO em 2026-07-29 — retomar por aqui
 
-Plano completo, decisões de negócio fechadas (tabela do topo + decisão de SAÍDA parcelado acima). **Nenhuma linha de código foi escrita ainda** — só o plano. Próxima sessão: começar pela **Fase A** (model + schema + migration), seguir a ordem A → B → C do plano acima.
+**Feature completa (Fases A-D) e testada localmente.** Commit local feito nesta sessão com todo o código (models, schemas, repositories, services, routers, frontend). **Nada foi enviado pra produção** — segue valendo "validar local antes de subir".
+
+Pendências pra retomar amanhã:
+
+1. **Decisão em aberto:** CNPJ obrigatório no formulário de novo recibo? Usuário disse "vou ver ainda se vai ficar assim ou se vai ser diferente" — não decidiu. Ficou como estava (opcional, sem pré-seleção). Se decidir por obrigatório, a mudança é pequena (já foi prototipada e revertida — ver seção acima).
+2. **`npm run lint`** não foi rodado nesta sessão — rodar antes de considerar a feature pronta pra subir.
+3. **Migração de produção:** coluna `categoria_id` em `recibos` está só local. Antes de subir pra produção, aplicar essa migração lá (as outras 4 colunas novas já estão confirmadas em produção).
+4. **Verificar se há mais órfãos antigos** de recibo→serviço no banco de produção (o bug do cascade delete existia desde antes desta sessão — o `servico_id=824`/`recibo_id=11`, de 14/07, foi identificado mas **não mexido**, por ser anterior a esta tarefa e não ter certeza se é seguro limpar sem confirmar com o usuário).
+5. Depois de tudo validado: retomar o fluxo "sobe o que está pronto pra produção" que o usuário pediu no início desta tarefa.

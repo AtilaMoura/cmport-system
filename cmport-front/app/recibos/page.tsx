@@ -35,6 +35,8 @@ interface Recibo {
   data_vencimento: string | null;
   data_pagamento: string | null;
   status: string;
+  numero_parcela: number;
+  total_parcelas: number;
 }
 
 export default function RecibosPage() {
@@ -159,6 +161,11 @@ export default function RecibosPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-sm text-slate-900 dark:text-white font-mono">{r.numero_recibo}</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${STATUS_CLS[r.status] ?? ''}`}>{r.status}</span>
+                        {r.total_parcelas > 1 && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
+                            Parcela {r.numero_parcela}/{r.total_parcelas}
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm font-semibold text-violet-700 dark:text-violet-400 mt-0.5 truncate">
                         {nome}{apto ? ` · Apto ${apto}` : ''}

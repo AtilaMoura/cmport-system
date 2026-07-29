@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Literal, Optional, List
 from datetime import date, datetime
 
@@ -21,12 +21,19 @@ class ReciboCreate(BaseModel):
     status: str = "PENDENTE"
     observacao: Optional[str] = None
     numero_recibo: Optional[str] = None  # gerado automaticamente se omitido
-    gerar_servico: bool = False
+    # ENTRADA: gera ManutencaoAssistencia se marcado (default true, editável).
+    # SAIDA: nunca gera serviço — ignorado, ver categoria_id.
+    gerar_servico: bool = True
     tipo_servico: Literal["MANUTENCAO", "ASSISTENCIA"] = "ASSISTENCIA"
     # Preenchidos ao selecionar uma OS existente (ver GET /recibos/buscar-os) —
     # usados para reaproveitar/criar o serviço vinculado em vez de sempre criar um novo
     numero_os: Optional[str] = None
     data_servico: Optional[date] = None
+    # Número de parcelas (default 1 = à vista). Efeito colateral (serviço/despesa)
+    # só a partir da parcela 1 — despesa de SAIDA parcelada é gerada por parcela paga.
+    parcelas: int = Field(default=1, ge=1)
+    # Obrigatório quando tipo=SAIDA (grupo DESPESA ou FORNECEDOR) — validado no service.
+    categoria_id: Optional[int] = None
 
 
 class ReciboUpdate(BaseModel):
@@ -44,6 +51,7 @@ class ReciboUpdate(BaseModel):
     data_pagamento: Optional[date] = None
     status: Optional[str] = None
     observacao: Optional[str] = None
+    categoria_id: Optional[int] = None
 
 
 class EnviarEmailReciboRequest(BaseModel):
@@ -70,5 +78,9 @@ class ReciboResponse(BaseModel):
     status: str
     observacao: Optional[str] = None
     criado_em: Optional[datetime] = None
+    numero_parcela: int = 1
+    total_parcelas: int = 1
+    recibo_pai_id: Optional[int] = None
+    categoria_id: Optional[int] = None
 
     model_config = {"from_attributes": True}

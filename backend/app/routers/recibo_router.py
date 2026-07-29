@@ -90,6 +90,15 @@ def obter(
     return ReciboService.get_by_id(db, recibo_id)
 
 
+@router.get("/{recibo_id}/parcelas", response_model=List[ReciboResponse])
+def listar_parcelas(
+    recibo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    return ReciboService.listar_parcelas(db, recibo_id)
+
+
 @router.patch("/{recibo_id}", response_model=ReciboResponse)
 def atualizar(
     recibo_id: int,

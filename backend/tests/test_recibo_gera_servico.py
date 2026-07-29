@@ -1,15 +1,16 @@
 """
-Testes do novo comportamento: Recibo (tipo ENTRADA) gera serviço (ManutencaoAssistencia)
-sempre usando os dados do próprio recibo/cliente, com ou sem condomínio vinculado.
-Ver Refatoracao.md — Passo 3.
+Testes do comportamento: Recibo ENTRADA gera serviço (ManutencaoAssistencia, opcional via
+gerar_servico, default true); Recibo SAIDA nunca gera serviço, gera despesa em
+fin_movimentacoes quando pago. Ver Refatoracao.md — "Recibo: parcelas + ENTRADA gera
+serviço + SAÍDA gera despesa".
 
 Cobre:
   1. ENTRADA + cliente vinculado a condomínio existente -> serviço com condominio_id preenchido
   2. ENTRADA + cliente externo sem condomínio -> serviço com condominio_id=None, sem erro
   3. ENTRADA + nome avulso (sem cliente cadastrado) -> serviço criado, descrição usa nome avulso
   4. ENTRADA + numero_os + condomínio -> reaproveita OS existente, sem duplicar
-  5. SAIDA sem checkbox -> nenhum serviço criado (comportamento inalterado)
-  6. SAIDA com checkbox + condomínio -> cria serviço (comportamento inalterado)
+  5. SAIDA pendente (ainda não paga) -> nenhuma despesa criada ainda, nenhum serviço nunca
+  6. SAIDA já paga na criação -> cria despesa em fin_movimentacoes (nunca serviço)
   7. Termo de Garantia para serviço sem condomínio -> não quebra, usa nome do cliente do recibo
 """
 from datetime import date
@@ -160,15 +161,31 @@ def test_entrada_com_numero_os_reaproveita_os_existente():
     assert servico_existente.recibo_id == 903
 
 
-# ─── 5. SAIDA sem checkbox → nenhum serviço criado ───────────────────────────
+def _db_get_dispatch(cliente=None, categoria=None):
+    """db.get(Model, id) precisa devolver coisas diferentes conforme o Model —
+    Cliente pra resolver condominio_id, CategoriaFinanceira pra validar categoria_id."""
+    from app.models.cliente_model import Cliente
+    from app.models.fin_categoria_model import CategoriaFinanceira
 
-def test_saida_nao_gera_servico_sem_checkbox():
+    def _get(model, id_):
+        if model is Cliente:
+            return cliente
+        if model is CategoriaFinanceira:
+            return categoria
+        return None
+    return _get
+
+
+# ─── 5. SAIDA pendente → nenhuma despesa ainda, nenhum serviço nunca ─────────
+
+def test_saida_pendente_nao_gera_despesa_nem_servico():
     from app.schemas.recibo_schema import ReciboCreate
     from app.services.recibo_service import ReciboService
 
     cliente = _cliente_mock(13, "Fornecedor Y", condominio_id=None)
+    categoria = MagicMock(grupo="DESPESA")
     db = _db_mock()
-    db.get.return_value = cliente
+    db.get.side_effect = _db_get_dispatch(cliente=cliente, categoria=categoria)
 
     def _create(db_arg, recibo_obj):
         recibo_obj.id = 904
@@ -178,23 +195,26 @@ def test_saida_nao_gera_servico_sem_checkbox():
     p1, p2, p3 = _patches(_create)
     with p1, p2, p3:
         payload = ReciboCreate(
-            tipo="SAIDA", cliente_id=13, descricao_servico="Pagamento subcontratado",
-            valor=500.0, data_emissao=date(2026, 3, 9),
+            tipo="SAIDA", cliente_id=13, categoria_id=30, descricao_servico="Pagamento subcontratado",
+            valor=500.0, data_emissao=date(2026, 3, 9),  # status default PENDENTE
         )
         ReciboService.criar(db, payload)
 
-    db.add.assert_not_called()
+    db.add.assert_not_called()  # nem serviço (nunca), nem despesa (ainda não foi paga)
 
 
-# ─── 6. SAIDA com checkbox + condomínio → cria serviço (comportamento mantido) ─
+# ─── 6. SAIDA já paga na criação → cria despesa em fin_movimentacoes ─────────
 
-def test_saida_com_checkbox_e_condominio_gera_servico():
+def test_saida_paga_gera_despesa_nao_servico():
     from app.schemas.recibo_schema import ReciboCreate
     from app.services.recibo_service import ReciboService
+    from app.models.fin_movimentacao_model import MovimentacaoFinanceira
 
     cliente = _cliente_mock(14, "Fornecedor Z", condominio_id=42)
+    categoria = MagicMock(grupo="DESPESA")
     db = _db_mock()
-    db.get.return_value = cliente
+    db.get.side_effect = _db_get_dispatch(cliente=cliente, categoria=categoria)
+    db.query.return_value.filter.return_value.first.return_value = None  # nenhuma despesa prévia
 
     def _create(db_arg, recibo_obj):
         recibo_obj.id = 905
@@ -204,14 +224,34 @@ def test_saida_com_checkbox_e_condominio_gera_servico():
     p1, p2, p3 = _patches(_create)
     with p1, p2, p3:
         payload = ReciboCreate(
-            tipo="SAIDA", cliente_id=14, gerar_servico=True, descricao_servico="Pagamento com controle",
+            tipo="SAIDA", cliente_id=14, categoria_id=30, status="PAGO",
+            data_pagamento=date(2026, 3, 10), descricao_servico="Pagamento com controle",
             valor=700.0, data_emissao=date(2026, 3, 10),
         )
         ReciboService.criar(db, payload)
 
     db.add.assert_called_once()
-    servico = db.add.call_args[0][0]
-    assert servico.condominio_id == 42
+    despesa = db.add.call_args[0][0]
+    assert isinstance(despesa, MovimentacaoFinanceira)
+    assert despesa.tipo == "SAIDA"
+    assert despesa.valor == 700.0
+    assert despesa.recibo_id == 905
+    assert despesa.categoria_id == 30
+
+
+def test_saida_sem_categoria_id_rejeitada():
+    from app.schemas.recibo_schema import ReciboCreate
+    from app.services.recibo_service import ReciboService
+    from fastapi import HTTPException
+
+    db = _db_mock()
+    payload = ReciboCreate(
+        tipo="SAIDA", cliente_nome_avulso="Fornecedor sem categoria",
+        descricao_servico="Pagamento", valor=100.0, data_emissao=date(2026, 3, 11),
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        ReciboService.criar(db, payload)
+    assert exc_info.value.status_code == 422
 
 
 # ─── 7. Termo de Garantia para serviço sem condomínio → usa nome do cliente ──

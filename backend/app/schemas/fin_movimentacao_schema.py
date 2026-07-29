@@ -51,6 +51,7 @@ class MovimentacaoResponse(BaseModel):
     status:           str
     id_externo_banco: Optional[str] = None
     observacao:       Optional[str] = None
+    recibo_id:        Optional[int] = None
     criado_em:        datetime
     atualizado_em:    datetime
 

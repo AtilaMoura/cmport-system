@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import extract
+from sqlalchemy import extract, or_
 
 from app.models.recibo_model import Recibo
 
@@ -47,6 +47,20 @@ class ReciboRepository:
         if mes:
             q = q.filter(extract("month", Recibo.data_emissao) == mes)
         return q.order_by(Recibo.data_emissao.desc()).all()
+
+    @staticmethod
+    def list_parcelas(db: Session, recibo: Recibo) -> List[Recibo]:
+        """Todas as parcelas do mesmo grupo (a mãe + as filhas), ordenadas."""
+        pai_id = recibo.recibo_pai_id or recibo.id
+        return (
+            db.query(Recibo)
+            .filter(
+                Recibo.deletado_em.is_(None),
+                or_(Recibo.id == pai_id, Recibo.recibo_pai_id == pai_id),
+            )
+            .order_by(Recibo.numero_parcela.asc())
+            .all()
+        )
 
     @staticmethod
     def proximo_numero(db: Session, ano: int) -> str:

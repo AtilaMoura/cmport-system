@@ -39,6 +39,9 @@ class MovimentacaoFinanceira(Base):
     atualizado_em     = Column(DateTime, server_default=func.now(), onupdate=func.now())
     deletado_em       = Column(DateTime, nullable=True)
 
+    # Rastreia que essa despesa nasceu de um recibo SAIDA (uma por parcela paga)
+    recibo_id         = Column(Integer, ForeignKey("recibos.id", ondelete="SET NULL"), nullable=True, index=True)
+
     __table_args__ = (
         Index("ix_fin_mov_data",          "data"),
         Index("ix_fin_mov_tipo",          "tipo"),

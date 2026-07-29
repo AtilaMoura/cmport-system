@@ -43,9 +43,22 @@ class Recibo(Base):
     atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deletado_em = Column(DateTime, nullable=True)
 
+    # Parcelamento — parcela 1 é a "mãe" (recibo_pai_id=NULL); demais apontam pra ela.
+    # Efeito colateral (serviço/despesa) só acontece a partir da parcela 1.
+    numero_parcela = Column(Integer, nullable=False, default=1)
+    total_parcelas = Column(Integer, nullable=False, default=1)
+    recibo_pai_id = Column(Integer, ForeignKey("recibos.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # Categoria da despesa (só usada quando tipo=SAIDA) — guardada aqui (não só no
+    # payload de criação) porque a despesa em fin_movimentacoes pode ser gerada depois,
+    # quando a parcela for marcada como paga, não necessariamente na criação.
+    categoria_id = Column(Integer, ForeignKey("fin_categorias.id", ondelete="SET NULL"), nullable=True)
+    categoria = relationship("CategoriaFinanceira", foreign_keys=[categoria_id])
+
     configuracao_inter = relationship("ConfiguracaoInter", foreign_keys=[configuracao_inter_id])
     servicos = relationship(
         "ManutencaoAssistencia",
         foreign_keys="ManutencaoAssistencia.recibo_id",
         back_populates="recibo",
     )
+    recibo_pai = relationship("Recibo", remote_side=[id], foreign_keys=[recibo_pai_id])

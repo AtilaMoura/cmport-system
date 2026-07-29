@@ -2,7 +2,7 @@ import base64
 import io
 import json
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import List, Optional
 from fastapi import HTTPException
 from jinja2 import Environment, FileSystemLoader
@@ -45,11 +45,8 @@ class ReciboService:
         if not payload.cliente_id and not payload.cliente_nome_avulso:
             raise HTTPException(status_code=422, detail="Informe cliente_id ou cliente_nome_avulso.")
 
-        ano = payload.data_emissao.year
-        numero = payload.numero_recibo or ReciboRepository.proximo_numero(db, ano)
-
-        if ReciboRepository.get_by_numero(db, numero):
-            numero = ReciboRepository.proximo_numero(db, ano)
+        if payload.tipo == "SAIDA":
+            ReciboService._validar_categoria_saida(db, payload.categoria_id)
 
         # Resolve condominio_id: prioridade → payload → cliente vinculado
         condominio_id = payload.condominio_id
@@ -58,6 +55,81 @@ class ReciboService:
             cliente = db.get(Cliente, payload.cliente_id)
             if cliente and cliente.condominio_id:
                 condominio_id = cliente.condominio_id
+
+        n_parcelas = max(1, payload.parcelas)
+        valores = ReciboService._calcular_valores_parcelas(payload.valor, n_parcelas)
+
+        recibo_mae = ReciboService._criar_um_recibo(
+            db, payload, condominio_id, valor=valores[0],
+            numero_parcela=1, total_parcelas=n_parcelas, recibo_pai_id=None,
+            data_vencimento=payload.data_vencimento,
+        )
+
+        # Efeito colateral (serviço/despesa) só na parcela 1. Checkbox gerar_servico manda
+        # sempre pra ENTRADA — mesmo com OS selecionada, o usuário pode optar por não gerar.
+        if payload.tipo == "ENTRADA" and payload.gerar_servico and condominio_id and payload.numero_os:
+            # Reaproveita OS existente — só possível quando há condomínio para identificá-la.
+            ReciboService._vincular_ou_criar_servico_por_os(
+                db, recibo_mae, condominio_id, payload.numero_os, payload.data_servico, tipo=payload.tipo_servico,
+            )
+        elif payload.tipo == "ENTRADA" and payload.gerar_servico:
+            # Default true, editável — usuário pode desmarcar pra recibo sem serviço vinculado.
+            ReciboService._criar_servico(db, recibo_mae, condominio_id, tipo=payload.tipo_servico)
+        elif payload.tipo == "SAIDA":
+            # Nunca gera serviço — gera despesa se já nasce PAGO (senão espera marcar_pago()).
+            ReciboService._criar_despesa_se_pago(db, recibo_mae)
+
+        # Parcelas 2..N — só o registro, sem efeito colateral na criação. SAIDA gera
+        # despesa individual quando cada uma for marcada paga (nunca todas de uma vez aqui).
+        data_base = payload.data_vencimento or payload.data_emissao
+        for i in range(2, n_parcelas + 1):
+            venc = data_base + timedelta(days=30 * (i - 1)) if data_base else None
+            filha = ReciboService._criar_um_recibo(
+                db, payload, condominio_id, valor=valores[i - 1],
+                numero_parcela=i, total_parcelas=n_parcelas, recibo_pai_id=recibo_mae.id,
+                data_vencimento=venc, status_override="PENDENTE",
+            )
+            if payload.tipo == "SAIDA":
+                ReciboService._criar_despesa_se_pago(db, filha)
+
+        return recibo_mae
+
+    @staticmethod
+    def _validar_categoria_saida(db: Session, categoria_id: Optional[int]) -> None:
+        if not categoria_id:
+            raise HTTPException(status_code=422, detail="categoria_id é obrigatório para recibo tipo SAIDA.")
+        from app.models.fin_categoria_model import CategoriaFinanceira
+        categoria = db.get(CategoriaFinanceira, categoria_id)
+        if not categoria or categoria.grupo not in ("DESPESA", "FORNECEDOR"):
+            raise HTTPException(status_code=422, detail="categoria_id deve ser uma categoria de DESPESA ou FORNECEDOR.")
+
+    @staticmethod
+    def _calcular_valores_parcelas(valor_total: float, n: int) -> List[float]:
+        if n <= 1:
+            return [round(valor_total, 2)]
+        base = round(valor_total / n, 2)
+        valores = [base] * (n - 1)
+        valores.append(round(valor_total - sum(valores), 2))  # última parcela absorve o resto do arredondamento
+        return valores
+
+    @staticmethod
+    def _criar_um_recibo(
+        db: Session,
+        payload: ReciboCreate,
+        condominio_id: Optional[int],
+        valor: float,
+        numero_parcela: int,
+        total_parcelas: int,
+        recibo_pai_id: Optional[int],
+        data_vencimento: Optional[date],
+        status_override: Optional[str] = None,
+    ) -> Recibo:
+        ano = payload.data_emissao.year
+        numero = None
+        if numero_parcela == 1 and payload.numero_recibo and not ReciboRepository.get_by_numero(db, payload.numero_recibo):
+            numero = payload.numero_recibo
+        if not numero:
+            numero = ReciboRepository.proximo_numero(db, ano)
 
         recibo = Recibo(
             numero_recibo=numero,
@@ -69,29 +141,43 @@ class ReciboService:
             cnpj_emitente=payload.cnpj_emitente,
             cnpj_cliente=payload.cnpj_cliente,
             descricao_servico=payload.descricao_servico,
-            valor=payload.valor,
+            valor=valor,
             data_emissao=payload.data_emissao,
-            data_vencimento=payload.data_vencimento,
-            data_pagamento=payload.data_pagamento,
-            status=payload.status,
+            data_vencimento=data_vencimento,
+            data_pagamento=payload.data_pagamento if numero_parcela == 1 else None,
+            status=status_override or payload.status,
             observacao=payload.observacao,
+            numero_parcela=numero_parcela,
+            total_parcelas=total_parcelas,
+            recibo_pai_id=recibo_pai_id,
+            categoria_id=payload.categoria_id if payload.tipo == "SAIDA" else None,
         )
-        recibo = ReciboRepository.create(db, recibo)
+        return ReciboRepository.create(db, recibo)
 
-        if condominio_id and payload.numero_os:
-            # Reaproveita OS existente — só possível quando há condomínio para identificá-la.
-            ReciboService._vincular_ou_criar_servico_por_os(
-                db, recibo, condominio_id, payload.numero_os, payload.data_servico, tipo=payload.tipo_servico,
-            )
-        elif payload.tipo == "ENTRADA":
-            # ENTRADA sempre gera serviço usando os dados do próprio recibo/cliente,
-            # com ou sem condomínio vinculado — nunca depende de checkbox.
-            ReciboService._criar_servico(db, recibo, condominio_id, tipo=payload.tipo_servico)
-        elif payload.gerar_servico and condominio_id:
-            # SAIDA continua opcional via checkbox (pagamento a terceiro, não serviço ao cliente).
-            ReciboService._criar_servico(db, recibo, condominio_id, tipo=payload.tipo_servico)
-
-        return recibo
+    @staticmethod
+    def _criar_despesa_se_pago(db: Session, recibo: Recibo) -> None:
+        """SAIDA: gera a despesa em fin_movimentacoes quando a parcela está PAGO —
+        uma por parcela paga (nunca na criação de uma parcela ainda pendente).
+        Idempotente: não duplica se já existir uma movimentação pra esse recibo."""
+        if recibo.tipo != "SAIDA" or recibo.status != "PAGO":
+            return
+        from app.models.fin_movimentacao_model import MovimentacaoFinanceira
+        ja_existe = db.query(MovimentacaoFinanceira).filter(MovimentacaoFinanceira.recibo_id == recibo.id).first()
+        if ja_existe:
+            return
+        sufixo = f" (parcela {recibo.numero_parcela}/{recibo.total_parcelas})" if recibo.total_parcelas > 1 else ""
+        mov = MovimentacaoFinanceira(
+            data=recibo.data_pagamento or recibo.data_emissao,
+            descricao=f"{recibo.descricao_servico}{sufixo}",
+            valor=recibo.valor,
+            tipo="SAIDA",
+            categoria_id=recibo.categoria_id,
+            origem="MANUAL",
+            status="PENDENTE",
+            recibo_id=recibo.id,
+        )
+        db.add(mov)
+        db.commit()
 
     @staticmethod
     def _vincular_ou_criar_servico_por_os(
@@ -160,6 +246,13 @@ class ReciboService:
         return r
 
     @staticmethod
+    def listar_parcelas(db: Session, recibo_id: int) -> List[Recibo]:
+        r = ReciboService.get_by_id(db, recibo_id)
+        if r.total_parcelas <= 1 and not r.recibo_pai_id:
+            return []
+        return ReciboRepository.list_parcelas(db, r)
+
+    @staticmethod
     def list_all(
         db: Session,
         condominio_id: Optional[int] = None,
@@ -206,6 +299,8 @@ class ReciboService:
             r.status = payload.status
         if payload.observacao is not None:
             r.observacao = payload.observacao
+        if payload.categoria_id is not None:
+            r.categoria_id = payload.categoria_id
         r = ReciboRepository.save(db, r)
 
         # Retrofit: recibo ENTRADA que nunca gerou serviço (ex: criado antes da
@@ -213,6 +308,10 @@ class ReciboService:
         # assim que o condomínio é informado — mesma lógica do Passo 2.3, sem duplicar.
         if condominio_novo and r.tipo == "ENTRADA" and not r.servicos:
             ReciboService._criar_servico(db, r, r.condominio_id, tipo="ASSISTENCIA")
+
+        # SAIDA marcada PAGO via edição direta (não só via marcar_pago) também gera
+        # a despesa — idempotente, não duplica se já existir.
+        ReciboService._criar_despesa_se_pago(db, r)
 
         return r
 
@@ -235,12 +334,35 @@ class ReciboService:
         r.status = "CANCELADO"
         ReciboRepository.save(db, r)
 
+        # Se já tinha gerado despesa (SAIDA paga), cancela ela junto — nunca deixa órfã.
+        from app.models.fin_movimentacao_model import MovimentacaoFinanceira
+        mov = db.query(MovimentacaoFinanceira).filter(MovimentacaoFinanceira.recibo_id == r.id).first()
+        if mov and not mov.deletado_em:
+            registrar_exclusao(db, "fin_movimentacao", mov.id, {
+                "id": mov.id, "descricao": mov.descricao, "valor": str(mov.valor), "recibo_id": r.id,
+            }, motivo or "Recibo de origem cancelado.")
+            mov.deletado_em = datetime.utcnow()
+            db.add(mov)
+            db.commit()
+
+        # Se já tinha gerado serviço (ENTRADA), remove ele junto — nunca deixa órfão
+        # referenciando um recibo que não existe mais (ManutencaoAssistencia não tem
+        # soft delete, então segue o mesmo padrão de exclusão com auditoria do módulo).
+        from app.models.servico_model import ManutencaoAssistencia
+        from app.services.servico_service import ServicoService
+        servicos_vinculados = db.query(ManutencaoAssistencia).filter(ManutencaoAssistencia.recibo_id == r.id).all()
+        for s in servicos_vinculados:
+            ServicoService.delete_servico(db, s.id)
+
     @staticmethod
     def marcar_pago(db: Session, recibo_id: int, data_pagamento: Optional[date] = None) -> Recibo:
         r = ReciboService.get_by_id(db, recibo_id)
         r.status = "PAGO"
         r.data_pagamento = data_pagamento or date.today()
-        return ReciboRepository.save(db, r)
+        r = ReciboRepository.save(db, r)
+        # SAIDA: gera a despesa desta parcela agora que foi paga (uma por parcela).
+        ReciboService._criar_despesa_se_pago(db, r)
+        return r
 
     # ── PDF + Email ─────────────────────────────────────────────────────────
 

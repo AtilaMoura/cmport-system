@@ -21,10 +21,10 @@ class FinMovimentacaoService:
 
     @staticmethod
     def listar(db: Session, mes=None, ano=None, tipo=None, grupo=None,
-               categoria_id=None, origem=None, status=None) -> List[MovimentacaoResponse]:
+               categoria_id=None, origem=None, status=None, recibo_id=None) -> List[MovimentacaoResponse]:
         movs = FinMovimentacaoRepository.listar(
             db, mes=mes, ano=ano, tipo=tipo, grupo=grupo,
-            categoria_id=categoria_id, origem=origem, status=status,
+            categoria_id=categoria_id, origem=origem, status=status, recibo_id=recibo_id,
         )
         return [MovimentacaoResponse.model_validate(m) for m in movs]
 

@@ -26,6 +26,10 @@ interface Recibo {
   status: string;
   observacao: string | null;
   criado_em: string | null;
+  numero_parcela: number;
+  total_parcelas: number;
+  recibo_pai_id: number | null;
+  categoria_id: number | null;
 }
 
 interface Condominio { id: number; nome: string; }
@@ -38,6 +42,14 @@ interface ServicoVinculado {
   numero_os: string | null;
   data_servico: string;
   descricao: string | null;
+}
+
+interface DespesaVinculada {
+  id: number;
+  data: string;
+  valor: number;
+  status: string;
+  categoria: { id: number; nome: string; grupo: string } | null;
 }
 
 const STATUS_CLS: Record<string, string> = {
@@ -70,6 +82,8 @@ export default function ReciboDetalhePage() {
   const [condominio, setCondominio] = useState<Condominio | null>(null);
   const [servicoVinculado, setServicoVinculado] = useState<ServicoVinculado | null>(null);
   const [contasInter, setContasInter] = useState<ContaInter[]>([]);
+  const [parcelas, setParcelas] = useState<Recibo[]>([]);
+  const [despesaVinculada, setDespesaVinculada] = useState<DespesaVinculada | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
 
@@ -126,6 +140,24 @@ export default function ReciboDetalhePage() {
         setServicoVinculado(s);
       } catch {
         setServicoVinculado(null);
+      }
+
+      try {
+        const { data: p } = await api.get(`/recibos/${id}/parcelas`);
+        setParcelas(p);
+      } catch {
+        setParcelas([]);
+      }
+
+      if (r.tipo === 'SAIDA') {
+        try {
+          const { data: movs } = await api.get('/financeiro/movimentacoes', { params: { recibo_id: id } });
+          setDespesaVinculada(movs?.[0] ? { ...movs[0], valor: Number(movs[0].valor) } : null);
+        } catch {
+          setDespesaVinculada(null);
+        }
+      } else {
+        setDespesaVinculada(null);
       }
 
       try {
@@ -239,6 +271,11 @@ export default function ReciboDetalhePage() {
                 <h1 className="text-lg font-black text-slate-900 dark:text-white font-mono">{recibo.numero_recibo}</h1>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${TIPO_CLS[recibo.tipo]}`}>{recibo.tipo}</span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${STATUS_CLS[recibo.status] ?? ''}`}>{recibo.status}</span>
+                {recibo.total_parcelas > 1 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
+                    Parcela {recibo.numero_parcela}/{recibo.total_parcelas}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">{nomeContraparte}{condominio ? ` · ${condominio.nome}` : ''}</p>
             </div>
@@ -376,6 +413,53 @@ export default function ReciboDetalhePage() {
             )}
           </div>
         </div>
+
+        {/* Card — Parcelas Relacionadas */}
+        {parcelas.length > 1 && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-3">
+            <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wide">Parcelas Relacionadas</h2>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {parcelas.map(p => (
+                <Link key={p.id} href={`/recibos/${p.id}`}
+                  className={`flex items-center justify-between gap-3 py-2.5 px-2 -mx-2 rounded-xl transition-colors ${
+                    p.id === recibo.id ? 'bg-violet-50 dark:bg-violet-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                  }`}>
+                  <div className="text-sm">
+                    <span className="font-bold text-slate-800 dark:text-white">Parcela {p.numero_parcela}/{p.total_parcelas}</span>
+                    {p.id === recibo.id && <span className="text-xs text-violet-600 dark:text-violet-400 font-semibold ml-2">(atual)</span>}
+                    <span className="block text-xs text-slate-500 mt-0.5">Venc: {fmtData(p.data_vencimento)}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-black text-slate-900 dark:text-white">{fmtValor(p.valor)}</div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${STATUS_CLS[p.status] ?? ''}`}>{p.status}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Card — Despesa Vinculada (SAIDA) */}
+        {despesaVinculada && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-3">
+            <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wide">Despesa Vinculada</h2>
+            <Link
+              href={despesaVinculada.categoria?.grupo === 'FORNECEDOR' ? '/fluxo-financeiro/fornecedores' : '/fluxo-financeiro/despesas'}
+              className="block hover:bg-slate-50 dark:hover:bg-slate-800/50 -mx-2 px-2 py-2 rounded-xl transition-colors"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-bold text-violet-700 dark:text-violet-400">{despesaVinculada.categoria?.nome || 'Sem categoria'}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Lançada em {fmtData(despesaVinculada.data)} · Fluxo Financeiro</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-black text-slate-900 dark:text-white">{fmtValor(despesaVinculada.valor)}</div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${STATUS_CLS[despesaVinculada.status] ?? ''}`}>{despesaVinculada.status}</span>
+                </div>
+              </div>
+            </Link>
+          </div>
+        )}
 
         {/* Card — Serviço Vinculado */}
         {servicoVinculado && (

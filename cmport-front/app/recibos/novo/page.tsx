@@ -9,6 +9,7 @@ interface Condominio { id: number; nome: string; cnpj: string | null; }
 interface Cliente { id: number; nome: string; tipo: string; apartamento: string | null; cpf_cnpj: string | null; auvo_id: number | null; }
 interface ContaInter { id: number; cnpj: string; razao_social: string | null; ativo: boolean; }
 interface OsDisponivel { servico_id: number | null; numero_os: string; data_servico: string | null; descricao_preview?: string; descricao_completa: string | null; task_id?: number; }
+interface CategoriaFin { id: number; nome: string; grupo: string; }
 
 type TipoRecibo = 'ENTRADA' | 'SAIDA';
 type ContraparteTipo = 'CONDOMINIO' | 'MORADOR' | 'CLIENTE_EXTERNO' | 'AVULSO';
@@ -63,8 +64,11 @@ function NovoReciboContent() {
   const [observacao, setObservacao] = useState('');
   const [contasInter, setContasInter] = useState<ContaInter[]>([]);
   const [contaInterSelecionada, setContaInterSelecionada] = useState<ContaInter | null>(null);
-  const [gerarServico, setGerarServico] = useState(false);
+  const [gerarServico, setGerarServico] = useState(true);
   const [tipoServico, setTipoServico] = useState<'ASSISTENCIA' | 'MANUTENCAO'>('ASSISTENCIA');
+  const [parcelas, setParcelas] = useState('1');
+  const [categorias, setCategorias] = useState<CategoriaFin[]>([]);
+  const [categoriaId, setCategoriaId] = useState<number | null>(null);
 
   // Pré-seleciona via query params (vindo da página do condomínio)
   useEffect(() => {
@@ -131,6 +135,14 @@ function NovoReciboContent() {
     api.get('/configuracoes/inter').then(r => setContasInter((r.data ?? []).filter((c: ContaInter) => c.ativo))).catch(() => setContasInter([]));
   }, [step]);
 
+  // Carrega categorias de despesa/fornecedor pra SAIDA (Step 5)
+  useEffect(() => {
+    if (step !== 5 || tipoRecibo !== 'SAIDA') return;
+    api.get('/categorias-financeiras/', { params: { ativo: true } })
+      .then(r => setCategorias((r.data ?? []).filter((c: CategoriaFin) => c.grupo === 'DESPESA' || c.grupo === 'FORNECEDOR')))
+      .catch(() => setCategorias([]));
+  }, [step, tipoRecibo]);
+
   const condsFiltrados = condominios.filter(c => !filtroCond || c.nome.toLowerCase().includes(filtroCond.toLowerCase()));
 
   const cadastrarClienteExterno = async () => {
@@ -169,6 +181,8 @@ function NovoReciboContent() {
 
   const confirmar = async () => {
     if (!descricao || !valor) { setErro('Preencha descrição e valor.'); return; }
+    if (tipoRecibo === 'SAIDA' && !categoriaId) { setErro('Selecione a categoria da despesa.'); return; }
+    const nParcelas = Math.max(1, parseInt(parcelas, 10) || 1);
     setLoading(true); setErro(null);
     try {
       const contraparteNome = clienteSelecionado?.nome || nomeAvulso || condSelecionado?.nome;
@@ -186,10 +200,12 @@ function NovoReciboContent() {
         data_emissao: dataEmissao,
         data_vencimento: dataVencimento || null,
         observacao: observacao || null,
-        gerar_servico: tipoRecibo === 'SAIDA' ? (!osSelecionada && gerarServico) : true,
+        gerar_servico: tipoRecibo === 'ENTRADA' ? gerarServico : false,
         tipo_servico: tipoServico,
         numero_os: osSelecionada?.numero_os ?? null,
         data_servico: osSelecionada?.data_servico ?? null,
+        parcelas: nParcelas,
+        categoria_id: tipoRecibo === 'SAIDA' ? categoriaId : null,
       });
       router.push('/recibos');
     } catch (e: unknown) {
@@ -485,11 +501,23 @@ function NovoReciboContent() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Vencimento (opcional)</label>
-                <input type="date" value={dataVencimento} onChange={e => setDataVencimento(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Vencimento (opcional)</label>
+                  <input type="date" value={dataVencimento} onChange={e => setDataVencimento(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Parcelas</label>
+                  <input type="number" min="1" step="1" value={parcelas} onChange={e => setParcelas(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
+                </div>
               </div>
+              {Number(parcelas) > 1 && valor && (
+                <p className="text-xs text-slate-500 -mt-2">
+                  {Number(parcelas)}x de {fmtValor(Number(valor) / Number(parcelas))} (última parcela ajusta o arredondamento) · vencimentos a cada 30 dias a partir de {dataVencimento ? 'vencimento informado' : 'data de emissão'}
+                </p>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Observação (opcional)</label>
@@ -512,53 +540,22 @@ function NovoReciboContent() {
                 </div>
               </div>
 
-              {/* ENTRADA: serviço é sempre criado automaticamente — sem checkbox, só o tipo é escolhido.
-                  SAIDA: continua opcional via checkbox (pagamento a terceiro, não serviço ao cliente). */}
-              {!osSelecionada && tipoRecibo === 'ENTRADA' && (
-                <div className="border border-violet-200 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-500/5 rounded-xl p-4 space-y-3">
-                  <p className="text-sm font-bold text-violet-700 dark:text-violet-400">
-                    ✓ Um serviço será criado automaticamente vinculado a este recibo
-                  </p>
-                  <div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Tipo de Serviço</p>
-                    <div className="flex gap-2">
-                      {(['ASSISTENCIA', 'MANUTENCAO'] as const).map(t => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setTipoServico(t)}
-                          className={`flex-1 py-2.5 rounded-lg text-sm font-bold border-2 transition-all ${
-                            tipoServico === t
-                              ? 'border-violet-600 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300'
-                              : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-300'
-                          }`}
-                        >
-                          {t === 'ASSISTENCIA' ? 'Assistência' : 'Manutenção'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!osSelecionada && tipoRecibo === 'SAIDA' && (
+              {/* ENTRADA: gera serviço opcionalmente — editável, default marcado, mesmo com OS selecionada.
+                  SAIDA: nunca gera serviço — exige categoria pra lançar despesa quando marcado como pago. */}
+              {tipoRecibo === 'ENTRADA' && (
                 <div className={`border rounded-xl p-4 space-y-3 transition-colors ${gerarServico ? 'border-violet-400 dark:border-violet-600 bg-violet-50/50 dark:bg-violet-500/5' : 'border-slate-200 dark:border-slate-700'}`}>
                   <label className="flex items-center gap-3 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={gerarServico}
                       onChange={e => setGerarServico(e.target.checked)}
-                      disabled={!temCondominio}
-                      className="w-4 h-4 rounded accent-violet-600 disabled:opacity-40"
+                      className="w-4 h-4 rounded accent-violet-600"
                     />
-                    <div>
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Gerar OS vinculada ao recibo</span>
-                      {!temCondominio && (
-                        <span className="block text-xs text-slate-400 mt-0.5">Só disponível quando há condomínio</span>
-                      )}
-                    </div>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                      {osSelecionada ? `Vincular à OS nº ${osSelecionada.numero_os} (gerar/reaproveitar serviço)` : 'Gerar serviço vinculado a este recibo'}
+                    </span>
                   </label>
-                  {gerarServico && (
+                  {gerarServico && !osSelecionada && (
                     <div>
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Tipo de Serviço</p>
                       <div className="flex gap-2">
@@ -582,6 +579,23 @@ function NovoReciboContent() {
                 </div>
               )}
 
+              {tipoRecibo === 'SAIDA' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Categoria da Despesa *</label>
+                  <select
+                    value={categoriaId ?? ''}
+                    onChange={e => setCategoriaId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  >
+                    <option value="">Selecione...</option>
+                    {categorias.map(c => (
+                      <option key={c.id} value={c.id}>{c.nome} ({c.grupo === 'FORNECEDOR' ? 'Fornecedor' : 'Despesa'})</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1">Não gera serviço. A despesa é lançada no Fluxo Financeiro quando a parcela for marcada como paga.</p>
+                </div>
+              )}
+
               {valor && descricao && (
                 <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700 rounded-2xl p-4">
                   <div className="text-xs font-bold text-violet-600 uppercase tracking-wide mb-2">Resumo</div>
@@ -591,19 +605,32 @@ function NovoReciboContent() {
                     {clienteSelecionado?.apartamento && <div><span className="font-semibold">Apto:</span> {clienteSelecionado.apartamento}</div>}
                     <div><span className="font-semibold">Serviço:</span> {descricao}</div>
                     <div><span className="font-semibold">Valor:</span> {fmtValor(Number(valor))}</div>
-                    {osSelecionada && (
+                    {Number(parcelas) > 1 && (
+                      <div><span className="font-semibold">Parcelas:</span> {Number(parcelas)}x de {fmtValor(Number(valor) / Number(parcelas))}</div>
+                    )}
+                    {osSelecionada && tipoRecibo === 'ENTRADA' && gerarServico && (
                       <div className="pt-1 mt-1 border-t border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-400 font-semibold">
                         OS nº {osSelecionada.numero_os} será reaproveitada
                       </div>
                     )}
-                    {!osSelecionada && tipoRecibo === 'ENTRADA' && (
+                    {osSelecionada && tipoRecibo === 'ENTRADA' && !gerarServico && (
+                      <div className="pt-1 mt-1 border-t border-violet-200 dark:border-violet-700 text-slate-500 font-semibold">
+                        OS nº {osSelecionada.numero_os} não será vinculada — nenhum serviço será criado
+                      </div>
+                    )}
+                    {!osSelecionada && tipoRecibo === 'ENTRADA' && gerarServico && (
                       <div className="pt-1 mt-1 border-t border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-400 font-semibold">
                         Serviço de {tipoServico === 'ASSISTENCIA' ? 'Assistência' : 'Manutenção'} será criado automaticamente
                       </div>
                     )}
-                    {!osSelecionada && tipoRecibo === 'SAIDA' && gerarServico && temCondominio && (
+                    {tipoRecibo === 'SAIDA' && osSelecionada && (
+                      <div className="pt-1 mt-1 border-t border-violet-200 dark:border-violet-700 text-slate-500 font-semibold">
+                        OS nº {osSelecionada.numero_os} não gera vínculo — SAÍDA nunca cria serviço
+                      </div>
+                    )}
+                    {tipoRecibo === 'SAIDA' && categoriaId && (
                       <div className="pt-1 mt-1 border-t border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-400 font-semibold">
-                        OS {tipoServico === 'ASSISTENCIA' ? 'Assistência' : 'Manutenção'} será criada automaticamente
+                        Despesa em {categorias.find(c => c.id === categoriaId)?.nome} ao marcar como pago
                       </div>
                     )}
                   </div>

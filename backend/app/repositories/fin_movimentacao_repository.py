@@ -19,6 +19,7 @@ class FinMovimentacaoRepository:
         categoria_id: Optional[int] = None,
         origem: Optional[str] = None,
         status: Optional[str] = None,
+        recibo_id: Optional[int] = None,
     ) -> List[MovimentacaoFinanceira]:
         q = (
             db.query(MovimentacaoFinanceira)
@@ -32,6 +33,8 @@ class FinMovimentacaoRepository:
             q = q.filter(MovimentacaoFinanceira.tipo == tipo)
         if categoria_id:
             q = q.filter(MovimentacaoFinanceira.categoria_id == categoria_id)
+        if recibo_id:
+            q = q.filter(MovimentacaoFinanceira.recibo_id == recibo_id)
         if origem:
             q = q.filter(MovimentacaoFinanceira.origem == origem)
         if status:

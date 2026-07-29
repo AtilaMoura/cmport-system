@@ -31,11 +31,12 @@ def listar(
     categoria_id: Optional[int] = None,
     origem:       Optional[str] = None,
     status:       Optional[str] = None,
+    recibo_id:    Optional[int] = None,
     db: Session = Depends(get_db),
 ):
     return FinMovimentacaoService.listar(
         db, mes=mes, ano=ano, tipo=tipo, grupo=grupo,
-        categoria_id=categoria_id, origem=origem, status=status,
+        categoria_id=categoria_id, origem=origem, status=status, recibo_id=recibo_id,
     )
 
 
