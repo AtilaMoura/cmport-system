@@ -329,7 +329,9 @@ class ReciboService:
         # Retrofit: recibo ENTRADA que nunca gerou serviço (ex: criado antes da
         # correção, sem condomínio identificado) ganha o serviço retroativamente
         # assim que o condomínio é informado — mesma lógica do Passo 2.3, sem duplicar.
-        if condominio_novo and r.tipo == "ENTRADA" and not r.servicos:
+        # Só se aplica à parcela mãe — parcela filha (recibo_pai_id setado) nunca
+        # gera serviço próprio, senão duplicaria o da mãe.
+        if condominio_novo and r.tipo == "ENTRADA" and not r.servicos and not r.recibo_pai_id:
             ReciboService._criar_servico(db, r, r.condominio_id, tipo="ASSISTENCIA")
 
         # SAIDA marcada PAGO via edição direta (não só via marcar_pago) também gera
