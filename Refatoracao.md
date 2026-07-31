@@ -6,72 +6,60 @@
 
 ---
 
-## Tarefas Anteriores — ARQUIVADAS
+## ⏸ PAUSADO em 2026-07-30 — retomar por aqui
 
-**Recibo: parcelas + gerar_servico editável + despesa por parcela paga (sessão 2026-07-28/29):** feature completa, testada localmente (pytest + Playwright), commitada em `247d11a`. Inclui: parcelamento (`numero_parcela`/`total_parcelas`/`recibo_pai_id`), checkbox "gerar serviço" editável pra ENTRADA (funciona mesmo com OS selecionada), categoria obrigatória + despesa por parcela paga pra SAÍDA, endpoint `GET /recibos/{id}/parcelas`, cascade delete (excluir recibo remove o serviço vinculado), cards "Recibo Vinculado"/"Cobranças por Parcela" no detalhe do serviço. Migração `categoria_id` aplicada em produção em 2026-07-29 (só isso — o resto do código **ainda não foi enviado pra produção**, ver lista completa no final deste arquivo). **Ainda em aberto dessa tarefa:** decisão sobre CNPJ obrigatório no formulário (usuário não decidiu, ficou como estava); `npm run lint` não rodado.
+Sessão longa, muita coisa concluída. Resumo executivo de onde as coisas estão **agora**:
 
-**Análise de recibos duplicados por falta de parcela (sessão 2026-07-29):** varredura dos 39 recibos existentes encontrou 2 casos suspeitos — ver `Analise_Recibos_Parcelas_Duplicadas.md`. **Decisão do usuário:** vai resolver, mas **depois** de implementar a tarefa ativa abaixo (parcela com valor editável) — faz sentido corrigir os dados manualmente usando a UI já corrigida, ao invés de duas vezes.
+- **Código:** tudo commitado local. `origin/master` está em `b2970ef` (deployado em produção e confirmado funcionando). Há **1 commit local não pushado ainda**: `8be0113` (fix pequeno, sem risco — ver abaixo). Nada mais pendente de código.
+- **Banco local:** tem TODAS as correções de dado aplicadas (recibos duplicados + serviços duplicados de nota fiscal).
+- **Banco de produção:** tem só a correção de **recibos** (Edgar/Juliana/Cristina) aplicada. A correção dos **81 serviços duplicados de nota fiscal** está **só no local** — não subiu ainda, aguardando aprovação explícita (usuário pediu pra avisar quando for a hora).
+- **Não fazer sem aprovação:** subir a correção dos 81 serviços pra produção. Usuário disse explicitamente que vai avisar quando for a hora, e quer validar mais algumas coisas antes.
 
-**Fluxo Financeiro — Fases 1-3 (sessão 2026-07-27/28):** CNPJ backfill em notas/recibos, endpoint `GET /financeiro/fluxo-mensal` (+ alertas de duplicata), página `/fluxo-financeiro` com 4 subpáginas, importação histórica Jan-Julho pra `fin_movimentacoes` (1168 registros). Tudo commitado local (`f197fb0` até `e0337cb`), **nada foi enviado pra produção ainda** (só os scripts de dados, que já rodaram nos dois ambientes, e o dump/restore de sincronização). Detalhes em `PENDENCIAS.md`.
+### O que falta (nesta ordem sugerida)
 
-**Mapeamento das planilhas de Fluxo Financeiro (sessão 2026-07-29):** ver `Mapeamento_Planilhas_Fluxo_Financeiro.md` — mapa completo das seções/totais mensais das duas planilhas (CMPORT principal + TEC), análise de onde existe parcelamento real (só em Assistência e alguns acordos de Fornecedores). Comparação com o sistema (Fase 2) parcialmente feita: Manutenção e Entrada/Bancos bateram exato Jan-Jun; achado um bug de fórmula na própria planilha (Entrada de julho). Falta comparar Assistência mês a mês (é onde mora o parcelamento real) e Despesas/Fornecedores.
-
-**Reconciliação D2-D6 + limpeza de 3 categorias de duplicata (sessão 2026-07-27):** ver `PENDENCIAS.md`.
-
-*(Tarefas anteriores: ver histórico em `PLANO_IMPLEMENTACAO.md`.)*
+1. **Push do commit `8be0113`** (fix do retrofit de recibo) — pequeno, testado, baixo risco, mas ainda não subiu. Confirmar com o usuário antes.
+2. **Investigar as diferenças não explicadas** na validação Entrada (ver `Validacao_Entrada_Sistema_vs_Planilha.md`): Maio (+R$1.800), Junho (-R$2.618) e Julho (+R$5.750) da CMPORT Principal — precisam de mais uma rodada de investigação linha a linha (provavelmente mais casos de duplicata ou contaminação de CNPJ, no estilo do que já foi achado).
+3. **Aplicar em produção** (só depois de aprovação explícita, e só depois de checar de novo se produção não recebeu nada novo do cliente nesse meio-tempo — mesmo protocolo de sempre):
+   - Os 81 serviços duplicados de nota fiscal (`Analise_Servicos_Duplicados_Nota_Fiscal.md`)
+   - O commit `8be0113`
+4. **Decisão em aberto de antes:** CNPJ obrigatório no formulário de novo recibo — usuário ainda não decidiu, ficou como estava (opcional).
+5. **TEC com boletos em aberto** (68 de 77) — usuário confirmou que é situação conhecida/esperada, não precisa de ação por enquanto.
 
 ---
 
-## Tarefa Ativa — Recibo parcelado: valor de cada parcela editável (com validação de soma)
+## Tudo que foi feito nesta sessão (cronológico, resumido)
 
-### Status: ✅ implementada e testada (2026-07-29)
+### 1. Recibo: parcelas + gerar_servico editável + despesa por parcela paga
+Feature completa: parcelamento (`numero_parcela`/`total_parcelas`/`recibo_pai_id`), checkbox "gerar serviço" editável pra ENTRADA, categoria obrigatória + despesa por parcela paga pra SAÍDA, endpoint `GET /recibos/{id}/parcelas`, cascade delete (excluir recibo remove o serviço vinculado), cards "Recibo Vinculado"/"Cobranças por Parcela" no detalhe do serviço. Commit `247d11a`.
 
-- **Fase A (backend):** feita — `valores_parcelas` opcional em `ReciboCreate`, validado em `_validar_valores_parcelas` (len, valores > 0, soma com tolerância 0.01), usado em `criar()` no lugar do split automático quando enviado.
-- **Fase B (frontend):** feita — inputs editáveis por parcela em `recibos/novo/page.tsx`, soma ao vivo com indicador visual, botão "Dividir igualmente", botão "Criar Recibo" desabilitado enquanto a soma não bate, resumo final mostra os valores reais.
-- **Fase C (testes):** feita — 3 testes novos em `test_recibo_gera_servico.py` (soma correta aplica valores exatos; soma errada rejeitada com 422; sem `valores_parcelas` mantém o split automático de antes). Suíte: 42 passed / 3 falhas pré-existentes não relacionadas (`test_corpo_nota_produto.py`).
-- **Testado no navegador (Playwright):** criação com 3 parcelas customizadas (150/100/50), validação de soma errada bloqueando o botão, correção e submissão com sucesso — valores exatos aplicados nos 3 recibos criados.
-- **`npm run lint`:** rodado — 9 erros/33 warnings pré-existentes no restante do código (não relacionados a esta tarefa; `recibos/novo/page.tsx` só tem 1 warning pré-existente, `semOs` não usado, que já existia antes desta mudança).
-- **Não commitado ainda** — aguardando o usuário pedir explicitamente (regra: só commitar quando pedido).
+### 2. Recibo: valor de cada parcela editável (com validação de soma)
+`valores_parcelas` opcional em `ReciboCreate`, validado (quantidade, valores > 0, soma com tolerância 0,01). Frontend com inputs editáveis por parcela, soma ao vivo, botão "Dividir igualmente". 3 testes novos. Testado no navegador via Playwright. Commit `5bd3baa`.
 
-### Objetivo
+### 3. Análise e correção de recibos duplicados (Edgar, Juliana, Cristina)
+Cruzando a planilha (coluna PARCELA) com os 39 recibos do sistema, confirmado: **Edgar** (4 recibos separados deveriam ser 1 recibo de 4 parcelas, incluindo uma parcela de R$1.750 — entrada maior — que nunca tinha sido lançada no sistema), **Juliana Via Del Corso** (2 recibos → 1 de 2 parcelas), **Cristina Maria Coelho** (duplicata simples, nome digitado errado). **Eraseg** investigado e descartado (falso positivo — 8 lançamentos reais e distintos). Corrigido em ambos os bancos (local e produção) — ver `Analise_Recibos_Parcelas_Duplicadas.md`.
 
-Hoje, ao parcelar um recibo (`parcelas > 1`), o sistema sempre divide o valor total **igualmente** entre as parcelas (`_calcular_valores_parcelas`: `round(total/n, 2)`, última parcela absorve o arredondamento). O usuário quer poder **editar o valor de cada parcela individualmente** (parcelas não precisam ser iguais — ex: parcela 1 = R$300, parcela 2 = R$150, parcela 3 = R$150), mas o sistema **sempre precisa validar que a soma das parcelas bate com o valor total** antes de permitir salvar (mesmo padrão já usado no fluxo de boleto/Inter: `servicos/[id]/page.tsx`, `somaParcelasModal()`, tolerância pequena, nunca comparar `=== 0` — ver regra já documentada no `CLAUDE.md`: `|soma_parcelas - liquido| < 0.005`).
+### 4. Incidente de deploy (resolvido)
+Ao tentar aplicar a correção do Edgar em produção, descobri que produção ainda rodava código antigo (nada tinha sido deployado apesar do `git push` anterior). Causa: o build do frontend quebrou no GitHub Actions (`useSearchParams()` sem `Suspense` nas 5 páginas de `/fluxo-financeiro` — Next.js exige isso pra pré-renderização estática). Corrigido (commit `b2970ef`), mas o workflow só builda/deploya o que mudou *naquele push* — como o primeiro push (com as mudanças de backend) tinha falhado no frontend antes de chegar no deploy, o backend ficou pra trás mesmo já tendo imagem nova pronta no Docker Hub. Resolvido puxando a imagem manualmente via SSH e reiniciando o container. **Produção e local sincronizados e com o mesmo código desde então.**
 
-### Escopo
+### 5. Verificação de dados novos em produção
+Confirmado múltiplas vezes (contagens de tabelas + timestamps `criado_em`/`atualizado_em`/`data_pagamento`) que produção não recebeu nenhum dado novo do cliente durante toda a sessão — sempre idêntica ao local antes de qualquer correção ser aplicada lá.
 
-- Só a criação do recibo (não editar parcelas depois de criado — isso fica fora de escopo)
-- Só o valor de cada parcela (data de vencimento continua automática: `base + 30*(N-1)` dias, como hoje)
-- Aplica pros dois tipos (ENTRADA e SAÍDA) — a lógica de parcelamento é a mesma pros dois
+### 6. Análise e correção de serviços duplicados por Nota Fiscal parcelada
+Achado o mesmo tipo de bug do Edgar, só que do lado Nota Fiscal/Boleto: **46 notas fiscais com 81 serviços duplicados** (um serviço por mês/boleto pago, quando deveria ser 1 serviço por nota). Confirmado com certeza que não é nada inserido pelo cliente — os 127 registros envolvidos têm `criado_em` concentrado em só 6 dias (todos de scripts de importação/reconciliação, não de uso real do sistema). Corrigido **só no banco local** (81 exclusões via soft delete) — ver `Analise_Servicos_Duplicados_Nota_Fiscal.md`. **Não aplicado em produção ainda.**
 
-### Fase A — Backend
+### 7. Auditoria de código: confirmação de que o bug não se repete no fluxo normal
+Fluxo Explore/auditoria confirmou: nem a criação de Nota Fiscal parcelada, nem marcar boleto como pago, nem `Recibo.marcar_pago()` criam serviço duplicado no código atual — o bug histórico era só do script de importação, não do sistema em uso normal. Achado 1 vetor de risco teórico (retrofit de serviço em `ReciboService.atualizar()` não checava se o recibo era parcela filha) — **corrigido e commitado** (`8be0113`, ainda não pushado).
 
-- **A1.** `ReciboCreate` (`recibo_schema.py`): novo campo opcional `valores_parcelas: Optional[List[float]] = None`
-- **A2.** `ReciboService.criar()` (`recibo_service.py`): antes de chamar `_calcular_valores_parcelas`, se `payload.valores_parcelas` foi enviado:
-  - Validar `len(valores_parcelas) == n_parcelas` (422 se não bater)
-  - Validar cada valor `> 0` (422 se algum for zero/negativo)
-  - Validar `abs(sum(valores_parcelas) - payload.valor) < 0.01` (422 com mensagem clara se a soma não bater com o total)
-  - Se passou na validação, usar `valores_parcelas` no lugar do split automático
-  - Se `valores_parcelas` não foi enviado: comportamento atual, sem mudança (retrocompatível)
-- **A3.** Nenhuma migration necessária (não é campo novo de banco, é só um campo de entrada do payload — os valores já viram o campo `valor` de cada `Recibo` individual, que já existe)
+### 8. Validação: Entrada do sistema x planilha
+Comparado o total "Entrada de Serviços" (Manutenção+Assistência+Recibos) do sistema contra as planilhas, por empresa e combinado — ver `Validacao_Entrada_Sistema_vs_Planilha.md`. Confirmado que a limpeza dos 81 serviços não afeta esses totais. Jan e Mar batem exatamente com as correções feitas (Edgar +R$1.750, Cristina -R$70). Abril bate exato quando as duas empresas (Principal + TEC) são somadas juntas — mesmo cada uma isolada tendo uma diferença de R$280 que se cancela — sinal de contaminação cruzada de CNPJ entre as duas empresas. Mai/Jun/Jul da Principal ainda têm diferenças não explicadas (ver seção "o que falta" acima). TEC com boletos em aberto confirmado como esperado pelo usuário.
 
-### Fase B — Frontend (`recibos/novo/page.tsx`)
+---
 
-- **B1.** Quando `Number(parcelas) > 1`: trocar o texto de preview atual por uma lista de inputs editáveis, um valor por parcela — pré-preenchidos com o split igual sugerido (mesmo cálculo de hoje), mas editáveis
-- **B2.** Soma ao vivo dos valores editados, comparada com o valor total (`Number(valor)`), com indicador visual (verde se bate dentro da tolerância, vermelho/aviso se não)
-- **B3.** Botão "Criar Recibo" desabilitado enquanto a soma não bater (mesma tolerância usada no resto do sistema — nunca comparação exata)
-- **B4.** Botão auxiliar "Dividir igualmente" pra resetar rápido pro split automático (conveniência, evita ter que editar tudo na mão se só quiser o padrão)
-- **B5.** Enviar `valores_parcelas` no payload de `POST /recibos` quando os valores tiverem sido customizados (ou sempre enviar, já que o backend aceita e valida de qualquer forma)
+## Arquivos de análise gerados nesta sessão (todos na raiz do repo)
 
-### Fase C — Testes
+- `Analise_Recibos_Parcelas_Duplicadas.md` — recibos (resolvido, local + produção)
+- `Analise_Servicos_Duplicados_Nota_Fiscal.md` — nota fiscal (resolvido só local)
+- `Mapeamento_Planilhas_Fluxo_Financeiro.md` — mapa completo das duas planilhas
+- `Validacao_Entrada_Sistema_vs_Planilha.md` — comparação de totais mais recente
 
-- Atualizar `test_recibo_gera_servico.py`: caso de parcelas com valores customizados que somam certo (sucesso, valores exatos aplicados); caso que não soma (422); caso sem `valores_parcelas` (retrocompatibilidade — split automático continua igual a hoje)
-
-### Fora de escopo (não fazer nesta tarefa)
-
-- Editar valores de parcelas depois de criado o recibo
-- Editar data de vencimento por parcela (só valor)
-- Aplicar o mesmo conceito em Nota Fiscal/Boleto (já tem esse recurso lá, é só o Recibo que não tinha)
-
-### Depois desta tarefa
-
-Retomar a correção dos recibos duplicados (`Analise_Recibos_Parcelas_Duplicadas.md`) — usando a UI já com parcela editável pra reconstruir o caso do "Edgar" corretamente (parcela 1 com o serviço, parcelas seguintes só como pagamento) e corrigir a duplicata da "Cristina Maria Coelho".
+*(Tarefas ainda mais antigas: ver histórico em `PLANO_IMPLEMENTACAO.md` e `PENDENCIAS.md`.)*

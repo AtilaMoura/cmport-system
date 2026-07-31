@@ -69,7 +69,10 @@ class FluxoFinanceiroService:
             total_manutencao = 0.0
             total_assistencia = 0.0
             for boleto, nota, condominio in boletos:
-                valor = float(boleto.valor_nominal or 0)
+                # arredonda cada linha ANTES de somar — valor_nominal e FLOAT e carrega
+                # ruido binario por linha (ex: 23625.009765625 em vez de 23625.01);
+                # arredondar so o total final nao corrige isso, o viés já foi acumulado.
+                valor = round(float(boleto.valor_nominal or 0), 2)
                 tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
                 if tipo == "MANUTENCAO":
                     total_manutencao += valor
@@ -106,7 +109,7 @@ class FluxoFinanceiroService:
 
             total_recibos = 0.0
             for recibo, condominio in recibos:
-                valor = float(recibo.valor or 0)
+                valor = round(float(recibo.valor or 0), 2)
                 total_recibos += valor
                 linhas.append(FluxoFinanceiroLinha(
                     condominio_id=condominio.id if condominio else None,
@@ -119,7 +122,13 @@ class FluxoFinanceiroService:
                     origem="RECIBO",
                 ))
 
-            total_cnpj = total_manutencao + total_assistencia + total_recibos
+            # valor_nominal/valor sao colunas FLOAT — a soma binaria acumula ruido
+            # de poucos milesimos por linha; arredondar aqui evita que o total
+            # exibido caia no centavo errado (ex: .815999... -> .81 em vez de .82).
+            total_manutencao = round(total_manutencao, 2)
+            total_assistencia = round(total_assistencia, 2)
+            total_recibos = round(total_recibos, 2)
+            total_cnpj = round(total_manutencao + total_assistencia + total_recibos, 2)
             if linhas or not cnpj_limpo:
                 cnpjs_resultado.append(FluxoFinanceiroCnpj(
                     cnpj=cfg.cnpj,
@@ -132,7 +141,7 @@ class FluxoFinanceiroService:
                 ))
                 total_geral += total_cnpj
 
-        return FluxoFinanceiroResponse(ano=ano, mes=mes, cnpjs=cnpjs_resultado, total_geral=total_geral)
+        return FluxoFinanceiroResponse(ano=ano, mes=mes, cnpjs=cnpjs_resultado, total_geral=round(total_geral, 2))
 
     @staticmethod
     def detectar_duplicatas(db: Session, ano: int, mes: int) -> List[AlertaDuplicata]:

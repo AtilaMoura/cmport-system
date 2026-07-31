@@ -5,15 +5,13 @@
 
 ---
 
-## ⏸ Tarefa pausada em 2026-07-28 — Recibo: parcelas + ENTRADA gera serviço + SAÍDA gera despesa
+## ⏸ Tarefa pausada em 2026-07-30 — ver `Refatoracao.md` (resumo executivo completo lá)
 
-Plano técnico completo em `Refatoracao.md` (tarefa ativa), nenhum código escrito ainda. Regra de negócio fechada com o usuário:
-- **ENTRADA** → gera serviço, checkbox editável (default marcado)
-- **SAÍDA** → nunca gera serviço, gera despesa em `fin_movimentacoes` (categoria obrigatória no formulário); se parcelado, uma despesa por parcela **paga** (não na criação, só quando `status` vira PAGO)
-- Parcelamento novo pra Recibo (`numero_parcela`/`total_parcelas`/`recibo_pai_id`, self-FK igual `notas_fiscais.nota_vinculada_id`), efeito colateral (serviço/despesa) só uma vez por grupo — exceto despesa parcelada, que é por parcela paga
-- Adiado: alerta/controle de vencimento de despesa parcelada (feature separada, não decidida ainda)
+Resumo rápido: feature de Recibo parcelado (com valor editável por parcela) **concluída, testada e deployada em produção**. Depois disso, achados e corrigidos dois bugs de dado histórico (não de código): **81 serviços duplicados** por Nota Fiscal parcelada (corrigido só no banco **local**, aguardando aprovação pra subir em produção) e **recibos duplicados** (Edgar/Juliana/Cristina — corrigido nos dois bancos). Também corrigido (commitado, ainda não pushado) um vetor de duplicação teórico no retrofit de serviço do recibo.
 
-Próxima sessão: começar pela Fase A do plano (model + schema + migration).
+**Pendente:** aprovação explícita do usuário pra aplicar em produção a correção dos 81 serviços + o commit `8be0113`; investigar diferenças não explicadas de Mai/Jun/Jul (CMPORT Principal) na validação de Entrada (`Validacao_Entrada_Sistema_vs_Planilha.md`).
+
+Detalhe completo, cronologia e todos os arquivos de análise gerados: ver `Refatoracao.md` (seção "PAUSADO em 2026-07-30").
 
 ---
 
