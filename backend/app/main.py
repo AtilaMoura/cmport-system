@@ -156,6 +156,15 @@ def _run_migrations():
         # Serviço gerado a partir de Recibo pode não ter condomínio (usa dados do próprio
         # recibo/cliente) — Nota Fiscal continua sempre preenchendo esse campo
         "ALTER TABLE manutencoes_assistencias MODIFY condominio_id INT NULL",
+        # FLOAT -> DECIMAL nas colunas de dinheiro: FLOAT binario acumulava ruido
+        # de poucos milesimos por linha, empurrando totais somados (Fluxo Financeiro)
+        # pro centavo errado. Ver Validacao_Entrada_Sistema_vs_Planilha.md.
+        "ALTER TABLE boletos MODIFY valor_nominal DECIMAL(10,2) NOT NULL",
+        "ALTER TABLE boletos MODIFY valor_juros DECIMAL(10,2) NULL DEFAULT 0.0",
+        "ALTER TABLE boletos MODIFY valor_multa DECIMAL(10,2) NULL DEFAULT 0.0",
+        "ALTER TABLE boletos MODIFY valor_total_recebido DECIMAL(10,2) NULL",
+        "ALTER TABLE notas_fiscais MODIFY valor DECIMAL(10,2) NOT NULL",
+        "ALTER TABLE notas_fiscais MODIFY valor_boleto_parcela DECIMAL(10,2) NULL",
     ]
     try:
         for stmt in stmts:

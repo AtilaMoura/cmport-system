@@ -107,6 +107,22 @@ Não bate 100% ao centavo — sobra um resíduo pequeno que pode ser ruído do s
 
 Diferente de Jun/Jul (que têm resíduo por causa das parcelas faltantes), em Maio **não há notas de parcelamento longo faltando** — a reconciliação linha a linha achou só esse 1 resíduo real (os outros 2 "furos" no cruzamento eram ruído do script de comparação: Juliana Via Del Corso e Sbios bateram em valor e data, só não casaram automaticamente por causa do nome do condomínio grafado diferente na planilha). **+R$1.800,00 = exatamente o valor da nota duplicada.** Confirmado: excluindo a nota 1297 (`000.000.101 A`), Maio bate 100% com a planilha.
 
+## 5b. Correção de raiz do arredondamento — `FLOAT` → `DECIMAL` (2026-07-31)
+
+Depois de corrigir o centavo de Março, apareceu de novo o mesmo desvio em outros meses ao recarregar a tela. Causa raiz: `boletos.valor_nominal/valor_juros/valor_multa/valor_total_recebido` e `notas_fiscais.valor/valor_boleto_parcela` eram colunas `FLOAT` (binário, ~7 dígitos de precisão) — cada valor carregava um ruído mínimo (ex: `23625.01` virava `23625.009765625` no banco). Somando ~100 boletos por mês, esse ruído se acumulava e empurrava o total pro centavo errado. `recibos.valor` já era `Numeric(10,2)` desde sempre — por isso nunca teve esse problema, e foi o modelo usado pra corrigir o resto.
+
+**Migração aplicada (local):**
+- `boleto_model.py` e `nota_fiscal_model.py`: `Float` → `Numeric(10, 2, asdecimal=False)` nas colunas de dinheiro (o `asdecimal=False` mantém o Python recebendo `float` como sempre — só o banco passa a guardar exato, zero mudança de comportamento no código).
+- `main.py` (`_run_migrations()`): 6 `ALTER TABLE MODIFY COLUMN ... DECIMAL(10,2)` novos, mesmo padrão incremental já usado no arquivo.
+- `round()` por linha em `fluxo_financeiro_service.py` (aplicado antes) mantido como reforço, mas não é mais o que resolve — a correção real é a coluna.
+
+**Validação feita antes de aplicar:**
+- Auditoria dos 12 arquivos que leem essas colunas — só 2 pontos faziam conta direta sem `float()` (`boleto_service.py:271,1196`), e `asdecimal=False` neutraliza esse risco.
+- Script comparando, com a própria função `_calcular_valor_liquido` do sistema, 29 notas parceladas de Jan-Jul: 25 batem exato (bruto ou líquido) tanto **antes** quanto **depois** da migração — resultado idêntico, prova que nenhuma regra de negócio mudou. As 4 que não batem são problemas pré-existentes sem relação com isso (2 já eram os casos de nota duplicada de Jun/Jul; 2 são achados novos — `7715`/`7856`, campo `valor` da nota desatualizado — ficam pra investigar depois).
+- `pytest`: 42 passed, 3 failed (as mesmas falhas pré-existentes de sempre, `test_corpo_nota_produto.py`, não relacionadas).
+
+**Resultado:** Jan-Jul, CMPORT + TEC, todos os totais recalculados batem com o esperado, sem exceção — incluindo Março (`R$83.205,82` exato). Só aplicado local — produção não foi tocada.
+
 ## 5. Março — fechado (2026-07-31)
 
 Março tinha um resíduo de **-70,01** mesmo após a correção da Cristina feita antes nesta sessão (ver seção 3 do `Analise_Recibos_Parcelas_Duplicadas.md`). Investigado a fundo:

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, Enum, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, Float, Numeric, Date, Enum, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -31,7 +31,9 @@ class NotaFiscal(Base):
     status = Column(Enum(StatusNota), default=StatusNota.AUTORIZADA, nullable=False, index=True)
 
     parcelas = Column(Integer, default=1)
-    valor = Column(Float, nullable=False)
+    # Numeric(asdecimal=False) -- mesma razao do boleto_model: evita ruido de FLOAT
+    # binario acumulando em somas de varias notas (ver fluxo_financeiro_service.py).
+    valor = Column(Numeric(10, 2, asdecimal=False), nullable=False)
 
     data_vencimento = Column(Date, nullable=False)
     data_pagamento = Column(Date, nullable=True)
@@ -42,7 +44,7 @@ class NotaFiscal(Base):
     descricao_servico = Column(Text, nullable=True)
 
     # Valor por parcela para geração de boleto
-    valor_boleto_parcela = Column(Float, nullable=True)
+    valor_boleto_parcela = Column(Numeric(10, 2, asdecimal=False), nullable=True)
     # JSON: [{"parcela": 1, "valor": 640.0, "data": "2026-01-09"}, ...]
     parcelas_json = Column(JSON, nullable=True)
 

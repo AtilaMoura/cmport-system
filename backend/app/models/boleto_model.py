@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey, Enum as SQLEnum, Text
+from sqlalchemy import Column, Integer, String, Float, Numeric, Date, DateTime, ForeignKey, Enum as SQLEnum, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -43,10 +43,13 @@ class Boleto(Base):
     nosso_numero = Column(String(20), nullable=True)
     seu_numero = Column(String(15), nullable=True)
 
-    valor_nominal = Column(Float, nullable=False)
-    valor_juros = Column(Float, default=0.0)
-    valor_multa = Column(Float, default=0.0)
-    valor_total_recebido = Column(Float, nullable=True)
+    # Numeric(asdecimal=False) -> Python sempre recebe float (igual antes),
+    # mas o banco guarda DECIMAL exato -- FLOAT binario perdia centavo em somas
+    # de varias linhas (ex: total do Fluxo Financeiro). Ver Validacao_Entrada_Sistema_vs_Planilha.md.
+    valor_nominal = Column(Numeric(10, 2, asdecimal=False), nullable=False)
+    valor_juros = Column(Numeric(10, 2, asdecimal=False), default=0.0)
+    valor_multa = Column(Numeric(10, 2, asdecimal=False), default=0.0)
+    valor_total_recebido = Column(Numeric(10, 2, asdecimal=False), nullable=True)
 
     data_emissao = Column(Date, nullable=False)
     data_vencimento = Column(Date, nullable=False)
