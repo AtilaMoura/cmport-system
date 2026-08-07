@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Numeric, Date, Enum, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, Float, Numeric, Date, Enum, DateTime, ForeignKey, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -26,7 +26,9 @@ class NotaFiscal(Base):
     condominio_id = Column(Integer, ForeignKey("condominios.id"), nullable=True, index=True)
     condominio = relationship("Condominio")
 
-    numero_nota = Column(String(50), unique=True, index=True, nullable=False)
+    # unicidade composta com cnpj_emitente (ver __table_args__) — o mesmo numero_nota
+    # pode se repetir entre emitentes diferentes (ex: CMPORT e CMPORT TEC)
+    numero_nota = Column(String(50), nullable=False)
     tipo = Column(Enum(TipoNota), default=TipoNota.PRODUTO)
     status = Column(Enum(StatusNota), default=StatusNota.AUTORIZADA, nullable=False, index=True)
 
@@ -80,3 +82,7 @@ class NotaFiscal(Base):
     corpo_nota_id = Column(Integer, ForeignKey("corpos_nota.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
 
     criado_em = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("numero_nota", "cnpj_emitente", name="uq_notas_fiscais_numero_cnpj"),
+    )

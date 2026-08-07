@@ -53,8 +53,11 @@ class NotaFiscalRepository:
         return db.query(NotaFiscal).filter(NotaFiscal.id == id).first()
 
     @staticmethod
-    def get_by_numero(db: Session, numero: str):
-        return db.query(NotaFiscal).filter(NotaFiscal.numero_nota == numero).first()
+    def get_by_numero(db: Session, numero: str, cnpj_emitente: str = None):
+        query = db.query(NotaFiscal).filter(NotaFiscal.numero_nota == numero)
+        if cnpj_emitente:
+            query = query.filter(NotaFiscal.cnpj_emitente == cnpj_emitente)
+        return query.first()
 
     @staticmethod
     def get_condominio_by_cnpj(db: Session, cnpj_limpo: str):

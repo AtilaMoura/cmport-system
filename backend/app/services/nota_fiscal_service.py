@@ -579,8 +579,9 @@ def processar_cancelamento_nfe(xml_str: str, db: Session) -> dict:
         numero_nota_raw = ch_nfe[25:34].lstrip('0')
         serie = ch_nfe[22:25].lstrip('0')
         numero_nota = f"{numero_nota_raw}-{serie}" if serie else numero_nota_raw
+        cnpj_emit = ch_nfe[6:20]
 
-        db_nota = NotaFiscalRepository.get_by_numero(db, numero_nota)
+        db_nota = NotaFiscalRepository.get_by_numero(db, numero_nota, cnpj_emit)
 
         if not db_nota:
             return {'status': 'nao_encontrada', 'numero': numero_nota, 'ch_nfe': ch_nfe}
@@ -1225,7 +1226,7 @@ class NotaFiscalService:
 
                 if dados_nota.get('status') in (StatusNota.CANCELADA, StatusNota.DESCONHECIDO):
                     # Tenta atualizar nota existente no BD para o novo status
-                    db_existente = NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota'])
+                    db_existente = NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota'], dados_nota.get('cnpj_emitente'))
                     if dados_nota['status'] == StatusNota.CANCELADA:
                         canceladas += 1
                         if db_existente and db_existente.status != StatusNota.CANCELADA:
@@ -1239,7 +1240,7 @@ class NotaFiscalService:
                         erros.append({"arquivo": filename, "numero": dados_nota['numero_nota'], "erro": "Status da nota nao reconhecido no XML - nao importada.", "tipo_erro": "desconhecido"})
                     continue
 
-                nota_existente = NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota'])
+                nota_existente = NotaFiscalRepository.get_by_numero(db, dados_nota['numero_nota'], dados_nota.get('cnpj_emitente'))
                 if nota_existente:
                     print(f"[IMPORT] Nota {dados_nota['numero_nota']} ja existe - pulando")
                     ja_existentes += 1
