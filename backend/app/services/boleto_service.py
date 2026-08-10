@@ -786,6 +786,18 @@ class BoletoService:
                 resultado["valor_bruto"]           = float(nota.valor) + float(parceira.valor)
                 resultado["valor_liquido"]         = valor_liquido + liquido_parceira
 
+        # Se a nota tem corpo vinculado com parcelamento já definido (ex.: montagem manual do
+        # corpo antes da emissão da NF), usa o parcelamento do corpo — ele reflete o combinado
+        # real (serviço + produto), enquanto nota.parcelas_json só existe para notas isoladas.
+        if nota.corpo_nota_id:
+            from app.models.corpo_nota_model import CorpoNota
+            corpo = db.query(CorpoNota).filter(CorpoNota.id == nota.corpo_nota_id).first()
+            if corpo and corpo.parcelas_json:
+                resultado["parcelas_json"] = [
+                    {"parcela": i + 1, "valor": float(p["valor"]), "data": p.get("data")}
+                    for i, p in enumerate(corpo.parcelas_json)
+                ]
+
         return resultado
 
     @staticmethod

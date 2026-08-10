@@ -847,9 +847,11 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         setVinculoAplicarImpostoEm((regra as 'nota_a' | 'nota_b' | 'ambas' | 'nenhuma') || 'nota_a');
       }
       // Initialize per-parcel items
-      const n = notaFiscal.parcelas || 1;
       const parcelasMap = new Map((cfg.parcelas_json ?? []).map(p => [p.parcela, p]));
       const usarParcelasJson = parcelasMap.size > 0;
+      // Número de parcelas: prioriza o parcelamento vindo do config (nota isolada ou corpo
+      // vinculado), cai para o campo da nota só quando não há parcelas_json nenhum
+      const n = (cfg.parcelas_json?.length || notaFiscal.parcelas) || 1;
       // Fallback: divisão igual pelo valor líquido
       const liquido = cfg.valor_liquido ?? notaFiscal.valor;
       const parcelaBase = Math.floor(liquido / n * 100) / 100;
