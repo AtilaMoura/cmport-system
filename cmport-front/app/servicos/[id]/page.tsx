@@ -315,6 +315,9 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [enviandoLote, setEnviandoLote] = useState(false);
   const [gerandoParcelas, setGerandoParcelas] = useState(false);
   const [temInter, setTemInter] = useState<boolean | null>(null);
+  // Preview de anexos (conferir documento antes de enviar o email)
+  const [previewAnexo, setPreviewAnexo] = useState<{ label: string; blobUrl: string } | null>(null);
+  const [carregandoAnexo, setCarregandoAnexo] = useState<string | null>(null);
 
   // Form
   const [tipo, setTipo] = useState('');
@@ -1303,6 +1306,68 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     } finally {
       setBaixandoPdf(null);
     }
+  };
+
+  // Abre o preview de um anexo automático (busca o PDF do backend sob demanda)
+  const abrirPreviewAnexo = async (key: string, label: string, url: string) => {
+    setCarregandoAnexo(key);
+    try {
+      const res = await api.get(url, { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      setPreviewAnexo({ label, blobUrl });
+    } catch {
+      alert(`Erro ao carregar "${label}" para visualização.`);
+    } finally {
+      setCarregandoAnexo(null);
+    }
+  };
+
+  // Abre o preview de um anexo manual (arquivo local, sem chamada ao backend)
+  const abrirPreviewArquivoLocal = (file: File) => {
+    const blobUrl = window.URL.createObjectURL(file);
+    setPreviewAnexo({ label: file.name, blobUrl });
+  };
+
+  const fecharPreviewAnexo = () => {
+    if (previewAnexo) window.URL.revokeObjectURL(previewAnexo.blobUrl);
+    setPreviewAnexo(null);
+  };
+
+  // Lista de anexos automáticos que serão enviados no email, conforme o estado atual do composer
+  const getAnexosAutomaticos = (): { key: string; label: string; url: string | null }[] => {
+    if (!modalEmail) return [];
+    const lista: { key: string; label: string; url: string | null }[] = [];
+    if (envioLoteAtivo) {
+      boletos.filter(b => b.situacao !== 'CANCELADO').forEach(b => {
+        lista.push({
+          key: `boleto-${b.id}`,
+          label: `boleto_parcela_${b.numero_parcela}.pdf`,
+          url: b.codigo_solicitacao ? `/boletos/${b.codigo_solicitacao}/pdf` : null,
+        });
+      });
+    } else {
+      lista.push({
+        key: `boleto-${modalEmail.id}`,
+        label: `boleto_${modalEmail.codigo_solicitacao}.pdf`,
+        url: modalEmail.codigo_solicitacao ? `/boletos/${modalEmail.codigo_solicitacao}/pdf` : null,
+      });
+    }
+    if (notaFiscal?.pdf_object_key) {
+      lista.push({ key: 'nota-fiscal', label: `nota_fiscal_${notaFiscal.numero_nota}.pdf`, url: `/notas-fiscais/${notaFiscal.id}/pdf-stream` });
+    }
+    if (notaVinculada?.pdf_object_key) {
+      lista.push({ key: 'nota-vinculada', label: `nota_fiscal_${notaVinculada.numero_nota}.pdf`, url: `/notas-fiscais/${notaVinculada.id}/pdf-stream` });
+    }
+    if (servico?.numero_os) {
+      lista.push({ key: 'os', label: `os_${servico.numero_os}.pdf`, url: ordemServico ? `/ordens-servico/${ordemServico.task_id}/pdf` : null });
+    }
+    if (termoGarantia) {
+      lista.push({ key: 'termo', label: 'termo_garantia.pdf', url: `/termos-garantia/${termoGarantia.id}/pdf` });
+    }
+    if (incluirOrcamentoPdf && servico?.orcamento_id) {
+      lista.push({ key: 'orcamento', label: `orcamento_${servico.orcamento_id}.pdf`, url: `/orcamentos/${servico.orcamento_id}/pdf` });
+    }
+    return lista;
   };
 
   const abrirModalEmail = async (boleto: Boleto) => {
@@ -3797,37 +3862,32 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 <div className="space-y-2">
                   {/* Automáticos */}
                   <div className="flex flex-wrap gap-2">
-                    {envioLoteAtivo ? (
-                      boletos.filter(b => b.situacao !== 'CANCELADO').map(b => (
-                        <span key={b.id} className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
-                          📄 boleto_parcela_{b.numero_parcela}.pdf <span className="text-slate-400 dark:text-slate-500">(automático)</span>
+                    {getAnexosAutomaticos().map(anexo => {
+                      const cls = anexo.key === 'nota-fiscal' || anexo.key === 'nota-vinculada' || anexo.key === 'orcamento'
+                        ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                        : anexo.key === 'termo'
+                        ? 'bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+                      const icone = anexo.key === 'os' ? '🔧' : anexo.key === 'termo' ? '📜' : anexo.key === 'orcamento' ? '📋' : '📄';
+                      return (
+                        <span key={anexo.key} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium ${cls}`}>
+                          {icone} {anexo.label} <span className="opacity-60">(automático)</span>
+                          {anexo.url && (
+                            <button
+                              type="button"
+                              onClick={() => abrirPreviewAnexo(anexo.key, anexo.label, anexo.url!)}
+                              disabled={carregandoAnexo === anexo.key}
+                              title="Visualizar antes de enviar"
+                              className="ml-1 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-50"
+                            >
+                              {carregandoAnexo === anexo.key
+                                ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                : '👁'}
+                            </button>
+                          )}
                         </span>
-                      ))
-                    ) : (
-                      <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
-                        📄 boleto_{modalEmail.codigo_solicitacao}.pdf <span className="text-slate-400 dark:text-slate-500">(automático)</span>
-                      </span>
-                    )}
-                    {notaFiscal?.pdf_object_key && (
-                      <span className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs px-3 py-1.5 rounded-lg font-medium">
-                        📄 nota_fiscal_{notaFiscal.numero_nota}.pdf <span className="text-amber-500 dark:text-amber-600">(automático)</span>
-                      </span>
-                    )}
-                    {notaVinculada?.pdf_object_key && (
-                      <span className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs px-3 py-1.5 rounded-lg font-medium">
-                        📄 nota_fiscal_{notaVinculada.numero_nota}.pdf <span className="text-amber-500 dark:text-amber-600">(vinculada)</span>
-                      </span>
-                    )}
-                    {servico?.numero_os && (
-                      <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-3 py-1.5 rounded-lg font-medium">
-                        🔧 os_{servico.numero_os}.pdf <span className="text-slate-400 dark:text-slate-500">(automático)</span>
-                      </span>
-                    )}
-                    {termoGarantia && (
-                      <span className="flex items-center gap-1.5 bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 text-xs px-3 py-1.5 rounded-lg font-medium">
-                        📜 Termo de Garantia <span className="text-teal-500 dark:text-teal-600">(automático)</span>
-                      </span>
-                    )}
+                      );
+                    })}
                   </div>
                   {/* Extras adicionados */}
                   {composerAnexos.length > 0 ? (
@@ -3835,6 +3895,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                       {composerAnexos.map((f, i) => (
                         <span key={i} className="flex items-center gap-1.5 bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-sm border border-blue-100 dark:border-blue-500/20">
                           📎 {f.name} ({ (f.size / 1024).toFixed(0) } KB)
+                          <button type="button" onClick={() => abrirPreviewArquivoLocal(f)} title="Visualizar" className="hover:text-blue-900 dark:hover:text-white p-0.5">👁</button>
                           <button onClick={() => setComposerAnexos(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-red-500 font-black ml-1 p-0.5 leading-none bg-slate-100 dark:bg-slate-700 rounded-full">×</button>
                         </span>
                       ))}
@@ -3905,6 +3966,20 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Preview de Anexo (conferir documento antes de enviar o email) */}
+      {previewAnexo && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden w-full" style={{ maxWidth: 900, height: '92vh' }}>
+            <div className="flex items-center justify-between px-5 py-3 bg-slate-700 text-white flex-shrink-0">
+              <span className="font-bold text-sm truncate">📄 {previewAnexo.label}</span>
+              <button onClick={fecharPreviewAnexo} className="p-1.5 rounded-lg hover:bg-white/20 transition-all shrink-0">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <iframe src={previewAnexo.blobUrl} title={previewAnexo.label} className="flex-1 w-full bg-gray-200" style={{ border: 'none' }} />
           </div>
         </div>
       )}

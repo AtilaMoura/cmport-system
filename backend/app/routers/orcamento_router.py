@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
@@ -44,6 +45,20 @@ def get_orcamentos_candidatos(servico_id: int, db: Session = Depends(get_db)):
 def get_orcamento_por_servico(servico_id: int, db: Session = Depends(get_db)):
     """Retorna o orçamento vinculado ao serviço (orcamento_id manual primeiro, depois task_id)."""
     return OrcamentoService.get_por_servico(db, servico_id)
+
+
+@router.get("/{orcamento_id}/pdf")
+def get_orcamento_pdf(orcamento_id: int, db: Session = Depends(get_db)):
+    """Gera e retorna o PDF do orçamento (mesmo documento anexado no envio de email)."""
+    try:
+        pdf_bytes = OrcamentoService.gerar_pdf(db, orcamento_id)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename=orcamento_{orcamento_id}.pdf"},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/{orcamento_id}/servicos", response_model=List)
