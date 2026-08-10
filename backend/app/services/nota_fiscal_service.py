@@ -805,16 +805,24 @@ class NotaFiscalService:
         results = []
         for nota in notas:
             resp = NotaFiscalResponse.model_validate(nota)
+            corpo = corpos.get(nota.corpo_nota_id) if nota.corpo_nota_id else None
             cfg = None
             if nota.cnpj_emitente:
                 cfg = cnpj_map.get("".join(filter(str.isdigit, nota.cnpj_emitente or "")))
-            elif nota.corpo_nota_id:
-                corpo = corpos.get(nota.corpo_nota_id)
-                if corpo and corpo.configuracao_inter_id:
-                    cfg = configs.get(corpo.configuracao_inter_id)
+            elif corpo and corpo.configuracao_inter_id:
+                cfg = configs.get(corpo.configuracao_inter_id)
             if cfg:
                 resp.cnpj_emitente_efetivo = _formatar_cnpj(cfg.cnpj)
                 resp.razao_social_emitente = cfg.razao_social
+            # Corpo vinculado manda no parcelamento — nota.parcelas/parcelas_json não
+            # são atualizados pelo vínculo automático (servico+produto), então sempre
+            # que houver corpo com parcelamento próprio ele tem prioridade.
+            if corpo and corpo.parcelas_json and corpo.numero_parcelas and corpo.numero_parcelas > 1:
+                resp.parcelas = corpo.numero_parcelas
+                resp.parcelas_json = [
+                    {"parcela": i + 1, "valor": float(p["valor"]), "data": p.get("data")}
+                    for i, p in enumerate(corpo.parcelas_json)
+                ]
             results.append(resp)
         return results
 
