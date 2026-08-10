@@ -597,6 +597,13 @@ class BoletoService:
 
         existentes = BoletoRepository.get_all_by_nota_fiscal(db, nota_id)
         total_parcelas = nota.parcelas if nota.parcelas and nota.parcelas > 0 else 1
+        # Nota com corpo vinculado que já definiu um parcelamento próprio (ex.: servico+produto
+        # combinados) manda no total de parcelas — nota.parcelas não é atualizado pelo vínculo
+        if nota.corpo_nota_id:
+            from app.models.corpo_nota_model import CorpoNota
+            corpo = db.query(CorpoNota).filter(CorpoNota.id == nota.corpo_nota_id).first()
+            if corpo and corpo.numero_parcelas and corpo.numero_parcelas > 1:
+                total_parcelas = corpo.numero_parcelas
         # Boletos cancelados/expirados não bloqueiam regeneração da parcela
         SITUACOES_INATIVAS = {SituacaoBoleto.CANCELADO, SituacaoBoleto.EXPIRADO}
         nums_existentes = {b.numero_parcela for b in existentes if b.situacao not in SITUACOES_INATIVAS}

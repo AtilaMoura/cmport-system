@@ -944,7 +944,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         await api.put(`/notas-fiscais/${notaFiscal.id}`, { numero_nota: interNumeroNota });
       }
       const valorParcela = parseFloat(item.valor);
-      const totalParcelas = notaFiscal.parcelas || 1;
+      const totalParcelas = interParcelasItens.length || notaFiscal.parcelas || 1;
       // Adjust base date so backend computes exactly this date for this parcel
       const adjustedBase = addDays(item.dataVencimento, -30 * (item.numero - 1));
       const body: Record<string, unknown> = {
@@ -1001,7 +1001,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
       );
       for (const item of faltantes) {
         const valorParcela = parseFloat(item.valor);
-        const totalParcelas = notaFiscal.parcelas || 1;
+        const totalParcelas = interParcelasItens.length || notaFiscal.parcelas || 1;
         const adjustedBase = addDays(item.dataVencimento, -30 * (item.numero - 1));
         const body: Record<string, unknown> = {
           pct_pis:    interAplicarPis    ? parseFloat(interPctPis    || '0') : 0,
