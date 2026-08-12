@@ -8,7 +8,7 @@ class FluxoFinanceiroLinha(BaseModel):
     condominio_nome: str
     numero_nota: str
     numero_nota_normalizado: str
-    tipo: str  # MANUTENCAO | ASSISTENCIA | RECIBO
+    tipo: str  # MANUTENCAO | ASSISTENCIA | PRODUTO | RECIBO
     valor: float
     data_pagamento: date
     origem: str  # BOLETO | RECIBO
@@ -19,6 +19,7 @@ class FluxoFinanceiroCnpj(BaseModel):
     razao_social: Optional[str] = None
     total_manutencao: float
     total_assistencia: float
+    total_produto: float
     total_recibos: float
     total_geral: float
     linhas: List[FluxoFinanceiroLinha]

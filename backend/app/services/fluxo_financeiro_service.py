@@ -51,14 +51,14 @@ class FluxoFinanceiroService:
 
             linhas: List[FluxoFinanceiroLinha] = []
 
-            # Boletos PAGO/BAIXADO do mes, notas Manutencao/Assistencia deste CNPJ
+            # Boletos PAGO/BAIXADO do mes, notas Manutencao/Assistencia/Produto deste CNPJ
             boletos = (
                 db.query(Boleto, NotaFiscal, Condominio)
                 .join(NotaFiscal, Boleto.nota_fiscal_id == NotaFiscal.id)
                 .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
                 .filter(
                     NotaFiscal.cnpj_emitente == cfg_cnpj_limpo,
-                    NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA]),
+                    NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
                     Boleto.situacao.in_([SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO]),
                     func.year(Boleto.data_pagamento) == ano,
                     func.month(Boleto.data_pagamento) == mes,
@@ -68,6 +68,7 @@ class FluxoFinanceiroService:
 
             total_manutencao = 0.0
             total_assistencia = 0.0
+            total_produto = 0.0
             for boleto, nota, condominio in boletos:
                 # arredonda cada linha ANTES de somar — valor_nominal e FLOAT e carrega
                 # ruido binario por linha (ex: 23625.009765625 em vez de 23625.01);
@@ -76,6 +77,8 @@ class FluxoFinanceiroService:
                 tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
                 if tipo == "MANUTENCAO":
                     total_manutencao += valor
+                elif tipo == "PRODUTO":
+                    total_produto += valor
                 else:
                     total_assistencia += valor
                 linhas.append(FluxoFinanceiroLinha(
@@ -127,14 +130,16 @@ class FluxoFinanceiroService:
             # exibido caia no centavo errado (ex: .815999... -> .81 em vez de .82).
             total_manutencao = round(total_manutencao, 2)
             total_assistencia = round(total_assistencia, 2)
+            total_produto = round(total_produto, 2)
             total_recibos = round(total_recibos, 2)
-            total_cnpj = round(total_manutencao + total_assistencia + total_recibos, 2)
+            total_cnpj = round(total_manutencao + total_assistencia + total_produto + total_recibos, 2)
             if linhas or not cnpj_limpo:
                 cnpjs_resultado.append(FluxoFinanceiroCnpj(
                     cnpj=cfg.cnpj,
                     razao_social=cfg.razao_social,
                     total_manutencao=total_manutencao,
                     total_assistencia=total_assistencia,
+                    total_produto=total_produto,
                     total_recibos=total_recibos,
                     total_geral=total_cnpj,
                     linhas=sorted(linhas, key=lambda l: (l.condominio_nome, l.data_pagamento)),
