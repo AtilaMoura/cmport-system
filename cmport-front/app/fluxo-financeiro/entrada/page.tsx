@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
 import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
@@ -15,6 +16,7 @@ function EntradaServicosContent() {
   const [alertas, setAlertas] = useState<AlertaDuplicata[]>([]);
   const [loading, setLoading] = useState(true);
   const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
+  const [dispensando, setDispensando] = useState<number | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -36,6 +38,22 @@ function EntradaServicosContent() {
   }, [ano, mes, cnpjFiltro]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  const dispensarDuplicata = async (a: AlertaDuplicata, index: number) => {
+    if (!confirm(`Confirma que "${a.numero_nota_1}" e "${a.numero_nota_2}" NÃO são duplicata? Esse alerta não vai aparecer mais.`)) return;
+    setDispensando(index);
+    try {
+      await api.post('/financeiro/fluxo-mensal/alertas/dispensar', {
+        nota_id_1: a.nota_id_1,
+        nota_id_2: a.nota_id_2,
+      });
+      setAlertas(prev => prev.filter((_, i) => i !== index));
+    } catch {
+      alert('Erro ao dispensar o alerta. Tenta de novo.');
+    } finally {
+      setDispensando(null);
+    }
+  };
 
   const soDigitos = (v: string) => v.replace(/\D/g, '');
   const ORDEM_CNPJ = ['22761557000188', '65756913000188'];
@@ -76,10 +94,26 @@ function EntradaServicosContent() {
             <p className="text-sm font-bold text-red-700 dark:text-red-400 mb-2">
               ⚠️ {alertas.length} possível{alertas.length > 1 ? 'is' : ''} duplicata{alertas.length > 1 ? 's' : ''} detectada{alertas.length > 1 ? 's' : ''}
             </p>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {alertas.map((a, i) => (
-                <div key={i} className="text-xs text-red-600 dark:text-red-400">
-                  {a.condominio_nome} — <span className="font-mono">{a.numero_nota_1}</span> vs <span className="font-mono">{a.numero_nota_2}</span> — {fmtValor(a.valor)} ({fmtData(a.data_pagamento_1)} / {fmtData(a.data_pagamento_2)})
+                <div key={i} className="text-xs text-red-600 dark:text-red-400 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>
+                    {a.condominio_nome} — <span className="font-mono">{a.numero_nota_1}</span> vs <span className="font-mono">{a.numero_nota_2}</span> — {fmtValor(a.valor)} ({fmtData(a.data_pagamento_1)} / {fmtData(a.data_pagamento_2)})
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <Link href={`/notas/${a.nota_id_1}`} target="_blank"
+                      className="underline decoration-dotted underline-offset-2 hover:text-red-800 dark:hover:text-red-300 font-semibold">
+                      Ver nota {a.numero_nota_1}
+                    </Link>
+                    <Link href={`/notas/${a.nota_id_2}`} target="_blank"
+                      className="underline decoration-dotted underline-offset-2 hover:text-red-800 dark:hover:text-red-300 font-semibold">
+                      Ver nota {a.numero_nota_2}
+                    </Link>
+                    <button type="button" onClick={() => dispensarDuplicata(a, i)} disabled={dispensando === i}
+                      className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/20 dark:text-red-300 dark:hover:bg-red-500/30 disabled:opacity-50 transition-colors">
+                      {dispensando === i ? 'Salvando...' : 'Não é duplicata'}
+                    </button>
+                  </span>
                 </div>
               ))}
             </div>

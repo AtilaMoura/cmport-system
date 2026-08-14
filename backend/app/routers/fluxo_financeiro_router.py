@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from app.core.database import SessionLocal
 from app.services.fluxo_financeiro_service import FluxoFinanceiroService
-from app.schemas.fluxo_financeiro_schema import FluxoFinanceiroResponse, AlertaDuplicata
+from app.schemas.fluxo_financeiro_schema import FluxoFinanceiroResponse, AlertaDuplicata, DispensarDuplicataRequest
 
 router = APIRouter()
 
@@ -34,3 +34,11 @@ def fluxo_mensal_alertas(
     db: Session = Depends(get_db),
 ):
     return FluxoFinanceiroService.detectar_duplicatas(db, ano=ano, mes=mes)
+
+
+@router.post("/fluxo-mensal/alertas/dispensar", status_code=204)
+def dispensar_alerta_duplicata(
+    request: DispensarDuplicataRequest,
+    db: Session = Depends(get_db),
+):
+    FluxoFinanceiroService.dispensar_duplicata(db, request.nota_id_1, request.nota_id_2)

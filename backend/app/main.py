@@ -37,6 +37,7 @@ import app.models.corpo_nota_model           # corpo da nota (pré-nota)
 import app.models.fin_categoria_model        # financeiro — categorias
 import app.models.fin_movimentacao_model     # financeiro — movimentações
 import app.models.fin_saldo_inicial_model    # financeiro — saldo inicial mensal
+import app.models.duplicata_dispensada_model  # pares de nota marcados como "não é duplicata"
 
 # Importar todos os routers
 from app.routers.auth_router import router as auth_router

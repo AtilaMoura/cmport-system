@@ -35,8 +35,15 @@ class FluxoFinanceiroResponse(BaseModel):
 class AlertaDuplicata(BaseModel):
     condominio_id: Optional[int] = None
     condominio_nome: str
+    nota_id_1: int
+    nota_id_2: int
     numero_nota_1: str
     numero_nota_2: str
     valor: float
     data_pagamento_1: date
     data_pagamento_2: date
+
+
+class DispensarDuplicataRequest(BaseModel):
+    nota_id_1: int
+    nota_id_2: int

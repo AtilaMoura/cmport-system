@@ -47,6 +47,8 @@ export interface FluxoFinanceiroResponse {
 export interface AlertaDuplicata {
   condominio_id: number | null;
   condominio_nome: string;
+  nota_id_1: number;
+  nota_id_2: number;
   numero_nota_1: string;
   numero_nota_2: string;
   valor: number;

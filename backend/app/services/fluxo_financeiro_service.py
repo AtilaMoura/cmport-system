@@ -8,6 +8,7 @@ from app.models.boleto_model import Boleto, SituacaoBoleto
 from app.models.recibo_model import Recibo
 from app.models.servico_model import ManutencaoAssistencia
 from app.models.condominio_model import Condominio
+from app.models.duplicata_dispensada_model import DuplicataDispensada
 from app.repositories.configuracao_repository import ConfiguracaoInterRepository
 from app.schemas.fluxo_financeiro_schema import (
     FluxoFinanceiroLinha, FluxoFinanceiroCnpj, FluxoFinanceiroResponse, AlertaDuplicata,
@@ -165,6 +166,10 @@ class FluxoFinanceiroService:
             .all()
         )
 
+        dispensados = {
+            (d.nota_id_1, d.nota_id_2) for d in db.query(DuplicataDispensada).all()
+        }
+
         alertas: List[AlertaDuplicata] = []
         vistos = set()
         for i, (b1, n1, c1) in enumerate(boletos):
@@ -176,12 +181,14 @@ class FluxoFinanceiroService:
                 if abs((b1.data_pagamento - b2.data_pagamento).days) > 2:
                     continue
                 chave = tuple(sorted([n1.id, n2.id]))
-                if chave in vistos:
+                if chave in vistos or chave in dispensados:
                     continue
                 vistos.add(chave)
                 alertas.append(AlertaDuplicata(
                     condominio_id=c1.id,
                     condominio_nome=c1.nome,
+                    nota_id_1=n1.id,
+                    nota_id_2=n2.id,
                     numero_nota_1=n1.numero_nota,
                     numero_nota_2=n2.numero_nota,
                     valor=float(b1.valor_nominal),
@@ -189,3 +196,18 @@ class FluxoFinanceiroService:
                     data_pagamento_2=b2.data_pagamento,
                 ))
         return alertas
+
+    @staticmethod
+    def dispensar_duplicata(db: Session, nota_id_1: int, nota_id_2: int) -> None:
+        """Marca um par de notas como 'não é duplicata' — some da lista de
+        alertas em detectar_duplicatas dali em diante."""
+        menor, maior = sorted([nota_id_1, nota_id_2])
+        ja_existe = (
+            db.query(DuplicataDispensada)
+            .filter(DuplicataDispensada.nota_id_1 == menor, DuplicataDispensada.nota_id_2 == maior)
+            .first()
+        )
+        if ja_existe:
+            return
+        db.add(DuplicataDispensada(nota_id_1=menor, nota_id_2=maior))
+        db.commit()
