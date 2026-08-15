@@ -181,6 +181,10 @@ def _run_migrations():
         "ALTER TABLE bancos ADD COLUMN tipo_chave_pix VARCHAR(20) NULL",
         "ALTER TABLE bancos ADD COLUMN chave_pix VARCHAR(100) NULL",
         "ALTER TABLE bancos ADD COLUMN favorecido VARCHAR(255) NULL",
+        # Banco de origem em fin_movimentacoes — pra transferencia entre contas
+        # proprias, banco_id vira o destino e banco_origem_id guarda de onde saiu
+        "ALTER TABLE fin_movimentacoes ADD COLUMN banco_origem_id INT NULL",
+        "ALTER TABLE fin_movimentacoes ADD CONSTRAINT fk_movimentacao_banco_origem FOREIGN KEY (banco_origem_id) REFERENCES bancos(id) ON DELETE SET NULL",
     ]
     try:
         for stmt in stmts:

@@ -41,7 +41,7 @@ function FornecedoresContent() {
         {loading ? (
           <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
         ) : (
-          <DetalheMovimentacoes movs={movs} cor="text-orange-700 dark:text-orange-400" />
+          <DetalheMovimentacoes movs={movs} cor="text-orange-700 dark:text-orange-400" onAtualizado={carregar} />
         )}
       </div>
     </div>

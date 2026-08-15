@@ -23,13 +23,15 @@ class MovimentacaoCreate(BaseModel):
 
 
 class MovimentacaoUpdate(BaseModel):
-    data:         Optional[date]    = None
-    descricao:    Optional[str]     = None
-    valor:        Optional[Decimal] = None
-    tipo:         Optional[str]     = None
-    categoria_id: Optional[int]     = None
-    observacao:   Optional[str]     = None
-    status:       Optional[str]     = None
+    data:            Optional[date]    = None
+    descricao:       Optional[str]     = None
+    valor:           Optional[Decimal] = None
+    tipo:            Optional[str]     = None
+    categoria_id:    Optional[int]     = None
+    observacao:      Optional[str]     = None
+    status:          Optional[str]     = None
+    banco_id:        Optional[int]     = None
+    banco_origem_id: Optional[int]     = None
 
     @field_validator("valor")
     @classmethod
@@ -54,6 +56,8 @@ class MovimentacaoResponse(BaseModel):
     recibo_id:        Optional[int] = None
     banco_id:         Optional[int] = None
     banco_nome:       Optional[str] = None
+    banco_origem_id:  Optional[int] = None
+    banco_origem_nome: Optional[str] = None
     criado_em:        datetime
     atualizado_em:    datetime
 

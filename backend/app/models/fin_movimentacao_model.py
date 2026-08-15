@@ -41,8 +41,13 @@ class MovimentacaoFinanceira(Base):
 
     # Rastreia que essa despesa nasceu de um recibo SAIDA (uma por parcela paga)
     recibo_id         = Column(Integer, ForeignKey("recibos.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Conta afetada pelo lancamento — pra transferencia entre contas proprias,
+    # representa a conta de DESTINO (onde o dinheiro entrou). banco_origem_id
+    # (abaixo) guarda a conta de ORIGEM, quando aplicavel/conhecida.
     banco_id          = Column(Integer, ForeignKey("bancos.id", ondelete="SET NULL"), nullable=True, index=True)
-    banco             = relationship("Banco")
+    banco             = relationship("Banco", foreign_keys=[banco_id])
+    banco_origem_id   = Column(Integer, ForeignKey("bancos.id", ondelete="SET NULL"), nullable=True, index=True)
+    banco_origem      = relationship("Banco", foreign_keys=[banco_origem_id])
 
     __table_args__ = (
         Index("ix_fin_mov_data",          "data"),

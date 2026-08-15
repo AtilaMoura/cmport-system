@@ -76,8 +76,11 @@ export interface Movimentacao {
   categoria: CategoriaFinanceira | null;
   origem: string;
   status: string;
+  observacao: string | null;
   banco_id: number | null;
   banco_nome: string | null;
+  banco_origem_id: number | null;
+  banco_origem_nome: string | null;
 }
 export interface DashboardFinanceiro {
   mes: number;

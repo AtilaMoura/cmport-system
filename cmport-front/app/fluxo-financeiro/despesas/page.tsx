@@ -41,7 +41,7 @@ function DespesasContent() {
         {loading ? (
           <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
         ) : (
-          <DetalheMovimentacoes movs={movs} cor="text-red-700 dark:text-red-400" />
+          <DetalheMovimentacoes movs={movs} cor="text-red-700 dark:text-red-400" onAtualizado={carregar} />
         )}
       </div>
     </div>

@@ -30,6 +30,7 @@ class FinMovimentacaoService:
         for m in movs:
             r = MovimentacaoResponse.model_validate(m)
             r.banco_nome = m.banco.nome if m.banco else None
+            r.banco_origem_nome = m.banco_origem.nome if m.banco_origem else None
             resultado.append(r)
         return resultado
 
@@ -46,7 +47,10 @@ class FinMovimentacaoService:
             raise Exception("Movimentação não encontrada.")
         dados = {k: v for k, v in req.model_dump().items() if v is not None}
         obj = FinMovimentacaoRepository.update(db, obj, dados)
-        return MovimentacaoResponse.model_validate(obj)
+        r = MovimentacaoResponse.model_validate(obj)
+        r.banco_nome = obj.banco.nome if obj.banco else None
+        r.banco_origem_nome = obj.banco_origem.nome if obj.banco_origem else None
+        return r
 
     @staticmethod
     def validar(db: Session, id: int) -> MovimentacaoResponse:
