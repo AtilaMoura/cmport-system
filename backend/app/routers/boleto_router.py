@@ -14,7 +14,7 @@ from app.schemas.boleto_schema import (
     SincronizarResponse, SincronizarInterResponse, BoletoStats,
     RegistrarPagamentoRequest, CriarBoletoManualRequest, GerarParcelasFaltantesResponse,
     GerarParcelasFaltantesRequest, VincularNotaRequest, NotaSemBoletoResponse,
-    ConfigImpostosResponse,
+    ConfigImpostosResponse, AtualizarBancoRequest,
 )
 
 router = APIRouter()
@@ -144,6 +144,15 @@ def vincular_nota(boleto_id: int, request: VincularNotaRequest, db: Session = De
     """Vincula (ou re-vincula) um boleto a uma nota fiscal."""
     try:
         return BoletoService.vincular_nota(db, boleto_id, request.nota_fiscal_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/{boleto_id}/banco", response_model=BoletoResponse)
+def atualizar_banco(boleto_id: int, request: AtualizarBancoRequest, db: Session = Depends(get_db)):
+    """Corrige/define o banco de um boleto ja existente, sem alterar mais nada."""
+    try:
+        return BoletoService.atualizar_banco(db, boleto_id, request.banco_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

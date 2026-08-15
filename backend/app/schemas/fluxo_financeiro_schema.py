@@ -4,6 +4,7 @@ from typing import List, Optional
 
 
 class FluxoFinanceiroLinha(BaseModel):
+    origem_id: int
     condominio_id: Optional[int] = None
     condominio_nome: str
     numero_nota: str

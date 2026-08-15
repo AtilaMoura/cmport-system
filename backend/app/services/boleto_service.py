@@ -1151,6 +1151,17 @@ class BoletoService:
         return BoletoResponse.model_validate(db_boleto)
 
     @staticmethod
+    def atualizar_banco(db: Session, boleto_id: int, banco_id: Optional[int]) -> BoletoResponse:
+        """Corrige/define o banco de um boleto ja existente, sem tocar em mais nada
+        (situacao, valores, datas ficam intactos) — usado pra correcao manual via
+        o modal de detalhe do Fluxo Financeiro."""
+        db_boleto = BoletoRepository.get_by_id(db, boleto_id)
+        if not db_boleto:
+            raise Exception("Boleto não encontrado.")
+        BoletoRepository.update(db, db_boleto, {"banco_id": banco_id})
+        return BoletoResponse.model_validate(db_boleto)
+
+    @staticmethod
     def get_notas_sem_boleto(db: Session) -> List[NotaSemBoletoResponse]:
         from app.models.nota_fiscal_model import NotaFiscal, StatusNota
         from app.models.boleto_model import Boleto

@@ -20,6 +20,7 @@ export function fmtCnpj(cnpj: string) {
 
 // ── Entrada de Serviços (notas/boletos/recibos) ──────────────────────────────
 export interface FluxoFinanceiroLinha {
+  origem_id: number;
   condominio_id: number | null;
   condominio_nome: string;
   numero_nota: string;

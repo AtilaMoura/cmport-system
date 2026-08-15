@@ -120,6 +120,10 @@ class VincularNotaRequest(BaseModel):
     nota_fiscal_id: int
 
 
+class AtualizarBancoRequest(BaseModel):
+    banco_id: Optional[int] = None
+
+
 class NotaSemBoletoResponse(BaseModel):
     id: int
     numero_nota: str

@@ -85,6 +85,7 @@ class FluxoFinanceiroService:
                 else:
                     total_assistencia += valor
                 linhas.append(FluxoFinanceiroLinha(
+                    origem_id=boleto.id,
                     condominio_id=condominio.id,
                     condominio_nome=condominio.nome,
                     numero_nota=nota.numero_nota,
@@ -121,6 +122,7 @@ class FluxoFinanceiroService:
                 valor = round(float(recibo.valor or 0), 2)
                 total_recibos += valor
                 linhas.append(FluxoFinanceiroLinha(
+                    origem_id=recibo.id,
                     condominio_id=condominio.id if condominio else None,
                     condominio_nome=condominio.nome if condominio else (recibo.cliente_nome_avulso or "Avulso"),
                     numero_nota=recibo.numero_recibo,
