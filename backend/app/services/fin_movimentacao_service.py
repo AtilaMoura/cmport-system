@@ -26,7 +26,12 @@ class FinMovimentacaoService:
             db, mes=mes, ano=ano, tipo=tipo, grupo=grupo,
             categoria_id=categoria_id, origem=origem, status=status, recibo_id=recibo_id,
         )
-        return [MovimentacaoResponse.model_validate(m) for m in movs]
+        resultado = []
+        for m in movs:
+            r = MovimentacaoResponse.model_validate(m)
+            r.banco_nome = m.banco.nome if m.banco else None
+            resultado.append(r)
+        return resultado
 
     @staticmethod
     def criar(db: Session, req: MovimentacaoCreate) -> MovimentacaoResponse:

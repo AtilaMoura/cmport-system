@@ -12,12 +12,14 @@ from app.models.configuracao_model import ConfiguracaoEmail, ConfiguracaoEmpresa
 from app.repositories.configuracao_repository import (
     ConfiguracaoEmailRepository, ConfiguracaoEmpresaRepository,
     ConfiguracaoInterRepository, ConfiguracaoSyncAutoRepository,
+    BancoRepository,
 )
 from app.schemas.configuracao_schema import (
     ConfiguracaoEmailCreate, ConfiguracaoEmailUpdate,
     ConfiguracaoEmailResponse, ConfiguracaoEmpresaSchema, TestarEmailResponse,
     ConfiguracaoInterCreate, ConfiguracaoInterUpdate, ConfiguracaoInterResponse,
     ConfiguracaoSyncAutoUpdate, ConfiguracaoSyncAutoResponse,
+    BancoCreate, BancoUpdate, BancoResponse,
 )
 
 
@@ -274,6 +276,43 @@ class ConfiguracaoService:
             raise Exception("Configuração Inter não encontrada.")
         obj = ConfiguracaoInterRepository.ativar(db, obj)
         return ConfiguracaoInterResponse.model_validate(obj)
+
+    # ── Bancos ────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def listar_bancos(db: Session) -> list[BancoResponse]:
+        return [BancoResponse.model_validate(b) for b in BancoRepository.get_all(db)]
+
+    @staticmethod
+    def criar_banco(db: Session, req: BancoCreate) -> BancoResponse:
+        dados = req.model_dump()
+        obj = BancoRepository.create(db, dados)
+        return BancoResponse.model_validate(obj)
+
+    @staticmethod
+    def atualizar_banco(db: Session, id: int, req: BancoUpdate) -> BancoResponse:
+        obj = BancoRepository.get_by_id(db, id)
+        if not obj:
+            raise Exception("Banco não encontrado.")
+        dados = {k: v for k, v in req.model_dump().items() if v is not None}
+        obj = BancoRepository.update(db, obj, dados)
+        return BancoResponse.model_validate(obj)
+
+    @staticmethod
+    def desativar_banco(db: Session, id: int) -> BancoResponse:
+        obj = BancoRepository.get_by_id(db, id)
+        if not obj:
+            raise Exception("Banco não encontrado.")
+        obj = BancoRepository.desativar(db, obj)
+        return BancoResponse.model_validate(obj)
+
+    @staticmethod
+    def ativar_banco(db: Session, id: int) -> BancoResponse:
+        obj = BancoRepository.get_by_id(db, id)
+        if not obj:
+            raise Exception("Banco não encontrado.")
+        obj = BancoRepository.ativar(db, obj)
+        return BancoResponse.model_validate(obj)
 
     # ── Sync Auto ─────────────────────────────────────────────────────────────
 

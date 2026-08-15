@@ -3,6 +3,7 @@ from sqlalchemy import func as sqlfunc
 from typing import List, Optional
 
 from app.models.configuracao_model import ConfiguracaoEmail, ConfiguracaoEmpresa, ConfiguracaoInter, ConfiguracaoSyncAuto
+from app.models.banco_model import Banco
 
 
 class ConfiguracaoEmailRepository:
@@ -122,6 +123,51 @@ class ConfiguracaoInterRepository:
 
     @staticmethod
     def ativar(db: Session, obj: ConfiguracaoInter) -> ConfiguracaoInter:
+        obj.ativo = True
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+
+class BancoRepository:
+
+    @staticmethod
+    def get_all(db: Session) -> List[Banco]:
+        return db.query(Banco).order_by(Banco.cnpj_titular, Banco.nome).all()
+
+    @staticmethod
+    def get_ativos(db: Session) -> List[Banco]:
+        return db.query(Banco).filter(Banco.ativo == True).order_by(Banco.cnpj_titular, Banco.nome).all()
+
+    @staticmethod
+    def get_by_id(db: Session, id: int) -> Optional[Banco]:
+        return db.query(Banco).filter(Banco.id == id).first()
+
+    @staticmethod
+    def create(db: Session, data: dict) -> Banco:
+        obj = Banco(**data)
+        db.add(obj)
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+    @staticmethod
+    def update(db: Session, obj: Banco, data: dict) -> Banco:
+        for k, v in data.items():
+            setattr(obj, k, v)
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+    @staticmethod
+    def desativar(db: Session, obj: Banco) -> Banco:
+        obj.ativo = False
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+    @staticmethod
+    def ativar(db: Session, obj: Banco) -> Banco:
         obj.ativo = True
         db.commit()
         db.refresh(obj)

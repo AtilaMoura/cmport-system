@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
@@ -105,6 +105,7 @@ export default function BoletosPage() {
   const [pagValorRecebido, setPagValorRecebido] = useState('');
   const [pagFormaPagamento, setPagFormaPagamento] = useState('PIX');
   const [pagBancoPagamento, setPagBancoPagamento] = useState('');
+  const [pagBancoId, setPagBancoId] = useState<number | ''>('');
   const [pagObservacao, setPagObservacao] = useState('');
   const [registrandoPagamento, setRegistrandoPagamento] = useState(false);
 
@@ -133,11 +134,13 @@ export default function BoletosPage() {
   const [manualValor, setManualValor] = useState('');
   const [manualDataVenc, setManualDataVenc] = useState(hoje);
   const [manualBanco, setManualBanco] = useState('');
+  const [manualBancoId, setManualBancoId] = useState<number | ''>('');
   const [manualObs, setManualObs] = useState('');
   const [manualJaPago, setManualJaPago] = useState(false);
   const [manualDataPag, setManualDataPag] = useState(hoje);
   const [manualValorRec, setManualValorRec] = useState('');
   const [criandoManual, setCriandoManual] = useState(false);
+  const [bancos, setBancos] = useState<any[]>([]);
 
   // Modal gerar parcelas faltantes
   const [gerandoParcelas, setGerandoParcelas] = useState<number | null>(null);
@@ -155,7 +158,7 @@ export default function BoletosPage() {
   const [filtroValorMax, setFiltroValorMax] = useState('');
   const [showFiltrosAvancados, setShowFiltrosAvancados] = useState(false);
 
-  useEffect(() => { carregarBoletos(); }, []);
+  useEffect(() => { carregarBoletos(); carregarBancos(); }, []);
 
   useEffect(() => {
     if (pageTab === 'notas_sem_boleto') {
@@ -192,6 +195,15 @@ export default function BoletosPage() {
       setNotasDisponiveis(res.data);
     } catch (error) {
       console.error('Erro ao carregar notas:', error);
+    }
+  };
+
+  const carregarBancos = async () => {
+    try {
+      const res = await api.get('/configuracoes/bancos');
+      setBancos(res.data.filter((b: any) => b.ativo));
+    } catch (error) {
+      console.error('Erro ao carregar bancos:', error);
     }
   };
 
@@ -266,6 +278,7 @@ export default function BoletosPage() {
     setPagValorRecebido(String(boleto.valor_nominal));
     setPagFormaPagamento('PIX');
     setPagBancoPagamento('');
+    setPagBancoId('');
     setPagObservacao('');
   };
 
@@ -278,6 +291,7 @@ export default function BoletosPage() {
         valor_recebido: parseFloat(pagValorRecebido),
         forma_pagamento: pagFormaPagamento,
         banco_pagamento: pagBancoPagamento || null,
+        banco_id: pagBancoId ? Number(pagBancoId) : null,
         observacao: pagObservacao || null,
       });
       setModalPagamento(null);
@@ -388,6 +402,7 @@ export default function BoletosPage() {
     setManualValor(String(nota.valor));
     setManualDataVenc(hoje);
     setManualBanco('');
+    setManualBancoId('');
     setManualObs('');
     setManualJaPago(false);
     setManualDataPag(hoje);
@@ -406,6 +421,7 @@ export default function BoletosPage() {
         data_vencimento: manualDataVenc,
         forma_pagamento: manualForma,
         banco_pagamento: manualBanco || null,
+        banco_id: manualBancoId ? Number(manualBancoId) : null,
         observacao: manualObs || null,
         ja_pago: manualJaPago,
         data_pagamento: manualJaPago ? manualDataPag : null,
@@ -1306,13 +1322,21 @@ export default function BoletosPage() {
               {(pagFormaPagamento === 'BOLETO_ITAU' || pagFormaPagamento === 'TRANSFERENCIA') && (
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Banco / Instituição</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Itaú, Bradesco, Nubank..."
-                    value={pagBancoPagamento}
-                    onChange={e => setPagBancoPagamento(e.target.value)}
+                  <select
+                    value={pagBancoId}
+                    onChange={e => {
+                      const idVal = e.target.value;
+                      setPagBancoId(idVal ? Number(idVal) : '');
+                      const selectedBanco = bancos.find(b => b.id === Number(idVal));
+                      setPagBancoPagamento(selectedBanco ? selectedBanco.nome : '');
+                    }}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none"
-                  />
+                  >
+                    <option value="">Selecione o banco...</option>
+                    {bancos.map(b => (
+                      <option key={b.id} value={b.id}>{b.nome} ({b.razao_social_titular}){b.agencia ? ` — Ag ${b.agencia} / CC ${b.conta_corrente}` : ''}</option>
+                    ))}
+                  </select>
                 </div>
               )}
               <div>
@@ -1516,8 +1540,21 @@ export default function BoletosPage() {
               {(manualForma === 'BOLETO_ITAU' || manualForma === 'TRANSFERENCIA') && (
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Banco / Instituição</label>
-                  <input type="text" placeholder="Ex: Itaú, Bradesco..." value={manualBanco} onChange={e => setManualBanco(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none" />
+                  <select
+                    value={manualBancoId}
+                    onChange={e => {
+                      const idVal = e.target.value;
+                      setManualBancoId(idVal ? Number(idVal) : '');
+                      const selectedBanco = bancos.find(b => b.id === Number(idVal));
+                      setManualBanco(selectedBanco ? selectedBanco.nome : '');
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none"
+                  >
+                    <option value="">Selecione o banco...</option>
+                    {bancos.map(b => (
+                      <option key={b.id} value={b.id}>{b.nome} ({b.razao_social_titular}){b.agencia ? ` — Ag ${b.agencia} / CC ${b.conta_corrente}` : ''}</option>
+                    ))}
+                  </select>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">

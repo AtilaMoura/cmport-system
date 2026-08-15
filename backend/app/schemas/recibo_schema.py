@@ -11,6 +11,7 @@ class ReciboCreate(BaseModel):
     condominio_id: Optional[int] = None
     cliente_nome_avulso: Optional[str] = None
     configuracao_inter_id: Optional[int] = None
+    banco_id: Optional[int] = None
     cnpj_emitente: Optional[str] = None
     cnpj_cliente: Optional[str] = None
     descricao_servico: str
@@ -46,6 +47,7 @@ class ReciboUpdate(BaseModel):
     condominio_id: Optional[int] = None
     cliente_nome_avulso: Optional[str] = None
     configuracao_inter_id: Optional[int] = None
+    banco_id: Optional[int] = None
     cnpj_emitente: Optional[str] = None
     cnpj_cliente: Optional[str] = None
     descricao_servico: Optional[str] = None
@@ -72,6 +74,7 @@ class ReciboResponse(BaseModel):
     cliente_nome_avulso: Optional[str] = None
     cliente: Optional[ClienteResponse] = None
     configuracao_inter_id: Optional[int] = None
+    banco_id: Optional[int] = None
     cnpj_emitente: Optional[str] = None
     cnpj_cliente: Optional[str] = None
     descricao_servico: str

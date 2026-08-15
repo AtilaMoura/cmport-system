@@ -161,6 +161,7 @@ class ReciboService:
             condominio_id=condominio_id,
             cliente_nome_avulso=payload.cliente_nome_avulso,
             configuracao_inter_id=payload.configuracao_inter_id,
+            banco_id=payload.banco_id,
             cnpj_emitente=payload.cnpj_emitente,
             cnpj_cliente=payload.cnpj_cliente,
             descricao_servico=payload.descricao_servico,
@@ -198,6 +199,7 @@ class ReciboService:
             origem="MANUAL",
             status="PENDENTE",
             recibo_id=recibo.id,
+            banco_id=recibo.banco_id,
         )
         db.add(mov)
         db.commit()
@@ -304,6 +306,8 @@ class ReciboService:
             r.cliente_nome_avulso = payload.cliente_nome_avulso
         if payload.configuracao_inter_id is not None:
             r.configuracao_inter_id = payload.configuracao_inter_id
+        if payload.banco_id is not None:
+            r.banco_id = payload.banco_id
         if payload.cnpj_emitente is not None:
             r.cnpj_emitente = payload.cnpj_emitente
         if payload.cnpj_cliente is not None:

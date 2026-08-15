@@ -28,6 +28,8 @@ export interface FluxoFinanceiroLinha {
   valor: number;
   data_pagamento: string;
   origem: string;
+  banco_id: number | null;
+  banco_nome: string | null;
 }
 export interface FluxoFinanceiroCnpj {
   cnpj: string;
@@ -73,6 +75,8 @@ export interface Movimentacao {
   categoria: CategoriaFinanceira | null;
   origem: string;
   status: string;
+  banco_id: number | null;
+  banco_nome: string | null;
 }
 export interface DashboardFinanceiro {
   mes: number;
@@ -100,6 +104,30 @@ export function agruparPorCategoria(movs: Movimentacao[]) {
     const g = grupos.get(nome)!;
     g.total += m.valor;
     g.itens.push(m);
+  }
+  return Array.from(grupos.values()).sort((a, b) => b.total - a.total);
+}
+
+export function agruparPorBanco(movs: Movimentacao[]) {
+  const grupos = new Map<string, { nome: string; total: number; itens: Movimentacao[] }>();
+  for (const m of movs) {
+    const nome = m.banco_nome ?? 'Sem banco';
+    if (!grupos.has(nome)) grupos.set(nome, { nome, total: 0, itens: [] });
+    const g = grupos.get(nome)!;
+    g.total += m.valor;
+    g.itens.push(m);
+  }
+  return Array.from(grupos.values()).sort((a, b) => b.total - a.total);
+}
+
+export function agruparLinhasPorBanco<T extends { banco_nome: string | null; valor: number }>(linhas: T[]) {
+  const grupos = new Map<string, { nome: string; total: number; itens: T[] }>();
+  for (const l of linhas) {
+    const nome = l.banco_nome ?? 'Sem banco';
+    if (!grupos.has(nome)) grupos.set(nome, { nome, total: 0, itens: [] });
+    const g = grupos.get(nome)!;
+    g.total += l.valor;
+    g.itens.push(l);
   }
   return Array.from(grupos.values()).sort((a, b) => b.total - a.total);
 }

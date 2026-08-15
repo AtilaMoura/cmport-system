@@ -108,6 +108,8 @@ export default function ReciboDetalhePage() {
   const [dataPagamento, setDataPagamento] = useState('');
   const [observacao, setObservacao] = useState('');
   const [contaInterSelecionada, setContaInterSelecionada] = useState<ContaInter | null>(null);
+  const [bancos, setBancos] = useState<any[]>([]);
+  const [bancoSelecionado, setBancoSelecionado] = useState<any | null>(null);
 
   useEffect(() => {
     if (id) carregarDados();
@@ -170,6 +172,17 @@ export default function ReciboDetalhePage() {
       } catch {
         setContasInter([]);
       }
+
+      try {
+        const { data: bcs } = await api.get('/configuracoes/bancos');
+        const ativasBancos = (bcs ?? []).filter((b: any) => b.ativo);
+        setBancos(ativasBancos);
+        if (r.banco_id) {
+          setBancoSelecionado(ativasBancos.find((b: any) => b.id === r.banco_id) || null);
+        }
+      } catch {
+        setBancos([]);
+      }
     } catch {
       setNotFoundState(true);
     } finally {
@@ -191,6 +204,7 @@ export default function ReciboDetalhePage() {
         observacao: observacao || null,
         configuracao_inter_id: contaInterSelecionada?.id ?? null,
         cnpj_emitente: contaInterSelecionada?.cnpj ?? null,
+        banco_id: bancoSelecionado?.id ?? null,
       });
       setEditando(false);
       await carregarDados();
@@ -395,21 +409,31 @@ export default function ReciboDetalhePage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">CNPJ / Conta Inter (CMPort)</label>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Conta Bancária (Banco)</label>
             {editando ? (
               <div className="flex flex-wrap gap-2">
-                {contasInter.map(c => (
-                  <button key={c.id} type="button" onClick={() => setContaInterSelecionada(c)}
+                {bancos.map(b => (
+                  <button key={b.id} type="button" onClick={() => {
+                    setBancoSelecionado(b);
+                    if (b.configuracao_inter_id) {
+                      const matchingInter = contasInter.find(c => c.id === b.configuracao_inter_id);
+                      if (matchingInter) setContaInterSelecionada(matchingInter);
+                    } else {
+                      setContaInterSelecionada(null);
+                    }
+                  }}
                     className={`px-3 py-2 rounded-lg text-xs font-bold border-2 transition-all ${
-                      contaInterSelecionada?.id === c.id ? 'border-violet-600 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-300'
+                      bancoSelecionado?.id === b.id ? 'border-violet-600 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-300'
                     }`}>
-                    {c.cnpj}{c.razao_social ? ` — ${c.razao_social}` : ''}
+                    {b.nome} ({b.razao_social_titular}){b.agencia ? ` — Ag ${b.agencia} / CC ${b.conta_corrente}` : ''}
                   </button>
                 ))}
-                {contasInter.length === 0 && <p className="text-xs text-slate-400">Nenhuma conta Inter cadastrada.</p>}
+                {bancos.length === 0 && <p className="text-xs text-slate-400">Nenhum banco cadastrado.</p>}
               </div>
             ) : (
-              <p className="text-sm text-slate-800 dark:text-white">{recibo.cnpj_emitente || '—'}</p>
+              <p className="text-sm text-slate-800 dark:text-white">
+                {bancoSelecionado ? `${bancoSelecionado.nome} (${bancoSelecionado.razao_social_titular})${bancoSelecionado.agencia ? ` — Ag ${bancoSelecionado.agencia} / CC ${bancoSelecionado.conta_corrente}` : ''}` : '—'}
+              </p>
             )}
           </div>
         </div>

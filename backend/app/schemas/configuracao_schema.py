@@ -137,3 +137,45 @@ class ConfiguracaoInterResponse(BaseModel):
         instance = super().model_validate(obj, *args, **kwargs)
         instance.client_secret = None   # nunca expõe o secret
         return instance
+
+
+class BancoCreate(BaseModel):
+    nome:                  str            # "Itaú", "Inter", "Bradesco", "BTG"
+    cnpj_titular:          str
+    razao_social_titular:  Optional[str] = None
+    configuracao_inter_id: Optional[int] = None
+    agencia:               Optional[str] = None
+    conta_corrente:        Optional[str] = None
+    tipo_chave_pix:        Optional[str] = None
+    chave_pix:             Optional[str] = None
+    favorecido:            Optional[str] = None
+
+
+class BancoUpdate(BaseModel):
+    nome:                  Optional[str] = None
+    cnpj_titular:          Optional[str] = None
+    razao_social_titular:  Optional[str] = None
+    configuracao_inter_id: Optional[int] = None
+    ativo:                 Optional[bool] = None
+    agencia:               Optional[str] = None
+    conta_corrente:        Optional[str] = None
+    tipo_chave_pix:        Optional[str] = None
+    chave_pix:             Optional[str] = None
+    favorecido:            Optional[str] = None
+
+
+class BancoResponse(BaseModel):
+    id:                    int
+    nome:                  str
+    cnpj_titular:          str
+    razao_social_titular:  Optional[str] = None
+    configuracao_inter_id: Optional[int] = None
+    ativo:                 bool
+    criado_em:             datetime
+    agencia:               Optional[str] = None
+    conta_corrente:        Optional[str] = None
+    tipo_chave_pix:        Optional[str] = None
+    chave_pix:             Optional[str] = None
+    favorecido:            Optional[str] = None
+
+    model_config = {"from_attributes": True}

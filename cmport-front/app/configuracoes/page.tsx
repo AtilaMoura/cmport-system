@@ -55,6 +55,41 @@ const INTER_VAZIO: InterForm = {
   numero_nf_servico: '', numero_nf_produto: '',
 };
 
+interface Banco {
+  id: number;
+  nome: string;
+  cnpj_titular: string;
+  razao_social_titular: string | null;
+  configuracao_inter_id: number | null;
+  ativo: boolean;
+  criado_em: string;
+  agencia: string | null;
+  conta_corrente: string | null;
+  tipo_chave_pix: string | null;
+  chave_pix: string | null;
+  favorecido: string | null;
+}
+
+interface BancoForm {
+  nome: string;
+  cnpj_titular: string;
+  razao_social_titular: string;
+  agencia: string;
+  conta_corrente: string;
+  tipo_chave_pix: string;
+  chave_pix: string;
+  favorecido: string;
+  ativo: boolean;
+}
+
+const BANCO_VAZIO: BancoForm = {
+  nome: '', cnpj_titular: '', razao_social_titular: '',
+  agencia: '', conta_corrente: '', tipo_chave_pix: '', chave_pix: '', favorecido: '',
+  ativo: true,
+};
+
+const TIPO_CHAVE_PIX_OPTIONS = ['CNPJ', 'CELULAR', 'EMAIL', 'ALEATORIA'];
+
 const EMPRESA_VAZIA: Empresa = { nome: '', email_from_name: 'CMPort', telefone: '', site: '', emails_copia: [], meses_historico_os: 2, endereco_fiscal: '' };
 
 interface SyncAutoConfig {
@@ -108,6 +143,15 @@ export default function ConfiguracoesPage() {
   const [desativandoInter, setDesativandoInter] = useState<number | null>(null);
   const [ativandoInter, setAtivandoInter] = useState<number | null>(null);
   const [mostrarInterSecret, setMostrarInterSecret] = useState(false);
+
+  // ── Bancos ─────────────────────────────────────────────────────────────────
+  const [bancos, setBancos] = useState<Banco[]>([]);
+  const [loadingBancos, setLoadingBancos] = useState(true);
+  const [modalBanco, setModalBanco] = useState<'novo' | Banco | null>(null);
+  const [bancoForm, setBancoForm] = useState<BancoForm>({ ...BANCO_VAZIO });
+  const [salvandoBanco, setSalvandoBanco] = useState(false);
+  const [desativandoBanco, setDesativandoBanco] = useState<number | null>(null);
+  const [ativandoBanco, setAtivandoBanco] = useState<number | null>(null);
 
   // ── Sync Auto ──────────────────────────────────────────────────────────────
   const [syncConfigs, setSyncConfigs] = useState<Record<string, SyncAutoConfig>>({
@@ -163,7 +207,15 @@ export default function ConfiguracoesPage() {
     finally { setLoadingInter(false); }
   };
 
-  useEffect(() => { carregarContas(); carregarEmpresa(); carregarInter(); carregarSyncAuto(); }, [carregarSyncAuto]);
+  const carregarBancos = async () => {
+    try {
+      const { data } = await api.get('/configuracoes/bancos');
+      setBancos(data);
+    } catch { /* silencioso */ }
+    finally { setLoadingBancos(false); }
+  };
+
+  useEffect(() => { carregarContas(); carregarEmpresa(); carregarInter(); carregarSyncAuto(); carregarBancos(); }, [carregarSyncAuto]);
 
   // ── Conta Email ────────────────────────────────────────────────────────────
   const abrirNovaConta = () => {
@@ -336,6 +388,73 @@ export default function ConfiguracoesPage() {
       await carregarInter();
     } catch { alert('Erro ao desativar conta Inter.'); }
     finally { setDesativandoInter(null); }
+  };
+
+  // ── Bancos ─────────────────────────────────────────────────────────────────
+  const abrirNovoBanco = () => {
+    setBancoForm({ ...BANCO_VAZIO });
+    setModalBanco('novo');
+  };
+
+  const abrirEditarBanco = (b: Banco) => {
+    setBancoForm({
+      nome:                  b.nome,
+      cnpj_titular:          b.cnpj_titular,
+      razao_social_titular:  b.razao_social_titular ?? '',
+      agencia:               b.agencia ?? '',
+      conta_corrente:        b.conta_corrente ?? '',
+      tipo_chave_pix:        b.tipo_chave_pix ?? '',
+      chave_pix:             b.chave_pix ?? '',
+      favorecido:            b.favorecido ?? '',
+      ativo:                 b.ativo,
+    });
+    setModalBanco(b);
+  };
+
+  const salvarBanco = async () => {
+    if (!bancoForm.nome || !bancoForm.cnpj_titular) {
+      alert('Preencha nome e CNPJ do titular.'); return;
+    }
+    setSalvandoBanco(true);
+    const payload = {
+      nome:                  bancoForm.nome,
+      cnpj_titular:          bancoForm.cnpj_titular,
+      razao_social_titular:  bancoForm.razao_social_titular || null,
+      agencia:               bancoForm.agencia || null,
+      conta_corrente:        bancoForm.conta_corrente || null,
+      tipo_chave_pix:        bancoForm.tipo_chave_pix || null,
+      chave_pix:             bancoForm.chave_pix || null,
+      favorecido:            bancoForm.favorecido || null,
+    };
+    try {
+      if (modalBanco === 'novo') {
+        await api.post('/configuracoes/bancos', payload);
+      } else {
+        await api.put(`/configuracoes/bancos/${(modalBanco as Banco).id}`, { ...payload, ativo: bancoForm.ativo });
+      }
+      setModalBanco(null);
+      await carregarBancos();
+    } catch { alert('Erro ao salvar banco.'); }
+    finally { setSalvandoBanco(false); }
+  };
+
+  const ativarBanco = async (id: number) => {
+    setAtivandoBanco(id);
+    try {
+      await api.patch(`/configuracoes/bancos/${id}/ativar`);
+      await carregarBancos();
+    } catch { alert('Erro ao ativar banco.'); }
+    finally { setAtivandoBanco(null); }
+  };
+
+  const desativarBanco = async (id: number) => {
+    if (!confirm('Desativar esta conta bancária? Ela deixará de aparecer nos seletores de banco.')) return;
+    setDesativandoBanco(id);
+    try {
+      await api.delete(`/configuracoes/bancos/${id}`);
+      await carregarBancos();
+    } catch { alert('Erro ao desativar banco.'); }
+    finally { setDesativandoBanco(null); }
   };
 
   // ── Empresa ────────────────────────────────────────────────────────────────
@@ -694,6 +813,217 @@ export default function ConfiguracoesPage() {
           </div>
         )}
       </section>
+
+      {/* ── Contas Bancárias ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-black text-slate-800 dark:text-white">💳 Contas Bancárias</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Agência, conta, chave PIX e favorecido usados nos boletos/recibos/despesas.</p>
+          </div>
+          <button
+            onClick={abrirNovoBanco}
+            className="px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all"
+          >
+            + Adicionar Banco
+          </button>
+        </div>
+
+        {loadingBancos ? (
+          <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : bancos.length === 0 ? (
+          <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+            <p className="text-slate-400 text-sm">Nenhuma conta bancária cadastrada.</p>
+            <p className="text-slate-400 text-xs mt-1">Clique em &quot;+ Adicionar Banco&quot; para cadastrar.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {bancos.map(b => (
+              <div key={b.id} className={`rounded-2xl border p-4 transition-all ${b.ativo ? 'border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-500/5' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 opacity-60'}`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm">{b.nome} <span className="font-normal text-slate-500">({b.razao_social_titular})</span></p>
+                      {b.ativo
+                        ? <span className="text-xs bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-bold">● Ativa</span>
+                        : <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded-full font-bold">Inativa</span>
+                      }
+                    </div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-mono">{b.cnpj_titular}</p>
+                    <div className="flex gap-3 mt-1 flex-wrap text-xs text-slate-500 dark:text-slate-400">
+                      {b.agencia && <span>Ag <span className="font-mono">{b.agencia}</span></span>}
+                      {b.conta_corrente && <span>CC <span className="font-mono">{b.conta_corrente}</span></span>}
+                      {b.chave_pix && <span>PIX ({b.tipo_chave_pix}): <span className="font-mono">{b.chave_pix}</span></span>}
+                    </div>
+                    {b.favorecido && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Favorecido: {b.favorecido}</p>}
+                  </div>
+
+                  <div className="flex gap-1.5 flex-wrap justify-end shrink-0">
+                    <button
+                      onClick={() => abrirEditarBanco(b)}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:brightness-95 transition-all"
+                    >
+                      ✏️ Editar
+                    </button>
+                    {b.ativo ? (
+                      <button
+                        onClick={() => desativarBanco(b.id)}
+                        disabled={desativandoBanco === b.id}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:brightness-95 transition-all disabled:opacity-50"
+                      >
+                        {desativandoBanco === b.id ? '...' : 'Desativar'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => ativarBanco(b.id)}
+                        disabled={ativandoBanco === b.id}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 hover:brightness-95 transition-all disabled:opacity-50"
+                      >
+                        {ativandoBanco === b.id ? '...' : 'Ativar'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Modal Nova/Editar Banco ── */}
+      {modalBanco !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
+            <h2 className="text-lg font-black text-slate-900 dark:text-white mb-5">
+              {modalBanco === 'novo' ? '+ Nova Conta Bancária' : '✏️ Editar Conta Bancária'}
+            </h2>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Nome do banco</label>
+                  <input
+                    type="text"
+                    value={bancoForm.nome}
+                    onChange={e => setBancoForm(p => ({ ...p, nome: e.target.value }))}
+                    placeholder="Itaú, Inter, Bradesco, BTG..."
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>CNPJ do titular</label>
+                  <input
+                    type="text"
+                    value={bancoForm.cnpj_titular}
+                    onChange={e => setBancoForm(p => ({ ...p, cnpj_titular: e.target.value }))}
+                    placeholder="12345678000190"
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Razão Social (exibição)</label>
+                <input
+                  type="text"
+                  value={bancoForm.razao_social_titular}
+                  onChange={e => setBancoForm(p => ({ ...p, razao_social_titular: e.target.value }))}
+                  placeholder="CMPORT / CMPORT TEC"
+                  className={inputCls}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Agência</label>
+                  <input
+                    type="text"
+                    value={bancoForm.agencia}
+                    onChange={e => setBancoForm(p => ({ ...p, agencia: e.target.value }))}
+                    placeholder="0001"
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Conta Corrente</label>
+                  <input
+                    type="text"
+                    value={bancoForm.conta_corrente}
+                    onChange={e => setBancoForm(p => ({ ...p, conta_corrente: e.target.value }))}
+                    placeholder="12345-6"
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Tipo de Chave PIX</label>
+                  <select
+                    value={bancoForm.tipo_chave_pix}
+                    onChange={e => setBancoForm(p => ({ ...p, tipo_chave_pix: e.target.value }))}
+                    className={inputCls}
+                  >
+                    <option value="">— Selecione —</option>
+                    {TIPO_CHAVE_PIX_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Chave PIX</label>
+                  <input
+                    type="text"
+                    value={bancoForm.chave_pix}
+                    onChange={e => setBancoForm(p => ({ ...p, chave_pix: e.target.value }))}
+                    placeholder="CNPJ, celular, email..."
+                    className={`${inputCls} font-mono text-xs`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Favorecido</label>
+                <input
+                  type="text"
+                  value={bancoForm.favorecido}
+                  onChange={e => setBancoForm(p => ({ ...p, favorecido: e.target.value }))}
+                  placeholder="Razão social do favorecido"
+                  className={inputCls}
+                />
+              </div>
+
+              {modalBanco !== 'novo' && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={bancoForm.ativo}
+                    onChange={e => setBancoForm(p => ({ ...p, ativo: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-teal-600"
+                  />
+                  <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">Conta ativa</span>
+                </label>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setModalBanco(null)}
+                className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarBanco}
+                disabled={salvandoBanco || !bancoForm.nome || !bancoForm.cnpj_titular}
+                className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {salvandoBanco
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
+                  : '💾 Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal Nova/Editar Conta Inter ── */}
       {modalInter !== null && (

@@ -12,6 +12,8 @@ class FluxoFinanceiroLinha(BaseModel):
     valor: float
     data_pagamento: date
     origem: str  # BOLETO | RECIBO
+    banco_id: Optional[int] = None
+    banco_nome: Optional[str] = None
 
 
 class FluxoFinanceiroCnpj(BaseModel):

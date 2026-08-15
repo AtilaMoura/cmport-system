@@ -38,6 +38,7 @@ import app.models.fin_categoria_model        # financeiro — categorias
 import app.models.fin_movimentacao_model     # financeiro — movimentações
 import app.models.fin_saldo_inicial_model    # financeiro — saldo inicial mensal
 import app.models.duplicata_dispensada_model  # pares de nota marcados como "não é duplicata"
+import app.models.banco_model                 # contas bancárias (Itaú/Inter/Bradesco/BTG)
 
 # Importar todos os routers
 from app.routers.auth_router import router as auth_router
@@ -166,6 +167,20 @@ def _run_migrations():
         "ALTER TABLE boletos MODIFY valor_total_recebido DECIMAL(10,2) NULL",
         "ALTER TABLE notas_fiscais MODIFY valor DECIMAL(10,2) NOT NULL",
         "ALTER TABLE notas_fiscais MODIFY valor_boleto_parcela DECIMAL(10,2) NULL",
+        # Contas bancárias (Itaú/Inter/Bradesco/BTG) — tabela `bancos` já criada pelo
+        # create_all acima; só falta ligar boletos/recibos/movimentações a ela
+        "ALTER TABLE boletos ADD COLUMN banco_id INT NULL",
+        "ALTER TABLE boletos ADD CONSTRAINT fk_boleto_banco FOREIGN KEY (banco_id) REFERENCES bancos(id) ON DELETE SET NULL",
+        "ALTER TABLE recibos ADD COLUMN banco_id INT NULL",
+        "ALTER TABLE recibos ADD CONSTRAINT fk_recibo_banco FOREIGN KEY (banco_id) REFERENCES bancos(id) ON DELETE SET NULL",
+        "ALTER TABLE fin_movimentacoes ADD COLUMN banco_id INT NULL",
+        "ALTER TABLE fin_movimentacoes ADD CONSTRAINT fk_movimentacao_banco FOREIGN KEY (banco_id) REFERENCES bancos(id) ON DELETE SET NULL",
+        # Dados operacionais completos nas contas bancárias (agência/conta/PIX/favorecido)
+        "ALTER TABLE bancos ADD COLUMN agencia VARCHAR(20) NULL",
+        "ALTER TABLE bancos ADD COLUMN conta_corrente VARCHAR(30) NULL",
+        "ALTER TABLE bancos ADD COLUMN tipo_chave_pix VARCHAR(20) NULL",
+        "ALTER TABLE bancos ADD COLUMN chave_pix VARCHAR(100) NULL",
+        "ALTER TABLE bancos ADD COLUMN favorecido VARCHAR(255) NULL",
     ]
     try:
         for stmt in stmts:
@@ -312,6 +327,77 @@ def _seed_sync_auto():
 
 
 _seed_sync_auto()
+
+
+CNPJ_CMPORT = "22761557000188"
+CNPJ_TEC    = "65756913000188"
+
+
+def _seed_bancos():
+    """Cria as 5 contas bancárias reais se a tabela estiver vazia.
+    As linhas Inter ficam ligadas à ConfiguracaoInter já cadastrada (credenciais
+    de API reais) via configuracao_inter_id — não duplica client_id/secret."""
+    from app.core.database import SessionLocal
+    from app.models.banco_model import Banco
+    from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+    db = SessionLocal()
+    try:
+        if db.query(Banco).count() == 0:
+            inter_cmport = ConfiguracaoInterRepository.get_by_cnpj(db, CNPJ_CMPORT)
+            inter_tec = ConfiguracaoInterRepository.get_by_cnpj(db, CNPJ_TEC)
+            db.add_all([
+                Banco(nome="Itaú",     cnpj_titular=CNPJ_CMPORT, razao_social_titular="CMPORT"),
+                Banco(nome="Inter",    cnpj_titular=CNPJ_CMPORT, razao_social_titular="CMPORT",
+                      configuracao_inter_id=inter_cmport.id if inter_cmport else None),
+                Banco(nome="Bradesco", cnpj_titular=CNPJ_CMPORT, razao_social_titular="CMPORT"),
+                Banco(nome="Inter",    cnpj_titular=CNPJ_TEC,    razao_social_titular="CMPORT TEC",
+                      configuracao_inter_id=inter_tec.id if inter_tec else None),
+                Banco(nome="BTG",      cnpj_titular=CNPJ_TEC,    razao_social_titular="CMPORT TEC"),
+            ])
+            db.commit()
+            print("[seed] 5 contas bancárias criadas (CMPORT: Itaú/Inter/Bradesco, TEC: Inter/BTG).")
+    except Exception as e:
+        db.rollback()
+        print(f"[seed_bancos] erro: {e}")
+    finally:
+        db.close()
+
+
+_seed_bancos()
+
+
+def _atualizar_dados_bancarios():
+    """Preenche/atualiza agência, conta, chave PIX e favorecido das 5 contas reais.
+    Roda sempre (idempotente via UPDATE por nome+cnpj_titular) — diferente de
+    _seed_bancos(), que só insere linha na tabela vazia."""
+    from app.core.database import SessionLocal
+    from app.models.banco_model import Banco
+    db = SessionLocal()
+    dados = [
+        # nome,      cnpj_titular,  agencia, conta_corrente,  tipo_chave_pix, chave_pix,                  favorecido
+        ("Itaú",     CNPJ_CMPORT,   "8135",  "17278-4",       "CNPJ",         "22.761.557/0001-88",       "Cmport Sistemas Eletrônicos de Segurança"),
+        ("Inter",    CNPJ_TEC,      "0001",  "52420380-6",    "CNPJ",         "65.756.913/0001-88",       "Cmport Tec Sistemas Eletrônicos de Segurança"),
+        ("Inter",    CNPJ_CMPORT,   "0001",  "30831011-0",    "CELULAR",      "(11)9.4034-1682",          "Cmport Sistemas Eletrônicos de Segurança"),
+        ("BTG",      CNPJ_TEC,      "0050",  "3724320-1",     "EMAIL",        "comercial@cmport.com.br",  "Cmport Sistemas Eletrônicos de Segurança"),
+        ("Bradesco", CNPJ_CMPORT,   "1322",  "226348-3",      "ALEATORIA",    None,                       "Cmport Sistemas Eletrônicos de Segurança"),
+    ]
+    try:
+        for nome, cnpj, agencia, conta, tipo_pix, chave, favorecido in dados:
+            b = db.query(Banco).filter(Banco.nome == nome, Banco.cnpj_titular == cnpj).first()
+            if b:
+                b.agencia, b.conta_corrente = agencia, conta
+                b.tipo_chave_pix, b.chave_pix = tipo_pix, chave
+                b.favorecido = favorecido
+        db.commit()
+        print("[seed] Dados bancários (agência/conta/PIX/favorecido) atualizados nas 5 contas.")
+    except Exception as e:
+        db.rollback()
+        print(f"[atualizar_dados_bancarios] erro: {e}")
+    finally:
+        db.close()
+
+
+_atualizar_dados_bancarios()
 
 
 # ── Scheduler global ─────────────────────────────────────────────────────────

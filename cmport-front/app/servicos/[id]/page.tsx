@@ -330,6 +330,8 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [modalRegistrar, setModalRegistrar] = useState<number | null>(null); // numero_parcela
   const [regForma, setRegForma] = useState('PIX');
   const [regBanco, setRegBanco] = useState('');
+  const [regBancoId, setRegBancoId] = useState<number | ''>('');
+  const [bancos, setBancos] = useState<any[]>([]);
   const [regObs, setRegObs] = useState('');
   const [regData, setRegData] = useState('');
   const [regValor, setRegValor] = useState('');
@@ -380,6 +382,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   const [pagoData, setPagoData] = useState('');
   const [pagoValor, setPagoValor] = useState('');
   const [pagoObs, setPagoObs] = useState('');
+  const [pagoBancoId, setPagoBancoId] = useState<number | ''>('');
   const [pagoSaving, setPagoSaving] = useState(false);
 
   // Orçamento vinculado ao serviço
@@ -434,7 +437,10 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
   }, [params]);
 
   useEffect(() => {
-    if (id) carregarDados();
+    if (id) {
+      carregarDados();
+      carregarBancos();
+    }
   }, [id]);
 
   // Vindo de /recibos/[id] com "Gerar Termo de Garantia" — abre o wizard automaticamente
@@ -447,6 +453,15 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [servico, termoGarantia]);
+
+  const carregarBancos = async () => {
+    try {
+      const res = await api.get('/configuracoes/bancos');
+      setBancos(res.data.filter((b: any) => b.ativo));
+    } catch (error) {
+      console.error('Erro ao carregar bancos:', error);
+    }
+  };
 
   const carregarDados = async () => {
     if (!id) return;
@@ -1069,6 +1084,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         data_vencimento: regData,
         forma_pagamento: regForma,
         banco_pagamento: regBanco || null,
+        banco_id: regBancoId ? Number(regBancoId) : null,
         observacao: regObs || null,
         ja_pago: regJaPago,
         data_pagamento: regJaPago ? regDataPago : null,
@@ -1645,6 +1661,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         forma_pagamento: pagoForma,
         banco_pagamento: pagoObs || null,
         observacao: null,
+        banco_id: pagoBancoId ? Number(pagoBancoId) : null,
       });
       setModalPago(null);
       await carregarDados();
@@ -2737,7 +2754,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                     setModalRegistrar(parcela.parcela);
                                     setRegValor(parcela.valor.toFixed(2));
                                     setRegData(parcela.data || '');
-                                    setRegForma('PIX'); setRegBanco(''); setRegObs('');
+                                    setRegForma('PIX'); setRegBanco(''); setRegBancoId(''); setRegObs('');
                                     setRegJaPago(false); setRegDataPago(''); setRegValorPago('');
                                   }}
                                   className="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:brightness-110 transition-all"
@@ -2859,7 +2876,7 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                     setModalRegistrar(parcela.parcela);
                                     setRegValor(parcela.valor.toFixed(2));
                                     setRegData(parcela.data || '');
-                                    setRegForma('PIX'); setRegBanco(''); setRegObs('');
+                                    setRegForma('PIX'); setRegBanco(''); setRegBancoId(''); setRegObs('');
                                     setRegJaPago(false); setRegDataPago(''); setRegValorPago('');
                                   }}
                                   className="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:brightness-110 transition-all"
@@ -2979,8 +2996,21 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">Banco / Referência (opcional)</label>
-                <input type="text" value={regBanco} onChange={e => setRegBanco(e.target.value)} placeholder="Ex: Inter, Itaú..."
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                <select
+                  value={regBancoId}
+                  onChange={e => {
+                    const idVal = e.target.value;
+                    setRegBancoId(idVal ? Number(idVal) : '');
+                    const selectedBanco = bancos.find(b => b.id === Number(idVal));
+                    setRegBanco(selectedBanco ? selectedBanco.nome : '');
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                >
+                  <option value="">Selecione o banco...</option>
+                  {bancos.map(b => (
+                    <option key={b.id} value={b.id}>{b.nome} ({b.razao_social_titular})</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">Observação (opcional)</label>
@@ -3509,6 +3539,16 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                 <select value={pagoForma} onChange={e => setPagoForma(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-sm">
                   {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">Conta Bancária (opcional)</label>
+                <select value={pagoBancoId} onChange={e => setPagoBancoId(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-green-500 outline-none text-sm">
+                  <option value="">— Nenhuma —</option>
+                  {bancos.map(b => (
+                    <option key={b.id} value={b.id}>{b.nome} ({b.razao_social_titular}){b.agencia ? ` — Ag ${b.agencia} / CC ${b.conta_corrente}` : ''}</option>
+                  ))}
                 </select>
               </div>
               <div>

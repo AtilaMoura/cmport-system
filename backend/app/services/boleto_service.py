@@ -537,6 +537,7 @@ class BoletoService:
             "situacao": situacao,
             "forma_pagamento": req.forma_pagamento,
             "banco_pagamento": req.banco_pagamento,
+            "banco_id": req.banco_id,
             "observacao": req.observacao,
         })
 
@@ -558,6 +559,7 @@ class BoletoService:
             "valor_total_recebido": req.valor_recebido,
             "forma_pagamento": req.forma_pagamento,
             "banco_pagamento": req.banco_pagamento,
+            "banco_id": req.banco_id,
             "observacao": req.observacao,
         })
 

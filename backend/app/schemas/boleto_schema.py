@@ -24,6 +24,7 @@ class BoletoResponse(BaseModel):
     total_parcelas: int
     forma_pagamento: FormaPagamento
     banco_pagamento: Optional[str] = None
+    banco_id: Optional[int] = None
     observacao: Optional[str] = None
     pdf_object_key: Optional[str] = None
     criado_em: datetime
@@ -91,6 +92,7 @@ class RegistrarPagamentoRequest(BaseModel):
     valor_recebido: float
     forma_pagamento: FormaPagamento
     banco_pagamento: Optional[str] = None
+    banco_id: Optional[int] = None
     observacao: Optional[str] = None
 
 
@@ -102,6 +104,7 @@ class CriarBoletoManualRequest(BaseModel):
     data_vencimento: date
     forma_pagamento: FormaPagamento
     banco_pagamento: Optional[str] = None
+    banco_id: Optional[int] = None
     observacao: Optional[str] = None
     ja_pago: bool = False
     data_pagamento: Optional[date] = None

@@ -17,6 +17,7 @@ class Recibo(Base):
 
     # CNPJ da CMPort emitente (via ConfiguracaoInter)
     configuracao_inter_id = Column(Integer, ForeignKey("configuracao_inter.id", ondelete="SET NULL"), nullable=True)
+    banco_id = Column(Integer, ForeignKey("bancos.id", ondelete="SET NULL"), nullable=True)
     cnpj_emitente = Column(String(20), nullable=True)
 
     cliente_id = Column(Integer, ForeignKey("clientes.id", ondelete="SET NULL"), nullable=True, index=True)

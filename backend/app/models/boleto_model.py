@@ -61,6 +61,7 @@ class Boleto(Base):
     # Novos campos para forma de pagamento
     forma_pagamento = Column(SQLEnum(FormaPagamento), default=FormaPagamento.BOLETO_INTER, nullable=False)
     banco_pagamento = Column(String(100), nullable=True)
+    banco_id = Column(Integer, ForeignKey("bancos.id", ondelete="SET NULL"), nullable=True)
     observacao = Column(Text, nullable=True)
 
     # Vínculo direto com o corpo da nota para rastreio completo do ciclo

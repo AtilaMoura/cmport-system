@@ -9,6 +9,7 @@ from app.models.recibo_model import Recibo
 from app.models.servico_model import ManutencaoAssistencia
 from app.models.condominio_model import Condominio
 from app.models.duplicata_dispensada_model import DuplicataDispensada
+from app.models.banco_model import Banco
 from app.repositories.configuracao_repository import ConfiguracaoInterRepository
 from app.schemas.fluxo_financeiro_schema import (
     FluxoFinanceiroLinha, FluxoFinanceiroCnpj, FluxoFinanceiroResponse, AlertaDuplicata,
@@ -54,9 +55,10 @@ class FluxoFinanceiroService:
 
             # Boletos PAGO/BAIXADO do mes, notas Manutencao/Assistencia/Produto deste CNPJ
             boletos = (
-                db.query(Boleto, NotaFiscal, Condominio)
+                db.query(Boleto, NotaFiscal, Condominio, Banco)
                 .join(NotaFiscal, Boleto.nota_fiscal_id == NotaFiscal.id)
                 .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
+                .outerjoin(Banco, Boleto.banco_id == Banco.id)
                 .filter(
                     NotaFiscal.cnpj_emitente == cfg_cnpj_limpo,
                     NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
@@ -70,7 +72,7 @@ class FluxoFinanceiroService:
             total_manutencao = 0.0
             total_assistencia = 0.0
             total_produto = 0.0
-            for boleto, nota, condominio in boletos:
+            for boleto, nota, condominio, banco in boletos:
                 # arredonda cada linha ANTES de somar — valor_nominal e FLOAT e carrega
                 # ruido binario por linha (ex: 23625.009765625 em vez de 23625.01);
                 # arredondar so o total final nao corrige isso, o viés já foi acumulado.
@@ -91,14 +93,17 @@ class FluxoFinanceiroService:
                     valor=valor,
                     data_pagamento=boleto.data_pagamento,
                     origem="BOLETO",
+                    banco_id=boleto.banco_id,
+                    banco_nome=banco.nome if banco else None,
                 ))
 
             # Recibos ENTRADA/PAGO do mes deste CNPJ, sem nota fiscal vinculada
             # (mesma regra de resumo_financeiro: nunca soma recibo + boleto do mesmo servico)
             recibos = (
-                db.query(Recibo, Condominio)
+                db.query(Recibo, Condominio, Banco)
                 .outerjoin(Condominio, Recibo.condominio_id == Condominio.id)
                 .outerjoin(ManutencaoAssistencia, ManutencaoAssistencia.recibo_id == Recibo.id)
+                .outerjoin(Banco, Recibo.banco_id == Banco.id)
                 .filter(
                     Recibo.cnpj_emitente == cfg_cnpj_limpo,
                     Recibo.tipo == "ENTRADA",
@@ -112,7 +117,7 @@ class FluxoFinanceiroService:
             )
 
             total_recibos = 0.0
-            for recibo, condominio in recibos:
+            for recibo, condominio, banco in recibos:
                 valor = round(float(recibo.valor or 0), 2)
                 total_recibos += valor
                 linhas.append(FluxoFinanceiroLinha(
@@ -124,6 +129,8 @@ class FluxoFinanceiroService:
                     valor=valor,
                     data_pagamento=recibo.data_pagamento,
                     origem="RECIBO",
+                    banco_id=recibo.banco_id,
+                    banco_nome=banco.nome if banco else None,
                 ))
 
             # valor_nominal/valor sao colunas FLOAT — a soma binaria acumula ruido

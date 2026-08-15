@@ -8,6 +8,7 @@ from app.schemas.configuracao_schema import (
     ConfiguracaoEmailResponse, ConfiguracaoEmpresaSchema, TestarEmailResponse,
     ConfiguracaoInterCreate, ConfiguracaoInterUpdate, ConfiguracaoInterResponse,
     ConfiguracaoSyncAutoUpdate, ConfiguracaoSyncAutoResponse,
+    BancoCreate, BancoUpdate, BancoResponse,
 )
 from app.services.configuracao_service import ConfiguracaoService
 
@@ -119,6 +120,45 @@ def desativar_inter(id: int, db: Session = Depends(get_db)):
 def ativar_inter(id: int, db: Session = Depends(get_db)):
     try:
         return ConfiguracaoService.ativar_inter(db, id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Bancos ─────────────────────────────────────────────────────────────────────
+
+@router.get("/bancos", response_model=List[BancoResponse])
+def listar_bancos(db: Session = Depends(get_db)):
+    return ConfiguracaoService.listar_bancos(db)
+
+
+@router.post("/bancos", response_model=BancoResponse, status_code=201)
+def criar_banco(req: BancoCreate, db: Session = Depends(get_db)):
+    try:
+        return ConfiguracaoService.criar_banco(db, req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/bancos/{id}", response_model=BancoResponse)
+def atualizar_banco(id: int, req: BancoUpdate, db: Session = Depends(get_db)):
+    try:
+        return ConfiguracaoService.atualizar_banco(db, id, req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/bancos/{id}", response_model=BancoResponse)
+def desativar_banco(id: int, db: Session = Depends(get_db)):
+    try:
+        return ConfiguracaoService.desativar_banco(db, id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/bancos/{id}/ativar", response_model=BancoResponse)
+def ativar_banco(id: int, db: Session = Depends(get_db)):
+    try:
+        return ConfiguracaoService.ativar_banco(db, id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

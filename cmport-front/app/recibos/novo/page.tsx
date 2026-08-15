@@ -74,6 +74,8 @@ function NovoReciboContent() {
   const [observacao, setObservacao] = useState('');
   const [contasInter, setContasInter] = useState<ContaInter[]>([]);
   const [contaInterSelecionada, setContaInterSelecionada] = useState<ContaInter | null>(null);
+  const [bancos, setBancos] = useState<any[]>([]);
+  const [bancoSelecionado, setBancoSelecionado] = useState<any | null>(null);
   const [gerarServico, setGerarServico] = useState(true);
   const [tipoServico, setTipoServico] = useState<'ASSISTENCIA' | 'MANUTENCAO'>('ASSISTENCIA');
   const [parcelas, setParcelas] = useState('1');
@@ -141,10 +143,11 @@ function NovoReciboContent() {
       .finally(() => setBuscandoOs(false));
   }, [step, temCondominio, condSelecionado, contraparteTipo, clienteSelecionado]);
 
-  // Carrega contas Inter (Step 5)
+  // Carrega contas Inter e Bancos (Step 5)
   useEffect(() => {
     if (step !== 5) return;
     api.get('/configuracoes/inter').then(r => setContasInter((r.data ?? []).filter((c: ContaInter) => c.ativo))).catch(() => setContasInter([]));
+    api.get('/configuracoes/bancos').then(r => setBancos((r.data ?? []).filter((b: any) => b.ativo))).catch(() => setBancos([]));
   }, [step]);
 
   // Carrega categorias de despesa/fornecedor pra SAIDA (Step 5)
@@ -232,6 +235,7 @@ function NovoReciboContent() {
         cliente_nome_avulso: contraparteTipo === 'AVULSO' ? nomeAvulso : (contraparteTipo === 'CONDOMINIO' ? contraparteNome : null),
         configuracao_inter_id: contaInterSelecionada?.id ?? null,
         cnpj_emitente: contaInterSelecionada?.cnpj ?? null,
+        banco_id: bancoSelecionado?.id ?? null,
         cnpj_cliente: cnpjCliente,
         descricao_servico: descricao,
         valor: Number(valor),
@@ -583,17 +587,25 @@ function NovoReciboContent() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">CNPJ / Conta Inter (CMPort)</label>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">Conta Bancária (Banco)</label>
                 <div className="flex flex-wrap gap-2">
-                  {contasInter.map(c => (
-                    <button key={c.id} type="button" onClick={() => setContaInterSelecionada(c)}
+                  {bancos.map(b => (
+                    <button key={b.id} type="button" onClick={() => {
+                      setBancoSelecionado(b);
+                      if (b.configuracao_inter_id) {
+                        const matchingInter = contasInter.find(c => c.id === b.configuracao_inter_id);
+                        if (matchingInter) setContaInterSelecionada(matchingInter);
+                      } else {
+                        setContaInterSelecionada(null);
+                      }
+                    }}
                       className={`px-3 py-2 rounded-lg text-xs font-bold border-2 transition-all ${
-                        contaInterSelecionada?.id === c.id ? 'border-violet-600 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-300'
+                        bancoSelecionado?.id === b.id ? 'border-violet-600 bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-300'
                       }`}>
-                      {c.cnpj}{c.razao_social ? ` — ${c.razao_social}` : ''}
+                      {b.nome} ({b.razao_social_titular}){b.agencia ? ` — Ag ${b.agencia} / CC ${b.conta_corrente}` : ''}
                     </button>
                   ))}
-                  {contasInter.length === 0 && <p className="text-xs text-slate-400">Nenhuma conta Inter cadastrada.</p>}
+                  {bancos.length === 0 && <p className="text-xs text-slate-400">Nenhum banco cadastrado.</p>}
                 </div>
               </div>
 
