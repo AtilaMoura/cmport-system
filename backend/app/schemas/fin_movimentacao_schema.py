@@ -7,12 +7,14 @@ from app.schemas.fin_categoria_schema import CategoriaFinanceiraResponse
 
 
 class MovimentacaoCreate(BaseModel):
-    data:         date
-    descricao:    str
-    valor:        Decimal
-    tipo:         str         # ENTRADA | SAIDA
-    categoria_id: Optional[int] = None
-    observacao:   Optional[str] = None
+    data:            date
+    descricao:       str
+    valor:           Decimal
+    tipo:            str         # ENTRADA | SAIDA
+    categoria_id:    Optional[int] = None
+    observacao:      Optional[str] = None
+    banco_id:        Optional[int] = None
+    banco_origem_id: Optional[int] = None
 
     @field_validator("valor")
     @classmethod

@@ -38,7 +38,10 @@ class FinMovimentacaoService:
     def criar(db: Session, req: MovimentacaoCreate) -> MovimentacaoResponse:
         dados = req.model_dump()
         obj = FinMovimentacaoRepository.create(db, dados)
-        return MovimentacaoResponse.model_validate(obj)
+        r = MovimentacaoResponse.model_validate(obj)
+        r.banco_nome = obj.banco.nome if obj.banco else None
+        r.banco_origem_nome = obj.banco_origem.nome if obj.banco_origem else None
+        return r
 
     @staticmethod
     def atualizar(db: Session, id: int, req: MovimentacaoUpdate) -> MovimentacaoResponse:

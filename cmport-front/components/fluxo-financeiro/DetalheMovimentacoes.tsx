@@ -26,6 +26,7 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, onAtualiza
   const [bancoDestino, setBancoDestino] = useState<number | ''>('');
   const [bancoOrigem, setBancoOrigem] = useState<number | ''>('');
   const [salvandoBanco, setSalvandoBanco] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
 
   useEffect(() => {
     api.get('/configuracoes/bancos')
@@ -56,6 +57,21 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, onAtualiza
       alert('Erro ao salvar o banco. Tenta de novo.');
     } finally {
       setSalvandoBanco(false);
+    }
+  };
+
+  const excluirMovimentacao = async () => {
+    if (!modalMov) return;
+    if (!confirm(`Excluir "${modalMov.descricao}" (${fmtValor(modalMov.valor)})? Essa ação pode ser desfeita só pela auditoria de exclusões.`)) return;
+    setExcluindo(true);
+    try {
+      await api.delete(`/financeiro/movimentacoes/${modalMov.id}`);
+      setModalMov(null);
+      onAtualizado?.();
+    } catch {
+      alert('Erro ao excluir. Tenta de novo.');
+    } finally {
+      setExcluindo(false);
     }
   };
 
@@ -223,6 +239,10 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, onAtualiza
             </div>
 
             <div className="flex gap-3 mt-6">
+              <button onClick={excluirMovimentacao} disabled={excluindo}
+                className="px-4 py-2.5 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-xl font-bold text-sm hover:brightness-95 transition-all disabled:opacity-50">
+                {excluindo ? '...' : '🗑️'}
+              </button>
               <button onClick={() => setModalMov(null)}
                 className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm">
                 Cancelar

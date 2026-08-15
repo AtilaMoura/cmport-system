@@ -20,6 +20,7 @@ def get_db():
         db.close()
 
 
+@router.get("", response_model=List[CategoriaFinanceiraResponse])
 @router.get("/", response_model=List[CategoriaFinanceiraResponse])
 def listar(
     grupo: Optional[str] = None,

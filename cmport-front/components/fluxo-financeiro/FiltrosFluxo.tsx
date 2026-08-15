@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MESES } from '@/lib/fluxoFinanceiro';
@@ -20,9 +21,10 @@ interface Props {
   onMesChange: (v: number) => void;
   onCnpjChange?: (v: string) => void;
   mostrarFiltroCnpj?: boolean;
+  acoesExtra?: ReactNode;
 }
 
-export function FiltrosFluxo({ ano, mes, cnpjFiltro, onAnoChange, onMesChange, onCnpjChange, mostrarFiltroCnpj }: Props) {
+export function FiltrosFluxo({ ano, mes, cnpjFiltro, onAnoChange, onMesChange, onCnpjChange, mostrarFiltroCnpj, acoesExtra }: Props) {
   const pathname = usePathname();
   const qs = `?ano=${ano}&mes=${mes}`;
 
@@ -72,6 +74,7 @@ export function FiltrosFluxo({ ano, mes, cnpjFiltro, onAnoChange, onMesChange, o
               ))}
             </div>
           )}
+          {acoesExtra && <div className="ml-auto">{acoesExtra}</div>}
         </div>
       </div>
     </div>
