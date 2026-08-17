@@ -433,7 +433,7 @@ def _sincronizar_boletos_auto():
     db = SessionLocal()
     try:
         hoje = date.today()
-        inicio = (hoje - timedelta(days=2)).isoformat()
+        inicio = (hoje - timedelta(days=7)).isoformat()
         fim = hoje.isoformat()
         resultado = BoletoService.sincronizar_do_inter(
             db, inicio, fim, situacao="RECEBIDO", filtrar_data_por="PAGAMENTO"
