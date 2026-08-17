@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from app.core.database import SessionLocal
 from app.services.fluxo_financeiro_service import FluxoFinanceiroService
-from app.schemas.fluxo_financeiro_schema import FluxoFinanceiroResponse, AlertaDuplicata, DispensarDuplicataRequest
+from app.schemas.fluxo_financeiro_schema import FluxoFinanceiroResponse, AlertaDuplicata, DispensarDuplicataRequest, PendenciasResponse
 
 router = APIRouter()
 
@@ -25,6 +25,16 @@ def fluxo_mensal(
     db: Session = Depends(get_db),
 ):
     return FluxoFinanceiroService.fluxo_mensal(db, ano=ano, mes=mes, cnpj=cnpj)
+
+
+@router.get("/pendencias", response_model=PendenciasResponse)
+def pendencias(
+    ano: int,
+    mes: int,
+    cnpj: Optional[str] = Query(None, description="CNPJ do emitente (com ou sem mascara). Omitir retorna os dois."),
+    db: Session = Depends(get_db),
+):
+    return FluxoFinanceiroService.pendencias_ate_mes(db, ano=ano, mes=mes, cnpj=cnpj)
 
 
 @router.get("/fluxo-mensal/alertas", response_model=List[AlertaDuplicata])

@@ -8,6 +8,7 @@ import { MESES } from '@/lib/fluxoFinanceiro';
 const SUBPAGINAS = [
   { label: 'Visão Geral',           href: '/fluxo-financeiro' },
   { label: 'Entrada de Serviços',   href: '/fluxo-financeiro/entrada' },
+  { label: 'Pendências',            href: '/fluxo-financeiro/pendencias' },
   { label: 'Transferências',        href: '/fluxo-financeiro/transferencias' },
   { label: 'Despesas',              href: '/fluxo-financeiro/despesas' },
   { label: 'Fornecedores',          href: '/fluxo-financeiro/fornecedores' },

@@ -50,3 +50,27 @@ class AlertaDuplicata(BaseModel):
 class DispensarDuplicataRequest(BaseModel):
     nota_id_1: int
     nota_id_2: int
+
+
+class PendenciaLinha(BaseModel):
+    origem_id: int
+    origem: str  # BOLETO | RECIBO
+    condominio_id: Optional[int] = None
+    condominio_nome: str
+    numero_nota: str
+    numero_parcela: int
+    total_parcelas: int
+    tipo: str  # MANUTENCAO | ASSISTENCIA | PRODUTO | RECIBO
+    valor: float
+    data_vencimento: date
+    data_pagamento: Optional[date] = None
+    situacao: str  # PAGO | PENDENTE | VENCIDO
+
+
+class PendenciasResponse(BaseModel):
+    ano: int
+    mes: int
+    total: float
+    total_pago: float
+    total_pendente: float
+    linhas: List[PendenciaLinha]

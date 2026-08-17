@@ -58,6 +58,28 @@ export interface AlertaDuplicata {
   data_pagamento_1: string;
   data_pagamento_2: string;
 }
+export interface PendenciaLinha {
+  origem_id: number;
+  origem: string;
+  condominio_id: number | null;
+  condominio_nome: string;
+  numero_nota: string;
+  numero_parcela: number;
+  total_parcelas: number;
+  tipo: string;
+  valor: number;
+  data_vencimento: string;
+  data_pagamento: string | null;
+  situacao: string;
+}
+export interface PendenciasResponse {
+  ano: number;
+  mes: number;
+  total: number;
+  total_pago: number;
+  total_pendente: number;
+  linhas: PendenciaLinha[];
+}
 
 // ── Movimentações (Transferências Internas, Despesas, Fornecedores) ─────────
 export interface CategoriaFinanceira {
@@ -133,6 +155,7 @@ export const TIPO_CLS: Record<string, string> = {
   MANUTENCAO:  'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
   ASSISTENCIA: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400',
   RECIBO:      'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400',
+  PRODUTO:     'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-400',
 };
 
 export function agruparPorCategoria(movs: Movimentacao[]) {

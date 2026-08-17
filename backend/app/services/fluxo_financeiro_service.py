@@ -1,4 +1,6 @@
+import calendar
 import re
+from datetime import date as date_cls
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -13,6 +15,7 @@ from app.models.banco_model import Banco
 from app.repositories.configuracao_repository import ConfiguracaoInterRepository
 from app.schemas.fluxo_financeiro_schema import (
     FluxoFinanceiroLinha, FluxoFinanceiroCnpj, FluxoFinanceiroResponse, AlertaDuplicata,
+    PendenciaLinha, PendenciasResponse,
 )
 
 
@@ -157,6 +160,103 @@ class FluxoFinanceiroService:
                 total_geral += total_cnpj
 
         return FluxoFinanceiroResponse(ano=ano, mes=mes, cnpjs=cnpjs_resultado, total_geral=round(total_geral, 2))
+
+    @staticmethod
+    def pendencias_ate_mes(db: Session, ano: int, mes: int, cnpj: Optional[str] = None) -> PendenciasResponse:
+        """Lista boletos e recibos (tipo ENTRADA) com vencimento ate o ultimo dia
+        do mes escolhido — inclui atrasados de meses anteriores. Usada pela tela
+        de conciliacao manual (marcar como pago), reaproveitando os mesmos campos
+        (situacao/status + data_pagamento) que fluxo_mensal le pra contar o mes."""
+        ultimo_dia = date_cls(ano, mes, calendar.monthrange(ano, mes)[1])
+        hoje = date_cls.today()
+        cnpj_limpo = "".join(filter(str.isdigit, cnpj)) if cnpj else None
+
+        linhas: List[PendenciaLinha] = []
+
+        query_boletos = (
+            db.query(Boleto, NotaFiscal, Condominio)
+            .join(NotaFiscal, Boleto.nota_fiscal_id == NotaFiscal.id)
+            .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
+            .filter(
+                NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
+                # Cancela/Expirado não é pendência nem pagamento — fica fora da conciliação
+                Boleto.situacao.notin_([SituacaoBoleto.CANCELADO, SituacaoBoleto.EXPIRADO]),
+                Boleto.data_vencimento <= ultimo_dia,
+            )
+        )
+        if cnpj_limpo:
+            query_boletos = query_boletos.filter(NotaFiscal.cnpj_emitente == cnpj_limpo)
+        boletos = query_boletos.all()
+        for boleto, nota, condominio in boletos:
+            if boleto.situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO):
+                situacao = "PAGO"
+            elif boleto.data_vencimento < hoje:
+                situacao = "VENCIDO"
+            else:
+                situacao = "PENDENTE"
+            tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
+            linhas.append(PendenciaLinha(
+                origem_id=boleto.id,
+                origem="BOLETO",
+                condominio_id=condominio.id,
+                condominio_nome=condominio.nome,
+                numero_nota=nota.numero_nota,
+                numero_parcela=boleto.numero_parcela,
+                total_parcelas=boleto.total_parcelas,
+                tipo=tipo,
+                valor=round(float(boleto.valor_nominal or 0), 2),
+                data_vencimento=boleto.data_vencimento,
+                data_pagamento=boleto.data_pagamento,
+                situacao=situacao,
+            ))
+
+        query_recibos = (
+            db.query(Recibo, Condominio)
+            .outerjoin(Condominio, Recibo.condominio_id == Condominio.id)
+            .filter(
+                Recibo.tipo == "ENTRADA",
+                Recibo.deletado_em.is_(None),
+                Recibo.status != "CANCELADO",
+                func.coalesce(Recibo.data_vencimento, Recibo.data_emissao) <= ultimo_dia,
+            )
+        )
+        if cnpj_limpo:
+            query_recibos = query_recibos.filter(Recibo.cnpj_emitente == cnpj_limpo)
+        recibos = query_recibos.all()
+        for recibo, condominio in recibos:
+            vencimento = recibo.data_vencimento or recibo.data_emissao
+            if recibo.status == "PAGO":
+                situacao = "PAGO"
+            elif vencimento < hoje:
+                situacao = "VENCIDO"
+            else:
+                situacao = "PENDENTE"
+            linhas.append(PendenciaLinha(
+                origem_id=recibo.id,
+                origem="RECIBO",
+                condominio_id=condominio.id if condominio else None,
+                condominio_nome=condominio.nome if condominio else (recibo.cliente_nome_avulso or "Avulso"),
+                numero_nota=recibo.numero_recibo,
+                numero_parcela=recibo.numero_parcela,
+                total_parcelas=recibo.total_parcelas,
+                tipo="RECIBO",
+                valor=round(float(recibo.valor or 0), 2),
+                data_vencimento=vencimento,
+                data_pagamento=recibo.data_pagamento,
+                situacao=situacao,
+            ))
+
+        total = round(sum(l.valor for l in linhas), 2)
+        total_pago = round(sum(l.valor for l in linhas if l.situacao == "PAGO"), 2)
+        total_pendente = round(total - total_pago, 2)
+
+        # Vencido primeiro, depois por data de vencimento — quem está atrasado
+        # precisa ser visto antes do resto na conciliação manual.
+        linhas.sort(key=lambda l: (l.situacao != "VENCIDO", l.data_vencimento, l.condominio_nome))
+
+        return PendenciasResponse(
+            ano=ano, mes=mes, total=total, total_pago=total_pago, total_pendente=total_pendente, linhas=linhas,
+        )
 
     @staticmethod
     def detectar_duplicatas(db: Session, ano: int, mes: int) -> List[AlertaDuplicata]:
