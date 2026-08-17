@@ -135,7 +135,7 @@ class InterClient:
             f"{response.status_code} — {response.text}"
         )
 
-    def listar_cobrancas(self, data_inicio: str, data_fim: str, situacao: str = "TODAS") -> list:
+    def listar_cobrancas(self, data_inicio: str, data_fim: str, situacao: str = "TODAS", filtrar_data_por: str = "VENCIMENTO") -> list:
         """Lista todas as cobranças no período. Faz paginação automática."""
         todos = []
         pagina = 1
@@ -143,7 +143,7 @@ class InterClient:
             params = {
                 "dataInicial": data_inicio,
                 "dataFinal": data_fim,
-                "filtrarDataPor": "VENCIMENTO",
+                "filtrarDataPor": filtrar_data_por,
                 "situacao": situacao,
                 "pagina": pagina,
                 "tamanhoPagina": 100,

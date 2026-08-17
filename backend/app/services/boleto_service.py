@@ -36,6 +36,28 @@ def _get_inter_client(nota, db: Session) -> InterClient:
     return inter_client._get_default_client()
 
 
+def _get_inter_client_cached(nota, db: Session, cache: dict) -> InterClient:
+    """Como _get_inter_client, mas reaproveita a instância (e o token OAuth) por CNPJ
+    dentro do mesmo cache. Usar em loops que consultam vários boletos — evita
+    disparar um pedido de token novo por boleto e estourar o rate limit do Inter."""
+    from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+    if nota and getattr(nota, "cnpj_emitente", None):
+        cnpj_limpo = _limpar_cnpj(nota.cnpj_emitente)
+        if cnpj_limpo in cache:
+            return cache[cnpj_limpo]
+        config = ConfiguracaoInterRepository.get_by_cnpj(db, cnpj_limpo)
+        if config:
+            client = InterClient(
+                client_id=config.client_id,
+                client_secret=config.client_secret,
+                conta_corrente=config.conta_corrente,
+                cert_path=config.cert_path,
+            )
+            cache[cnpj_limpo] = client
+            return client
+    return inter_client._get_default_client()
+
+
 def _calcular_valor_liquido(db: Session, nota, pcts_override: dict = None) -> float:
     """
     Calcula o valor líquido da nota descontando impostos com base na tabela de configuração.
@@ -124,6 +146,7 @@ def _mapear_situacao(situacao_inter: str) -> SituacaoBoleto:
         "A_RECEBER": SituacaoBoleto.EMABERTO,
         "REGISTRADO": SituacaoBoleto.EMABERTO,
         "RECEBIDO": SituacaoBoleto.PAGO,
+        "MARCADO_RECEBIDO": SituacaoBoleto.PAGO,
         "BAIXADO_BOLETO_NAO_PAGO": SituacaoBoleto.BAIXADO,
         "ATRASADO": SituacaoBoleto.VENCIDO,
     }
@@ -862,13 +885,14 @@ class BoletoService:
         pendentes = BoletoRepository.get_pendentes(db)
         atualizados = 0
         erros = []
+        clientes_cache: dict[str, InterClient] = {}
 
         for boleto in pendentes:
             if not boleto.codigo_solicitacao:
                 continue
             try:
                 nota_boleto = NFRepo.get_by_id(db, boleto.nota_fiscal_id) if boleto.nota_fiscal_id else None
-                client_boleto = _get_inter_client(nota_boleto, db)
+                client_boleto = _get_inter_client_cached(nota_boleto, db, clientes_cache)
                 dados_json = client_boleto.consultar_boleto(boleto.codigo_solicitacao)
                 # v3 pode retornar a cobrança aninhada ou na raiz
                 dados = dados_json.get("cobranca", dados_json) if isinstance(dados_json, dict) else dados_json
@@ -911,7 +935,7 @@ class BoletoService:
         return SincronizarResponse(atualizados=atualizados, erros=erros)
 
     @staticmethod
-    def sincronizar_do_inter(db: Session, data_inicio: str, data_fim: str) -> SincronizarInterResponse:
+    def sincronizar_do_inter(db: Session, data_inicio: str, data_fim: str, situacao: str = "TODAS", filtrar_data_por: str = "VENCIMENTO") -> SincronizarInterResponse:
         criados = 0
         atualizados = 0
         sem_vinculo = 0
@@ -937,7 +961,7 @@ class BoletoService:
         all_cobrancas = []
         for cli in clientes:
             try:
-                cobrancas_cli = cli.listar_cobrancas(data_inicio, data_fim)
+                cobrancas_cli = cli.listar_cobrancas(data_inicio, data_fim, situacao, filtrar_data_por)
                 all_cobrancas.extend(cobrancas_cli)
             except Exception as e:
                 erros.append({"conta": cli.conta_corrente, "erro": str(e)})

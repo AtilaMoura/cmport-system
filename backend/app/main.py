@@ -425,24 +425,20 @@ _JOB_ORC = "sync_orcamento_auto"
 # ── Sincronização automática de boletos ──────────────────────────────────────
 
 def _sincronizar_boletos_auto():
-    """Consulta o Inter e atualiza status dos boletos em aberto (EMABERTO/VENCIDO)."""
+    """Consulta o Inter (por data de PAGAMENTO) e atualiza boletos pagos no período."""
     from app.core.database import SessionLocal
     from app.services.boleto_service import BoletoService
     from datetime import date, timedelta
-    
+
     db = SessionLocal()
     try:
-        # 1. Sincronização por polling (um a um para boletos locais em aberto)
-        resultado = BoletoService.sincronizar_status(db)
-        print(f"[AutoSync] Individual: atualizados={resultado.atualizados} erros={len(resultado.erros)}")
-        
-        # 2. Sincronização em lote (busca tudo dos últimos 7 dias para garantir que nada escapou)
         hoje = date.today()
-        inicio = (hoje - timedelta(days=7)).isoformat()
+        inicio = (hoje - timedelta(days=2)).isoformat()
         fim = hoje.isoformat()
-        res_bulk = BoletoService.sincronizar_do_inter(db, inicio, fim)
-        print(f"[AutoSync] Bulk ({inicio} a {fim}): atualizados={res_bulk.atualizados} criados={res_bulk.criados}")
-        
+        resultado = BoletoService.sincronizar_do_inter(
+            db, inicio, fim, situacao="RECEBIDO", filtrar_data_por="PAGAMENTO"
+        )
+        print(f"[AutoSync] Pagos ({inicio} a {fim}): atualizados={resultado.atualizados} criados={resultado.criados}")
     except Exception as e:
         print(f"[AutoSync] Erro na sincronização automática: {e}")
     finally:
