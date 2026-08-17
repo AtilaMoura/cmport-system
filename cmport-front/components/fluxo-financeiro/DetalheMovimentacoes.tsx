@@ -340,16 +340,6 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Forma de pagamento</label>
-                    <select
-                      value={formaPagamento}
-                      onChange={e => setFormaPagamento(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
-                    >
-                      {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
-                    </select>
-                  </div>
                   {osReferencia.length > 0 && (
                     <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                       <button type="button" onClick={() => setOsRefAberto(s => !s)}
@@ -438,6 +428,16 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
                       + Adicionar Condomínio
                     </button>
                   )}
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Forma de pagamento</label>
+                    <select
+                      value={formaPagamento}
+                      onChange={e => setFormaPagamento(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    >
+                      {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                    </select>
+                  </div>
                 </div>
               )}
             </div>
