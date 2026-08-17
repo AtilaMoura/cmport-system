@@ -44,6 +44,10 @@ function FornecedoresContent() {
   const [salvandoNova, setSalvandoNova] = useState(false);
   const [osReferencia, setOsReferencia] = useState<OsFornecedorReferencia[]>([]);
   const [osRefAberto, setOsRefAberto] = useState(false);
+  const [novoFornecedorAberto, setNovoFornecedorAberto] = useState(false);
+  const [novoFornecedorNome, setNovoFornecedorNome] = useState('');
+  const [novoFornecedorCnpj, setNovoFornecedorCnpj] = useState('');
+  const [criandoFornecedor, setCriandoFornecedor] = useState(false);
 
   useEffect(() => {
     api.get('/configuracoes/bancos').then(({ data }) => setBancos(data.filter((b: { ativo: boolean }) => b.ativo))).catch(() => {});
@@ -144,6 +148,28 @@ function FornecedoresContent() {
     }
   };
 
+  const criarFornecedorInline = async () => {
+    if (!novoFornecedorNome.trim()) { alert('Preencha o nome do fornecedor.'); return; }
+    setCriandoFornecedor(true);
+    try {
+      const { data } = await api.post('/condominios', {
+        nome: novoFornecedorNome.trim(),
+        cnpj: novoFornecedorCnpj.trim() || null,
+        tipo: 'FORNECEDOR',
+        ativo: true,
+      });
+      setFornecedores(prev => [...prev, { id: data.id, nome: data.nome }]);
+      setNova(p => ({ ...p, fornecedor_id: String(data.id) }));
+      setNovoFornecedorAberto(false);
+      setNovoFornecedorNome('');
+      setNovoFornecedorCnpj('');
+    } catch {
+      alert('Erro ao cadastrar fornecedor.');
+    } finally {
+      setCriandoFornecedor(false);
+    }
+  };
+
   const carregar = useCallback(async () => {
     setLoading(true);
     try {
@@ -209,7 +235,7 @@ function FornecedoresContent() {
       {/* ── Modal Nova Saída Fornecedor ── */}
       {modalNova && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setModalNova(false)}>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl p-6 overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl p-6 overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-slate-900 dark:text-white mb-5">+ Nova Saída Fornecedor</h2>
 
             <div className="space-y-4">
@@ -220,6 +246,39 @@ function FornecedoresContent() {
                   <option value="">— Nenhum —</option>
                   {fornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
                 </select>
+                <button type="button" onClick={() => setNovoFornecedorAberto(s => !s)}
+                  className="mt-1.5 text-xs font-bold text-orange-600 dark:text-orange-400 underline decoration-dotted underline-offset-2">
+                  + Cadastrar novo fornecedor
+                </button>
+
+                {novoFornecedorAberto && (
+                  <div className="mt-3 border-2 border-dashed border-orange-300 dark:border-orange-500/40 rounded-xl p-3 space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome (obrigatório)</label>
+                      <input type="text" autoFocus value={novoFornecedorNome} onChange={e => setNovoFornecedorNome(e.target.value)}
+                        placeholder='Ex: Center G'
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">CNPJ (opcional)</label>
+                      <input type="text" value={novoFornecedorCnpj} onChange={e => setNovoFornecedorCnpj(e.target.value)}
+                        placeholder="12.345.678/0001-90"
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => { setNovoFornecedorAberto(false); setNovoFornecedorNome(''); setNovoFornecedorCnpj(''); }}
+                        className="flex-1 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm">
+                        Cancelar
+                      </button>
+                      <button type="button" onClick={criarFornecedorInline} disabled={criandoFornecedor || !novoFornecedorNome.trim()}
+                        className="flex-1 py-2 bg-orange-600 text-white rounded-xl font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                        {criandoFornecedor
+                          ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
+                          : 'Salvar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {osReferencia.length > 0 && (
