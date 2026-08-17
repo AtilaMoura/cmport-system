@@ -213,27 +213,6 @@ function FornecedoresContent() {
             <h2 className="text-lg font-black text-slate-900 dark:text-white mb-5">+ Nova Saída Fornecedor</h2>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Data</label>
-                  <input type="date" value={nova.data} onChange={e => setNova(p => ({ ...p, data: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Valor</label>
-                  <input type="number" step="0.01" min="0" value={nova.valor} onChange={e => setNova(p => ({ ...p, valor: e.target.value }))}
-                    placeholder="0,00"
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Descrição</label>
-                <input type="text" value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))}
-                  placeholder="Ex: Material elétrico"
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
-              </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Fornecedor</label>
                 <select value={nova.fornecedor_id} onChange={e => setNova(p => ({ ...p, fornecedor_id: e.target.value }))}
@@ -327,6 +306,20 @@ function FornecedoresContent() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
                 <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Data</label>
+                  <input type="date" value={nova.data} onChange={e => setNova(p => ({ ...p, data: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Valor</label>
+                  <input type="number" step="0.01" min="0" value={nova.valor} onChange={e => setNova(p => ({ ...p, valor: e.target.value }))}
+                    placeholder="0,00"
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Forma de pagamento</label>
                   <select value={nova.forma_pagamento} onChange={e => setNova(p => ({ ...p, forma_pagamento: e.target.value }))}
                     className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm">
@@ -341,6 +334,13 @@ function FornecedoresContent() {
                     {bancos.map(b => <option key={b.id} value={b.id}>{b.nome} ({b.razao_social_titular})</option>)}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Descrição</label>
+                <input type="text" value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))}
+                  placeholder="Ex: Material elétrico"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
               </div>
             </div>
 

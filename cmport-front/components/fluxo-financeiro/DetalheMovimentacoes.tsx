@@ -311,19 +311,21 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
                   </select>
                 </div>
               )}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">{mostrarBancoOrigem ? 'Pra onde foi (destino)' : 'Conta bancária'}</label>
-                <select
-                  value={bancoDestino}
-                  onChange={e => setBancoDestino(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm"
-                >
-                  <option value="">— Nenhuma —</option>
-                  {bancos.map(b => (
-                    <option key={b.id} value={b.id}>{b.nome} ({b.razao_social_titular})</option>
-                  ))}
-                </select>
-              </div>
+              {!mostrarFornecedor && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">{mostrarBancoOrigem ? 'Pra onde foi (destino)' : 'Conta bancária'}</label>
+                  <select
+                    value={bancoDestino}
+                    onChange={e => setBancoDestino(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm"
+                  >
+                    <option value="">— Nenhuma —</option>
+                    {bancos.map(b => (
+                      <option key={b.id} value={b.id}>{b.nome} ({b.razao_social_titular})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {mostrarFornecedor && (
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-4">
@@ -428,15 +430,30 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
                       + Adicionar Condomínio
                     </button>
                   )}
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Forma de pagamento</label>
-                    <select
-                      value={formaPagamento}
-                      onChange={e => setFormaPagamento(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
-                    >
-                      {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
-                    </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Forma de pagamento</label>
+                      <select
+                        value={formaPagamento}
+                        onChange={e => setFormaPagamento(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                      >
+                        {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Conta bancária (quem pagou)</label>
+                      <select
+                        value={bancoDestino}
+                        onChange={e => setBancoDestino(e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                      >
+                        <option value="">— Nenhuma —</option>
+                        {bancos.map(b => (
+                          <option key={b.id} value={b.id}>{b.nome} ({b.razao_social_titular})</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               )}
