@@ -66,6 +66,29 @@ export interface CategoriaFinanceira {
   grupo: string;
   tipo: string;
 }
+export interface ServicoVinculado {
+  id: number;
+  tipo: string;
+  numero_os: string | null;
+  numero_nota: string | null;
+  data_servico: string;
+  descricao: string | null;
+  condominio_nome: string | null;
+}
+export interface OrcamentoVinculado {
+  id: number;
+  auvo_public_id: number;
+  customer_name: string | null;
+  net_total_value: number | null;
+  request_date: string | null;
+}
+export interface OsFornecedorReferencia {
+  id: number;
+  task_id: number;
+  task_date: string | null;
+  report: string | null;
+  orientation: string | null;
+}
 export interface Movimentacao {
   id: number;
   data: string;
@@ -81,7 +104,19 @@ export interface Movimentacao {
   banco_nome: string | null;
   banco_origem_id: number | null;
   banco_origem_nome: string | null;
+  fornecedor_id: number | null;
+  fornecedor_nome: string | null;
+  forma_pagamento: string | null;
+  servicos_vinculados: ServicoVinculado[];
+  orcamentos_vinculados: OrcamentoVinculado[];
+  os_fornecedor_vinculadas: OsFornecedorReferencia[];
 }
+
+export const FORMAS_PAGAMENTO = ['PIX', 'DINHEIRO', 'TRANSFERENCIA', 'CHEQUE', 'BOLETO_ITAU', 'BOLETO_INTER'];
+export const FORMA_LABEL: Record<string, string> = {
+  BOLETO_INTER: 'Boleto Inter', BOLETO_ITAU: 'Boleto Itaú', PIX: 'PIX',
+  DINHEIRO: 'Dinheiro', TRANSFERENCIA: 'Transferência', CHEQUE: 'Cheque',
+};
 export interface DashboardFinanceiro {
   mes: number;
   ano: number;

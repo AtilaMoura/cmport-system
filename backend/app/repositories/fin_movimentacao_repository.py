@@ -20,6 +20,7 @@ class FinMovimentacaoRepository:
         origem: Optional[str] = None,
         status: Optional[str] = None,
         recibo_id: Optional[int] = None,
+        sem_servico_vinculado: Optional[bool] = None,
     ) -> List[MovimentacaoFinanceira]:
         q = (
             db.query(MovimentacaoFinanceira)
@@ -42,6 +43,8 @@ class FinMovimentacaoRepository:
         if grupo:
             q = q.join(CategoriaFinanceira, MovimentacaoFinanceira.categoria_id == CategoriaFinanceira.id)\
                   .filter(CategoriaFinanceira.grupo == grupo)
+        if sem_servico_vinculado:
+            q = q.filter(~MovimentacaoFinanceira.servicos.any())
         return q.order_by(MovimentacaoFinanceira.data.desc(), MovimentacaoFinanceira.id.desc()).all()
 
     @staticmethod

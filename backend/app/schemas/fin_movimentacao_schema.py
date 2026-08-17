@@ -1,9 +1,41 @@
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import List, Optional
 from datetime import date, datetime
 from decimal import Decimal
 
 from app.schemas.fin_categoria_schema import CategoriaFinanceiraResponse
+
+
+class ServicoVinculadoResponse(BaseModel):
+    id:            int
+    tipo:          str
+    numero_os:     Optional[str] = None
+    data_servico:  date
+    descricao:     Optional[str] = None
+    condominio_nome: Optional[str] = None
+    numero_nota:   Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class OrcamentoVinculadoResponse(BaseModel):
+    id:              int
+    auvo_public_id:  int
+    customer_name:   Optional[str] = None
+    net_total_value: Optional[Decimal] = None
+    request_date:    Optional[date] = None
+
+    model_config = {"from_attributes": True}
+
+
+class OsFornecedorReferenciaResponse(BaseModel):
+    id:          int
+    task_id:     int
+    task_date:   Optional[datetime] = None
+    report:      Optional[str] = None
+    orientation: Optional[str] = None
+
+    model_config = {"from_attributes": True}
 
 
 class MovimentacaoCreate(BaseModel):
@@ -15,6 +47,11 @@ class MovimentacaoCreate(BaseModel):
     observacao:      Optional[str] = None
     banco_id:        Optional[int] = None
     banco_origem_id: Optional[int] = None
+    fornecedor_id:   Optional[int] = None
+    forma_pagamento: Optional[str] = None
+    servico_ids:     Optional[List[int]] = None
+    orcamento_ids:   Optional[List[int]] = None
+    os_fornecedor_ids: Optional[List[int]] = None
 
     @field_validator("valor")
     @classmethod
@@ -34,6 +71,11 @@ class MovimentacaoUpdate(BaseModel):
     status:          Optional[str]     = None
     banco_id:        Optional[int]     = None
     banco_origem_id: Optional[int]     = None
+    fornecedor_id:   Optional[int]     = None
+    forma_pagamento: Optional[str]     = None
+    servico_ids:     Optional[List[int]] = None
+    orcamento_ids:   Optional[List[int]] = None
+    os_fornecedor_ids: Optional[List[int]] = None
 
     @field_validator("valor")
     @classmethod
@@ -60,6 +102,12 @@ class MovimentacaoResponse(BaseModel):
     banco_nome:       Optional[str] = None
     banco_origem_id:  Optional[int] = None
     banco_origem_nome: Optional[str] = None
+    fornecedor_id:    Optional[int] = None
+    fornecedor_nome:  Optional[str] = None
+    forma_pagamento:  Optional[str] = None
+    servicos_vinculados: List[ServicoVinculadoResponse] = []
+    orcamentos_vinculados: List[OrcamentoVinculadoResponse] = []
+    os_fornecedor_vinculadas: List[OsFornecedorReferenciaResponse] = []
     criado_em:        datetime
     atualizado_em:    datetime
 

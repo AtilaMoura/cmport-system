@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import datetime
 
 from app.schemas.endereco_schema import EnderecoResponse
@@ -11,6 +11,7 @@ class CondominioCreate(BaseModel):
     cnpj: Optional[str] = Field(None, max_length=18)
     razao_social: Optional[str] = Field(None, max_length=255)
     observacao: Optional[str] = None
+    tipo: Literal["CONDOMINIO", "FORNECEDOR"] = "CONDOMINIO"
     ativo: bool = True
 
     @field_validator("nome", mode="before")
@@ -29,6 +30,7 @@ class CondominioUpdate(BaseModel):
     cnpj: Optional[str] = Field(None, max_length=18)
     razao_social: Optional[str] = Field(None, max_length=255)
     observacao: Optional[str] = None
+    tipo: Optional[Literal["CONDOMINIO", "FORNECEDOR"]] = None
     ativo: Optional[bool] = None
 
     @field_validator("nome", mode="before")
@@ -50,6 +52,7 @@ class CondominioResponse(BaseModel):
     cnpj: Optional[str]
     razao_social: Optional[str]
     observacao: Optional[str]
+    tipo: str
     ativo: bool
     criado_em: datetime
     atualizado_em: datetime

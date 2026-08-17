@@ -9,6 +9,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
+from app.models.ordem_servico_model import OrdemServico
 
 
 class OrigemMovimentacao(str, enum.Enum):
@@ -49,6 +50,19 @@ class MovimentacaoFinanceira(Base):
     banco_origem_id   = Column(Integer, ForeignKey("bancos.id", ondelete="SET NULL"), nullable=True, index=True)
     banco_origem      = relationship("Banco", foreign_keys=[banco_origem_id])
 
+    # Fornecedor pago (condominios.tipo='FORNECEDOR') — quem recebeu, um só por lancamento
+    fornecedor_id     = Column(Integer, ForeignKey("condominios.id", ondelete="SET NULL"), nullable=True, index=True)
+    fornecedor        = relationship("Condominio")
+
+    # Forma de pagamento (PIX default)
+    forma_pagamento   = Column(String(20), nullable=True, default='PIX')
+
+    # Servicos/orcamentos cobertos por essa saida — N:N, preenchimento opcional
+    # e a qualquer momento (a compra pode acontecer antes de existir OS/servico)
+    servicos          = relationship("ManutencaoAssistencia", secondary="fin_movimentacao_servicos")
+    orcamentos        = relationship("Orcamento", secondary="fin_movimentacao_orcamentos")
+    os_fornecedor     = relationship(OrdemServico, secondary="fin_movimentacao_os_fornecedor")
+
     __table_args__ = (
         Index("ix_fin_mov_data",          "data"),
         Index("ix_fin_mov_tipo",          "tipo"),
@@ -56,3 +70,27 @@ class MovimentacaoFinanceira(Base):
         Index("ix_fin_mov_origem",        "origem"),
         Index("ix_fin_mov_data_del",      "data", "deletado_em"),
     )
+
+
+class MovimentacaoServico(Base):
+    """Vinculo N:N entre uma saida de fornecedor e o(s) servico(s) que ela cobriu."""
+    __tablename__ = "fin_movimentacao_servicos"
+
+    movimentacao_id = Column(Integer, ForeignKey("fin_movimentacoes.id", ondelete="CASCADE"), primary_key=True)
+    servico_id      = Column(Integer, ForeignKey("manutencoes_assistencias.id", ondelete="CASCADE"), primary_key=True)
+
+
+class MovimentacaoOrcamento(Base):
+    """Vinculo N:N entre uma saida de fornecedor e o(s) orcamento(s) relacionados."""
+    __tablename__ = "fin_movimentacao_orcamentos"
+
+    movimentacao_id = Column(Integer, ForeignKey("fin_movimentacoes.id", ondelete="CASCADE"), primary_key=True)
+    orcamento_id    = Column(Integer, ForeignKey("orcamentos.id", ondelete="CASCADE"), primary_key=True)
+
+
+class MovimentacaoOsFornecedor(Base):
+    """Vinculo N:N entre uma saida de fornecedor e a(s) OS do Auvo (tipo Material - Fornecedores) que geraram ela."""
+    __tablename__ = "fin_movimentacao_os_fornecedor"
+
+    movimentacao_id  = Column(Integer, ForeignKey("fin_movimentacoes.id", ondelete="CASCADE"), primary_key=True)
+    ordem_servico_id = Column(Integer, ForeignKey("ordens_servico.id", ondelete="CASCADE"), primary_key=True)

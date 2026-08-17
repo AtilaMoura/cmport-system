@@ -18,6 +18,10 @@ class Condominio(Base):
     razao_social = Column(String(255), nullable=True)
     observacao = Column(Text, nullable=True)
 
+    # CONDOMINIO | FORNECEDOR — mesma tabela/sync do Auvo, só filtra por tipo
+    # nas telas (fornecedor não usa endereco/contatos/servicos na pratica)
+    tipo = Column(String(20), nullable=False, default="CONDOMINIO", index=True)
+
     ativo = Column(Boolean, default=True)
 
     criado_em = Column(DateTime, default=datetime.utcnow)

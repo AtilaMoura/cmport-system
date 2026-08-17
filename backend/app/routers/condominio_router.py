@@ -99,14 +99,19 @@ def list_condominios(
     skip: int = Query(0, ge=0),
     limit: int = Query(700, ge=1, le=700),
     ativo: Optional[bool] = None,
+    tipo: Optional[str] = Query(None, description="CONDOMINIO (default) ou FORNECEDOR"),
     db: Session = Depends(get_db)
 ):
-    return CondominioService.list_condominios(db, skip, limit, ativo)
+    return CondominioService.list_condominios(db, skip, limit, ativo, tipo)
 
 
 @router.get("/search", response_model=List[CondominioResponse])
-def search_condominios(nome: str = Query(..., min_length=3), db: Session = Depends(get_db)):
-    return CondominioService.search_condominios(db, nome)
+def search_condominios(
+    nome: str = Query(..., min_length=3),
+    tipo: Optional[str] = Query(None, description="CONDOMINIO (default) ou FORNECEDOR"),
+    db: Session = Depends(get_db),
+):
+    return CondominioService.search_condominios(db, nome, tipo)
 
 
 @router.get("/{condominio_id}", response_model=CondominioFullResponse)

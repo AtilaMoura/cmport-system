@@ -24,10 +24,11 @@ class CondominioRepository:
         return db.query(Condominio).filter(Condominio.auvo_id == auvo_id).first()
 
     @staticmethod
-    def get_all(db: Session, skip: int = 0, limit: int = 100, ativo: Optional[bool] = None) -> List[Condominio]:
+    def get_all(db: Session, skip: int = 0, limit: int = 100, ativo: Optional[bool] = None, tipo: Optional[str] = None) -> List[Condominio]:
         query = db.query(Condominio)
         if ativo is not None:
             query = query.filter(Condominio.ativo == ativo)
+        query = query.filter(Condominio.tipo == (tipo or "CONDOMINIO"))
         return query.offset(skip).limit(limit).all()
 
     @staticmethod
@@ -52,8 +53,12 @@ class CondominioRepository:
         return True
 
     @staticmethod
-    def search_by_name(db: Session, nome: str) -> List[Condominio]:
-        return db.query(Condominio).filter(Condominio.nome.ilike(f"%{nome}%")).all()
+    def search_by_name(db: Session, nome: str, tipo: Optional[str] = None) -> List[Condominio]:
+        return (
+            db.query(Condominio)
+            .filter(Condominio.nome.ilike(f"%{nome}%"), Condominio.tipo == (tipo or "CONDOMINIO"))
+            .all()
+        )
 
     @staticmethod
     def create_with_auvo(db: Session, condominio: CondominioCreate, auvo_id: int) -> Condominio:

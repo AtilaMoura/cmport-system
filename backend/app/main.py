@@ -185,6 +185,15 @@ def _run_migrations():
         # proprias, banco_id vira o destino e banco_origem_id guarda de onde saiu
         "ALTER TABLE fin_movimentacoes ADD COLUMN banco_origem_id INT NULL",
         "ALTER TABLE fin_movimentacoes ADD CONSTRAINT fk_movimentacao_banco_origem FOREIGN KEY (banco_origem_id) REFERENCES bancos(id) ON DELETE SET NULL",
+        # Cadastro de Fornecedor reaproveitando a tabela/sync de condominios —
+        # tipo distingue CONDOMINIO (default, dado existente) de FORNECEDOR
+        "ALTER TABLE condominios ADD COLUMN tipo VARCHAR(20) NOT NULL DEFAULT 'CONDOMINIO'",
+        # Vinculo de saida de fornecedor com o fornecedor pago (condominios.tipo=FORNECEDOR)
+        # — tabelas fin_movimentacao_servicos/fin_movimentacao_orcamentos (N:N) sao criadas
+        # automaticamente pelo create_all acima, nao precisam de ALTER TABLE aqui
+        "ALTER TABLE fin_movimentacoes ADD COLUMN fornecedor_id INT NULL",
+        "ALTER TABLE fin_movimentacoes ADD CONSTRAINT fk_movimentacao_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES condominios(id) ON DELETE SET NULL",
+        "ALTER TABLE fin_movimentacoes ADD COLUMN forma_pagamento VARCHAR(20) NULL DEFAULT 'PIX'",
     ]
     try:
         for stmt in stmts:

@@ -8,6 +8,8 @@ from app.services.fin_movimentacao_service import FinMovimentacaoService
 from app.schemas.fin_movimentacao_schema import (
     MovimentacaoCreate, MovimentacaoUpdate, MovimentacaoResponse,
     DashboardFinanceiroResponse, SincronizarInterResponse,
+    ServicoVinculadoResponse, OrcamentoVinculadoResponse,
+    OsFornecedorReferenciaResponse,
 )
 from app.schemas.fin_saldo_inicial_schema import SaldoInicialUpsert, SaldoInicialResponse
 
@@ -32,12 +34,36 @@ def listar(
     origem:       Optional[str] = None,
     status:       Optional[str] = None,
     recibo_id:    Optional[int] = None,
+    sem_servico_vinculado: Optional[bool] = None,
     db: Session = Depends(get_db),
 ):
     return FinMovimentacaoService.listar(
         db, mes=mes, ano=ano, tipo=tipo, grupo=grupo,
         categoria_id=categoria_id, origem=origem, status=status, recibo_id=recibo_id,
+        sem_servico_vinculado=sem_servico_vinculado,
     )
+
+
+@router.get("/servicos-para-vincular", response_model=List[ServicoVinculadoResponse])
+def buscar_servicos_para_vincular(
+    q: Optional[str] = Query(None),
+    condominio_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    return FinMovimentacaoService.buscar_servicos(db, q, condominio_id)
+
+
+@router.get("/os-fornecedor-referencia", response_model=List[OsFornecedorReferenciaResponse])
+def buscar_os_fornecedor_referencia(
+    fornecedor_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    return FinMovimentacaoService.buscar_os_fornecedor_referencia(db, fornecedor_id)
+
+
+@router.get("/orcamentos-para-vincular", response_model=List[OrcamentoVinculadoResponse])
+def buscar_orcamentos_para_vincular(q: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    return FinMovimentacaoService.buscar_orcamentos(db, q)
 
 
 @router.post("/movimentacoes", response_model=MovimentacaoResponse, status_code=201)

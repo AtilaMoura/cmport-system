@@ -5,14 +5,22 @@ import json
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_, func
 
 from app.models.fin_movimentacao_model import MovimentacaoFinanceira
 from app.models.fin_categoria_model import CategoriaFinanceira, GrupoCategoria
+from app.models.servico_model import ManutencaoAssistencia
+from app.models.condominio_model import Condominio
+from app.models.orcamento_model import Orcamento
+from app.models.nota_fiscal_model import NotaFiscal
+from app.models.ordem_servico_model import OrdemServico
 from app.repositories.fin_movimentacao_repository import FinMovimentacaoRepository
 from app.repositories.fin_saldo_inicial_repository import FinSaldoInicialRepository
 from app.schemas.fin_movimentacao_schema import (
     MovimentacaoCreate, MovimentacaoUpdate,
     MovimentacaoResponse, DashboardFinanceiroResponse, SincronizarInterResponse,
+    ServicoVinculadoResponse, OrcamentoVinculadoResponse,
+    OsFornecedorReferenciaResponse,
 )
 from app.schemas.fin_saldo_inicial_schema import SaldoInicialUpsert, SaldoInicialResponse
 
@@ -20,40 +28,205 @@ from app.schemas.fin_saldo_inicial_schema import SaldoInicialUpsert, SaldoInicia
 class FinMovimentacaoService:
 
     @staticmethod
-    def listar(db: Session, mes=None, ano=None, tipo=None, grupo=None,
-               categoria_id=None, origem=None, status=None, recibo_id=None) -> List[MovimentacaoResponse]:
-        movs = FinMovimentacaoRepository.listar(
-            db, mes=mes, ano=ano, tipo=tipo, grupo=grupo,
-            categoria_id=categoria_id, origem=origem, status=status, recibo_id=recibo_id,
-        )
-        resultado = []
-        for m in movs:
-            r = MovimentacaoResponse.model_validate(m)
-            r.banco_nome = m.banco.nome if m.banco else None
-            r.banco_origem_nome = m.banco_origem.nome if m.banco_origem else None
-            resultado.append(r)
-        return resultado
-
-    @staticmethod
-    def criar(db: Session, req: MovimentacaoCreate) -> MovimentacaoResponse:
-        dados = req.model_dump()
-        obj = FinMovimentacaoRepository.create(db, dados)
+    def _montar_response(obj: MovimentacaoFinanceira) -> MovimentacaoResponse:
         r = MovimentacaoResponse.model_validate(obj)
         r.banco_nome = obj.banco.nome if obj.banco else None
         r.banco_origem_nome = obj.banco_origem.nome if obj.banco_origem else None
+        r.fornecedor_nome = obj.fornecedor.nome if obj.fornecedor else None
+        r.servicos_vinculados = [
+            ServicoVinculadoResponse(
+                id=s.id,
+                tipo=s.tipo.value if hasattr(s.tipo, "value") else s.tipo,
+                numero_os=s.numero_os,
+                data_servico=s.data_servico,
+                descricao=s.descricao,
+                condominio_nome=s.condominio.nome if s.condominio else None,
+                numero_nota=s.nota_fiscal.numero_nota if s.nota_fiscal else None,
+            )
+            for s in obj.servicos
+        ]
+        r.orcamentos_vinculados = [
+            OrcamentoVinculadoResponse(
+                id=o.id,
+                auvo_public_id=o.auvo_public_id,
+                customer_name=o.customer_name,
+                net_total_value=o.net_total_value,
+                request_date=o.request_date,
+            )
+            for o in obj.orcamentos
+        ]
+        r.os_fornecedor_vinculadas = [
+            OsFornecedorReferenciaResponse(
+                id=o.id,
+                task_id=o.task_id,
+                task_date=o.task_date,
+                report=o.report,
+                orientation=o.orientation,
+            )
+            for o in obj.os_fornecedor
+        ]
         return r
+
+    @staticmethod
+    def _sync_vinculos(db: Session, obj: MovimentacaoFinanceira, servico_ids, orcamento_ids, os_fornecedor_ids) -> None:
+        """Substitui o conjunto de servicos/orcamentos/OS-fornecedor vinculados pelos
+        ids recebidos (lista vazia desvincula tudo; None/omitido nao mexe no vinculo atual)."""
+        if servico_ids is not None:
+            obj.servicos = db.query(ManutencaoAssistencia).filter(ManutencaoAssistencia.id.in_(servico_ids)).all() if servico_ids else []
+        if orcamento_ids is not None:
+            obj.orcamentos = db.query(Orcamento).filter(Orcamento.id.in_(orcamento_ids)).all() if orcamento_ids else []
+        if os_fornecedor_ids is not None:
+            obj.os_fornecedor = db.query(OrdemServico).filter(OrdemServico.id.in_(os_fornecedor_ids)).all() if os_fornecedor_ids else []
+        db.commit()
+        db.refresh(obj)
+
+    @staticmethod
+    def buscar_servicos(db: Session, q: Optional[str] = None, condominio_id: Optional[int] = None, limit: int = 20) -> List[ServicoVinculadoResponse]:
+        from app.models.condominio_model import Condominio
+        query = (
+            db.query(ManutencaoAssistencia, NotaFiscal)
+            .outerjoin(Condominio, ManutencaoAssistencia.condominio_id == Condominio.id)
+            .outerjoin(NotaFiscal, ManutencaoAssistencia.nota_fiscal_id == NotaFiscal.id)
+        )
+        if condominio_id is not None:
+            query = query.filter(ManutencaoAssistencia.condominio_id == condominio_id)
+        if q:
+            filtros = [ManutencaoAssistencia.numero_os.ilike(f"%{q}%"), Condominio.nome.ilike(f"%{q}%")]
+            query = query.filter(or_(*filtros))
+        resultados = (
+            query.order_by(ManutencaoAssistencia.data_servico.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            ServicoVinculadoResponse(
+                id=s.id,
+                tipo=s.tipo.value if hasattr(s.tipo, "value") else s.tipo,
+                numero_os=s.numero_os,
+                data_servico=s.data_servico,
+                descricao=s.descricao,
+                condominio_nome=s.condominio.nome if s.condominio else None,
+                numero_nota=nota.numero_nota if nota else None,
+            )
+            for s, nota in resultados
+        ]
+
+    @staticmethod
+    def buscar_orcamentos(db: Session, q: Optional[str] = None, limit: int = 20) -> List[OrcamentoVinculadoResponse]:
+        query = db.query(Orcamento)
+        if q:
+            filtros = [Orcamento.customer_name.ilike(f"%{q}%")]
+            if q.isdigit():
+                filtros.append(Orcamento.auvo_public_id == int(q))
+            query = query.filter(or_(*filtros))
+        resultados = (
+            query.order_by(Orcamento.request_date.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            OrcamentoVinculadoResponse(
+                id=o.id,
+                auvo_public_id=o.auvo_public_id,
+                customer_name=o.customer_name,
+                net_total_value=o.net_total_value,
+                request_date=o.request_date,
+            )
+            for o in resultados
+        ]
+
+    @staticmethod
+    def buscar_os_fornecedor_referencia(db: Session, fornecedor_id: int) -> List[OsFornecedorReferenciaResponse]:
+        """Busca ordens de serviço do Auvo do tipo 'Material - Fornecedores' do
+        condomínio/fornecedor selecionado (usado como referência na tela Nova Saída)."""
+        fornecedor = db.query(Condominio).filter(Condominio.id == fornecedor_id).first()
+        if not fornecedor or not fornecedor.auvo_id:
+            return []
+        ordens = (
+            db.query(OrdemServico)
+            .filter(
+                OrdemServico.customer_id == fornecedor.auvo_id,
+                OrdemServico.task_type_description.like("Material - Fornecedores%"),
+            )
+            .order_by(OrdemServico.task_date.desc())
+            .limit(20)
+            .all()
+        )
+        return [
+            OsFornecedorReferenciaResponse(
+                id=o.id,
+                task_id=o.task_id,
+                task_date=o.task_date,
+                report=o.report,
+                orientation=o.orientation,
+            )
+            for o in ordens
+        ]
+
+    @staticmethod
+    def listar(db: Session, mes=None, ano=None, tipo=None, grupo=None,
+               categoria_id=None, origem=None, status=None, recibo_id=None,
+               sem_servico_vinculado=None) -> List[MovimentacaoResponse]:
+        movs = FinMovimentacaoRepository.listar(
+            db, mes=mes, ano=ano, tipo=tipo, grupo=grupo,
+            categoria_id=categoria_id, origem=origem, status=status, recibo_id=recibo_id,
+            sem_servico_vinculado=sem_servico_vinculado,
+        )
+        return [FinMovimentacaoService._montar_response(m) for m in movs]
+
+    @staticmethod
+    def _resolver_categoria_por_fornecedor(db: Session, fornecedor_id: int) -> int:
+        """Resolve/cria a categoria financeira do grupo FORNECEDOR com o mesmo
+        nome do fornecedor escolhido. Retorna o id da categoria (criada
+        automaticamente por trás se ainda não existir)."""
+        fornecedor = db.query(Condominio).filter(Condominio.id == fornecedor_id).first()
+        if not fornecedor or not fornecedor.nome:
+            raise Exception("Fornecedor não encontrado.")
+        nome = fornecedor.nome.strip()
+        categoria = (
+            db.query(CategoriaFinanceira)
+            .filter(CategoriaFinanceira.grupo == GrupoCategoria.FORNECEDOR.value)
+            .filter(func.lower(CategoriaFinanceira.nome) == nome.lower())
+            .first()
+        )
+        if categoria:
+            return categoria.id
+        ultima_ordem = (
+            db.query(func.max(CategoriaFinanceira.ordem))
+            .filter(CategoriaFinanceira.grupo == GrupoCategoria.FORNECEDOR.value)
+            .scalar()
+        )
+        nova = CategoriaFinanceira(
+            nome=nome,
+            grupo=GrupoCategoria.FORNECEDOR.value,
+            tipo="SAIDA",
+            ordem=(ultima_ordem or 0) + 1,
+        )
+        db.add(nova)
+        db.commit()
+        db.refresh(nova)
+        return nova.id
+
+    @staticmethod
+    def criar(db: Session, req: MovimentacaoCreate) -> MovimentacaoResponse:
+        dados = req.model_dump(exclude={"servico_ids", "orcamento_ids", "os_fornecedor_ids"})
+        if dados.get("fornecedor_id") is not None and dados.get("categoria_id") is None:
+            dados["categoria_id"] = FinMovimentacaoService._resolver_categoria_por_fornecedor(db, dados["fornecedor_id"])
+        obj = FinMovimentacaoRepository.create(db, dados)
+        FinMovimentacaoService._sync_vinculos(db, obj, req.servico_ids, req.orcamento_ids, req.os_fornecedor_ids)
+        return FinMovimentacaoService._montar_response(obj)
 
     @staticmethod
     def atualizar(db: Session, id: int, req: MovimentacaoUpdate) -> MovimentacaoResponse:
         obj = FinMovimentacaoRepository.get_by_id(db, id)
         if not obj:
             raise Exception("Movimentação não encontrada.")
-        dados = {k: v for k, v in req.model_dump().items() if v is not None}
+        dados = {k: v for k, v in req.model_dump(exclude={"servico_ids", "orcamento_ids", "os_fornecedor_ids"}).items() if v is not None}
+        if req.fornecedor_id is not None and req.categoria_id is None:
+            dados["categoria_id"] = FinMovimentacaoService._resolver_categoria_por_fornecedor(db, req.fornecedor_id)
         obj = FinMovimentacaoRepository.update(db, obj, dados)
-        r = MovimentacaoResponse.model_validate(obj)
-        r.banco_nome = obj.banco.nome if obj.banco else None
-        r.banco_origem_nome = obj.banco_origem.nome if obj.banco_origem else None
-        return r
+        FinMovimentacaoService._sync_vinculos(db, obj, req.servico_ids, req.orcamento_ids, req.os_fornecedor_ids)
+        return FinMovimentacaoService._montar_response(obj)
 
     @staticmethod
     def validar(db: Session, id: int) -> MovimentacaoResponse:

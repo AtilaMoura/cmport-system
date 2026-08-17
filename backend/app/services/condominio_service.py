@@ -21,8 +21,8 @@ class CondominioService:
         return CondominioResponse.model_validate(db_condominio)
 
     @staticmethod
-    def list_condominios(db: Session, skip: int = 0, limit: int = 100, ativo: Optional[bool] = None) -> List[CondominioResponse]:
-        condominios = CondominioRepository.get_all(db, skip, limit, ativo)
+    def list_condominios(db: Session, skip: int = 0, limit: int = 100, ativo: Optional[bool] = None, tipo: Optional[str] = None) -> List[CondominioResponse]:
+        condominios = CondominioRepository.get_all(db, skip, limit, ativo, tipo)
         return [CondominioResponse.model_validate(c) for c in condominios]
 
     @staticmethod
@@ -37,8 +37,8 @@ class CondominioService:
         return CondominioRepository.delete(db, condominio_id)
 
     @staticmethod
-    def search_condominios(db: Session, nome: str) -> List[CondominioResponse]:
-        condominios = CondominioRepository.search_by_name(db, nome)
+    def search_condominios(db: Session, nome: str, tipo: Optional[str] = None) -> List[CondominioResponse]:
+        condominios = CondominioRepository.search_by_name(db, nome, tipo)
         return [CondominioResponse.model_validate(c) for c in condominios]
 
     @staticmethod
