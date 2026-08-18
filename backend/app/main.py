@@ -34,6 +34,7 @@ import app.models.declaracao_fiscal_model   # declarações fiscais geradas
 import app.models.contrato_condominio_model  # contratos simples por condomínio
 import app.models.ciclo_nota_model           # ciclos mensais de faturamento
 import app.models.corpo_nota_model           # corpo da nota (pré-nota)
+import app.models.nota_sem_boleto_dispensada_model  # dispensa do alerta de nota sem boleto
 import app.models.fin_categoria_model        # financeiro — categorias
 import app.models.fin_movimentacao_model     # financeiro — movimentações
 import app.models.fin_saldo_inicial_model    # financeiro — saldo inicial mensal

@@ -59,6 +59,17 @@ export interface AlertaDuplicata {
   data_pagamento_1: string;
   data_pagamento_2: string;
 }
+
+export interface AlertaNotaSemBoleto {
+  nota_id: number;
+  numero_nota: string;
+  condominio_id: number | null;
+  condominio_nome: string;
+  tipo: string;
+  valor: number;
+  data_vencimento: string;
+  cnpj_emitente: string | null;
+}
 export interface PendenciaLinha {
   origem_id: number;
   origem: string;

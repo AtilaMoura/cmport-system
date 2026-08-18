@@ -15,7 +15,7 @@ from app.models.banco_model import Banco
 from app.repositories.configuracao_repository import ConfiguracaoInterRepository
 from app.schemas.fluxo_financeiro_schema import (
     FluxoFinanceiroLinha, FluxoFinanceiroCnpj, FluxoFinanceiroResponse, AlertaDuplicata,
-    PendenciaLinha, PendenciasResponse,
+    PendenciaLinha, PendenciasResponse, AlertaNotaSemBoleto,
 )
 
 
@@ -326,4 +326,88 @@ class FluxoFinanceiroService:
         if ja_existe:
             return
         db.add(DuplicataDispensada(nota_id_1=menor, nota_id_2=maior))
+        db.commit()
+
+    @staticmethod
+    def detectar_notas_sem_boleto(db: Session, dias_atras: Optional[int] = None) -> List[AlertaNotaSemBoleto]:
+        """Notas fiscais (Manutencao/Assistencia/Produto) com XML real importado
+        mas SEM NENHUM boleto ativo -- ficam invisiveis em qualquer tela de
+        pendencia/cobranca. So considera notas com pelo menos 3 dias desde a
+        importacao (da tempo do fluxo normal gerar o boleto sozinho) e so
+        aponta o gap quando a nota (ou a nota vinculada dela, se houver) nao
+        tem boleto nenhum -- nota Produto vinculada a uma Assistencia que ja
+        tem o boleto combinado NAO e' um gap real, e' o design normal.
+
+        dias_atras: sem limite por padrao (varre todo o historico). Se
+        informado, so considera notas com data_vencimento nos ultimos N dias
+        -- util pra nao dragar historico antigo ja reconciliado por outro
+        caminho (ex: nota real com XML cujo pagamento foi registrado numa
+        outra nota placeholder, sem vinculo formal entre as duas). Usa
+        data_vencimento (data real da transacao) e nao criado_em, porque
+        muita nota antiga desse sistema foi importada retroativamente meses
+        depois do vencimento -- filtrar por criado_em nao filtraria nada."""
+        from app.models.nota_sem_boleto_dispensada_model import NotaSemBoletoDispensada
+        from datetime import datetime, date as date_cls, timedelta
+
+        limite_criacao = datetime.now() - timedelta(days=3)
+
+        dispensadas = {d.nota_id for d in db.query(NotaSemBoletoDispensada).all()}
+
+        filtros = [
+            NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
+            NotaFiscal.xml_original != "",
+            NotaFiscal.criado_em < limite_criacao,
+        ]
+        if dias_atras is not None:
+            filtros.append(NotaFiscal.data_vencimento >= date_cls.today() - timedelta(days=dias_atras))
+
+        notas = (
+            db.query(NotaFiscal, Condominio)
+            .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
+            .filter(*filtros)
+            .all()
+        )
+
+        def tem_boleto_ativo(nota_id: int) -> bool:
+            return (
+                db.query(Boleto)
+                .filter(
+                    Boleto.nota_fiscal_id == nota_id,
+                    Boleto.situacao.notin_([SituacaoBoleto.CANCELADO, SituacaoBoleto.EXPIRADO]),
+                )
+                .first()
+                is not None
+            )
+
+        alertas: List[AlertaNotaSemBoleto] = []
+        for nota, condominio in notas:
+            if nota.id in dispensadas:
+                continue
+            if tem_boleto_ativo(nota.id):
+                continue
+            if nota.nota_vinculada_id and tem_boleto_ativo(nota.nota_vinculada_id):
+                continue
+            tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
+            alertas.append(AlertaNotaSemBoleto(
+                nota_id=nota.id,
+                numero_nota=nota.numero_nota,
+                condominio_id=condominio.id,
+                condominio_nome=condominio.nome,
+                tipo=tipo,
+                valor=round(float(nota.valor), 2),
+                data_vencimento=nota.data_vencimento,
+                cnpj_emitente=nota.cnpj_emitente,
+            ))
+        alertas.sort(key=lambda a: a.data_vencimento)
+        return alertas
+
+    @staticmethod
+    def dispensar_nota_sem_boleto(db: Session, nota_id: int) -> None:
+        """Marca uma nota como 'ok, nao precisa de boleto' -- some da lista de
+        alertas em detectar_notas_sem_boleto dali em diante."""
+        from app.models.nota_sem_boleto_dispensada_model import NotaSemBoletoDispensada
+        ja_existe = db.query(NotaSemBoletoDispensada).filter(NotaSemBoletoDispensada.nota_id == nota_id).first()
+        if ja_existe:
+            return
+        db.add(NotaSemBoletoDispensada(nota_id=nota_id))
         db.commit()

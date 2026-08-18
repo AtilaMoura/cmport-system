@@ -52,6 +52,21 @@ class DispensarDuplicataRequest(BaseModel):
     nota_id_2: int
 
 
+class AlertaNotaSemBoleto(BaseModel):
+    nota_id: int
+    numero_nota: str
+    condominio_id: Optional[int] = None
+    condominio_nome: str
+    tipo: str
+    valor: float
+    data_vencimento: date
+    cnpj_emitente: Optional[str] = None
+
+
+class DispensarNotaSemBoletoRequest(BaseModel):
+    nota_id: int
+
+
 class PendenciaLinha(BaseModel):
     origem_id: int
     origem: str  # BOLETO | RECIBO

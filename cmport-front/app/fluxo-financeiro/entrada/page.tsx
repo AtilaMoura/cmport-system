@@ -7,7 +7,7 @@ import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
 import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
 import {
   fmtValor, fmtData, fmtCnpj, TIPO_CLS, agruparLinhasPorBanco,
-  type FluxoFinanceiroResponse, type AlertaDuplicata, type FluxoFinanceiroLinha,
+  type FluxoFinanceiroResponse, type AlertaDuplicata, type AlertaNotaSemBoleto, type FluxoFinanceiroLinha,
 } from '@/lib/fluxoFinanceiro';
 
 interface BancoOpcao {
@@ -20,6 +20,8 @@ function EntradaServicosContent() {
   const { ano, mes, cnpjFiltro, setAno, setMes, setCnpjFiltro } = useFiltrosFluxo();
   const [dados, setDados] = useState<FluxoFinanceiroResponse | null>(null);
   const [alertas, setAlertas] = useState<AlertaDuplicata[]>([]);
+  const [alertasSemBoleto, setAlertasSemBoleto] = useState<AlertaNotaSemBoleto[]>([]);
+  const [dispensandoSemBoleto, setDispensandoSemBoleto] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
   const [bancoFiltro, setBancoFiltro] = useState<string | null>(null);
@@ -41,15 +43,18 @@ function EntradaServicosContent() {
     try {
       const params: Record<string, string | number> = { ano, mes };
       if (cnpjFiltro) params.cnpj = cnpjFiltro;
-      const [r, a] = await Promise.all([
+      const [r, a, ns] = await Promise.all([
         api.get('/financeiro/fluxo-mensal', { params }),
         api.get('/financeiro/fluxo-mensal/alertas', { params: { ano, mes } }),
+        api.get('/financeiro/notas-sem-boleto'),
       ]);
       setDados(r.data);
       setAlertas(a.data);
+      setAlertasSemBoleto(ns.data);
     } catch {
       setDados(null);
       setAlertas([]);
+      setAlertasSemBoleto([]);
     } finally {
       setLoading(false);
     }
@@ -98,6 +103,19 @@ function EntradaServicosContent() {
     }
   };
 
+  const dispensarSemBoleto = async (a: AlertaNotaSemBoleto, index: number) => {
+    if (!confirm(`Confirma que a nota "${a.numero_nota}" (${a.condominio_nome}) NÃO precisa de boleto? Esse alerta não vai aparecer mais.`)) return;
+    setDispensandoSemBoleto(a.nota_id);
+    try {
+      await api.post('/financeiro/notas-sem-boleto/dispensar', { nota_id: a.nota_id });
+      setAlertasSemBoleto(prev => prev.filter((_, i) => i !== index));
+    } catch {
+      alert('Erro ao dispensar o alerta. Tenta de novo.');
+    } finally {
+      setDispensandoSemBoleto(null);
+    }
+  };
+
   const soDigitos = (v: string) => v.replace(/\D/g, '');
   const ORDEM_CNPJ = ['22761557000188', '65756913000188'];
   const LABEL_CURTO: Record<string, string> = {
@@ -134,6 +152,33 @@ function EntradaServicosContent() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <FiltrosFluxo ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} onAnoChange={setAno} onMesChange={setMes}
           onCnpjChange={setCnpjFiltro} mostrarFiltroCnpj />
+
+        {alertasSemBoleto.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4">
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-2">
+              ⚠️ {alertasSemBoleto.length} nota{alertasSemBoleto.length > 1 ? 's' : ''} sem cobrança gerada
+            </p>
+            <div className="space-y-1.5">
+              {alertasSemBoleto.map((a, i) => (
+                <div key={i} className="text-xs text-amber-700 dark:text-amber-400 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>
+                    {a.condominio_nome} — <span className="font-mono">{a.numero_nota}</span> ({a.tipo}) — {fmtValor(a.valor)}, venc. {fmtData(a.data_vencimento)}
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <Link href={`/notas/${a.nota_id}`} target="_blank"
+                      className="underline decoration-dotted underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300 font-semibold">
+                      Ver nota {a.numero_nota}
+                    </Link>
+                    <button type="button" onClick={() => dispensarSemBoleto(a, i)} disabled={dispensandoSemBoleto === a.nota_id}
+                      className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:hover:bg-amber-500/30 disabled:opacity-50 transition-colors">
+                      {dispensandoSemBoleto === a.nota_id ? 'Salvando...' : 'Não precisa de boleto'}
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {alertas.length > 0 && (
           <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl p-4">

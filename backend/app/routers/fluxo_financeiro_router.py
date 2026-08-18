@@ -4,7 +4,10 @@ from typing import List, Optional
 
 from app.core.database import SessionLocal
 from app.services.fluxo_financeiro_service import FluxoFinanceiroService
-from app.schemas.fluxo_financeiro_schema import FluxoFinanceiroResponse, AlertaDuplicata, DispensarDuplicataRequest, PendenciasResponse
+from app.schemas.fluxo_financeiro_schema import (
+    FluxoFinanceiroResponse, AlertaDuplicata, DispensarDuplicataRequest, PendenciasResponse,
+    AlertaNotaSemBoleto, DispensarNotaSemBoletoRequest,
+)
 
 router = APIRouter()
 
@@ -52,3 +55,19 @@ def dispensar_alerta_duplicata(
     db: Session = Depends(get_db),
 ):
     FluxoFinanceiroService.dispensar_duplicata(db, request.nota_id_1, request.nota_id_2)
+
+
+@router.get("/notas-sem-boleto", response_model=List[AlertaNotaSemBoleto])
+def notas_sem_boleto(
+    dias: Optional[int] = Query(None, description="Limita aos ultimos N dias (por criado_em). Omitir varre todo o historico."),
+    db: Session = Depends(get_db),
+):
+    return FluxoFinanceiroService.detectar_notas_sem_boleto(db, dias_atras=dias)
+
+
+@router.post("/notas-sem-boleto/dispensar", status_code=204)
+def dispensar_nota_sem_boleto(
+    request: DispensarNotaSemBoletoRequest,
+    db: Session = Depends(get_db),
+):
+    FluxoFinanceiroService.dispensar_nota_sem_boleto(db, request.nota_id)
