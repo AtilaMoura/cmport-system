@@ -255,9 +255,11 @@ class FluxoFinanceiroService:
         total_pago = round(sum(l.valor for l in linhas if l.situacao == "PAGO"), 2)
         total_pendente = round(total - total_pago, 2)
 
-        # Vencido primeiro, depois por data de vencimento — quem está atrasado
-        # precisa ser visto antes do resto na conciliação manual.
-        linhas.sort(key=lambda l: (l.situacao != "VENCIDO", l.data_vencimento, l.condominio_nome))
+        # Vencido e Parcial primeiro (quem precisa de acao/acompanhamento),
+        # depois Pendente, Pago por ultimo -- dentro de cada grupo, por data
+        # de vencimento e nome do condominio.
+        ORDEM_SITUACAO = {"VENCIDO": 0, "PARCIAL": 1, "PENDENTE": 2, "PAGO": 3}
+        linhas.sort(key=lambda l: (ORDEM_SITUACAO.get(l.situacao, 9), l.data_vencimento, l.condominio_nome))
 
         return PendenciasResponse(
             ano=ano, mes=mes, total=total, total_pago=total_pago, total_pendente=total_pendente, linhas=linhas,
