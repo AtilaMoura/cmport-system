@@ -69,6 +69,18 @@ export interface AlertaNotaSemBoleto {
   valor: number;
   data_vencimento: string;
   cnpj_emitente: string | null;
+  possivel_falta_vinculo: boolean;
+}
+
+export interface AlertaNotaSemServico {
+  nota_id: number;
+  numero_nota: string;
+  condominio_id: number | null;
+  condominio_nome: string;
+  tipo: string;
+  valor: number;
+  data_vencimento: string;
+  cnpj_emitente: string | null;
 }
 export interface PendenciaLinha {
   origem_id: number;

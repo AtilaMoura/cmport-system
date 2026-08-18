@@ -61,9 +61,28 @@ class AlertaNotaSemBoleto(BaseModel):
     valor: float
     data_vencimento: date
     cnpj_emitente: Optional[str] = None
+    # True quando tipo=PRODUTO sem nota_vinculada_id -- causa provavel e' falta
+    # de vinculo com a nota de Assistencia (que carrega o boleto combinado),
+    # nao falta de boleto proprio. Ver NotaFiscalService.vincular_notas.
+    possivel_falta_vinculo: bool = False
 
 
 class DispensarNotaSemBoletoRequest(BaseModel):
+    nota_id: int
+
+
+class AlertaNotaSemServico(BaseModel):
+    nota_id: int
+    numero_nota: str
+    condominio_id: Optional[int] = None
+    condominio_nome: str
+    tipo: str
+    valor: float
+    data_vencimento: date
+    cnpj_emitente: Optional[str] = None
+
+
+class DispensarNotaSemServicoRequest(BaseModel):
     nota_id: int
 
 

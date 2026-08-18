@@ -15,7 +15,7 @@ from app.models.banco_model import Banco
 from app.repositories.configuracao_repository import ConfiguracaoInterRepository
 from app.schemas.fluxo_financeiro_schema import (
     FluxoFinanceiroLinha, FluxoFinanceiroCnpj, FluxoFinanceiroResponse, AlertaDuplicata,
-    PendenciaLinha, PendenciasResponse, AlertaNotaSemBoleto,
+    PendenciaLinha, PendenciasResponse, AlertaNotaSemBoleto, AlertaNotaSemServico,
 )
 
 
@@ -397,6 +397,7 @@ class FluxoFinanceiroService:
                 valor=round(float(nota.valor), 2),
                 data_vencimento=nota.data_vencimento,
                 cnpj_emitente=nota.cnpj_emitente,
+                possivel_falta_vinculo=(tipo == "PRODUTO" and not nota.nota_vinculada_id),
             ))
         alertas.sort(key=lambda a: a.data_vencimento)
         return alertas
@@ -410,4 +411,72 @@ class FluxoFinanceiroService:
         if ja_existe:
             return
         db.add(NotaSemBoletoDispensada(nota_id=nota_id))
+        db.commit()
+
+    @staticmethod
+    def detectar_notas_sem_servico(db: Session, dias_atras: Optional[int] = None) -> List[AlertaNotaSemServico]:
+        """Notas fiscais MANUTENCAO/ASSISTENCIA com XML real importado mas
+        SEM NENHUM servico (manutencoes_assistencias) vinculado -- o campo
+        descricao_servico existe na nota mas ninguem registrou o servico em
+        si, o que quebra relatorios/termos de garantia que dependem dele.
+        PRODUTO nao entra aqui -- nota de produto nunca gera servico, so
+        boleto. dias_atras funciona igual detectar_notas_sem_boleto: sem
+        limite por padrao, filtra por data_vencimento quando informado
+        (nao criado_em -- muita nota antiga foi importada retroativamente)."""
+        from app.models.nota_sem_servico_dispensada_model import NotaSemServicoDispensada
+        from datetime import datetime, date as date_cls, timedelta
+
+        limite_criacao = datetime.now() - timedelta(days=3)
+        dispensadas = {d.nota_id for d in db.query(NotaSemServicoDispensada).all()}
+
+        filtros = [
+            NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA]),
+            NotaFiscal.xml_original != "",
+            NotaFiscal.criado_em < limite_criacao,
+        ]
+        if dias_atras is not None:
+            filtros.append(NotaFiscal.data_vencimento >= date_cls.today() - timedelta(days=dias_atras))
+
+        notas = (
+            db.query(NotaFiscal, Condominio)
+            .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
+            .filter(*filtros)
+            .all()
+        )
+
+        alertas: List[AlertaNotaSemServico] = []
+        for nota, condominio in notas:
+            if nota.id in dispensadas:
+                continue
+            tem_servico = (
+                db.query(ManutencaoAssistencia)
+                .filter(ManutencaoAssistencia.nota_fiscal_id == nota.id)
+                .first()
+                is not None
+            )
+            if tem_servico:
+                continue
+            tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
+            alertas.append(AlertaNotaSemServico(
+                nota_id=nota.id,
+                numero_nota=nota.numero_nota,
+                condominio_id=condominio.id,
+                condominio_nome=condominio.nome,
+                tipo=tipo,
+                valor=round(float(nota.valor), 2),
+                data_vencimento=nota.data_vencimento,
+                cnpj_emitente=nota.cnpj_emitente,
+            ))
+        alertas.sort(key=lambda a: a.data_vencimento)
+        return alertas
+
+    @staticmethod
+    def dispensar_nota_sem_servico(db: Session, nota_id: int) -> None:
+        """Marca uma nota como 'ok, nao precisa de servico' -- some da lista
+        de alertas em detectar_notas_sem_servico dali em diante."""
+        from app.models.nota_sem_servico_dispensada_model import NotaSemServicoDispensada
+        ja_existe = db.query(NotaSemServicoDispensada).filter(NotaSemServicoDispensada.nota_id == nota_id).first()
+        if ja_existe:
+            return
+        db.add(NotaSemServicoDispensada(nota_id=nota_id))
         db.commit()

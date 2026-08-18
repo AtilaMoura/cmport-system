@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { calcularImposto } from '@/lib/impostos';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { fmtData, type AlertaNotaSemBoleto, type AlertaNotaSemServico } from '@/lib/fluxoFinanceiro';
 
 interface Servico {
   id: number;
@@ -109,7 +110,7 @@ const BOLETO_STATUS: Record<string, { label: string; cls: string }> = {
   BAIXADO:   { label: 'Baixado',   cls: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400' },
 };
 
-type TabType = 'geral' | 'manutencoes' | 'assistencias' | 'kpis';
+type TabType = 'geral' | 'manutencoes' | 'assistencias' | 'kpis' | 'pendencias';
 
 function pd(s: string): Date {
   const [y, m, d] = s.split('-').map(Number);
@@ -144,6 +145,10 @@ export default function ServicosPage() {
   const [recibos, setRecibos]             = useState<Record<number, ReciboLite>>({});
   const [loading, setLoading]             = useState(true);
   const [activeTab, setActiveTab]         = useState<TabType>('geral');
+  const [semBoleto, setSemBoleto]         = useState<AlertaNotaSemBoleto[]>([]);
+  const [semServico, setSemServico]       = useState<AlertaNotaSemServico[]>([]);
+  const [loadingPendGeracao, setLoadingPendGeracao] = useState(true);
+  const [dispensandoGeracao, setDispensandoGeracao] = useState<string | null>(null);
 
   // Vincular nota modal
   const [vincularServicoId, setVincularServicoId] = useState<number | null>(null);
@@ -197,6 +202,48 @@ export default function ServicosPage() {
   } | null>(null);
 
   useEffect(() => { carregarDados(); }, []);
+
+  const carregarPendGeracao = () => {
+    setLoadingPendGeracao(true);
+    Promise.all([
+      api.get('/financeiro/notas-sem-boleto'),
+      api.get('/financeiro/notas-sem-servico'),
+    ]).then(([b, s]) => {
+      setSemBoleto(b.data);
+      setSemServico(s.data);
+    }).catch(() => {
+      setSemBoleto([]);
+      setSemServico([]);
+    }).finally(() => setLoadingPendGeracao(false));
+  };
+
+  useEffect(() => { carregarPendGeracao(); }, []);
+
+  const dispensarSemBoleto = async (a: AlertaNotaSemBoleto, index: number) => {
+    if (!confirm(`Confirma que a nota "${a.numero_nota}" (${a.condominio_nome}) NÃO precisa de boleto?`)) return;
+    setDispensandoGeracao(`boleto-${a.nota_id}`);
+    try {
+      await api.post('/financeiro/notas-sem-boleto/dispensar', { nota_id: a.nota_id });
+      setSemBoleto(prev => prev.filter((_, i) => i !== index));
+    } catch {
+      alert('Erro ao dispensar. Tenta de novo.');
+    } finally {
+      setDispensandoGeracao(null);
+    }
+  };
+
+  const dispensarSemServico = async (a: AlertaNotaSemServico, index: number) => {
+    if (!confirm(`Confirma que a nota "${a.numero_nota}" (${a.condominio_nome}) NÃO precisa de serviço?`)) return;
+    setDispensandoGeracao(`servico-${a.nota_id}`);
+    try {
+      await api.post('/financeiro/notas-sem-servico/dispensar', { nota_id: a.nota_id });
+      setSemServico(prev => prev.filter((_, i) => i !== index));
+    } catch {
+      alert('Erro ao dispensar. Tenta de novo.');
+    } finally {
+      setDispensandoGeracao(null);
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -1030,6 +1077,7 @@ export default function ServicosPage() {
               { key: 'manutencoes', label: `🛠️ Manutencoes (${stats.manutencoes})` },
               { key: 'assistencias',label: `🔧 Assistencias (${stats.assistencias})` },
               { key: 'kpis',        label: '📈 KPIs' },
+              { key: 'pendencias',  label: `⚠️ Pendências de Geração (${semBoleto.length + semServico.length})` },
             ].map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key as TabType)}
                 className={`px-5 py-4 text-sm font-bold transition-all whitespace-nowrap ${activeTab === tab.key
@@ -1240,6 +1288,86 @@ export default function ServicosPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* TAB: Pendencias de Geracao */}
+        {activeTab === 'pendencias' && (
+          loadingPendGeracao ? (
+            <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-slate-200 dark:border-slate-800">
+                  <h2 className="text-sm font-black text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                    Sem boleto gerado ({semBoleto.length})
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Nota fiscal com XML importado mas nenhuma cobranca ativa. Valor mostrado é o bruto da nota — o boleto normalmente sai no valor líquido.</p>
+                </div>
+                {semBoleto.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 text-sm">Nenhuma pendência.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {[...semBoleto].sort((a, b) => Number(b.possivel_falta_vinculo) - Number(a.possivel_falta_vinculo)).map((a) => {
+                      const i = semBoleto.indexOf(a);
+                      return (
+                        <div key={a.nota_id} className="flex items-center gap-4 p-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-black text-sm text-slate-900 dark:text-white truncate">{a.condominio_nome}</span>
+                              {a.possivel_falta_vinculo && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400" title="Nota Produto sem nota_vinculada_id — provavelmente falta vincular com a nota de Assistência correspondente, em vez de gerar boleto próprio">
+                                  Possível falta de vínculo
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500 font-mono">NF {a.numero_nota} · {a.tipo} · venc. {fmtData(a.data_vencimento)}</div>
+                          </div>
+                          <div className="font-black text-sm text-slate-900 dark:text-white">{brl(a.valor)}</div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Link href={`/notas/${a.nota_id}`} target="_blank" className="text-xs underline decoration-dotted underline-offset-2 hover:text-blue-700 font-semibold">Ver nota</Link>
+                            <button type="button" onClick={() => dispensarSemBoleto(a, i)} disabled={dispensandoGeracao === `boleto-${a.nota_id}`}
+                              className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-300 disabled:opacity-50">
+                              {dispensandoGeracao === `boleto-${a.nota_id}` ? 'Salvando...' : 'Dispensar'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-slate-200 dark:border-slate-800">
+                  <h2 className="text-sm font-black text-violet-700 dark:text-violet-400 uppercase tracking-wide">
+                    Sem serviço vinculado ({semServico.length})
+                  </h2>
+                </div>
+                {semServico.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 text-sm">Nenhuma pendência.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {semServico.map((a, i) => (
+                      <div key={a.nota_id} className="flex items-center gap-4 p-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-black text-sm text-slate-900 dark:text-white truncate">{a.condominio_nome}</div>
+                          <div className="text-xs text-slate-500 font-mono">NF {a.numero_nota} · {a.tipo} · venc. {fmtData(a.data_vencimento)}</div>
+                        </div>
+                        <div className="font-black text-sm text-slate-900 dark:text-white">{brl(a.valor)}</div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Link href={`/notas/${a.nota_id}`} target="_blank" className="text-xs underline decoration-dotted underline-offset-2 hover:text-blue-700 font-semibold">Ver nota</Link>
+                          <button type="button" onClick={() => dispensarSemServico(a, i)} disabled={dispensandoGeracao === `servico-${a.nota_id}`}
+                            className="px-2 py-1 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50">
+                            {dispensandoGeracao === `servico-${a.nota_id}` ? 'Salvando...' : 'Dispensar'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
         )}
 
         {/* TAB: Manutencoes / Assistencias */}

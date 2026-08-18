@@ -7,6 +7,7 @@ from app.services.fluxo_financeiro_service import FluxoFinanceiroService
 from app.schemas.fluxo_financeiro_schema import (
     FluxoFinanceiroResponse, AlertaDuplicata, DispensarDuplicataRequest, PendenciasResponse,
     AlertaNotaSemBoleto, DispensarNotaSemBoletoRequest,
+    AlertaNotaSemServico, DispensarNotaSemServicoRequest,
 )
 
 router = APIRouter()
@@ -71,3 +72,19 @@ def dispensar_nota_sem_boleto(
     db: Session = Depends(get_db),
 ):
     FluxoFinanceiroService.dispensar_nota_sem_boleto(db, request.nota_id)
+
+
+@router.get("/notas-sem-servico", response_model=List[AlertaNotaSemServico])
+def notas_sem_servico(
+    dias: Optional[int] = Query(None, description="Limita aos ultimos N dias (por data_vencimento). Omitir varre todo o historico."),
+    db: Session = Depends(get_db),
+):
+    return FluxoFinanceiroService.detectar_notas_sem_servico(db, dias_atras=dias)
+
+
+@router.post("/notas-sem-servico/dispensar", status_code=204)
+def dispensar_nota_sem_servico(
+    request: DispensarNotaSemServicoRequest,
+    db: Session = Depends(get_db),
+):
+    FluxoFinanceiroService.dispensar_nota_sem_servico(db, request.nota_id)
