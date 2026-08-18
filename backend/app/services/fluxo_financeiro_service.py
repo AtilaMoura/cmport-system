@@ -192,6 +192,8 @@ class FluxoFinanceiroService:
         for boleto, nota, condominio in boletos:
             if boleto.situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO):
                 situacao = "PAGO"
+            elif boleto.situacao == SituacaoBoleto.PARCIAL:
+                situacao = "PARCIAL"
             elif boleto.data_vencimento < hoje:
                 situacao = "VENCIDO"
             else:
@@ -210,6 +212,7 @@ class FluxoFinanceiroService:
                 data_vencimento=boleto.data_vencimento,
                 data_pagamento=boleto.data_pagamento,
                 situacao=situacao,
+                valor_recebido=round(float(boleto.valor_total_recebido), 2) if boleto.situacao == SituacaoBoleto.PARCIAL and boleto.valor_total_recebido else None,
             ))
 
         query_recibos = (

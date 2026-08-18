@@ -16,13 +16,14 @@ interface BancoOpcao {
 }
 
 const SITUACAO_CLS: Record<string, string> = {
+  PARCIAL:  'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
   PAGO:     'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400',
   PENDENTE: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400',
   VENCIDO:  'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
 };
 
 const LABEL_SITUACAO: Record<string, string> = {
-  PAGO: 'Pago', PENDENTE: 'Pendente', VENCIDO: 'Vencido',
+  PAGO: 'Pago', PENDENTE: 'Pendente', VENCIDO: 'Vencido', PARCIAL: 'Parcial',
 };
 
 function PendenciasContent() {
@@ -76,7 +77,10 @@ function PendenciasContent() {
     const hoje = new Date().toISOString().split('T')[0];
     setModalPagamento(linha);
     setPagDataPagamento(hoje);
-    setPagValorRecebido(String(linha.valor));
+    const faltaReceber = linha.situacao === 'PARCIAL' && linha.valor_recebido
+      ? linha.valor - linha.valor_recebido
+      : linha.valor;
+    setPagValorRecebido(String(faltaReceber));
     setPagFormaPagamento('PIX');
     setPagBancoId('');
     setPagObservacao('');
@@ -180,6 +184,9 @@ function PendenciasContent() {
                       <span>Venc {fmtData(l.data_vencimento)}</span>
                       {l.situacao === 'PAGO' && l.data_pagamento && (
                         <span>· Pago {fmtData(l.data_pagamento)}</span>
+                      )}
+                      {l.situacao === 'PARCIAL' && l.valor_recebido != null && (
+                        <span>· Recebido {fmtValor(l.valor_recebido)} de {fmtValor(l.valor)} · falta {fmtValor(l.valor - l.valor_recebido)}</span>
                       )}
                     </div>
                   </div>

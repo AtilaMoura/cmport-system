@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.models.boleto_model import Boleto, SituacaoBoleto
+from app.models.boleto_model import Boleto, SituacaoBoleto, BoletoPagamento
 
 
 class BoletoRepository:
@@ -61,6 +61,18 @@ class BoletoRepository:
     def delete(db: Session, db_boleto: Boleto) -> None:
         db.delete(db_boleto)
         db.commit()
+
+    @staticmethod
+    def create_pagamento(db: Session, dados: dict) -> BoletoPagamento:
+        db_pagamento = BoletoPagamento(**dados)
+        db.add(db_pagamento)
+        db.commit()
+        db.refresh(db_pagamento)
+        return db_pagamento
+
+    @staticmethod
+    def listar_pagamentos(db: Session, boleto_id: int) -> List[BoletoPagamento]:
+        return db.query(BoletoPagamento).filter(BoletoPagamento.boleto_id == boleto_id).order_by(BoletoPagamento.data_pagamento).all()
 
     @staticmethod
     def get_stats(db: Session) -> dict:

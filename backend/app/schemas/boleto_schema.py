@@ -96,6 +96,19 @@ class RegistrarPagamentoRequest(BaseModel):
     observacao: Optional[str] = None
 
 
+class BoletoPagamentoResponse(BaseModel):
+    id: int
+    boleto_id: int
+    valor: float
+    data_pagamento: date
+    forma_pagamento: FormaPagamento
+    banco_id: Optional[int] = None
+    observacao: Optional[str] = None
+    criado_em: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class CriarBoletoManualRequest(BaseModel):
     nota_fiscal_id: int
     numero_parcela: int = 1

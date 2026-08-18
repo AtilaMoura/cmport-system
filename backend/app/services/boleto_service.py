@@ -571,25 +571,49 @@ class BoletoService:
 
     @staticmethod
     def registrar_pagamento(db: Session, boleto_id: int, req) -> BoletoResponse:
-        """Registra pagamento manual em um boleto existente."""
+        """Registra um pagamento (total ou parcial) em um boleto existente.
+        Cada chamada cria um novo registro em boleto_pagamentos (com sua propria
+        data) -- nunca sobrescreve pagamento anterior. So marca situacao=PAGO
+        quando a SOMA de todos os pagamentos atinge o valor_nominal; caso
+        contrario fica PARCIAL, guardando o quanto falta receber."""
         db_boleto = BoletoRepository.get_by_id(db, boleto_id)
         if not db_boleto:
             raise Exception("Boleto não encontrado.")
 
-        BoletoRepository.update(db, db_boleto, {
-            "situacao": SituacaoBoleto.PAGO,
+        BoletoRepository.create_pagamento(db, {
+            "boleto_id": boleto_id,
+            "valor": req.valor_recebido,
             "data_pagamento": req.data_pagamento,
-            "valor_total_recebido": req.valor_recebido,
+            "forma_pagamento": req.forma_pagamento,
+            "banco_id": req.banco_id,
+            "observacao": req.observacao,
+        })
+
+        pagamentos = BoletoRepository.listar_pagamentos(db, boleto_id)
+        total_recebido = sum(float(p.valor) for p in pagamentos)
+        ultima_data = max(p.data_pagamento for p in pagamentos)
+        # tolerancia de 1 centavo pra ruido de arredondamento, mesmo padrao usado
+        # em outros calculos de parcela do sistema (ver CLAUDE.md)
+        nova_situacao = SituacaoBoleto.PAGO if total_recebido >= float(db_boleto.valor_nominal) - 0.01 else SituacaoBoleto.PARCIAL
+
+        BoletoRepository.update(db, db_boleto, {
+            "situacao": nova_situacao,
+            "data_pagamento": ultima_data,
+            "valor_total_recebido": total_recebido,
             "forma_pagamento": req.forma_pagamento,
             "banco_pagamento": req.banco_pagamento,
             "banco_id": req.banco_id,
             "observacao": req.observacao,
         })
 
-        if db_boleto.nota_fiscal_id:
+        if nova_situacao == SituacaoBoleto.PAGO and db_boleto.nota_fiscal_id:
             _atualizar_data_pagamento_nota(db, db_boleto.nota_fiscal_id)
 
         return BoletoResponse.model_validate(db_boleto)
+
+    @staticmethod
+    def listar_pagamentos(db: Session, boleto_id: int) -> list:
+        return BoletoRepository.listar_pagamentos(db, boleto_id)
 
     @staticmethod
     def gerar_parcelas_faltantes(

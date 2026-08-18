@@ -14,7 +14,7 @@ from app.schemas.boleto_schema import (
     SincronizarResponse, SincronizarInterResponse, BoletoStats,
     RegistrarPagamentoRequest, CriarBoletoManualRequest, GerarParcelasFaltantesResponse,
     GerarParcelasFaltantesRequest, VincularNotaRequest, NotaSemBoletoResponse,
-    ConfigImpostosResponse, AtualizarBancoRequest,
+    ConfigImpostosResponse, AtualizarBancoRequest, BoletoPagamentoResponse,
 )
 
 router = APIRouter()
@@ -105,6 +105,12 @@ def registrar_pagamento(boleto_id: int, request: RegistrarPagamentoRequest, db: 
         return BoletoService.registrar_pagamento(db, boleto_id, request)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{boleto_id}/pagamentos", response_model=list[BoletoPagamentoResponse])
+def listar_pagamentos_boleto(boleto_id: int, db: Session = Depends(get_db)):
+    """Lista o historico de pagamentos (parciais ou totais) de um boleto."""
+    return BoletoService.listar_pagamentos(db, boleto_id)
 
 
 @router.post("/gerar-parcelas-faltantes/{nota_id}", response_model=GerarParcelasFaltantesResponse)

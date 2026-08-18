@@ -12,6 +12,7 @@ class TipoCobranca(str, enum.Enum):
 
 class SituacaoBoleto(str, enum.Enum):
     EMABERTO = "EMABERTO"
+    PARCIAL = "PARCIAL"
     PAGO = "PAGO"
     CANCELADO = "CANCELADO"
     EXPIRADO = "EXPIRADO"
@@ -72,3 +73,18 @@ class Boleto(Base):
 
     criado_em = Column(DateTime, server_default=func.now())
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class BoletoPagamento(Base):
+    __tablename__ = "boleto_pagamentos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    boleto_id = Column(Integer, ForeignKey("boletos.id", ondelete="CASCADE"), nullable=False, index=True)
+    valor = Column(Numeric(10, 2, asdecimal=False), nullable=False)
+    data_pagamento = Column(Date, nullable=False)
+    forma_pagamento = Column(SQLEnum(FormaPagamento), default=FormaPagamento.PIX, nullable=False)
+    banco_id = Column(Integer, ForeignKey("bancos.id", ondelete="SET NULL"), nullable=True)
+    observacao = Column(Text, nullable=True)
+    criado_em = Column(DateTime, server_default=func.now())
+
+    boleto = relationship("Boleto", backref="pagamentos")

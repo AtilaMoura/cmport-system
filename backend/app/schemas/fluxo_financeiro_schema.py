@@ -65,6 +65,7 @@ class PendenciaLinha(BaseModel):
     data_vencimento: date
     data_pagamento: Optional[date] = None
     situacao: str  # PAGO | PENDENTE | VENCIDO
+    valor_recebido: Optional[float] = None  # preenchido so quando situacao == PARCIAL
 
 
 class PendenciasResponse(BaseModel):

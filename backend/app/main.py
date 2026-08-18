@@ -194,6 +194,7 @@ def _run_migrations():
         "ALTER TABLE fin_movimentacoes ADD COLUMN fornecedor_id INT NULL",
         "ALTER TABLE fin_movimentacoes ADD CONSTRAINT fk_movimentacao_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES condominios(id) ON DELETE SET NULL",
         "ALTER TABLE fin_movimentacoes ADD COLUMN forma_pagamento VARCHAR(20) NULL DEFAULT 'PIX'",
+        "ALTER TABLE boletos MODIFY situacao ENUM('EMABERTO','PARCIAL','PAGO','CANCELADO','EXPIRADO','VENCIDO','BAIXADO') NOT NULL DEFAULT 'EMABERTO'",
     ]
     try:
         for stmt in stmts:
