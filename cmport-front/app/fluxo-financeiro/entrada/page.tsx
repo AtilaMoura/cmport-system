@@ -115,6 +115,7 @@ function EntradaServicosContent() {
     labelCurto: LABEL_CURTO[soDigitos(c.cnpj)] ?? c.razao_social ?? c.cnpj,
     qtdManutencao: c.linhas.filter(l => l.tipo === 'MANUTENCAO').length,
     qtdAssistencia: c.linhas.filter(l => l.tipo === 'ASSISTENCIA').length,
+    qtdProduto: c.linhas.filter(l => l.tipo === 'PRODUTO').length,
     qtdRecibo: c.linhas.filter(l => l.tipo === 'RECIBO').length,
     qtdTotal: c.linhas.length,
   }));
@@ -126,7 +127,7 @@ function EntradaServicosContent() {
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
           <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Entrada de Serviços</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Manutenção + Assistência + Recibos, por CNPJ — direto de notas fiscais/boletos/recibos</p>
+          <p className="text-xs text-slate-500 mt-0.5">Manutenção + Assistência + Produto + Recibos, por CNPJ — direto de notas fiscais/boletos/recibos</p>
         </div>
       </div>
 
@@ -204,7 +205,7 @@ function EntradaServicosContent() {
                     <span className="text-xs text-slate-400 font-mono">{fmtCnpj(c.cnpj)}</span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     <button type="button" onClick={() => setTipoFiltro(t => t === 'MANUTENCAO' ? null : 'MANUTENCAO')}
                       className={`text-left rounded-2xl p-4 border transition-colors ${
                         tipoFiltro === 'MANUTENCAO'
@@ -228,6 +229,18 @@ function EntradaServicosContent() {
                         <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${tipoFiltro === 'ASSISTENCIA' ? 'bg-white/20' : 'bg-violet-100 dark:bg-violet-500/20'}`}>{c.qtdAssistencia}</span>
                       </div>
                       <div className={`text-xl font-black ${tipoFiltro === 'ASSISTENCIA' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>{fmtValor(c.total_assistencia)}</div>
+                    </button>
+                    <button type="button" onClick={() => setTipoFiltro(t => t === 'PRODUTO' ? null : 'PRODUTO')}
+                      className={`text-left rounded-2xl p-4 border transition-colors ${
+                        tipoFiltro === 'PRODUTO'
+                          ? 'bg-blue-900 border-blue-900 dark:bg-blue-500 dark:border-blue-500'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                      }`}>
+                      <div className={`text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-1.5 ${tipoFiltro === 'PRODUTO' ? 'text-blue-100' : 'text-slate-600 dark:text-slate-400'}`}>
+                        Produto
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${tipoFiltro === 'PRODUTO' ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-500/20'}`}>{c.qtdProduto}</span>
+                      </div>
+                      <div className={`text-xl font-black ${tipoFiltro === 'PRODUTO' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>{fmtValor(c.total_produto)}</div>
                     </button>
                     <button type="button" onClick={() => setTipoFiltro(t => t === 'RECIBO' ? null : 'RECIBO')}
                       className={`text-left rounded-2xl p-4 border transition-colors ${

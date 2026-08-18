@@ -37,6 +37,7 @@ export interface FluxoFinanceiroCnpj {
   razao_social: string | null;
   total_manutencao: number;
   total_assistencia: number;
+  total_produto: number;
   total_recibos: number;
   total_geral: number;
   linhas: FluxoFinanceiroLinha[];
