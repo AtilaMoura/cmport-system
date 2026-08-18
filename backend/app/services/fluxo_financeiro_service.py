@@ -163,10 +163,12 @@ class FluxoFinanceiroService:
 
     @staticmethod
     def pendencias_ate_mes(db: Session, ano: int, mes: int, cnpj: Optional[str] = None) -> PendenciasResponse:
-        """Lista boletos e recibos (tipo ENTRADA) com vencimento ate o ultimo dia
-        do mes escolhido — inclui atrasados de meses anteriores. Usada pela tela
-        de conciliacao manual (marcar como pago), reaproveitando os mesmos campos
-        (situacao/status + data_pagamento) que fluxo_mensal le pra contar o mes."""
+        """Lista boletos e recibos (tipo ENTRADA) com vencimento dentro do mes
+        escolhido (nao acumula atrasados de meses anteriores — cada mes mostra
+        so a propria pendencia). Usada pela tela de conciliacao manual (marcar
+        como pago), reaproveitando os mesmos campos (situacao/status + data_pagamento)
+        que fluxo_mensal le pra contar o mes."""
+        primeiro_dia = date_cls(ano, mes, 1)
         ultimo_dia = date_cls(ano, mes, calendar.monthrange(ano, mes)[1])
         hoje = date_cls.today()
         cnpj_limpo = "".join(filter(str.isdigit, cnpj)) if cnpj else None
@@ -181,7 +183,7 @@ class FluxoFinanceiroService:
                 NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
                 # Cancela/Expirado não é pendência nem pagamento — fica fora da conciliação
                 Boleto.situacao.notin_([SituacaoBoleto.CANCELADO, SituacaoBoleto.EXPIRADO]),
-                Boleto.data_vencimento <= ultimo_dia,
+                Boleto.data_vencimento.between(primeiro_dia, ultimo_dia),
             )
         )
         if cnpj_limpo:
@@ -217,7 +219,7 @@ class FluxoFinanceiroService:
                 Recibo.tipo == "ENTRADA",
                 Recibo.deletado_em.is_(None),
                 Recibo.status != "CANCELADO",
-                func.coalesce(Recibo.data_vencimento, Recibo.data_emissao) <= ultimo_dia,
+                func.coalesce(Recibo.data_vencimento, Recibo.data_emissao).between(primeiro_dia, ultimo_dia),
             )
         )
         if cnpj_limpo:

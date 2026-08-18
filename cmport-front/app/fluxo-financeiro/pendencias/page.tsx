@@ -114,7 +114,7 @@ function PendenciasContent() {
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
           <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Pendências</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Boletos e recibos pendentes, vencidos ou pagos até o mês escolhido</p>
+          <p className="text-xs text-slate-500 mt-0.5">Boletos e recibos com vencimento no mês escolhido</p>
         </div>
       </div>
 
@@ -155,7 +155,7 @@ function PendenciasContent() {
             <div className="text-center py-12">
               <div className="text-4xl mb-3">🔍</div>
               <p className="font-semibold text-slate-700 dark:text-white">
-                {linhas.length === 0 ? 'Nenhuma pendência até esse mês.' : 'Nenhum resultado para essa busca.'}
+                {linhas.length === 0 ? 'Nenhuma pendência nesse mês.' : 'Nenhum resultado para essa busca.'}
               </p>
             </div>
           ) : (

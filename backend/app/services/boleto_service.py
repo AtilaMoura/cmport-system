@@ -942,7 +942,9 @@ class BoletoService:
         erros = []
         sem_vinculo_lista = []
 
-        # Monta lista de clientes: DB configs + cliente padrão (env vars) como fallback
+        # Monta lista de clientes: DB configs + cliente padrão (env vars) como fallback.
+        # So entram contas com credencial real preenchida -- empresa cadastrada mas sem
+        # API do Inter ainda (ex: TEC) fica de fora, em vez de tentar e falhar todo sync.
         from app.repositories.configuracao_repository import ConfiguracaoInterRepository
         configs_db = ConfiguracaoInterRepository.get_ativos(db)
         clientes: list[InterClient] = [
@@ -953,6 +955,7 @@ class BoletoService:
                 cert_path=c.cert_path,
             )
             for c in configs_db
+            if c.client_id and c.client_secret
         ]
         # Inclui cliente padrão se não houver configs no banco ou se não coincidir
         if not clientes:

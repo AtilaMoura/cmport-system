@@ -548,17 +548,18 @@ def reconfigurar_sync_auto(db=None):
 async def lifespan(app):
     global _scheduler
     _scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
-    # Boletos: a cada hora das 8h às 19h
+    # Boletos: a cada hora das 6h às 16h (fora do horário comercial nao ha
+    # movimentacao bancaria nova a conferir, sem necessidade de bater na API a noite)
     _scheduler.add_job(
         _sincronizar_boletos_auto,
         trigger="cron",
-        hour="8-19",
+        hour="6-16",
         minute=0,
     )
     _scheduler.start()
     # OS e Orçamentos: carrega config do banco e agenda
     reconfigurar_sync_auto()
-    print("[AutoSync] Scheduler iniciado — boletos a cada hora das 8h às 19h (Brasília)")
+    print("[AutoSync] Scheduler iniciado — boletos a cada hora das 6h às 16h (Brasília)")
     
     # ── Storage Bucket Initialization ─────────────────────────────────────────
     from app.core.dependencies import get_storage_client
