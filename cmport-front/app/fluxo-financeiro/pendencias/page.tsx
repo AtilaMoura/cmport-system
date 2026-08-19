@@ -26,11 +26,26 @@ const LABEL_SITUACAO: Record<string, string> = {
   PAGO: 'Pago', PENDENTE: 'Pendente', VENCIDO: 'Vencido', PARCIAL: 'Parcial',
 };
 
+const SITUACOES = ['VENCIDO', 'PARCIAL', 'PENDENTE', 'PAGO'] as const;
+const SITUACAO_CHIP_CLS: Record<string, string> = {
+  VENCIDO:  'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
+  PARCIAL:  'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
+  PENDENTE: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400',
+  PAGO:     'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400',
+};
+
+const TIPOS = ['MANUTENCAO', 'ASSISTENCIA', 'PRODUTO', 'RECIBO'] as const;
+const LABEL_TIPO: Record<string, string> = {
+  MANUTENCAO: 'Manutenção', ASSISTENCIA: 'Assistência', PRODUTO: 'Produto', RECIBO: 'Recibo',
+};
+
 function PendenciasContent() {
   const { ano, mes, cnpjFiltro, setAno, setMes, setCnpjFiltro } = useFiltrosFluxo();
   const [data, setData] = useState<PendenciasResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
+  const [situacoesAtivas, setSituacoesAtivas] = useState<Set<string>>(new Set());
+  const [tiposAtivos, setTiposAtivos] = useState<Set<string>>(new Set());
   const [marcandoPago, setMarcandoPago] = useState<number | null>(null);
   const [bancos, setBancos] = useState<BancoOpcao[]>([]);
   const [modalPagamento, setModalPagamento] = useState<PendenciaLinha | null>(null);
@@ -107,10 +122,27 @@ function PendenciasContent() {
     }
   };
 
+  const toggleSituacao = (s: string) => {
+    setSituacoesAtivas(prev => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
+  };
+  const toggleTipo = (t: string) => {
+    setTiposAtivos(prev => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t); else next.add(t);
+      return next;
+    });
+  };
+
   const linhas = data?.linhas ?? [];
   const q = busca.trim().toLowerCase();
   const filtradas = linhas.filter(l =>
-    !q || l.condominio_nome.toLowerCase().includes(q) || l.numero_nota.toLowerCase().includes(q)
+    (!q || l.condominio_nome.toLowerCase().includes(q) || l.numero_nota.toLowerCase().includes(q)) &&
+    (situacoesAtivas.size === 0 || situacoesAtivas.has(l.situacao)) &&
+    (tiposAtivos.size === 0 || tiposAtivos.has(l.tipo))
   );
 
   return (
@@ -144,11 +176,33 @@ function PendenciasContent() {
           </div>
         )}
 
-        {/* Busca client-side */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+        {/* Busca + filtros client-side */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
           <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
             placeholder="Buscar por condomínio ou nº da nota..."
             className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
+
+          <div className="flex flex-wrap gap-2">
+            {SITUACOES.map(s => (
+              <button key={s} onClick={() => toggleSituacao(s)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-opacity ${SITUACAO_CHIP_CLS[s]} ${situacoesAtivas.size > 0 && !situacoesAtivas.has(s) ? 'opacity-40' : ''}`}>
+                {LABEL_SITUACAO[s]}
+              </button>
+            ))}
+            <span className="w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+            {TIPOS.map(t => (
+              <button key={t} onClick={() => toggleTipo(t)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-opacity ${TIPO_CLS[t] ?? 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300'} ${tiposAtivos.size > 0 && !tiposAtivos.has(t) ? 'opacity-40' : ''}`}>
+                {LABEL_TIPO[t]}
+              </button>
+            ))}
+            {(situacoesAtivas.size > 0 || tiposAtivos.size > 0) && (
+              <button onClick={() => { setSituacoesAtivas(new Set()); setTiposAtivos(new Set()); }}
+                className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700">
+                ✕ Limpar filtros
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Lista */}
@@ -191,7 +245,12 @@ function PendenciasContent() {
                     </div>
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                    <div className="font-black text-sm text-slate-900 dark:text-white">{fmtValor(l.valor)}</div>
+                    <div className="font-black text-sm text-slate-900 dark:text-white">
+                      {fmtValor(l.situacao === 'PARCIAL' ? l.valor_pendente : l.valor)}
+                    </div>
+                    {l.situacao === 'PARCIAL' && (
+                      <div className="text-[10px] text-slate-400 -mt-1.5">falta receber</div>
+                    )}
                     {l.situacao !== 'PAGO' && (
                       l.origem === 'RECIBO' ? (
                         <button

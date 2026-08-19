@@ -200,6 +200,14 @@ class FluxoFinanceiroService:
             else:
                 situacao = "PENDENTE"
             tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
+            valor_nominal = round(float(boleto.valor_nominal or 0), 2)
+            valor_recebido = round(float(boleto.valor_total_recebido), 2) if boleto.situacao == SituacaoBoleto.PARCIAL and boleto.valor_total_recebido else None
+            if situacao == "PAGO":
+                valor_pendente = 0.0
+            elif situacao == "PARCIAL" and valor_recebido:
+                valor_pendente = round(valor_nominal - valor_recebido, 2)
+            else:
+                valor_pendente = valor_nominal
             linhas.append(PendenciaLinha(
                 origem_id=boleto.id,
                 origem="BOLETO",
@@ -209,11 +217,12 @@ class FluxoFinanceiroService:
                 numero_parcela=boleto.numero_parcela,
                 total_parcelas=boleto.total_parcelas,
                 tipo=tipo,
-                valor=round(float(boleto.valor_nominal or 0), 2),
+                valor=valor_nominal,
                 data_vencimento=boleto.data_vencimento,
                 data_pagamento=boleto.data_pagamento,
                 situacao=situacao,
-                valor_recebido=round(float(boleto.valor_total_recebido), 2) if boleto.situacao == SituacaoBoleto.PARCIAL and boleto.valor_total_recebido else None,
+                valor_recebido=valor_recebido,
+                valor_pendente=valor_pendente,
             ))
 
         query_recibos = (
@@ -250,11 +259,12 @@ class FluxoFinanceiroService:
                 data_vencimento=vencimento,
                 data_pagamento=recibo.data_pagamento,
                 situacao=situacao,
+                valor_pendente=0.0 if situacao == "PAGO" else round(float(recibo.valor or 0), 2),
             ))
 
         total = round(sum(l.valor for l in linhas), 2)
-        total_pago = round(sum(l.valor for l in linhas if l.situacao == "PAGO"), 2)
-        total_pendente = round(total - total_pago, 2)
+        total_pendente = round(sum(l.valor_pendente for l in linhas), 2)
+        total_pago = round(total - total_pendente, 2)
 
         # Vencido e Parcial primeiro (quem precisa de acao/acompanhamento),
         # depois Pendente, Pago por ultimo -- dentro de cada grupo, por data

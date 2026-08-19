@@ -110,6 +110,7 @@ export interface PendenciaLinha {
   data_pagamento: string | null;
   situacao: string;
   valor_recebido?: number | null;
+  valor_pendente: number;
 }
 export interface PendenciasResponse {
   ano: number;
