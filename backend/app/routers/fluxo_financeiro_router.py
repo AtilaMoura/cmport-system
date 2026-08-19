@@ -62,9 +62,11 @@ def dispensar_alerta_duplicata(
 @router.get("/notas-sem-boleto", response_model=List[AlertaNotaSemBoleto])
 def notas_sem_boleto(
     dias: Optional[int] = Query(None, description="Limita aos ultimos N dias (por criado_em). Omitir varre todo o historico."),
+    ano: Optional[int] = Query(None),
+    mes: Optional[int] = Query(None),
     db: Session = Depends(get_db),
 ):
-    return FluxoFinanceiroService.detectar_notas_sem_boleto(db, dias_atras=dias)
+    return FluxoFinanceiroService.detectar_notas_sem_boleto(db, dias_atras=dias, ano=ano, mes=mes)
 
 
 @router.post("/notas-sem-boleto/dispensar", status_code=204)
@@ -78,9 +80,11 @@ def dispensar_nota_sem_boleto(
 @router.get("/notas-sem-servico", response_model=List[AlertaNotaSemServico])
 def notas_sem_servico(
     dias: Optional[int] = Query(None, description="Limita aos ultimos N dias (por data_vencimento). Omitir varre todo o historico."),
+    ano: Optional[int] = Query(None),
+    mes: Optional[int] = Query(None),
     db: Session = Depends(get_db),
 ):
-    return FluxoFinanceiroService.detectar_notas_sem_servico(db, dias_atras=dias)
+    return FluxoFinanceiroService.detectar_notas_sem_servico(db, dias_atras=dias, ano=ano, mes=mes)
 
 
 @router.post("/notas-sem-servico/dispensar", status_code=204)
@@ -94,9 +98,11 @@ def dispensar_nota_sem_servico(
 @router.get("/parcelas-faltando", response_model=List[AlertaParcelaFaltando])
 def parcelas_faltando(
     dias: Optional[int] = Query(None, description="Limita aos ultimos N dias (por data de vencimento esperada). Omitir varre todo o historico."),
+    ano: Optional[int] = Query(None),
+    mes: Optional[int] = Query(None),
     db: Session = Depends(get_db),
 ):
-    return FluxoFinanceiroService.detectar_parcelas_faltando(db, dias_atras=dias)
+    return FluxoFinanceiroService.detectar_parcelas_faltando(db, dias_atras=dias, ano=ano, mes=mes)
 
 
 @router.post("/parcelas-faltando/dispensar", status_code=204)

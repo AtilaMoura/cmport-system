@@ -330,7 +330,7 @@ class FluxoFinanceiroService:
         db.commit()
 
     @staticmethod
-    def detectar_notas_sem_boleto(db: Session, dias_atras: Optional[int] = None) -> List[AlertaNotaSemBoleto]:
+    def detectar_notas_sem_boleto(db: Session, dias_atras: Optional[int] = None, ano: Optional[int] = None, mes: Optional[int] = None) -> List[AlertaNotaSemBoleto]:
         """Notas fiscais (Manutencao/Assistencia/Produto) com XML real importado
         mas SEM NENHUM boleto ativo -- ficam invisiveis em qualquer tela de
         pendencia/cobranca. So considera notas com pelo menos 3 dias desde a
@@ -360,7 +360,11 @@ class FluxoFinanceiroService:
             NotaFiscal.xml_original != "",
             NotaFiscal.criado_em < limite_criacao,
         ]
-        if dias_atras is not None:
+        if ano is not None and mes is not None:
+            primeiro_dia = date_cls(ano, mes, 1)
+            ultimo_dia = date_cls(ano, mes, calendar.monthrange(ano, mes)[1])
+            filtros.append(NotaFiscal.data_vencimento.between(primeiro_dia, ultimo_dia))
+        elif dias_atras is not None:
             filtros.append(NotaFiscal.data_vencimento >= date_cls.today() - timedelta(days=dias_atras))
 
         notas = (
@@ -416,7 +420,7 @@ class FluxoFinanceiroService:
         db.commit()
 
     @staticmethod
-    def detectar_notas_sem_servico(db: Session, dias_atras: Optional[int] = None) -> List[AlertaNotaSemServico]:
+    def detectar_notas_sem_servico(db: Session, dias_atras: Optional[int] = None, ano: Optional[int] = None, mes: Optional[int] = None) -> List[AlertaNotaSemServico]:
         """Notas fiscais MANUTENCAO/ASSISTENCIA com XML real importado mas
         SEM NENHUM servico (manutencoes_assistencias) vinculado -- o campo
         descricao_servico existe na nota mas ninguem registrou o servico em
@@ -437,7 +441,11 @@ class FluxoFinanceiroService:
             NotaFiscal.xml_original != "",
             NotaFiscal.criado_em < limite_criacao,
         ]
-        if dias_atras is not None:
+        if ano is not None and mes is not None:
+            primeiro_dia = date_cls(ano, mes, 1)
+            ultimo_dia = date_cls(ano, mes, calendar.monthrange(ano, mes)[1])
+            filtros.append(NotaFiscal.data_vencimento.between(primeiro_dia, ultimo_dia))
+        elif dias_atras is not None:
             filtros.append(NotaFiscal.data_vencimento >= date_cls.today() - timedelta(days=dias_atras))
 
         notas = (
@@ -485,7 +493,7 @@ class FluxoFinanceiroService:
         db.commit()
 
     @staticmethod
-    def detectar_parcelas_faltando(db: Session, dias_atras: Optional[int] = None) -> List[AlertaParcelaFaltando]:
+    def detectar_parcelas_faltando(db: Session, dias_atras: Optional[int] = None, ano: Optional[int] = None, mes: Optional[int] = None) -> List[AlertaParcelaFaltando]:
         """Notas parceladas (total_parcelas > 1, via nota.parcelas ou corpo.numero_parcelas
         quando a nota tem corpo_nota_id -- mesma regra de BoletoService.gerar_parcelas_faltantes)
         onde JA existe pelo menos 1 boleto mas nem todas as parcelas foram geradas. Cada
@@ -564,10 +572,14 @@ class FluxoFinanceiroService:
                     data_esperada = nota.data_vencimento + timedelta(days=30 * (p - 1))
                     origem_data = "estimado"
 
-                if data_esperada > hoje:
-                    continue
-                if dias_atras is not None and data_esperada < hoje - timedelta(days=dias_atras):
-                    continue
+                if ano is not None and mes is not None:
+                    if data_esperada.year != ano or data_esperada.month != mes:
+                        continue
+                else:
+                    if data_esperada > hoje:
+                        continue
+                    if dias_atras is not None and data_esperada < hoje - timedelta(days=dias_atras):
+                        continue
 
                 alertas.append(AlertaParcelaFaltando(
                     nota_id=nota.id,
