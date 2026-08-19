@@ -455,17 +455,23 @@ class FluxoFinanceiroService:
             .all()
         )
 
+        def tem_servico_proprio(nota_id: int) -> bool:
+            return (
+                db.query(ManutencaoAssistencia)
+                .filter(ManutencaoAssistencia.nota_fiscal_id == nota_id)
+                .first()
+                is not None
+            )
+
         alertas: List[AlertaNotaSemServico] = []
         for nota, condominio in notas:
             if nota.id in dispensadas:
                 continue
-            tem_servico = (
-                db.query(ManutencaoAssistencia)
-                .filter(ManutencaoAssistencia.nota_fiscal_id == nota.id)
-                .first()
-                is not None
-            )
-            if tem_servico:
+            if tem_servico_proprio(nota.id):
+                continue
+            # nota vinculada (ex: Assistencia+Produto combinados) pode carregar o unico
+            # servico do par -- mesma checagem ja feita em detectar_notas_sem_boleto
+            if nota.nota_vinculada_id and tem_servico_proprio(nota.nota_vinculada_id):
                 continue
             tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
             alertas.append(AlertaNotaSemServico(
