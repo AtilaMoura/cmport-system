@@ -57,7 +57,12 @@ class FluxoFinanceiroService:
 
             linhas: List[FluxoFinanceiroLinha] = []
 
-            # Boletos PAGO/BAIXADO do mes, notas Manutencao/Assistencia/Produto deste CNPJ
+            # Boletos PAGO/BAIXADO/PARCIAL do mes, notas Manutencao/Assistencia/Produto deste CNPJ.
+            # PARCIAL entra tambem -- o valor ja recebido conta como entrada no mes em que
+            # chegou (nao espera completar o boleto), usando valor_total_recebido em vez do
+            # valor_nominal cheio. Risco aceito: se o MESMO boleto receber parcelas parciais em
+            # meses diferentes, o valor do mes anterior "muda" pro mes mais recente (data_pagamento
+            # e sobrescrita a cada novo pagamento) -- nao duplica, mas pode deslocar; caso raro.
             boletos = (
                 db.query(Boleto, NotaFiscal, Condominio, Banco)
                 .join(NotaFiscal, Boleto.nota_fiscal_id == NotaFiscal.id)
@@ -66,7 +71,7 @@ class FluxoFinanceiroService:
                 .filter(
                     NotaFiscal.cnpj_emitente == cfg_cnpj_limpo,
                     NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
-                    Boleto.situacao.in_([SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO]),
+                    Boleto.situacao.in_([SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO, SituacaoBoleto.PARCIAL]),
                     func.year(Boleto.data_pagamento) == ano,
                     func.month(Boleto.data_pagamento) == mes,
                 )
@@ -80,7 +85,10 @@ class FluxoFinanceiroService:
                 # arredonda cada linha ANTES de somar — valor_nominal e FLOAT e carrega
                 # ruido binario por linha (ex: 23625.009765625 em vez de 23625.01);
                 # arredondar so o total final nao corrige isso, o viés já foi acumulado.
-                valor = round(float(boleto.valor_nominal or 0), 2)
+                if boleto.situacao == SituacaoBoleto.PARCIAL:
+                    valor = round(float(boleto.valor_total_recebido or 0), 2)
+                else:
+                    valor = round(float(boleto.valor_nominal or 0), 2)
                 tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
                 if tipo == "MANUTENCAO":
                     total_manutencao += valor
