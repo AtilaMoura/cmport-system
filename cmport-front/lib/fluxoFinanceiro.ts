@@ -82,6 +82,20 @@ export interface AlertaNotaSemServico {
   data_vencimento: string;
   cnpj_emitente: string | null;
 }
+
+export interface AlertaParcelaFaltando {
+  nota_id: number;
+  numero_nota: string;
+  condominio_id: number | null;
+  condominio_nome: string;
+  tipo: string;
+  numero_parcela: number;
+  total_parcelas: number;
+  valor_parcela: number;
+  data_vencimento: string;
+  origem_data: 'corpo' | 'nota' | 'estimado';
+  cnpj_emitente: string | null;
+}
 export interface PendenciaLinha {
   origem_id: number;
   origem: string;

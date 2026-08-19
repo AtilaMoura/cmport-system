@@ -8,6 +8,7 @@ from app.schemas.fluxo_financeiro_schema import (
     FluxoFinanceiroResponse, AlertaDuplicata, DispensarDuplicataRequest, PendenciasResponse,
     AlertaNotaSemBoleto, DispensarNotaSemBoletoRequest,
     AlertaNotaSemServico, DispensarNotaSemServicoRequest,
+    AlertaParcelaFaltando, DispensarParcelaFaltandoRequest,
 )
 
 router = APIRouter()
@@ -88,3 +89,19 @@ def dispensar_nota_sem_servico(
     db: Session = Depends(get_db),
 ):
     FluxoFinanceiroService.dispensar_nota_sem_servico(db, request.nota_id)
+
+
+@router.get("/parcelas-faltando", response_model=List[AlertaParcelaFaltando])
+def parcelas_faltando(
+    dias: Optional[int] = Query(None, description="Limita aos ultimos N dias (por data de vencimento esperada). Omitir varre todo o historico."),
+    db: Session = Depends(get_db),
+):
+    return FluxoFinanceiroService.detectar_parcelas_faltando(db, dias_atras=dias)
+
+
+@router.post("/parcelas-faltando/dispensar", status_code=204)
+def dispensar_parcela_faltando(
+    request: DispensarParcelaFaltandoRequest,
+    db: Session = Depends(get_db),
+):
+    FluxoFinanceiroService.dispensar_parcela_faltando(db, request.nota_id, request.numero_parcela)

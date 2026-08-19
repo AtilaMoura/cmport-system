@@ -16,6 +16,7 @@ from app.repositories.configuracao_repository import ConfiguracaoInterRepository
 from app.schemas.fluxo_financeiro_schema import (
     FluxoFinanceiroLinha, FluxoFinanceiroCnpj, FluxoFinanceiroResponse, AlertaDuplicata,
     PendenciaLinha, PendenciasResponse, AlertaNotaSemBoleto, AlertaNotaSemServico,
+    AlertaParcelaFaltando,
 )
 
 
@@ -481,4 +482,121 @@ class FluxoFinanceiroService:
         if ja_existe:
             return
         db.add(NotaSemServicoDispensada(nota_id=nota_id))
+        db.commit()
+
+    @staticmethod
+    def detectar_parcelas_faltando(db: Session, dias_atras: Optional[int] = None) -> List[AlertaParcelaFaltando]:
+        """Notas parceladas (total_parcelas > 1, via nota.parcelas ou corpo.numero_parcelas
+        quando a nota tem corpo_nota_id -- mesma regra de BoletoService.gerar_parcelas_faltantes)
+        onde JA existe pelo menos 1 boleto mas nem todas as parcelas foram geradas. Cada
+        parcela faltante vira um alerta individual, pra nao esconder uma faltante atras de
+        outra ja gerada. So mostra parcela cuja data esperada ja chegou (senao daria alerta
+        de parcela futura legitima ainda nao vencida)."""
+        from app.models.parcela_faltando_dispensada_model import ParcelaFaltandoDispensada
+        from app.models.corpo_nota_model import CorpoNota
+        from datetime import datetime, timedelta
+
+        limite_criacao = datetime.now() - timedelta(days=3)
+        dispensadas = {(d.nota_id, d.numero_parcela) for d in db.query(ParcelaFaltandoDispensada).all()}
+
+        filtros = [
+            NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
+            NotaFiscal.status != StatusNota.CANCELADA,
+            NotaFiscal.xml_original != "",
+            NotaFiscal.criado_em < limite_criacao,
+        ]
+
+        notas = (
+            db.query(NotaFiscal, Condominio)
+            .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
+            .filter(*filtros)
+            .all()
+        )
+
+        hoje = date_cls.today()
+        SITUACOES_INATIVAS = {SituacaoBoleto.CANCELADO, SituacaoBoleto.EXPIRADO}
+        alertas: List[AlertaParcelaFaltando] = []
+
+        for nota, condominio in notas:
+            total_parcelas = nota.parcelas if nota.parcelas and nota.parcelas > 0 else 1
+            corpo = None
+            if nota.corpo_nota_id:
+                corpo = db.query(CorpoNota).filter(CorpoNota.id == nota.corpo_nota_id).first()
+                if corpo and corpo.numero_parcelas and corpo.numero_parcelas > 1:
+                    total_parcelas = corpo.numero_parcelas
+            if total_parcelas <= 1:
+                continue
+
+            boletos = db.query(Boleto).filter(Boleto.nota_fiscal_id == nota.id).all()
+            existentes = {b.numero_parcela for b in boletos if b.situacao not in SITUACOES_INATIVAS}
+            faltantes = [p for p in range(1, total_parcelas + 1) if p not in existentes]
+            if not faltantes:
+                continue
+
+            valor_total = float(nota.valor)
+            valor_parcela_padrao = round(valor_total / total_parcelas, 2)
+            tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
+
+            for p in faltantes:
+                if (nota.id, p) in dispensadas:
+                    continue
+
+                data_esperada = None
+                origem_data = "estimado"
+                valor_esperado = valor_parcela_padrao if p < total_parcelas else round(valor_total - valor_parcela_padrao * (total_parcelas - 1), 2)
+
+                if corpo and corpo.parcelas_json and len(corpo.parcelas_json) >= p:
+                    item = corpo.parcelas_json[p - 1]
+                    if item.get("data"):
+                        data_esperada = item["data"] if isinstance(item["data"], date_cls) else date_cls.fromisoformat(str(item["data"])[:10])
+                        origem_data = "corpo"
+                    if item.get("valor"):
+                        valor_esperado = float(item["valor"])
+                elif nota.parcelas_json:
+                    item = next((x for x in nota.parcelas_json if x.get("parcela") == p), None)
+                    if item and item.get("data"):
+                        data_esperada = item["data"] if isinstance(item["data"], date_cls) else date_cls.fromisoformat(str(item["data"])[:10])
+                        origem_data = "nota"
+                        if item.get("valor"):
+                            valor_esperado = float(item["valor"])
+
+                if data_esperada is None:
+                    data_esperada = nota.data_vencimento + timedelta(days=30 * (p - 1))
+                    origem_data = "estimado"
+
+                if data_esperada > hoje:
+                    continue
+                if dias_atras is not None and data_esperada < hoje - timedelta(days=dias_atras):
+                    continue
+
+                alertas.append(AlertaParcelaFaltando(
+                    nota_id=nota.id,
+                    numero_nota=nota.numero_nota,
+                    condominio_id=condominio.id,
+                    condominio_nome=condominio.nome,
+                    tipo=tipo,
+                    numero_parcela=p,
+                    total_parcelas=total_parcelas,
+                    valor_parcela=valor_esperado,
+                    data_vencimento=data_esperada,
+                    origem_data=origem_data,
+                    cnpj_emitente=nota.cnpj_emitente,
+                ))
+
+        alertas.sort(key=lambda a: a.data_vencimento)
+        return alertas
+
+    @staticmethod
+    def dispensar_parcela_faltando(db: Session, nota_id: int, numero_parcela: int) -> None:
+        """Marca uma parcela especifica como 'ok, nao precisa gerar' -- some
+        da lista de alertas em detectar_parcelas_faltando dali em diante."""
+        from app.models.parcela_faltando_dispensada_model import ParcelaFaltandoDispensada
+        ja_existe = (
+            db.query(ParcelaFaltandoDispensada)
+            .filter(ParcelaFaltandoDispensada.nota_id == nota_id, ParcelaFaltandoDispensada.numero_parcela == numero_parcela)
+            .first()
+        )
+        if ja_existe:
+            return
+        db.add(ParcelaFaltandoDispensada(nota_id=nota_id, numero_parcela=numero_parcela))
         db.commit()

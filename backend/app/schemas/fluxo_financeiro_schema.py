@@ -86,6 +86,25 @@ class DispensarNotaSemServicoRequest(BaseModel):
     nota_id: int
 
 
+class AlertaParcelaFaltando(BaseModel):
+    nota_id: int
+    numero_nota: str
+    condominio_id: Optional[int] = None
+    condominio_nome: str
+    tipo: str
+    numero_parcela: int
+    total_parcelas: int
+    valor_parcela: float
+    data_vencimento: date
+    origem_data: str  # "corpo" | "nota" | "estimado"
+    cnpj_emitente: Optional[str] = None
+
+
+class DispensarParcelaFaltandoRequest(BaseModel):
+    nota_id: int
+    numero_parcela: int
+
+
 class PendenciaLinha(BaseModel):
     origem_id: int
     origem: str  # BOLETO | RECIBO
