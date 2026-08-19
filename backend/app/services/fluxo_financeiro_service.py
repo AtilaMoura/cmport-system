@@ -541,7 +541,10 @@ class FluxoFinanceiroService:
             if total_parcelas <= 1:
                 continue
 
-            boletos = db.query(Boleto).filter(Boleto.nota_fiscal_id == nota.id).all()
+            # nota vinculada (ex: Assistencia+Produto combinados) pode carregar o boleto
+            # combinado inteiro do outro lado -- mesma checagem ja feita nos outros 2 detectores
+            ids_boleto = [nota.id] + ([nota.nota_vinculada_id] if nota.nota_vinculada_id else [])
+            boletos = db.query(Boleto).filter(Boleto.nota_fiscal_id.in_(ids_boleto)).all()
             existentes = {b.numero_parcela for b in boletos if b.situacao not in SITUACOES_INATIVAS}
             faltantes = [p for p in range(1, total_parcelas + 1) if p not in existentes]
             if not faltantes:
