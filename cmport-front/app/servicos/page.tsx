@@ -7,7 +7,7 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler);
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { calcularImposto } from '@/lib/impostos';
@@ -47,6 +47,7 @@ interface ReciboLite {
 interface NotaFiscal {
   id: number;
   numero_nota: string;
+  tipo?: string;
   valor: number;
   parcelas: number | null;
   data_vencimento: string;
@@ -57,6 +58,8 @@ interface NotaFiscal {
   valor_boleto_parcela: number | null;
   cnpj_emitente_efetivo: string | null;
   razao_social_emitente: string | null;
+  nota_vinculada_id?: number | null;
+  criado_em?: string;
 }
 
 interface Boleto {
@@ -66,6 +69,9 @@ interface Boleto {
   valor_nominal: number;
   valor_total_recebido: number;
   numero_parcela: number;
+  total_parcelas?: number;
+  data_vencimento?: string;
+  data_pagamento?: string | null;
 }
 
 interface ConfigImpostos {
@@ -160,6 +166,15 @@ export default function ServicosPage() {
   const [loadingPendGeracao, setLoadingPendGeracao] = useState(true);
   const [dispensandoGeracao, setDispensandoGeracao] = useState<string | null>(null);
   const [gerandoParcela, setGerandoParcela] = useState<string | null>(null);
+  const [linhaExpandida, setLinhaExpandida] = useState<number | null>(null);
+  const [detalheExpandido, setDetalheExpandido] = useState<Record<number, {
+    loading: boolean;
+    nota?: NotaFiscal;
+    boletos?: Boleto[];
+    servico?: Servico | null; // null = confirmado que nao existe
+    reprocessando?: boolean;
+    avisosReprocessar?: string[];
+  }>>({});
   const [tiposPendenciaAtivos, setTiposPendenciaAtivos] = useState<Set<'sem_boleto' | 'sem_servico' | 'parcela'>>(
     new Set(['sem_boleto', 'sem_servico', 'parcela'])
   );
@@ -336,6 +351,52 @@ export default function ServicosPage() {
       if (novo.has(tipo)) novo.delete(tipo); else novo.add(tipo);
       return novo;
     });
+  };
+
+  const carregarDetalheLinha = async (notaId: number) => {
+    setDetalheExpandido(prev => ({ ...prev, [notaId]: { ...prev[notaId], loading: true } }));
+    const [notaRes, boletosRes, servicoRes] = await Promise.allSettled([
+      api.get(`/notas-fiscais/${notaId}`),
+      api.get(`/boletos/nota/${notaId}`),
+      api.get(`/servicos/por-nota/${notaId}`),
+    ]);
+    setDetalheExpandido(prev => ({
+      ...prev,
+      [notaId]: {
+        loading: false,
+        nota: notaRes.status === 'fulfilled' ? notaRes.value.data : prev[notaId]?.nota,
+        boletos: boletosRes.status === 'fulfilled' ? boletosRes.value.data : [],
+        servico: servicoRes.status === 'fulfilled' ? servicoRes.value.data : null,
+      },
+    }));
+  };
+
+  const toggleLinhaExpandida = (notaId: number) => {
+    if (linhaExpandida === notaId) {
+      setLinhaExpandida(null);
+      return;
+    }
+    setLinhaExpandida(notaId);
+    if (!detalheExpandido[notaId]) {
+      carregarDetalheLinha(notaId);
+    }
+  };
+
+  const handleTentarGerarServico = async (notaId: number) => {
+    setDetalheExpandido(prev => ({ ...prev, [notaId]: { ...prev[notaId], reprocessando: true } }));
+    try {
+      const { data } = await api.post(`/notas-fiscais/${notaId}/reprocessar`);
+      const avisos: string[] = data?.avisos ?? [];
+      setDetalheExpandido(prev => ({ ...prev, [notaId]: { ...prev[notaId], reprocessando: false, avisosReprocessar: avisos } }));
+      const criouServico = avisos.some(a => a.toLowerCase().includes('serviço') && a.toLowerCase().includes('criado'));
+      if (criouServico) {
+        await carregarDetalheLinha(notaId);
+        await carregarPendGeracao();
+      }
+    } catch (e: any) {
+      const erro = e?.response?.data?.detail || 'Erro ao reprocessar nota.';
+      setDetalheExpandido(prev => ({ ...prev, [notaId]: { ...prev[notaId], reprocessando: false, avisosReprocessar: [erro] } }));
+    }
   };
 
   const [verifPrefeitura, setVerifPrefeitura] = useState<Record<number, { loading: boolean; resultado?: VerificacaoPrefeituraSP }>>({});
@@ -1428,116 +1489,207 @@ export default function ServicosPage() {
                   <h2 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">
                     Pendências ({linhasPendencia.length} nota{linhasPendencia.length === 1 ? '' : 's'})
                   </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Uma nota pode ter mais de uma pendência ao mesmo tempo — use os filtros acima pra isolar por tipo.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Clique numa linha pra ver a nota, o serviço e o boleto completos. Uma nota pode ter mais de uma pendência — use os filtros acima pra isolar por tipo.</p>
                 </div>
                 {linhasPendencia.length === 0 ? (
                   <div className="text-center py-8 text-slate-400 text-sm">Nenhuma pendência.</div>
                 ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {linhasPendencia.map((linha) => {
-                      const verif = verifPrefeitura[linha.nota_id];
-                      return (
-                        <div key={linha.nota_id} className="p-4 space-y-2">
-                          <div className="flex items-center gap-4 flex-wrap">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-black text-sm text-slate-900 dark:text-white truncate">{linha.condominio_nome}</span>
-                                {linha.tags.map((tag, ti) => {
-                                  if (tag.kind === 'sem_boleto') {
-                                    return (
-                                      <span key={ti} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
-                                        Sem boleto{tag.alerta.possivel_falta_vinculo ? ' · possível falta de vínculo' : ''}
-                                      </span>
-                                    );
-                                  }
-                                  if (tag.kind === 'sem_servico') {
-                                    return (
-                                      <span key={ti} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
-                                        Sem serviço
-                                      </span>
-                                    );
-                                  }
-                                  return (
-                                    <span key={ti} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400">
-                                      Parcela {tag.alerta.numero_parcela}/{tag.alerta.total_parcelas}{tag.alerta.origem_data === 'estimado' ? ' (data estimada)' : ''}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                              <div className="text-xs text-slate-500 font-mono">NF {linha.numero_nota} · {linha.tipo} · venc. {fmtData(linha.data_ordenacao)}</div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <Link href={`/notas/${linha.nota_id}`} target="_blank" className="text-xs underline decoration-dotted underline-offset-2 hover:text-blue-700 font-semibold">Ver nota</Link>
-                              <button type="button" onClick={() => handleVerificarPrefeitura(linha.nota_id)} disabled={verif?.loading}
-                                className="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 disabled:opacity-50">
-                                {verif?.loading ? 'Consultando...' : '🏛️ Verificar prefeitura'}
-                              </button>
-                            </div>
-                          </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-[11px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-800">
+                          <th className="w-8 px-2 py-2"></th>
+                          <th className="px-2 py-2">Condomínio</th>
+                          <th className="px-2 py-2">NF</th>
+                          <th className="px-2 py-2">Tipo</th>
+                          <th className="px-2 py-2">Pendências</th>
+                          <th className="px-2 py-2 text-right">Valor</th>
+                          <th className="px-2 py-2">Vencimento</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {linhasPendencia.map((linha) => {
+                          const expandida = linhaExpandida === linha.nota_id;
+                          const detalhe = detalheExpandido[linha.nota_id];
+                          const primeiraTag = linha.tags[0];
+                          const valorLinha = primeiraTag.kind === 'parcela' ? primeiraTag.alerta.valor_parcela : primeiraTag.alerta.valor;
+                          return (
+                            <Fragment key={linha.nota_id}>
+                              <tr onClick={() => toggleLinhaExpandida(linha.nota_id)}
+                                className="cursor-pointer border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                <td className="px-2 py-3 text-slate-400">{expandida ? '▾' : '▸'}</td>
+                                <td className="px-2 py-3 font-black text-slate-900 dark:text-white">{linha.condominio_nome}</td>
+                                <td className="px-2 py-3 font-mono text-xs text-slate-500">{linha.numero_nota}</td>
+                                <td className="px-2 py-3 text-xs text-slate-500">{linha.tipo}</td>
+                                <td className="px-2 py-3">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {linha.tags.map((tag, ti) => {
+                                      if (tag.kind === 'sem_boleto') {
+                                        return (
+                                          <span key={ti} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                                            Sem boleto{tag.alerta.possivel_falta_vinculo ? ' · vínculo?' : ''}
+                                          </span>
+                                        );
+                                      }
+                                      if (tag.kind === 'sem_servico') {
+                                        return (
+                                          <span key={ti} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400">
+                                            Sem serviço
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <span key={ti} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400">
+                                          Parcela {tag.alerta.numero_parcela}/{tag.alerta.total_parcelas}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </td>
+                                <td className="px-2 py-3 text-right font-black text-slate-900 dark:text-white">{brl(valorLinha)}</td>
+                                <td className="px-2 py-3 text-xs text-slate-500">{fmtData(linha.data_ordenacao)}</td>
+                              </tr>
 
-                          <div className="flex flex-col gap-1.5">
-                            {linha.tags.map((tag, ti) => {
-                              if (tag.kind === 'sem_boleto') {
-                                const a = tag.alerta;
-                                return (
-                                  <div key={ti} className="flex items-center justify-between gap-2 text-xs bg-amber-50 dark:bg-amber-500/10 rounded-lg px-3 py-1.5">
-                                    <span className="text-slate-600 dark:text-slate-400">Valor bruto {brl(a.valor)}</span>
-                                    <button type="button" onClick={() => dispensarSemBoleto(a)} disabled={dispensandoGeracao === `boleto-${a.nota_id}`}
-                                      className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-300 disabled:opacity-50">
-                                      {dispensandoGeracao === `boleto-${a.nota_id}` ? 'Salvando...' : 'Dispensar'}
-                                    </button>
-                                  </div>
-                                );
-                              }
-                              if (tag.kind === 'sem_servico') {
-                                const a = tag.alerta;
-                                return (
-                                  <div key={ti} className="flex items-center justify-between gap-2 text-xs bg-violet-50 dark:bg-violet-500/10 rounded-lg px-3 py-1.5">
-                                    <span className="text-slate-600 dark:text-slate-400">Valor {brl(a.valor)}</span>
-                                    <button type="button" onClick={() => dispensarSemServico(a)} disabled={dispensandoGeracao === `servico-${a.nota_id}`}
-                                      className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50">
-                                      {dispensandoGeracao === `servico-${a.nota_id}` ? 'Salvando...' : 'Dispensar'}
-                                    </button>
-                                  </div>
-                                );
-                              }
-                              const a = tag.alerta;
-                              const chaveDispensar = `parcela-${a.nota_id}-${a.numero_parcela}`;
-                              const chaveGerar = `${a.nota_id}-${a.numero_parcela}`;
-                              return (
-                                <div key={ti} className="flex items-center justify-between gap-2 text-xs bg-rose-50 dark:bg-rose-500/10 rounded-lg px-3 py-1.5">
-                                  <span className="text-slate-600 dark:text-slate-400">
-                                    Parcela {a.numero_parcela}/{a.total_parcelas} — {brl(a.valor_parcela)} — venc. esperado {fmtData(a.data_vencimento)}
-                                  </span>
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <button type="button" onClick={() => gerarParcelaFaltando(a)} disabled={gerandoParcela === chaveGerar}
-                                      className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 disabled:opacity-50">
-                                      {gerandoParcela === chaveGerar ? 'Gerando...' : 'Gerar parcela'}
-                                    </button>
-                                    <button type="button" onClick={() => dispensarParcelaFaltando(a)} disabled={dispensandoGeracao === chaveDispensar}
-                                      className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-500/20 dark:text-rose-300 disabled:opacity-50">
-                                      {dispensandoGeracao === chaveDispensar ? 'Salvando...' : 'Dispensar'}
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                              {expandida && (
+                                <tr className="border-b border-slate-100 dark:border-slate-800">
+                                  <td colSpan={7} className="bg-slate-50 dark:bg-slate-950 p-4">
+                                    {detalhe?.loading ? (
+                                      <div className="text-center py-6 text-slate-400 text-sm animate-pulse">Carregando detalhes...</div>
+                                    ) : (
+                                      <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                          {/* Bloco Nota */}
+                                          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                                            <h4 className="text-[11px] font-black text-slate-500 uppercase mb-2">Nota Fiscal</h4>
+                                            {detalhe?.nota ? (
+                                              <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                                                <div><span className="font-bold text-slate-900 dark:text-white">Status:</span> {detalhe.nota.status}</div>
+                                                <div><span className="font-bold text-slate-900 dark:text-white">Valor bruto:</span> {brl(detalhe.nota.valor)}</div>
+                                                <div><span className="font-bold text-slate-900 dark:text-white">Parcelas:</span> {detalhe.nota.parcelas ?? 1}</div>
+                                                <div><span className="font-bold text-slate-900 dark:text-white">Vencimento:</span> {fmtData(detalhe.nota.data_vencimento)}</div>
+                                                <div><span className="font-bold text-slate-900 dark:text-white">Empresa:</span> {detalhe.nota.razao_social_emitente || detalhe.nota.cnpj_emitente_efetivo || '—'}</div>
+                                                {detalhe.nota.nota_vinculada_id && (
+                                                  <div>
+                                                    <span className="font-bold text-slate-900 dark:text-white">Vinculada:</span>{' '}
+                                                    <Link href={`/notas/${detalhe.nota.nota_vinculada_id}`} target="_blank" className="underline decoration-dotted hover:text-blue-700">nota #{detalhe.nota.nota_vinculada_id}</Link>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <p className="text-xs text-slate-400">Não foi possível carregar a nota.</p>
+                                            )}
+                                          </div>
 
-                          {verif?.resultado && (
-                            <div className={`text-xs font-semibold ${
-                              !verif.resultado.verificavel ? 'text-slate-500' : verif.resultado.cancelada ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
-                            }`}>
-                              {!verif.resultado.verificavel
-                                ? `Não verificável: ${verif.resultado.motivo}`
-                                : verif.resultado.cancelada
-                                ? '🚫 CANCELADA no portal oficial da Prefeitura'
-                                : `✅ Ativa no portal oficial${verif.resultado.quitada_em ? ` (quitada em ${verif.resultado.quitada_em})` : ''}`}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                                          {/* Bloco Servico */}
+                                          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                                            <h4 className="text-[11px] font-black text-slate-500 uppercase mb-2">Serviço</h4>
+                                            {detalhe?.servico ? (
+                                              <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                                                <div><span className="font-bold text-slate-900 dark:text-white">Tipo:</span> {detalhe.servico.tipo}</div>
+                                                <div><span className="font-bold text-slate-900 dark:text-white">Data:</span> {fmtData(detalhe.servico.data_servico)}</div>
+                                                {detalhe.servico.descricao && <div><span className="font-bold text-slate-900 dark:text-white">Descrição:</span> {detalhe.servico.descricao}</div>}
+                                              </div>
+                                            ) : (
+                                              <div className="space-y-2">
+                                                <p className="text-xs text-slate-400">Nenhum serviço vinculado.</p>
+                                                <button type="button" onClick={() => handleTentarGerarServico(linha.nota_id)} disabled={detalhe?.reprocessando}
+                                                  className="px-2 py-1 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50">
+                                                  {detalhe?.reprocessando ? 'Tentando...' : 'Tentar gerar serviço'}
+                                                </button>
+                                                {detalhe?.avisosReprocessar && detalhe.avisosReprocessar.length > 0 && (
+                                                  <div className="space-y-1">
+                                                    {detalhe.avisosReprocessar.map((av, i) => (
+                                                      <p key={i} className={`text-[11px] font-semibold ${av.toLowerCase().includes('criado') ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{av}</p>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Bloco Boleto */}
+                                          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                                            <h4 className="text-[11px] font-black text-slate-500 uppercase mb-2">Boleto(s)</h4>
+                                            {detalhe?.boletos && detalhe.boletos.length > 0 ? (
+                                              <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                                                {detalhe.boletos.map(b => (
+                                                  <div key={b.id} className="border-b border-slate-100 dark:border-slate-800 pb-1 last:border-0">
+                                                    <div><span className="font-bold text-slate-900 dark:text-white">Parcela {b.numero_parcela}/{b.total_parcelas ?? 1}:</span> {b.situacao}</div>
+                                                    <div>{brl(b.valor_nominal)}{b.data_pagamento ? ` · pago em ${fmtData(b.data_pagamento)}` : b.data_vencimento ? ` · venc. ${fmtData(b.data_vencimento)}` : ''}</div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <p className="text-xs text-slate-400">Nenhum boleto gerado.</p>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {/* Acoes */}
+                                        <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-slate-200 dark:border-slate-800">
+                                          <Link href={`/notas/${linha.nota_id}`} target="_blank" className="text-xs underline decoration-dotted underline-offset-2 hover:text-blue-700 font-semibold">Ver nota</Link>
+                                          <button type="button" onClick={() => handleVerificarPrefeitura(linha.nota_id)} disabled={verifPrefeitura[linha.nota_id]?.loading}
+                                            className="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 disabled:opacity-50">
+                                            {verifPrefeitura[linha.nota_id]?.loading ? 'Consultando...' : '🏛️ Verificar prefeitura'}
+                                          </button>
+                                          {linha.tags.map((tag, ti) => {
+                                            if (tag.kind === 'sem_boleto') {
+                                              const a = tag.alerta;
+                                              return (
+                                                <button key={ti} type="button" onClick={() => dispensarSemBoleto(a)} disabled={dispensandoGeracao === `boleto-${a.nota_id}`}
+                                                  className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-300 disabled:opacity-50">
+                                                  {dispensandoGeracao === `boleto-${a.nota_id}` ? 'Salvando...' : 'Dispensar sem boleto'}
+                                                </button>
+                                              );
+                                            }
+                                            if (tag.kind === 'sem_servico') {
+                                              const a = tag.alerta;
+                                              return (
+                                                <button key={ti} type="button" onClick={() => dispensarSemServico(a)} disabled={dispensandoGeracao === `servico-${a.nota_id}`}
+                                                  className="px-2 py-1 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50">
+                                                  {dispensandoGeracao === `servico-${a.nota_id}` ? 'Salvando...' : 'Dispensar sem serviço'}
+                                                </button>
+                                              );
+                                            }
+                                            const a = tag.alerta;
+                                            const chaveDispensar = `parcela-${a.nota_id}-${a.numero_parcela}`;
+                                            const chaveGerar = `${a.nota_id}-${a.numero_parcela}`;
+                                            return (
+                                              <Fragment key={ti}>
+                                                <button type="button" onClick={() => gerarParcelaFaltando(a)} disabled={gerandoParcela === chaveGerar}
+                                                  className="px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 disabled:opacity-50">
+                                                  {gerandoParcela === chaveGerar ? 'Gerando...' : `Gerar parcela ${a.numero_parcela}/${a.total_parcelas}`}
+                                                </button>
+                                                <button type="button" onClick={() => dispensarParcelaFaltando(a)} disabled={dispensandoGeracao === chaveDispensar}
+                                                  className="px-2 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-500/20 dark:text-rose-300 disabled:opacity-50">
+                                                  {dispensandoGeracao === chaveDispensar ? 'Salvando...' : `Dispensar parcela ${a.numero_parcela}/${a.total_parcelas}`}
+                                                </button>
+                                              </Fragment>
+                                            );
+                                          })}
+                                        </div>
+
+                                        {verifPrefeitura[linha.nota_id]?.resultado && (
+                                          <div className={`text-xs font-semibold ${
+                                            !verifPrefeitura[linha.nota_id]!.resultado!.verificavel ? 'text-slate-500' : verifPrefeitura[linha.nota_id]!.resultado!.cancelada ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
+                                          }`}>
+                                            {!verifPrefeitura[linha.nota_id]!.resultado!.verificavel
+                                              ? `Não verificável: ${verifPrefeitura[linha.nota_id]!.resultado!.motivo}`
+                                              : verifPrefeitura[linha.nota_id]!.resultado!.cancelada
+                                              ? '🚫 CANCELADA no portal oficial da Prefeitura'
+                                              : `✅ Ativa no portal oficial${verifPrefeitura[linha.nota_id]!.resultado!.quitada_em ? ` (quitada em ${verifPrefeitura[linha.nota_id]!.resultado!.quitada_em})` : ''}`}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
