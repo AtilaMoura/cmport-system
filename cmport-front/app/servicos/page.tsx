@@ -404,27 +404,18 @@ export default function ServicosPage() {
   const handleVerificarPrefeitura = async (notaId: number) => {
     setVerifPrefeitura(prev => ({ ...prev, [notaId]: { loading: true } }));
     try {
-      const { data } = await api.post(`/notas-fiscais/${notaId}/verificar-prefeitura-sp`);
+      // corrigir=true: se a prefeitura confirmar cancelada e o sistema ainda nao
+      // refletir isso, ja corrige na mesma chamada -- fluxo de revisao em lote
+      // nao precisa de segundo clique aqui (diferente de /notas/[id], que e
+      // revisao de 1 nota por vez e mantem os 2 passos)
+      const { data } = await api.post(`/notas-fiscais/${notaId}/verificar-prefeitura-sp?corrigir=true`);
       setVerifPrefeitura(prev => ({ ...prev, [notaId]: { loading: false, resultado: data } }));
+      if (data?.status_corrigido) {
+        await carregarPendGeracao();
+      }
     } catch {
       setVerifPrefeitura(prev => ({ ...prev, [notaId]: { loading: false } }));
       alert('Erro ao consultar o portal da Prefeitura de SP.');
-    }
-  };
-
-  const [corrigindoStatusPrefeitura, setCorrigindoStatusPrefeitura] = useState<number | null>(null);
-
-  const handleCorrigirStatusPrefeitura = async (notaId: number) => {
-    setCorrigindoStatusPrefeitura(notaId);
-    try {
-      const { data } = await api.post(`/notas-fiscais/${notaId}/verificar-prefeitura-sp?corrigir=true`);
-      setVerifPrefeitura(prev => ({ ...prev, [notaId]: { loading: false, resultado: data } }));
-      // nota cancelada some dos 3 detectores (filtro status != CANCELADA) -- recarrega a lista inteira
-      await carregarPendGeracao();
-    } catch {
-      alert('Erro ao corrigir status da nota.');
-    } finally {
-      setCorrigindoStatusPrefeitura(null);
     }
   };
 
@@ -1699,11 +1690,8 @@ export default function ServicosPage() {
                                                   ? '🚫 CANCELADA no portal oficial da Prefeitura'
                                                   : `✅ Ativa no portal oficial${res.quitada_em ? ` (quitada em ${res.quitada_em})` : ''}`}
                                               </div>
-                                              {res.cancelada && res.status_atual !== 'CANCELADA' && (
-                                                <button type="button" onClick={() => handleCorrigirStatusPrefeitura(linha.nota_id)} disabled={corrigindoStatusPrefeitura === linha.nota_id}
-                                                  className="px-2 py-1 rounded-full text-[10px] font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
-                                                  {corrigindoStatusPrefeitura === linha.nota_id ? 'Corrigindo...' : 'Corrigir status pra CANCELADA e tirar da lista'}
-                                                </button>
+                                              {res.status_corrigido && (
+                                                <p className="text-[11px] font-semibold text-slate-500">Status corrigido no sistema — saindo da lista de pendências.</p>
                                               )}
                                             </div>
                                           );
