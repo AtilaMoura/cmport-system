@@ -71,6 +71,7 @@ class FluxoFinanceiroService:
                 .filter(
                     NotaFiscal.cnpj_emitente == cfg_cnpj_limpo,
                     NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
+                    NotaFiscal.status != StatusNota.CANCELADA,
                     Boleto.situacao.in_([SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO, SituacaoBoleto.PARCIAL]),
                     func.year(Boleto.data_pagamento) == ano,
                     func.month(Boleto.data_pagamento) == mes,
@@ -190,6 +191,7 @@ class FluxoFinanceiroService:
             .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
             .filter(
                 NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
+                NotaFiscal.status != StatusNota.CANCELADA,
                 # Cancela/Expirado não é pendência nem pagamento — fica fora da conciliação
                 Boleto.situacao.notin_([SituacaoBoleto.CANCELADO, SituacaoBoleto.EXPIRADO]),
                 Boleto.data_vencimento.between(primeiro_dia, ultimo_dia),
