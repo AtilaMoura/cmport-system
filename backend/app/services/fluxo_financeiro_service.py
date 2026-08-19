@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.models.nota_fiscal_model import NotaFiscal, TipoNota
+from app.models.nota_fiscal_model import NotaFiscal, TipoNota, StatusNota
 from app.models.boleto_model import Boleto, SituacaoBoleto
 from app.models.recibo_model import Recibo
 from app.models.servico_model import ManutencaoAssistencia
@@ -355,6 +355,7 @@ class FluxoFinanceiroService:
 
         filtros = [
             NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
+            NotaFiscal.status != StatusNota.CANCELADA,
             NotaFiscal.xml_original != "",
             NotaFiscal.criado_em < limite_criacao,
         ]
@@ -431,6 +432,7 @@ class FluxoFinanceiroService:
 
         filtros = [
             NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA]),
+            NotaFiscal.status != StatusNota.CANCELADA,
             NotaFiscal.xml_original != "",
             NotaFiscal.criado_em < limite_criacao,
         ]
