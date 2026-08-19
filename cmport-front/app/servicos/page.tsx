@@ -412,6 +412,22 @@ export default function ServicosPage() {
     }
   };
 
+  const [corrigindoStatusPrefeitura, setCorrigindoStatusPrefeitura] = useState<number | null>(null);
+
+  const handleCorrigirStatusPrefeitura = async (notaId: number) => {
+    setCorrigindoStatusPrefeitura(notaId);
+    try {
+      const { data } = await api.post(`/notas-fiscais/${notaId}/verificar-prefeitura-sp?corrigir=true`);
+      setVerifPrefeitura(prev => ({ ...prev, [notaId]: { loading: false, resultado: data } }));
+      // nota cancelada some dos 3 detectores (filtro status != CANCELADA) -- recarrega a lista inteira
+      await carregarPendGeracao();
+    } catch {
+      alert('Erro ao corrigir status da nota.');
+    } finally {
+      setCorrigindoStatusPrefeitura(null);
+    }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams();
     if (filtroMes) {
@@ -1669,17 +1685,29 @@ export default function ServicosPage() {
                                           })}
                                         </div>
 
-                                        {verifPrefeitura[linha.nota_id]?.resultado && (
-                                          <div className={`text-xs font-semibold ${
-                                            !verifPrefeitura[linha.nota_id]!.resultado!.verificavel ? 'text-slate-500' : verifPrefeitura[linha.nota_id]!.resultado!.cancelada ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
-                                          }`}>
-                                            {!verifPrefeitura[linha.nota_id]!.resultado!.verificavel
-                                              ? `Não verificável: ${verifPrefeitura[linha.nota_id]!.resultado!.motivo}`
-                                              : verifPrefeitura[linha.nota_id]!.resultado!.cancelada
-                                              ? '🚫 CANCELADA no portal oficial da Prefeitura'
-                                              : `✅ Ativa no portal oficial${verifPrefeitura[linha.nota_id]!.resultado!.quitada_em ? ` (quitada em ${verifPrefeitura[linha.nota_id]!.resultado!.quitada_em})` : ''}`}
-                                          </div>
-                                        )}
+                                        {(() => {
+                                          const res = verifPrefeitura[linha.nota_id]?.resultado;
+                                          if (!res) return null;
+                                          return (
+                                            <div className="space-y-1.5">
+                                              <div className={`text-xs font-semibold ${
+                                                !res.verificavel ? 'text-slate-500' : res.cancelada ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
+                                              }`}>
+                                                {!res.verificavel
+                                                  ? `Não verificável: ${res.motivo}`
+                                                  : res.cancelada
+                                                  ? '🚫 CANCELADA no portal oficial da Prefeitura'
+                                                  : `✅ Ativa no portal oficial${res.quitada_em ? ` (quitada em ${res.quitada_em})` : ''}`}
+                                              </div>
+                                              {res.cancelada && res.status_atual !== 'CANCELADA' && (
+                                                <button type="button" onClick={() => handleCorrigirStatusPrefeitura(linha.nota_id)} disabled={corrigindoStatusPrefeitura === linha.nota_id}
+                                                  className="px-2 py-1 rounded-full text-[10px] font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+                                                  {corrigindoStatusPrefeitura === linha.nota_id ? 'Corrigindo...' : 'Corrigir status pra CANCELADA e tirar da lista'}
+                                                </button>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
                                       </div>
                                     )}
                                   </td>
