@@ -14,6 +14,15 @@ import { calcularImposto } from '@/lib/impostos';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { fmtData, type AlertaNotaSemBoleto, type AlertaNotaSemServico } from '@/lib/fluxoFinanceiro';
 
+interface VerificacaoPrefeituraSP {
+  verificavel: boolean;
+  motivo: string | null;
+  cancelada: boolean | null;
+  quitada_em: string | null;
+  status_atual: string | null;
+  status_corrigido: boolean;
+}
+
 interface Servico {
   id: number;
   condominio_id: number | null;
@@ -242,6 +251,19 @@ export default function ServicosPage() {
       alert('Erro ao dispensar. Tenta de novo.');
     } finally {
       setDispensandoGeracao(null);
+    }
+  };
+
+  const [verifPrefeitura, setVerifPrefeitura] = useState<Record<number, { loading: boolean; resultado?: VerificacaoPrefeituraSP }>>({});
+
+  const handleVerificarPrefeitura = async (notaId: number) => {
+    setVerifPrefeitura(prev => ({ ...prev, [notaId]: { loading: true } }));
+    try {
+      const { data } = await api.post(`/notas-fiscais/${notaId}/verificar-prefeitura-sp`);
+      setVerifPrefeitura(prev => ({ ...prev, [notaId]: { loading: false, resultado: data } }));
+    } catch {
+      setVerifPrefeitura(prev => ({ ...prev, [notaId]: { loading: false } }));
+      alert('Erro ao consultar o portal da Prefeitura de SP.');
     }
   };
 
@@ -1309,27 +1331,45 @@ export default function ServicosPage() {
                   <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {[...semBoleto].sort((a, b) => Number(b.possivel_falta_vinculo) - Number(a.possivel_falta_vinculo)).map((a) => {
                       const i = semBoleto.indexOf(a);
+                      const verif = verifPrefeitura[a.nota_id];
                       return (
-                        <div key={a.nota_id} className="flex items-center gap-4 p-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-black text-sm text-slate-900 dark:text-white truncate">{a.condominio_nome}</span>
-                              {a.possivel_falta_vinculo && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400" title="Nota Produto sem nota_vinculada_id — provavelmente falta vincular com a nota de Assistência correspondente, em vez de gerar boleto próprio">
-                                  Possível falta de vínculo
-                                </span>
-                              )}
+                        <div key={a.nota_id} className="p-4 space-y-2">
+                          <div className="flex items-center gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-black text-sm text-slate-900 dark:text-white truncate">{a.condominio_nome}</span>
+                                {a.possivel_falta_vinculo && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400" title="Nota Produto sem nota_vinculada_id — provavelmente falta vincular com a nota de Assistência correspondente, em vez de gerar boleto próprio">
+                                    Possível falta de vínculo
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-slate-500 font-mono">NF {a.numero_nota} · {a.tipo} · venc. {fmtData(a.data_vencimento)}</div>
                             </div>
-                            <div className="text-xs text-slate-500 font-mono">NF {a.numero_nota} · {a.tipo} · venc. {fmtData(a.data_vencimento)}</div>
+                            <div className="font-black text-sm text-slate-900 dark:text-white">{brl(a.valor)}</div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Link href={`/notas/${a.nota_id}`} target="_blank" className="text-xs underline decoration-dotted underline-offset-2 hover:text-blue-700 font-semibold">Ver nota</Link>
+                              <button type="button" onClick={() => handleVerificarPrefeitura(a.nota_id)} disabled={verif?.loading}
+                                className="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 disabled:opacity-50">
+                                {verif?.loading ? 'Consultando...' : '🏛️ Verificar prefeitura'}
+                              </button>
+                              <button type="button" onClick={() => dispensarSemBoleto(a, i)} disabled={dispensandoGeracao === `boleto-${a.nota_id}`}
+                                className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-300 disabled:opacity-50">
+                                {dispensandoGeracao === `boleto-${a.nota_id}` ? 'Salvando...' : 'Dispensar'}
+                              </button>
+                            </div>
                           </div>
-                          <div className="font-black text-sm text-slate-900 dark:text-white">{brl(a.valor)}</div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Link href={`/notas/${a.nota_id}`} target="_blank" className="text-xs underline decoration-dotted underline-offset-2 hover:text-blue-700 font-semibold">Ver nota</Link>
-                            <button type="button" onClick={() => dispensarSemBoleto(a, i)} disabled={dispensandoGeracao === `boleto-${a.nota_id}`}
-                              className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-300 disabled:opacity-50">
-                              {dispensandoGeracao === `boleto-${a.nota_id}` ? 'Salvando...' : 'Dispensar'}
-                            </button>
-                          </div>
+                          {verif?.resultado && (
+                            <div className={`text-xs font-semibold ${
+                              !verif.resultado.verificavel ? 'text-slate-500' : verif.resultado.cancelada ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
+                            }`}>
+                              {!verif.resultado.verificavel
+                                ? `Não verificável: ${verif.resultado.motivo}`
+                                : verif.resultado.cancelada
+                                ? '🚫 CANCELADA no portal oficial da Prefeitura'
+                                : `✅ Ativa no portal oficial${verif.resultado.quitada_em ? ` (quitada em ${verif.resultado.quitada_em})` : ''}`}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1347,22 +1387,42 @@ export default function ServicosPage() {
                   <div className="text-center py-8 text-slate-400 text-sm">Nenhuma pendência.</div>
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {semServico.map((a, i) => (
-                      <div key={a.nota_id} className="flex items-center gap-4 p-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-black text-sm text-slate-900 dark:text-white truncate">{a.condominio_nome}</div>
-                          <div className="text-xs text-slate-500 font-mono">NF {a.numero_nota} · {a.tipo} · venc. {fmtData(a.data_vencimento)}</div>
+                    {semServico.map((a, i) => {
+                      const verif = verifPrefeitura[a.nota_id];
+                      return (
+                      <div key={a.nota_id} className="p-4 space-y-2">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-black text-sm text-slate-900 dark:text-white truncate">{a.condominio_nome}</div>
+                            <div className="text-xs text-slate-500 font-mono">NF {a.numero_nota} · {a.tipo} · venc. {fmtData(a.data_vencimento)}</div>
+                          </div>
+                          <div className="font-black text-sm text-slate-900 dark:text-white">{brl(a.valor)}</div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Link href={`/notas/${a.nota_id}`} target="_blank" className="text-xs underline decoration-dotted underline-offset-2 hover:text-blue-700 font-semibold">Ver nota</Link>
+                            <button type="button" onClick={() => handleVerificarPrefeitura(a.nota_id)} disabled={verif?.loading}
+                              className="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 disabled:opacity-50">
+                              {verif?.loading ? 'Consultando...' : '🏛️ Verificar prefeitura'}
+                            </button>
+                            <button type="button" onClick={() => dispensarSemServico(a, i)} disabled={dispensandoGeracao === `servico-${a.nota_id}`}
+                              className="px-2 py-1 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50">
+                              {dispensandoGeracao === `servico-${a.nota_id}` ? 'Salvando...' : 'Dispensar'}
+                            </button>
+                          </div>
                         </div>
-                        <div className="font-black text-sm text-slate-900 dark:text-white">{brl(a.valor)}</div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Link href={`/notas/${a.nota_id}`} target="_blank" className="text-xs underline decoration-dotted underline-offset-2 hover:text-blue-700 font-semibold">Ver nota</Link>
-                          <button type="button" onClick={() => dispensarSemServico(a, i)} disabled={dispensandoGeracao === `servico-${a.nota_id}`}
-                            className="px-2 py-1 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50">
-                            {dispensandoGeracao === `servico-${a.nota_id}` ? 'Salvando...' : 'Dispensar'}
-                          </button>
-                        </div>
+                        {verif?.resultado && (
+                          <div className={`text-xs font-semibold ${
+                            !verif.resultado.verificavel ? 'text-slate-500' : verif.resultado.cancelada ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
+                          }`}>
+                            {!verif.resultado.verificavel
+                              ? `Não verificável: ${verif.resultado.motivo}`
+                              : verif.resultado.cancelada
+                              ? '🚫 CANCELADA no portal oficial da Prefeitura'
+                              : `✅ Ativa no portal oficial${verif.resultado.quitada_em ? ` (quitada em ${verif.resultado.quitada_em})` : ''}`}
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

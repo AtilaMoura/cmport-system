@@ -97,6 +97,15 @@ class ImportacaoResponse(BaseModel):
     avisos: list[str] = []
 
 
+class VerificacaoPrefeituraSPResponse(BaseModel):
+    verificavel: bool
+    motivo: Optional[str] = None
+    cancelada: Optional[bool] = None
+    quitada_em: Optional[str] = None
+    status_atual: Optional[str] = None
+    status_corrigido: bool = False
+
+
 class NotaFiscalUpdate(BaseModel):
     numero_nota: Optional[str] = None
     data_vencimento: Optional[date] = None

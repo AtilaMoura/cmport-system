@@ -5,6 +5,15 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
+interface VerificacaoPrefeituraSP {
+  verificavel: boolean;
+  motivo: string | null;
+  cancelada: boolean | null;
+  quitada_em: string | null;
+  status_atual: string | null;
+  status_corrigido: boolean;
+}
+
 interface ParcelaDisplay {
   parcela: number;
   valor: number;
@@ -201,6 +210,11 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
   });
   const [submittingPagamento, setSubmittingPagamento] = useState(false);
 
+  // Verificação de cancelamento no portal da Prefeitura de SP
+  const [verifPrefeitura, setVerifPrefeitura] = useState<VerificacaoPrefeituraSP | null>(null);
+  const [verificandoPrefeitura, setVerificandoPrefeitura] = useState(false);
+  const [corrigindoStatus, setCorrigindoStatus] = useState(false);
+
   useEffect(() => {
     params.then((resolvedParams) => {
       setId(resolvedParams.id);
@@ -339,6 +353,34 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
       setNota(updated);
     } catch {
       alert('Erro ao dispensar alerta.');
+    }
+  };
+
+  const handleVerificarPrefeitura = async () => {
+    if (!nota) return;
+    setVerificandoPrefeitura(true);
+    setVerifPrefeitura(null);
+    try {
+      const { data } = await api.post(`/notas-fiscais/${nota.id}/verificar-prefeitura-sp`);
+      setVerifPrefeitura(data);
+    } catch {
+      alert('Erro ao consultar o portal da Prefeitura de SP.');
+    } finally {
+      setVerificandoPrefeitura(false);
+    }
+  };
+
+  const handleCorrigirStatusPrefeitura = async () => {
+    if (!nota) return;
+    setCorrigindoStatus(true);
+    try {
+      const { data } = await api.post(`/notas-fiscais/${nota.id}/verificar-prefeitura-sp?corrigir=true`);
+      setVerifPrefeitura(data);
+      await carregarDados();
+    } catch {
+      alert('Erro ao corrigir status da nota.');
+    } finally {
+      setCorrigindoStatus(false);
     }
   };
 
@@ -914,6 +956,47 @@ export default function NotaDetalhesPage({ params }: { params: Promise<{ id: str
                   </p>
                 </div>
               </div>
+
+              {/* Verificação ao vivo no portal da Prefeitura de SP */}
+              <div className="space-y-2">
+                <button
+                  onClick={handleVerificarPrefeitura}
+                  disabled={verificandoPrefeitura}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50"
+                >
+                  {verificandoPrefeitura ? 'Consultando...' : '🏛️ Verificar na Prefeitura (SP)'}
+                </button>
+
+                {verifPrefeitura && (
+                  <div className={`p-3 rounded-xl text-sm ${
+                    !verifPrefeitura.verificavel
+                      ? 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      : verifPrefeitura.cancelada
+                      ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
+                      : 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400'
+                  }`}>
+                    {!verifPrefeitura.verificavel ? (
+                      <p>Não verificável: {verifPrefeitura.motivo}</p>
+                    ) : verifPrefeitura.cancelada ? (
+                      <div className="space-y-2">
+                        <p className="font-bold">🚫 CANCELADA no portal oficial da Prefeitura</p>
+                        {nota.status !== 'CANCELADA' && (
+                          <button
+                            onClick={handleCorrigirStatusPrefeitura}
+                            disabled={corrigindoStatus}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {corrigindoStatus ? 'Corrigindo...' : 'Corrigir status no sistema'}
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <p>✅ Ativa no portal oficial{verifPrefeitura.quitada_em ? ` (quitada em ${verifPrefeitura.quitada_em})` : ''}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Status de pagamento */}
               <div className={`p-3 rounded-xl flex items-center gap-3 ${
                 nota.data_pagamento

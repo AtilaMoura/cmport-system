@@ -13,6 +13,7 @@ from app.services.nota_fiscal_service import NotaFiscalService, corrigir_datas_s
 from app.schemas.nota_fiscal_schema import (
     NotaFiscalCreate, NotaFiscalResponse, ImportacaoResponse, NotaFiscalUpdate,
     VincularNotasRequest, CandidataVinculoResponse, UploadPdfResponse,
+    VerificacaoPrefeituraSPResponse,
 )
 
 
@@ -265,6 +266,12 @@ def revalidar_nota_completo(id: int, db: Session = Depends(get_db)):
 def revalidar_todas_notas(db: Session = Depends(get_db)):
     """Re-parseia o XML de todas as notas e corrige status incorretos."""
     return NotaFiscalService.revalidar_todas(db)
+
+
+@router.post("/{id}/verificar-prefeitura-sp", response_model=VerificacaoPrefeituraSPResponse)
+def verificar_prefeitura_sp(id: int, corrigir: bool = False, db: Session = Depends(get_db)):
+    """Consulta ao vivo o portal público da Prefeitura de SP (sem login) pra checar se a nota foi cancelada."""
+    return NotaFiscalService.verificar_cancelamento_prefeitura_sp(db, id, corrigir=corrigir)
 
 
 @router.post("/corrigir-datas-servico")

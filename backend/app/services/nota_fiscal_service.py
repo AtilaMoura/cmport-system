@@ -9,6 +9,9 @@ import re
 import unicodedata
 import json
 
+import requests
+import fitz  # pymupdf
+
 from app.repositories.nota_fiscal_repository import NotaFiscalRepository
 from app.schemas.nota_fiscal_schema import NotaFiscalCreate, NotaFiscalResponse, NotaFiscalImportada, NotaFiscalUpdate
 from app.schemas.servico_schema import ServicoCreate
@@ -16,6 +19,9 @@ from app.services.servico_service import ServicoService
 from app.models.servico_model import ManutencaoAssistencia
 from app.models.nota_fiscal_model import TipoNota, StatusNota
 from app.core.storage_client import StorageClient
+
+
+PORTAL_SP_NFSE_URL = "https://nfe.prefeitura.sp.gov.br/contribuinte/notaprintpdf.aspx"
 
 
 def limpar_cnpj(cnpj: str) -> str:
@@ -1091,6 +1097,78 @@ class NotaFiscalService:
             }
         except Exception as e:
             return {"nota_id": nota_id, "resultado": "erro", "mensagem": str(e)}
+
+    @staticmethod
+    def verificar_cancelamento_prefeitura_sp(db: Session, nota_id: int, corrigir: bool = False) -> dict:
+        """Consulta ao vivo o portal publico da Prefeitura de SP (sem login, mesmo link do QR
+        code do DANFSe) pra checar se a nota foi cancelada -- o campo `status` local so e'
+        atualizado quando chega um XML de evento de cancelamento separado, o que na pratica
+        raramente acontece, entao o banco pode ficar desatualizado por meses."""
+        from app.models.nota_fiscal_model import NotaFiscal
+        db_nota = db.query(NotaFiscal).filter(NotaFiscal.id == nota_id).first()
+        if not db_nota:
+            raise HTTPException(status_code=404, detail="Nota não encontrada.")
+
+        status_atual = db_nota.status.value
+
+        if not db_nota.xml_original or len(db_nota.xml_original) < 50:
+            return {"verificavel": False, "motivo": "nota sem XML real (criada na mão)", "status_atual": status_atual}
+
+        try:
+            root = ET.fromstring(db_nota.xml_original)
+        except ET.ParseError:
+            return {"verificavel": False, "motivo": "xml_original inválido", "status_atual": status_atual}
+
+        cidade = root.findtext(".//EnderecoPrestador/Cidade")
+        if cidade != "3550308":
+            return {"verificavel": False, "motivo": "não é NFSe de São Paulo capital", "status_atual": status_atual}
+
+        chave = root.find(".//ChaveNFe")
+        insc = chave.findtext("InscricaoPrestador") if chave is not None else None
+        numero = chave.findtext("NumeroNFe") if chave is not None else None
+        verif = chave.findtext("CodigoVerificacao") if chave is not None else None
+        if not (insc and numero and verif):
+            return {"verificavel": False, "motivo": "XML sem ChaveNFe completa", "status_atual": status_atual}
+
+        try:
+            resp = requests.get(
+                PORTAL_SP_NFSE_URL,
+                params={"inscricao": insc, "nf": numero, "verificacao": verif},
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+                timeout=15,
+            )
+        except requests.RequestException as e:
+            return {"verificavel": False, "motivo": f"erro de conexão com o portal: {e}", "status_atual": status_atual}
+
+        ctype = resp.headers.get("Content-Type", "")
+        if "pdf" not in ctype.lower():
+            return {"verificavel": False, "motivo": f"portal não retornou PDF (content-type={ctype})", "status_atual": status_atual}
+
+        try:
+            doc = fitz.open(stream=resp.content, filetype="pdf")
+            texto = "\n".join(page.get_text() for page in doc)
+            doc.close()
+        except Exception as e:
+            return {"verificavel": False, "motivo": f"erro ao ler PDF do portal: {e}", "status_atual": status_atual}
+
+        cancelada = bool(re.search(r"CANCELAD", texto, re.IGNORECASE))
+        m_quitada = re.search(r"quitada em (\d{2}/\d{2}/\d{4})", texto, re.IGNORECASE)
+
+        resultado = {
+            "verificavel": True,
+            "cancelada": cancelada,
+            "quitada_em": m_quitada.group(1) if m_quitada else None,
+            "status_atual": status_atual,
+            "status_corrigido": False,
+        }
+
+        if corrigir and cancelada and db_nota.status != StatusNota.CANCELADA:
+            db_nota.status = StatusNota.CANCELADA
+            db.commit()
+            resultado["status_corrigido"] = True
+            resultado["status_atual"] = StatusNota.CANCELADA.value
+
+        return resultado
 
     @staticmethod
     def revalidar_campos_do_xml(db: Session, nota_id: int) -> dict:
