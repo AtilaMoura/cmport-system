@@ -30,6 +30,7 @@ def listar(
     return FinCategoriaRepository.get_all(db, grupo=grupo, ativo=ativo)
 
 
+@router.post("", response_model=CategoriaFinanceiraResponse, status_code=201)
 @router.post("/", response_model=CategoriaFinanceiraResponse, status_code=201)
 def criar(req: CategoriaFinanceiraCreate, db: Session = Depends(get_db)):
     if req.grupo not in (g.value for g in GrupoCategoria):
