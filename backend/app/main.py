@@ -42,6 +42,7 @@ import app.models.fin_movimentacao_model     # financeiro — movimentações
 import app.models.fin_saldo_inicial_model    # financeiro — saldo inicial mensal
 import app.models.duplicata_dispensada_model  # pares de nota marcados como "não é duplicata"
 import app.models.banco_model                 # contas bancárias (Itaú/Inter/Bradesco/BTG)
+import app.models.despesa_model              # financeiro — despesa geral (unico/parcelado)
 
 # Importar todos os routers
 from app.routers.auth_router import router as auth_router
@@ -64,6 +65,7 @@ from app.routers.ciclo_nota_router import router as ciclos_nota_router
 from app.routers.corpo_nota_router import router as corpos_nota_router
 from app.routers.fin_movimentacao_router import router as fin_mov_router
 from app.routers.fin_categoria_router    import router as fin_cat_router
+from app.routers.despesa_router          import router as despesa_router
 from app.routers.fluxo_financeiro_router import router as fluxo_financeiro_router
 from app.routers.cliente_router import router as clientes_router
 from app.routers.recibo_router import router as recibos_router
@@ -198,6 +200,13 @@ def _run_migrations():
         "ALTER TABLE fin_movimentacoes ADD CONSTRAINT fk_movimentacao_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES condominios(id) ON DELETE SET NULL",
         "ALTER TABLE fin_movimentacoes ADD COLUMN forma_pagamento VARCHAR(20) NULL DEFAULT 'PIX'",
         "ALTER TABLE boletos MODIFY situacao ENUM('EMABERTO','PARCIAL','PAGO','CANCELADO','EXPIRADO','VENCIDO','BAIXADO') NOT NULL DEFAULT 'EMABERTO'",
+        # Despesa Geral — tipo RECORRENTE + banco previsto (sugestao) + flag ativo
+        # (coluna "fornecedor" antiga fica orfa, sem uso, nao foi apagada)
+        "ALTER TABLE despesas MODIFY tipo_pagamento ENUM('UNICO','PARCELADO','RECORRENTE') NOT NULL",
+        "ALTER TABLE despesas ADD COLUMN banco_previsto_id INT NULL",
+        "ALTER TABLE despesas ADD CONSTRAINT fk_despesa_banco_previsto FOREIGN KEY (banco_previsto_id) REFERENCES bancos(id) ON DELETE SET NULL",
+        "ALTER TABLE despesas ADD COLUMN dia_vencimento INT NULL",
+        "ALTER TABLE despesas ADD COLUMN ativo TINYINT(1) NOT NULL DEFAULT 1",
     ]
     try:
         for stmt in stmts:
@@ -499,6 +508,21 @@ def _sincronizar_orcamentos_auto():
         db.close()
 
 
+def _gerar_despesas_recorrentes_auto():
+    """Garante que toda Despesa RECORRENTE ativa tem parcelas PENDENTE
+    cobrindo os proximos 12 meses. Roda no startup e todo dia 1 do mes."""
+    from app.core.database import SessionLocal
+    from app.services.despesa_service import DespesaService
+    db = SessionLocal()
+    try:
+        total = DespesaService.gerar_recorrentes_pendentes(db)
+        print(f"[AutoSync-Despesas] Parcelas recorrentes geradas: {total}")
+    except Exception as e:
+        print(f"[AutoSync-Despesas] Erro: {e}")
+    finally:
+        db.close()
+
+
 def reconfigurar_sync_auto(db=None):
     """Lê configs do banco e recria jobs de OS e Orçamentos no scheduler."""
     global _scheduler
@@ -564,7 +588,15 @@ async def lifespan(app):
     # OS e Orçamentos: carrega config do banco e agenda
     reconfigurar_sync_auto()
     print("[AutoSync] Scheduler iniciado — boletos a cada hora das 6h às 16h (Brasília)")
-    
+    _scheduler.add_job(
+        _gerar_despesas_recorrentes_auto,
+        trigger="cron",
+        day=1,
+        hour=5,
+        minute=10,
+    )
+    _gerar_despesas_recorrentes_auto()
+
     # ── Storage Bucket Initialization ─────────────────────────────────────────
     from app.core.dependencies import get_storage_client
     from app.core.config import settings
@@ -625,6 +657,7 @@ app.include_router(ciclos_nota_router,  prefix="/api/v1/ciclos-nota",   tags=["C
 app.include_router(corpos_nota_router,  prefix="/api/v1/corpos-nota",   tags=["Corpo da Nota"],      dependencies=_auth)
 app.include_router(fin_mov_router,      prefix="/api/v1/financeiro",              tags=["Financeiro"],         dependencies=_auth)
 app.include_router(fin_cat_router,      prefix="/api/v1/categorias-financeiras",  tags=["Financeiro"],         dependencies=_auth)
+app.include_router(despesa_router,      prefix="/api/v1/despesas",                tags=["Financeiro"],         dependencies=_auth)
 app.include_router(fluxo_financeiro_router, prefix="/api/v1/financeiro",          tags=["Financeiro"],         dependencies=_auth)
 app.include_router(clientes_router,     prefix="/api/v1/clientes",                tags=["Clientes"],           dependencies=_auth)
 app.include_router(recibos_router,      prefix="/api/v1/recibos",                 tags=["Recibos"],            dependencies=_auth)

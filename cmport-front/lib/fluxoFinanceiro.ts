@@ -233,3 +233,31 @@ export function agruparLinhasPorBanco<T extends { banco_nome: string | null; val
   }
   return Array.from(grupos.values()).sort((a, b) => b.total - a.total);
 }
+
+export interface DespesaParcela {
+  id: number;
+  numero_parcela: number;
+  total_parcelas: number;
+  valor: number;
+  data_vencimento: string;
+  status: string;
+  data_pagamento: string | null;
+  banco_id: number | null;
+  forma_pagamento: string | null;
+  movimentacao_id: number | null;
+}
+export interface Despesa {
+  id: number;
+  descricao: string;
+  categoria_id: number | null;
+  cnpj: string;
+  banco_previsto_id: number | null;
+  tipo_pagamento: string;
+  valor_total: number;
+  total_parcelas: number;
+  dia_vencimento: number | null;
+  ativo: boolean;
+  observacao: string | null;
+  criado_em: string;
+  parcelas: DespesaParcela[];
+}
