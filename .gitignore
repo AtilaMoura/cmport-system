@@ -86,3 +86,32 @@ _arquivo/
 ~$*
 .playwright-mcp/
 bash.exe.stackdump
+
+# =========================
+# fluxo-financeiro/ — só versiona os scripts (.py) e o runbook (.md);
+# backups de banco (.sql), planilhas (.xlsx), exports (.json) e listas
+# de pendência (.txt) ficam só locais (tem dado sensível e pesam muito)
+# =========================
+fluxo-financeiro/*
+!fluxo-financeiro/*.py
+!fluxo-financeiro/*.md
+
+# docs-e-planilhas/ — planilhas de trabalho do usuário, só local
+docs-e-planilhas/
+
+# =========================
+# Raiz do repo — só código do sistema fica versionado (backend/ e cmport-front/);
+# documentos de análise, planilhas, scripts avulsos e backups soltos na raiz
+# ficam só locais (não fazem parte do sistema)
+# =========================
+/*.md
+!/CLAUDE.md
+/*.xlsx
+/*.docx
+/*.sql
+/*.txt
+/*.py
+/*.png
+/*.jpg
+/.~lock.*
+/maio/
