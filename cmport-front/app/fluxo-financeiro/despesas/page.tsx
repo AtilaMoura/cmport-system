@@ -1,11 +1,14 @@
 "use client"
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { api } from '@/lib/api';
 import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
 import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
 import { DetalheMovimentacoes } from '@/components/fluxo-financeiro/DetalheMovimentacoes';
-import { type Movimentacao, type CategoriaFinanceira } from '@/lib/fluxoFinanceiro';
+import {
+  type Movimentacao, type CategoriaFinanceira, type Despesa, type DespesaParcela,
+  fmtValor, fmtData, FORMAS_PAGAMENTO, FORMA_LABEL,
+} from '@/lib/fluxoFinanceiro';
 
 interface BancoOpcao {
   id: number;
@@ -16,6 +19,22 @@ interface BancoOpcao {
 
 interface LinhaParcela {
   numero_parcela: number;
+  valor: string;
+  data_vencimento: string;
+}
+
+interface ModalPagarState {
+  parcelaId: number;
+  descricaoDespesa: string;
+  numeroParcela: number;
+  totalParcelas: number;
+  banco_id: string;
+  data_pagamento: string;
+  forma_pagamento: string;
+}
+
+interface EdicaoParcelaState {
+  parcelaId: number;
   valor: string;
   data_vencimento: string;
 }
@@ -71,6 +90,14 @@ function DespesasContent() {
   const [categoriaEditandoId, setCategoriaEditandoId] = useState<number | null>(null);
   const [categoriaEditandoNome, setCategoriaEditandoNome] = useState('');
 
+  // ── Fase 5: pendências de despesa ──
+  const [despesas, setDespesas] = useState<Despesa[]>([]);
+  const [loadingDespesas, setLoadingDespesas] = useState(true);
+  const [modalPagar, setModalPagar] = useState<ModalPagarState | null>(null);
+  const [salvandoPagamento, setSalvandoPagamento] = useState(false);
+  const [edicaoParcela, setEdicaoParcela] = useState<EdicaoParcelaState | null>(null);
+  const [salvandoEdicaoParcela, setSalvandoEdicaoParcela] = useState(false);
+
   const carregar = useCallback(async () => {
     setLoading(true);
     try {
@@ -102,9 +129,94 @@ function DespesasContent() {
     }
   }, []);
 
+  const carregarDespesas = useCallback(async () => {
+    setLoadingDespesas(true);
+    try {
+      const { data } = await api.get('/despesas', { params: { ano, mes } });
+      // Decimal do backend serializa como string
+      setDespesas(data.map((d: Despesa) => ({
+        ...d,
+        valor_total: Number(d.valor_total),
+        parcelas: d.parcelas.map((p: DespesaParcela) => ({ ...p, valor: Number(p.valor) })),
+      })));
+    } catch {
+      setDespesas([]);
+    } finally {
+      setLoadingDespesas(false);
+    }
+  }, [ano, mes]);
+
   useEffect(() => { carregar(); }, [carregar]);
   useEffect(() => { carregarCategorias(); }, [carregarCategorias]);
   useEffect(() => { carregarBancos(); }, [carregarBancos]);
+  useEffect(() => { carregarDespesas(); }, [carregarDespesas]);
+
+  // Cada despesa vem com TODAS as suas parcelas -- filtra so as que vencem no mes/ano do filtro
+  const parcelasDoMes = useMemo(() => {
+    const linhas: { despesa: Despesa; parcela: DespesaParcela }[] = [];
+    for (const despesa of despesas) {
+      for (const parcela of despesa.parcelas) {
+        const [y, m] = parcela.data_vencimento.split('-');
+        if (Number(y) === ano && Number(m) === mes) linhas.push({ despesa, parcela });
+      }
+    }
+    return linhas.sort((a, b) => a.parcela.data_vencimento.localeCompare(b.parcela.data_vencimento));
+  }, [despesas, ano, mes]);
+
+  const abrirModalPagar = (despesa: Despesa, parcela: DespesaParcela) => {
+    setModalPagar({
+      parcelaId: parcela.id,
+      descricaoDespesa: despesa.descricao,
+      numeroParcela: parcela.numero_parcela,
+      totalParcelas: parcela.total_parcelas,
+      banco_id: '',
+      data_pagamento: new Date().toISOString().slice(0, 10),
+      forma_pagamento: 'PIX',
+    });
+  };
+
+  const confirmarPagamento = async () => {
+    if (!modalPagar) return;
+    if (!modalPagar.banco_id) { alert('Selecione o banco.'); return; }
+    setSalvandoPagamento(true);
+    try {
+      await api.patch(`/despesas/parcelas/${modalPagar.parcelaId}/pagar`, {
+        data_pagamento: modalPagar.data_pagamento,
+        banco_id: Number(modalPagar.banco_id),
+        forma_pagamento: modalPagar.forma_pagamento,
+      });
+      setModalPagar(null);
+      await Promise.all([carregarDespesas(), carregar()]);
+    } catch {
+      alert('Erro ao marcar a parcela como paga.');
+    } finally {
+      setSalvandoPagamento(false);
+    }
+  };
+
+  const iniciarEdicaoParcela = (parcela: DespesaParcela) => {
+    setEdicaoParcela({ parcelaId: parcela.id, valor: String(parcela.valor), data_vencimento: parcela.data_vencimento });
+  };
+
+  const salvarEdicaoParcela = async () => {
+    if (!edicaoParcela) return;
+    if (!edicaoParcela.valor || Number(edicaoParcela.valor) <= 0 || !edicaoParcela.data_vencimento) {
+      alert('Preencha valor e data de vencimento.'); return;
+    }
+    setSalvandoEdicaoParcela(true);
+    try {
+      await api.put(`/despesas/parcelas/${edicaoParcela.parcelaId}`, {
+        valor: Number(edicaoParcela.valor),
+        data_vencimento: edicaoParcela.data_vencimento,
+      });
+      setEdicaoParcela(null);
+      await carregarDespesas();
+    } catch {
+      alert('Erro ao editar a parcela.');
+    } finally {
+      setSalvandoEdicaoParcela(false);
+    }
+  };
 
   const abrirNova = () => {
     setNovaDespesa({ ...NOVA_DESPESA_VAZIA });
@@ -204,7 +316,7 @@ function DespesasContent() {
     try {
       await api.post('/despesas', payload);
       setModalNova(false);
-      await carregar();
+      await Promise.all([carregar(), carregarDespesas()]);
     } catch {
       alert('Erro ao salvar a despesa.');
     } finally {
@@ -271,6 +383,82 @@ function DespesasContent() {
             + Nova Despesa
           </button>
         } />
+
+        {/* ── Fase 5: parcelas do mês (pendente/pago) ── */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+            <span className="text-xs font-bold text-slate-500 uppercase">Parcelas de despesas do mês</span>
+          </div>
+          {loadingDespesas ? (
+            <div className="text-center py-8 text-slate-400 animate-pulse text-sm">Carregando...</div>
+          ) : parcelasDoMes.length === 0 ? (
+            <div className="text-center py-8 text-sm text-slate-400">Nenhuma parcela de despesa vencendo neste mês.</div>
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {parcelasDoMes.map(({ despesa, parcela }) => {
+                const editando = edicaoParcela?.parcelaId === parcela.id;
+                return (
+                  <div key={parcela.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {despesa.descricao}{parcela.total_parcelas > 1 ? ` (${parcela.numero_parcela}/${parcela.total_parcelas})` : ''}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {categorias.find(c => c.id === despesa.categoria_id)?.nome ?? 'Sem categoria'}
+                        {parcela.status === 'PAGO' && parcela.data_pagamento
+                          ? ` · pago em ${fmtData(parcela.data_pagamento)}${parcela.banco_id ? ` · ${bancos.find(b => b.id === parcela.banco_id)?.nome ?? ''}` : ''}`
+                          : ` · vence ${fmtData(parcela.data_vencimento)}`}
+                      </p>
+                    </div>
+
+                    {editando ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input type="number" step="0.01" min="0" value={edicaoParcela!.valor}
+                          onChange={e => setEdicaoParcela(p => p ? { ...p, valor: e.target.value } : p)}
+                          className="w-28 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                        <input type="date" value={edicaoParcela!.data_vencimento}
+                          onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
+                          className="px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                        <button onClick={() => setEdicaoParcela(null)}
+                          className="px-2 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold">
+                          Cancelar
+                        </button>
+                        <button onClick={salvarEdicaoParcela} disabled={salvandoEdicaoParcela}
+                          className="px-2 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold hover:brightness-110 disabled:opacity-50">
+                          {salvandoEdicaoParcela ? 'Salvando...' : 'Salvar'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{fmtValor(parcela.valor)}</span>
+                        {parcela.status === 'PENDENTE' ? (
+                          <>
+                            <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 uppercase whitespace-nowrap">
+                              Pendente
+                            </span>
+                            <button onClick={() => iniciarEdicaoParcela(parcela)}
+                              className="text-xs font-bold text-slate-400 hover:text-red-600 dark:hover:text-red-400 whitespace-nowrap">
+                              editar
+                            </button>
+                            <button onClick={() => abrirModalPagar(despesa, parcela)}
+                              className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:brightness-110 transition-all whitespace-nowrap">
+                              Marcar como pago
+                            </button>
+                          </>
+                        ) : (
+                          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 uppercase whitespace-nowrap">
+                            Pago
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {loading ? (
           <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
         ) : (
@@ -508,6 +696,55 @@ function DespesasContent() {
                 {salvandoDespesa
                   ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
                   : '💾 Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Marcar como pago (Fase 5) ── */}
+      {modalPagar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setModalPagar(null)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white mb-1">Marcar como pago</h2>
+            <p className="text-xs text-slate-500 mb-5">
+              {modalPagar.descricaoDespesa}{modalPagar.totalParcelas > 1 ? ` (${modalPagar.numeroParcela}/${modalPagar.totalParcelas})` : ''}
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Banco</label>
+                <select value={modalPagar.banco_id} onChange={e => setModalPagar(p => p ? { ...p, banco_id: e.target.value } : p)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-sm">
+                  <option value="">— Selecione —</option>
+                  {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}{b.razao_social_titular ? ` (${b.razao_social_titular})` : ''}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Data do pagamento</label>
+                <input type="date" value={modalPagar.data_pagamento}
+                  onChange={e => setModalPagar(p => p ? { ...p, data_pagamento: e.target.value } : p)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Forma de pagamento</label>
+                <select value={modalPagar.forma_pagamento} onChange={e => setModalPagar(p => p ? { ...p, forma_pagamento: e.target.value } : p)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-sm">
+                  {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setModalPagar(null)}
+                className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm">
+                Cancelar
+              </button>
+              <button onClick={confirmarPagamento} disabled={salvandoPagamento}
+                className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {salvandoPagamento
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
+                  : '✓ Confirmar pagamento'}
               </button>
             </div>
           </div>
