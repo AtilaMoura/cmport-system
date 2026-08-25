@@ -1324,6 +1324,20 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
     }
   };
 
+  const visualizarPdfManual = async (boletoId: number) => {
+    const chave = `manual-${boletoId}`;
+    setBaixandoPdf(chave);
+    try {
+      const res = await api.get(`/boletos/${boletoId}/pdf-stream`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    } catch {
+      alert('Erro ao visualizar PDF do boleto.');
+    } finally {
+      setBaixandoPdf(null);
+    }
+  };
+
   // Abre o preview de um anexo automático (busca o PDF do backend sob demanda)
   const abrirPreviewAnexo = async (key: string, label: string, url: string) => {
     setCarregandoAnexo(key);
@@ -2798,6 +2812,14 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
                                       <span className="text-xs font-bold text-green-600 dark:text-green-400 flex items-center gap-1">
                                         <span>📄</span> PDF carregado
                                       </span>
+                                      <button
+                                        onClick={() => visualizarPdfManual(boleto.id)}
+                                        disabled={baixandoPdf === `manual-${boleto.id}`}
+                                        className="px-3 py-1.5 text-xs font-bold bg-slate-700 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                                        title="Visualizar PDF"
+                                      >
+                                        {baixandoPdf === `manual-${boleto.id}` ? '...' : '📄 PDF'}
+                                      </button>
                                       <button
                                         onClick={() => handleDeletePdfBoleto(boleto.id)}
                                         disabled={deletingPdfBoletoId === boleto.id}

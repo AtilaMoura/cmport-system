@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Form, File, UploadFile
-from fastapi.responses import Response, HTMLResponse
+from fastapi.responses import Response, HTMLResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
+from io import BytesIO
 import json
 import traceback
 
@@ -287,6 +288,26 @@ def delete_pdf_boleto(
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{boleto_id}/pdf-stream")
+def get_pdf_stream(
+    boleto_id: int,
+    db: Session = Depends(get_db),
+    storage: StorageClient = Depends(get_storage_client),
+):
+    """Faz streaming do PDF manual (upload) de um boleto diretamente do storage."""
+    try:
+        conteudo, filename = BoletoService.get_pdf_stream_data(db, boleto_id, storage)
+        return StreamingResponse(
+            BytesIO(conteudo),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={filename}"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{codigo}/pdf")

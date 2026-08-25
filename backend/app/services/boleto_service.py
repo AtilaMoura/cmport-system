@@ -878,6 +878,27 @@ class BoletoService:
         return client.baixar_pdf(codigo_solicitacao)
 
     @staticmethod
+    def get_pdf_stream_data(db: Session, boleto_id: int, storage: StorageClient) -> tuple:
+        """Retorna os bytes do PDF manual (upload) de um boleto e o nome do arquivo, para streaming."""
+        from app.core.config import settings
+
+        boleto = BoletoRepository.get_by_id(db, boleto_id)
+        if not boleto:
+            raise HTTPException(status_code=404, detail="Boleto não encontrado.")
+        if not boleto.pdf_object_key:
+            raise HTTPException(status_code=404, detail="Este boleto não possui PDF armazenado.")
+
+        try:
+            conteudo = storage.download(settings.STORAGE_BUCKET, boleto.pdf_object_key)
+            filename = boleto.pdf_object_key.split('/')[-1]
+            return conteudo, filename
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[Storage] Erro ao baixar PDF para streaming do boleto {boleto_id}: {e}")
+            raise HTTPException(status_code=500, detail="Erro ao baixar PDF do storage.")
+
+    @staticmethod
     def upload_pdf_boleto(db: Session, boleto_id: int, pdf_bytes: bytes, storage: StorageClient) -> str:
         from app.core.config import settings
         boleto = BoletoRepository.get_by_id(db, boleto_id)
