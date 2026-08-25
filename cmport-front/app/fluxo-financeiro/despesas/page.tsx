@@ -83,8 +83,14 @@ const NOVA_DESPESA_VAZIA = {
   data_inicio: '',
 };
 
+const LABEL_CURTO_CNPJ: Record<string, string> = {
+  '22761557000188': 'CMPORT',
+  '65756913000188': 'CMPORT TEC',
+};
+const ORDEM_CNPJ = ['22761557000188', '65756913000188'];
+
 function DespesasContent() {
-  const { ano, mes, setAno, setMes } = useFiltrosFluxo();
+  const { ano, mes, cnpjFiltro, setAno, setMes, setCnpjFiltro } = useFiltrosFluxo();
 
   const [categorias, setCategorias] = useState<CategoriaFinanceira[]>([]);
   const [bancos, setBancos] = useState<BancoOpcao[]>([]);
@@ -143,7 +149,9 @@ function DespesasContent() {
   const carregarDespesas = useCallback(async () => {
     setLoadingDespesas(true);
     try {
-      const { data } = await api.get('/despesas', { params: { ano, mes } });
+      const params: Record<string, string | number> = { ano, mes };
+      if (cnpjFiltro) params.cnpj = cnpjFiltro;
+      const { data } = await api.get('/despesas', { params });
       // Decimal do backend serializa como string
       setDespesas(data.map((d: Despesa) => ({
         ...d,
@@ -155,7 +163,7 @@ function DespesasContent() {
     } finally {
       setLoadingDespesas(false);
     }
-  }, [ano, mes]);
+  }, [ano, mes, cnpjFiltro]);
 
   useEffect(() => { carregarCategorias(); }, [carregarCategorias]);
   useEffect(() => { carregarBancos(); }, [carregarBancos]);
@@ -234,6 +242,24 @@ function DespesasContent() {
   const totalPagoDespesa = linhasFiltradas.filter(l => l.parcela.status === 'PAGO').reduce((s, l) => s + l.parcela.valor, 0);
   const totalPendenteDespesa = linhasFiltradas.filter(l => l.parcela.status !== 'PAGO').reduce((s, l) => s + l.parcela.valor, 0);
   const totalGeralDespesa = totalPagoDespesa + totalPendenteDespesa;
+
+  const cnpjsInfoDespesa = useMemo(() => {
+    const cnpjsPresentes = Array.from(new Set(linhasFiltradas.map(l => l.despesa.cnpj)))
+      .sort((a, b) => ORDEM_CNPJ.indexOf(a) - ORDEM_CNPJ.indexOf(b));
+    return cnpjsPresentes.map(cnpj => {
+      const linhas = linhasFiltradas.filter(l => l.despesa.cnpj === cnpj);
+      const pago = linhas.filter(l => l.parcela.status === 'PAGO').reduce((s, l) => s + l.parcela.valor, 0);
+      const pendente = linhas.filter(l => l.parcela.status !== 'PAGO').reduce((s, l) => s + l.parcela.valor, 0);
+      return {
+        cnpj,
+        labelCurto: LABEL_CURTO_CNPJ[cnpj] ?? cnpj,
+        qtd: linhas.length,
+        pago,
+        pendente,
+        geral: pago + pendente,
+      };
+    });
+  }, [linhasFiltradas]);
 
   const despesaDetalhe = useMemo(() => despesas.find(d => d.id === modalDetalheId) ?? null, [despesas, modalDetalheId]);
 
@@ -501,7 +527,8 @@ function DespesasContent() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        <FiltrosFluxo ano={ano} mes={mes} onAnoChange={setAno} onMesChange={setMes} acoesExtra={
+        <FiltrosFluxo ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} onAnoChange={setAno} onMesChange={setMes}
+          onCnpjChange={setCnpjFiltro} mostrarFiltroCnpj acoesExtra={
           <button onClick={abrirNova}
             className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all whitespace-nowrap">
             + Nova Despesa
@@ -547,6 +574,34 @@ function DespesasContent() {
                 <div className="text-xl font-black text-slate-900 dark:text-white">{linhasFiltradas.length}</div>
               </div>
             </div>
+
+            {/* Cards por CNPJ (CMPORT / CMPORT TEC) */}
+            {cnpjsInfoDespesa.length > 0 && (
+              <div className={`grid grid-cols-1 ${cnpjsInfoDespesa.length > 1 ? 'sm:grid-cols-2' : ''} gap-3`}>
+                {cnpjsInfoDespesa.map(c => (
+                  <div key={c.cnpj} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">{c.labelCurto}</h3>
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{c.qtd}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Pago</div>
+                        <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">{fmtValor(c.pago)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Pendente</div>
+                        <div className="text-sm font-black text-amber-600 dark:text-amber-400">{fmtValor(c.pendente)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Geral</div>
+                        <div className="text-sm font-black text-red-700 dark:text-red-400">{fmtValor(c.geral)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Breakdown por categoria */}
             <div className="flex flex-wrap gap-2">

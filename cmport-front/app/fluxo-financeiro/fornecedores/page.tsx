@@ -8,13 +8,20 @@ import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
 import { DetalheMovimentacoes } from '@/components/fluxo-financeiro/DetalheMovimentacoes';
 import { BuscaVinculo } from '@/components/fluxo-financeiro/BuscaVinculo';
 import { BuscaCondominio } from '@/components/fluxo-financeiro/BuscaCondominio';
-import { type Movimentacao, type ServicoVinculado, type OsFornecedorReferencia, FORMAS_PAGAMENTO, FORMA_LABEL } from '@/lib/fluxoFinanceiro';
+import { fmtValor, type Movimentacao, type ServicoVinculado, type OsFornecedorReferencia, FORMAS_PAGAMENTO, FORMA_LABEL } from '@/lib/fluxoFinanceiro';
 
 interface BancoOpcao {
   id: number;
   nome: string;
   razao_social_titular: string | null;
+  cnpj_titular: string;
 }
+
+const LABEL_CURTO_CNPJ: Record<string, string> = {
+  '22761557000188': 'CMPORT',
+  '65756913000188': 'CMPORT TEC',
+};
+const ORDEM_CNPJ = ['22761557000188', '65756913000188'];
 
 interface FornecedorOpcao {
   id: number;
@@ -190,6 +197,31 @@ function FornecedoresContent() {
 
   const semServicoCount = movs.filter(m => m.servicos_vinculados.length === 0).length;
 
+  const cnpjDoMov = (m: Movimentacao): string | null =>
+    (m.banco_id ? bancos.find(b => b.id === m.banco_id)?.cnpj_titular : null) ?? null;
+
+  const cnpjsInfoFornecedor = (() => {
+    if (cnpjFiltro) return []; // já filtrado no servidor por CNPJ -- não precisa do breakdown
+    const grupos = new Map<string, { total: number; qtd: number }>();
+    for (const m of movs) {
+      const chave = cnpjDoMov(m) ?? 'SEM_BANCO';
+      if (!grupos.has(chave)) grupos.set(chave, { total: 0, qtd: 0 });
+      const g = grupos.get(chave)!;
+      g.total += m.valor;
+      g.qtd += 1;
+    }
+    const chaves = Array.from(grupos.keys()).sort((a, b) => {
+      if (a === 'SEM_BANCO') return 1;
+      if (b === 'SEM_BANCO') return -1;
+      return ORDEM_CNPJ.indexOf(a) - ORDEM_CNPJ.indexOf(b);
+    });
+    return chaves.map(chave => ({
+      chave,
+      labelCurto: chave === 'SEM_BANCO' ? 'Sem banco' : (LABEL_CURTO_CNPJ[chave] ?? chave),
+      ...grupos.get(chave)!,
+    }));
+  })();
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
@@ -213,6 +245,20 @@ function FornecedoresContent() {
             + Nova Saída Fornecedor
           </button>
         } />
+
+        {!loading && cnpjsInfoFornecedor.length > 0 && (
+          <div className={`grid grid-cols-1 ${cnpjsInfoFornecedor.length > 1 ? 'sm:grid-cols-3' : ''} gap-3`}>
+            {cnpjsInfoFornecedor.map(c => (
+              <div key={c.chave} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">{c.labelCurto}</h3>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{c.qtd}</span>
+                </div>
+                <div className="text-xl font-black text-orange-700 dark:text-orange-400">{fmtValor(c.total)}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {!loading && semServicoCount > 0 && (
           <button onClick={() => setSoSemServico(s => !s)}
