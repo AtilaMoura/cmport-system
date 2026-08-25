@@ -264,14 +264,14 @@ function FornecedoresContent() {
         ) : (
           <DetalheMovimentacoes movs={movs} cor="text-orange-700 dark:text-orange-400" mostrarFornecedor onAtualizado={carregar}
             breakdownExtra={cnpjsInfoFornecedor.length > 0 && (
-              <div className="space-y-3">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
                 {cnpjsInfoFornecedor.map(c => (
-                  <div key={c.chave} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">{c.labelCurto}</h3>
+                  <div key={c.chave} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">{c.labelCurto}</h3>
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{c.qtd}</span>
                     </div>
-                    <div className="text-xl font-black text-orange-700 dark:text-orange-400">{fmtValor(c.total)}</div>
+                    <div className="text-sm font-black text-orange-700 dark:text-orange-400">{fmtValor(c.total)}</div>
                   </div>
                 ))}
               </div>
