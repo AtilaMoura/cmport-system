@@ -577,7 +577,7 @@ function DespesasContent() {
 
             {/* Cards por CNPJ (CMPORT / CMPORT TEC) */}
             {cnpjsInfoDespesa.length > 0 && (
-              <div className={`grid grid-cols-1 ${cnpjsInfoDespesa.length > 1 ? 'sm:grid-cols-2' : ''} gap-3`}>
+              <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cnpjsInfoDespesa.length}, minmax(0, 1fr))` }}>
                 {cnpjsInfoDespesa.map(c => (
                   <div key={c.cnpj} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
                     <div className="flex items-center justify-between mb-2">
