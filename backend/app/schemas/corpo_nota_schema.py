@@ -78,6 +78,10 @@ class CorpoNotaStatusUpdate(BaseModel):
     motivo: Optional[str] = None
 
 
+class CorpoNotaConteudoUpdate(BaseModel):
+    conteudo_gerado: str
+
+
 class VincularNotaRequest(BaseModel):
     nota_fiscal_id: int
 
@@ -163,6 +167,7 @@ class CorpoNotaResponse(CorpoNotaResumoResponse):
     tem_garantia: bool = False
     termo_garantia_id: Optional[int] = None
     conteudo_gerado: Optional[str] = None
+    conteudo_manual: bool = False
     criado_por: Optional[str] = None
     # Novos campos SERVIÇO
     configuracao_inter_id: Optional[int] = None

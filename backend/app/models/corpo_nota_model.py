@@ -117,6 +117,10 @@ class CorpoNota(Base):
     # Texto gerado do corpo da nota
     conteudo_gerado = Column(Text, nullable=True)
 
+    # True quando o texto foi editado manualmente — impede que futuras
+    # atualizações de outros campos regenerem/sobrescrevam o texto
+    conteudo_manual = Column(Boolean, nullable=False, default=False)
+
     criado_em = Column(DateTime, server_default=func.now())
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now())
     criado_por = Column(String(100), nullable=True)

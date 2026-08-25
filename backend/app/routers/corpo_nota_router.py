@@ -10,6 +10,7 @@ from app.schemas.corpo_nota_schema import (
     CorpoNotaCreate,
     CorpoNotaUpdate,
     CorpoNotaStatusUpdate,
+    CorpoNotaConteudoUpdate,
     CorpoNotaResponse,
     CorpoNotaPreviewRequest,
     CorpoNotaPreviewResponse,
@@ -496,6 +497,28 @@ def listar_candidatos_nota_produto(
         }
         for n in notas
     ]
+
+
+@router.patch("/{corpo_id}/conteudo", response_model=CorpoNotaResponse)
+def editar_conteudo_corpo(
+    corpo_id: int,
+    payload: CorpoNotaConteudoUpdate,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Edita manualmente o texto do corpo da nota. A partir daqui, o texto
+    deixa de ser regenerado automaticamente quando outros campos mudam."""
+    return CorpoNotaService.editar_conteudo(db, corpo_id, payload.conteudo_gerado)
+
+
+@router.post("/{corpo_id}/conteudo/resetar", response_model=CorpoNotaResponse)
+def resetar_conteudo_corpo(
+    corpo_id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_current_user),
+):
+    """Descarta a edição manual e volta a gerar o texto automaticamente."""
+    return CorpoNotaService.resetar_conteudo(db, corpo_id)
 
 
 @router.patch("/{corpo_id}", response_model=CorpoNotaResponse)

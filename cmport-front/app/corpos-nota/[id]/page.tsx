@@ -32,6 +32,7 @@ interface CorpoNota {
   nota_fiscal_id: number | null;
   tem_garantia: boolean;
   conteudo_gerado: string | null;
+  conteudo_manual: boolean;
   criado_em: string;
   atualizado_em: string | null;
   // Novos campos SERVIÇO
@@ -157,6 +158,12 @@ export default function DetalheCorpoNotaPage() {
   const [divergencias, setDivergencias] = useState<Divergencia[]>([]);
   const [alertaDismissed, setAlertaDismissed] = useState(false);
   const [atualizandoCorpo, setAtualizandoCorpo] = useState(false);
+
+  // Edição manual do texto do corpo
+  const [editandoConteudo, setEditandoConteudo] = useState(false);
+  const [conteudoManualForm, setConteudoManualForm] = useState('');
+  const [salvandoConteudo, setSalvandoConteudo] = useState(false);
+  const [resetandoConteudo, setResetandoConteudo] = useState(false);
 
   // Geração de número NF
   const [gerandoNf, setGerandoNf] = useState(false);
@@ -335,6 +342,38 @@ export default function DetalheCorpoNotaPage() {
       carregar();
     } catch { /* silencioso */ } finally {
       setAtualizandoCorpo(false);
+    }
+  };
+
+  const abrirEdicaoConteudo = () => {
+    setConteudoManualForm(corpo?.conteudo_gerado ?? '');
+    setEditandoConteudo(true);
+  };
+
+  const salvarConteudoManual = async () => {
+    setSalvandoConteudo(true);
+    try {
+      await api.patch(`/corpos-nota/${id}/conteudo`, { conteudo_gerado: conteudoManualForm });
+      setEditandoConteudo(false);
+      carregar();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      alert(msg || 'Erro ao salvar o texto do corpo.');
+    } finally {
+      setSalvandoConteudo(false);
+    }
+  };
+
+  const resetarConteudoManual = async () => {
+    if (!confirm('Descartar a edição manual e voltar a gerar o texto automaticamente a partir dos campos?')) return;
+    setResetandoConteudo(true);
+    try {
+      await api.post(`/corpos-nota/${id}/conteudo/resetar`);
+      carregar();
+    } catch {
+      alert('Erro ao restaurar geração automática.');
+    } finally {
+      setResetandoConteudo(false);
     }
   };
 
@@ -878,36 +917,88 @@ export default function DetalheCorpoNotaPage() {
         {/* Conteúdo gerado */}
         {corpo.conteudo_gerado && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">Corpo da Nota Gerado</h3>
-              <button
-                onClick={copiarConteudo}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  copiado
-                    ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 hover:text-violet-700 dark:hover:text-violet-400'
-                }`}
-              >
-                {copiado ? (
-                  <>
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Copiado!
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Copiar
-                  </>
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">Corpo da Nota Gerado</h3>
+                {corpo.conteudo_manual && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                    Editado manualmente
+                  </span>
                 )}
-              </button>
+              </div>
+              {!editandoConteudo && (
+                <div className="flex items-center gap-2">
+                  {corpo.conteudo_manual && (
+                    <button
+                      onClick={resetarConteudoManual}
+                      disabled={resetandoConteudo}
+                      className="px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                    >
+                      {resetandoConteudo ? '...' : 'Voltar ao automático'}
+                    </button>
+                  )}
+                  <button
+                    onClick={abrirEdicaoConteudo}
+                    className="px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-500/20 hover:text-violet-700 dark:hover:text-violet-400 transition-colors"
+                  >
+                    Editar texto
+                  </button>
+                  <button
+                    onClick={copiarConteudo}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      copiado
+                        ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 hover:text-violet-700 dark:hover:text-violet-400'
+                    }`}
+                  >
+                    {copiado ? (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Copiar
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
-            <pre className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-mono">
-              {corpo.conteudo_gerado}
-            </pre>
+            {editandoConteudo ? (
+              <div className="space-y-3">
+                <textarea
+                  value={conteudoManualForm}
+                  onChange={e => setConteudoManualForm(e.target.value)}
+                  rows={18}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-xs text-slate-700 dark:text-slate-300 font-mono resize-y"
+                />
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setEditandoConteudo(false)}
+                    className="flex-1 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={salvarConteudoManual}
+                    disabled={salvandoConteudo}
+                    className="flex-1 py-2 bg-violet-600 text-white rounded-xl font-bold text-sm hover:bg-violet-700 transition-colors disabled:opacity-50"
+                  >
+                    {salvandoConteudo ? 'Salvando...' : 'Salvar texto'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <pre className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-mono">
+                {corpo.conteudo_gerado}
+              </pre>
+            )}
           </div>
         )}
 

@@ -225,7 +225,8 @@ class CorpoNotaService:
         corpo = CorpoNotaRepository.create(db, corpo)
 
         # Gera o conteúdo textual imediatamente após criação
-        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        if not corpo.conteudo_manual:
+            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         corpo = CorpoNotaRepository.save(db, corpo)
 
         CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
@@ -336,6 +337,28 @@ class CorpoNotaService:
             CorpoNotaService._resync_servico_id(db, corpo)
 
         # Regenera o texto com os dados atualizados
+        if not corpo.conteudo_manual:
+            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        return CorpoNotaRepository.save(db, corpo)
+
+    @staticmethod
+    def editar_conteudo(db: Session, corpo_id: int, conteudo_gerado: str) -> CorpoNota:
+        """Sobrescreve o texto do corpo manualmente. A partir daqui, atualizações
+        de outros campos não regeneram mais o texto automaticamente."""
+        corpo = CorpoNotaService.get_by_id(db, corpo_id)
+        if corpo.status in (StatusCorpoNota.PAGO, StatusCorpoNota.CANCELADO):
+            raise HTTPException(status_code=403, detail="Corpo em status final — não é possível editar.")
+        corpo.conteudo_gerado = conteudo_gerado
+        corpo.conteudo_manual = True
+        return CorpoNotaRepository.save(db, corpo)
+
+    @staticmethod
+    def resetar_conteudo(db: Session, corpo_id: int) -> CorpoNota:
+        """Descarta a edição manual e volta a gerar o texto automaticamente a partir dos campos."""
+        corpo = CorpoNotaService.get_by_id(db, corpo_id)
+        if corpo.status in (StatusCorpoNota.PAGO, StatusCorpoNota.CANCELADO):
+            raise HTTPException(status_code=403, detail="Corpo em status final — não é possível editar.")
+        corpo.conteudo_manual = False
         corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
 
@@ -359,7 +382,8 @@ class CorpoNotaService:
 
         if novo_status == StatusCorpoNota.GERADO:
             CorpoNotaService._validar_campos_para_gerar(corpo)
-            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+            if not corpo.conteudo_manual:
+                corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
 
         corpo.status = novo_status
         corpo = CorpoNotaRepository.save(db, corpo)
@@ -523,7 +547,8 @@ class CorpoNotaService:
         corpo.nota_produto_id = nota_fiscal_id
         if corpo.nota_fiscal_id:
             corpo.status = StatusCorpoNota.XML_VINCULADO
-        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        if not corpo.conteudo_manual:
+            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
 
     @staticmethod
@@ -542,7 +567,8 @@ class CorpoNotaService:
         corpo.nota_fiscal_id = None
         if corpo.status == StatusCorpoNota.XML_VINCULADO:
             corpo.status = StatusCorpoNota.EM_MONTAGEM
-        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        if not corpo.conteudo_manual:
+            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
 
     @staticmethod
@@ -555,7 +581,8 @@ class CorpoNotaService:
         corpo.nota_produto_id = None
         if corpo.status == StatusCorpoNota.XML_VINCULADO and not corpo.nota_fiscal_id:
             corpo.status = StatusCorpoNota.EM_MONTAGEM
-        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        if not corpo.conteudo_manual:
+            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
 
     # ── Soft delete ──────────────────────────────────────────────────────────
@@ -628,7 +655,8 @@ class CorpoNotaService:
                 db.add(conta)
                 corpo.numero_nf_produto = num_prod
 
-        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        if not corpo.conteudo_manual:
+            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
 
     @staticmethod
@@ -662,7 +690,8 @@ class CorpoNotaService:
         conta.numero_nf_produto = num_prod + 1
         db.add(conta)
         corpo.numero_nf_produto = num_prod
-        corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+        if not corpo.conteudo_manual:
+            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
         return CorpoNotaRepository.save(db, corpo)
 
     # ── Helpers privados ─────────────────────────────────────────────────────
@@ -1646,7 +1675,8 @@ class CorpoNotaService:
                 corpo.status = StatusCorpoNota.XML_VINCULADO
 
             # Regenera corpo com numero_nf_produto agora atribuído
-            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+            if not corpo.conteudo_manual:
+                corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
 
             db.add(nota)
             CorpoNotaRepository.save(db, corpo)
@@ -1780,7 +1810,8 @@ class CorpoNotaService:
             corpo.nota_fiscal_id = nota.id
             corpo.status = StatusCorpoNota.XML_VINCULADO
             nota.corpo_nota_id = corpo.id
-            corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
+            if not corpo.conteudo_manual:
+                corpo.conteudo_gerado = CorpoNotaService._gerar_conteudo(db, corpo)
             db.add(nota)
             CorpoNotaRepository.save(db, corpo)
 

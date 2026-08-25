@@ -207,6 +207,8 @@ def _run_migrations():
         "ALTER TABLE despesas ADD CONSTRAINT fk_despesa_banco_previsto FOREIGN KEY (banco_previsto_id) REFERENCES bancos(id) ON DELETE SET NULL",
         "ALTER TABLE despesas ADD COLUMN dia_vencimento INT NULL",
         "ALTER TABLE despesas ADD COLUMN ativo TINYINT(1) NOT NULL DEFAULT 1",
+
+        "ALTER TABLE corpos_nota ADD COLUMN conteudo_manual TINYINT(1) NOT NULL DEFAULT 0",
     ]
     try:
         for stmt in stmts:
