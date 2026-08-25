@@ -45,6 +45,13 @@ interface LinhaComMeta {
   bancoNome: string;
 }
 
+interface EdicaoDespesaForm {
+  descricao: string;
+  categoria_id: string;
+  banco_previsto_id: string;
+  observacao: string;
+}
+
 const CNPJ_OPCOES = [
   { label: 'CMPORT', value: '22761557000188' },
   { label: 'CMPORT TEC', value: '65756913000188' },
@@ -107,6 +114,14 @@ function DespesasContent() {
   const [categoriaFiltroDespesa, setCategoriaFiltroDespesa] = useState('');
   const [bancoFiltroDespesa, setBancoFiltroDespesa] = useState('');
 
+  // ── Fase 8: detalhe da despesa (ver todas as parcelas + editar + excluir) ──
+  const [modalDetalheId, setModalDetalheId] = useState<number | null>(null);
+  const [edicaoDespesaForm, setEdicaoDespesaForm] = useState<EdicaoDespesaForm>({
+    descricao: '', categoria_id: '', banco_previsto_id: '', observacao: '',
+  });
+  const [salvandoDespesaEdit, setSalvandoDespesaEdit] = useState(false);
+  const [excluindoDespesa, setExcluindoDespesa] = useState(false);
+
   const carregarCategorias = useCallback(async () => {
     try {
       const { data } = await api.get('/categorias-financeiras', { params: { grupo: 'DESPESA', ativo: true } });
@@ -145,6 +160,18 @@ function DespesasContent() {
   useEffect(() => { carregarCategorias(); }, [carregarCategorias]);
   useEffect(() => { carregarBancos(); }, [carregarBancos]);
   useEffect(() => { carregarDespesas(); }, [carregarDespesas]);
+
+  const hojeStr = new Date().toISOString().slice(0, 10);
+
+  const statusBadge = (parcela: DespesaParcela) => {
+    if (parcela.status === 'PAGO') {
+      return { texto: 'Pago', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' };
+    }
+    if (parcela.data_vencimento < hojeStr) {
+      return { texto: 'Vencida', cls: 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400' };
+    }
+    return { texto: 'Pendente', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400' };
+  };
 
   // Cada despesa vem com TODAS as suas parcelas -- filtra so as que vencem no mes/ano do filtro
   const parcelasDoMes = useMemo(() => {
@@ -204,7 +231,61 @@ function DespesasContent() {
     });
   }, [linhasComMeta, buscaDespesa, categoriaFiltroDespesa, bancoFiltroDespesa]);
 
-  const totalFiltradoDespesa = linhasFiltradas.reduce((s, l) => s + l.parcela.valor, 0);
+  const totalPagoDespesa = linhasFiltradas.filter(l => l.parcela.status === 'PAGO').reduce((s, l) => s + l.parcela.valor, 0);
+  const totalPendenteDespesa = linhasFiltradas.filter(l => l.parcela.status !== 'PAGO').reduce((s, l) => s + l.parcela.valor, 0);
+  const totalGeralDespesa = totalPagoDespesa + totalPendenteDespesa;
+
+  const despesaDetalhe = useMemo(() => despesas.find(d => d.id === modalDetalheId) ?? null, [despesas, modalDetalheId]);
+
+  const abrirDetalheDespesa = (despesa: Despesa) => {
+    setModalDetalheId(despesa.id);
+    setEdicaoDespesaForm({
+      descricao: despesa.descricao,
+      categoria_id: despesa.categoria_id ? String(despesa.categoria_id) : '',
+      banco_previsto_id: despesa.banco_previsto_id ? String(despesa.banco_previsto_id) : '',
+      observacao: despesa.observacao ?? '',
+    });
+  };
+
+  const fecharDetalheDespesa = () => {
+    setModalDetalheId(null);
+  };
+
+  const salvarEdicaoDespesa = async () => {
+    if (!despesaDetalhe) return;
+    if (!edicaoDespesaForm.descricao.trim() || !edicaoDespesaForm.categoria_id) {
+      alert('Preencha descrição e categoria.'); return;
+    }
+    setSalvandoDespesaEdit(true);
+    try {
+      await api.put(`/despesas/${despesaDetalhe.id}`, {
+        descricao: edicaoDespesaForm.descricao.trim(),
+        categoria_id: Number(edicaoDespesaForm.categoria_id),
+        banco_previsto_id: edicaoDespesaForm.banco_previsto_id ? Number(edicaoDespesaForm.banco_previsto_id) : null,
+        observacao: edicaoDespesaForm.observacao || null,
+      });
+      await carregarDespesas();
+    } catch {
+      alert('Erro ao salvar as alterações da despesa.');
+    } finally {
+      setSalvandoDespesaEdit(false);
+    }
+  };
+
+  const excluirDespesa = async () => {
+    if (!despesaDetalhe) return;
+    if (!confirm(`Excluir "${despesaDetalhe.descricao}" e todas as suas ${despesaDetalhe.parcelas.length} parcela(s)? Essa ação pode ser desfeita só pela auditoria de exclusões.`)) return;
+    setExcluindoDespesa(true);
+    try {
+      await api.delete(`/despesas/${despesaDetalhe.id}`);
+      setModalDetalheId(null);
+      await carregarDespesas();
+    } catch {
+      alert('Erro ao excluir a despesa.');
+    } finally {
+      setExcluindoDespesa(false);
+    }
+  };
 
   const abrirModalPagar = (despesa: Despesa, parcela: DespesaParcela) => {
     setModalPagar({
@@ -448,14 +529,22 @@ function DespesasContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Total filtrado</div>
-                <div className="text-2xl font-black text-red-700 dark:text-red-400">{fmtValor(totalFiltradoDespesa)}</div>
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Total pago</div>
+                <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{fmtValor(totalPagoDespesa)}</div>
+              </div>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Total pendente</div>
+                <div className="text-xl font-black text-amber-600 dark:text-amber-400">{fmtValor(totalPendenteDespesa)}</div>
+              </div>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Total geral</div>
+                <div className="text-xl font-black text-red-700 dark:text-red-400">{fmtValor(totalGeralDespesa)}</div>
               </div>
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
                 <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Lançamentos</div>
-                <div className="text-2xl font-black text-slate-900 dark:text-white">{linhasFiltradas.length}</div>
+                <div className="text-xl font-black text-slate-900 dark:text-white">{linhasFiltradas.length}</div>
               </div>
             </div>
 
@@ -499,10 +588,11 @@ function DespesasContent() {
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {linhasFiltradas.map(({ despesa, parcela, categoriaNome, bancoNome }) => {
                     const editando = edicaoParcela?.parcelaId === parcela.id;
+                    const badge = statusBadge(parcela);
                     return (
                       <div key={parcela.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                        <button type="button" onClick={() => abrirDetalheDespesa(despesa)} className="flex-1 min-w-0 text-left">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate hover:text-red-600 dark:hover:text-red-400 transition-colors">
                             {despesa.descricao}{parcela.total_parcelas > 1 ? ` (${parcela.numero_parcela}/${parcela.total_parcelas})` : ''}
                           </p>
                           <p className="text-xs text-slate-400">
@@ -511,7 +601,7 @@ function DespesasContent() {
                               ? ` · pago em ${fmtData(parcela.data_pagamento)} · ${bancoNome}`
                               : ` · vence ${fmtData(parcela.data_vencimento)}`}
                           </p>
-                        </div>
+                        </button>
 
                         {editando ? (
                           <div className="flex flex-wrap items-center gap-2">
@@ -533,11 +623,11 @@ function DespesasContent() {
                         ) : (
                           <div className="flex items-center gap-2 sm:gap-3">
                             <span className="text-sm font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{fmtValor(parcela.valor)}</span>
-                            {parcela.status === 'PENDENTE' ? (
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${badge.cls}`}>
+                              {badge.texto}
+                            </span>
+                            {parcela.status === 'PENDENTE' && (
                               <>
-                                <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 uppercase whitespace-nowrap">
-                                  Pendente
-                                </span>
                                 <button onClick={() => iniciarEdicaoParcela(parcela)}
                                   className="text-xs font-bold text-slate-400 hover:text-red-600 dark:hover:text-red-400 whitespace-nowrap">
                                   editar
@@ -547,10 +637,6 @@ function DespesasContent() {
                                   Marcar como pago
                                 </button>
                               </>
-                            ) : (
-                              <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 uppercase whitespace-nowrap">
-                                Pago
-                              </span>
                             )}
                           </div>
                         )}
@@ -845,6 +931,138 @@ function DespesasContent() {
                   : '✓ Confirmar pagamento'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Detalhe da Despesa (Fase 8) ── */}
+      {despesaDetalhe && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={fecharDetalheDespesa}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl p-6 overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white">Detalhe da despesa</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {despesaDetalhe.tipo_pagamento === 'UNICO' && 'Pagamento único'}
+                  {despesaDetalhe.tipo_pagamento === 'PARCELADO' && `Parcelado — ${despesaDetalhe.total_parcelas}x`}
+                  {despesaDetalhe.tipo_pagamento === 'RECORRENTE' && 'Recorrente'}
+                </p>
+              </div>
+              <button onClick={fecharDetalheDespesa} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-xl leading-none">×</button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Descrição</label>
+                <input type="text" value={edicaoDespesaForm.descricao}
+                  onChange={e => setEdicaoDespesaForm(p => ({ ...p, descricao: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-red-500 outline-none text-sm" />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Categoria</label>
+                  <select value={edicaoDespesaForm.categoria_id}
+                    onChange={e => setEdicaoDespesaForm(p => ({ ...p, categoria_id: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-red-500 outline-none text-sm">
+                    <option value="">— Selecione —</option>
+                    {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Banco previsto</label>
+                  <select value={edicaoDespesaForm.banco_previsto_id}
+                    onChange={e => setEdicaoDespesaForm(p => ({ ...p, banco_previsto_id: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-red-500 outline-none text-sm">
+                    <option value="">— Nenhum —</option>
+                    {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}{b.razao_social_titular ? ` (${b.razao_social_titular})` : ''}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Observação</label>
+                <input type="text" value={edicaoDespesaForm.observacao}
+                  onChange={e => setEdicaoDespesaForm(p => ({ ...p, observacao: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-red-500 outline-none text-sm" />
+              </div>
+
+              <button onClick={salvarEdicaoDespesa} disabled={salvandoDespesaEdit}
+                className="w-full py-2.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {salvandoDespesaEdit
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
+                  : '💾 Salvar alterações'}
+              </button>
+            </div>
+
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+              <span className="text-xs font-bold text-slate-500 uppercase mb-2 block">Parcelas ({despesaDetalhe.parcelas.length})</span>
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 max-h-72 overflow-y-auto">
+                {[...despesaDetalhe.parcelas].sort((a, b) => a.numero_parcela - b.numero_parcela).map(parcela => {
+                  const badge = statusBadge(parcela);
+                  const editandoEssa = edicaoParcela?.parcelaId === parcela.id;
+                  return (
+                    <div key={parcela.id} className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {despesaDetalhe.tipo_pagamento === 'RECORRENTE'
+                            ? `Parcela ${parcela.numero_parcela}`
+                            : parcela.total_parcelas > 1 ? `${parcela.numero_parcela}/${parcela.total_parcelas}` : 'Única'}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {parcela.status === 'PAGO' && parcela.data_pagamento
+                            ? `pago em ${fmtData(parcela.data_pagamento)}${parcela.banco_id ? ` · ${bancos.find(b => b.id === parcela.banco_id)?.nome ?? ''}` : ''}`
+                            : `vence ${fmtData(parcela.data_vencimento)}`}
+                        </p>
+                      </div>
+
+                      {editandoEssa ? (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <input type="number" step="0.01" min="0" value={edicaoParcela!.valor}
+                            onChange={e => setEdicaoParcela(p => p ? { ...p, valor: e.target.value } : p)}
+                            className="w-24 px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                          <input type="date" value={edicaoParcela!.data_vencimento}
+                            onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
+                            className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                          <button onClick={() => setEdicaoParcela(null)}
+                            className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold">
+                            Cancelar
+                          </button>
+                          <button onClick={salvarEdicaoParcela} disabled={salvandoEdicaoParcela}
+                            className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs font-bold hover:brightness-110 disabled:opacity-50">
+                            {salvandoEdicaoParcela ? '...' : 'Salvar'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{fmtValor(parcela.valor)}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase whitespace-nowrap ${badge.cls}`}>
+                            {badge.texto}
+                          </span>
+                          {parcela.status === 'PENDENTE' && (
+                            <>
+                              <button onClick={() => iniciarEdicaoParcela(parcela)}
+                                className="text-[11px] font-bold text-slate-400 hover:text-red-600 dark:hover:text-red-400 whitespace-nowrap">
+                                editar
+                              </button>
+                              <button onClick={() => abrirModalPagar(despesaDetalhe, parcela)}
+                                className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[11px] font-bold hover:brightness-110 whitespace-nowrap">
+                                Pagar
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button onClick={excluirDespesa} disabled={excluindoDespesa}
+              className="w-full mt-6 py-2.5 bg-slate-100 dark:bg-slate-800 text-red-600 dark:text-red-400 rounded-xl font-bold text-sm hover:bg-red-50 dark:hover:bg-red-950/30 transition-all disabled:opacity-50">
+              {excluindoDespesa ? 'Excluindo...' : '🗑️ Excluir despesa'}
+            </button>
           </div>
         </div>
       )}
