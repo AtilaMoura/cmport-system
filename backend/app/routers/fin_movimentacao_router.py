@@ -35,12 +35,13 @@ def listar(
     status:       Optional[str] = None,
     recibo_id:    Optional[int] = None,
     sem_servico_vinculado: Optional[bool] = None,
+    cnpj:         Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     return FinMovimentacaoService.listar(
         db, mes=mes, ano=ano, tipo=tipo, grupo=grupo,
         categoria_id=categoria_id, origem=origem, status=status, recibo_id=recibo_id,
-        sem_servico_vinculado=sem_servico_vinculado,
+        sem_servico_vinculado=sem_servico_vinculado, cnpj=cnpj,
     )
 
 

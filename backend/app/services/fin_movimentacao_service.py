@@ -166,11 +166,11 @@ class FinMovimentacaoService:
     @staticmethod
     def listar(db: Session, mes=None, ano=None, tipo=None, grupo=None,
                categoria_id=None, origem=None, status=None, recibo_id=None,
-               sem_servico_vinculado=None) -> List[MovimentacaoResponse]:
+               sem_servico_vinculado=None, cnpj=None) -> List[MovimentacaoResponse]:
         movs = FinMovimentacaoRepository.listar(
             db, mes=mes, ano=ano, tipo=tipo, grupo=grupo,
             categoria_id=categoria_id, origem=origem, status=status, recibo_id=recibo_id,
-            sem_servico_vinculado=sem_servico_vinculado,
+            sem_servico_vinculado=sem_servico_vinculado, cnpj=cnpj,
         )
         return [FinMovimentacaoService._montar_response(m) for m in movs]
 

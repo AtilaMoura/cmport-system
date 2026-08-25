@@ -5,6 +5,7 @@ from sqlalchemy import extract
 
 from app.models.fin_movimentacao_model import MovimentacaoFinanceira
 from app.models.fin_categoria_model import CategoriaFinanceira
+from app.models.banco_model import Banco
 
 
 class FinMovimentacaoRepository:
@@ -21,6 +22,7 @@ class FinMovimentacaoRepository:
         status: Optional[str] = None,
         recibo_id: Optional[int] = None,
         sem_servico_vinculado: Optional[bool] = None,
+        cnpj: Optional[str] = None,
     ) -> List[MovimentacaoFinanceira]:
         q = (
             db.query(MovimentacaoFinanceira)
@@ -45,6 +47,9 @@ class FinMovimentacaoRepository:
                   .filter(CategoriaFinanceira.grupo == grupo)
         if sem_servico_vinculado:
             q = q.filter(~MovimentacaoFinanceira.servicos.any())
+        if cnpj:
+            q = q.join(Banco, MovimentacaoFinanceira.banco_id == Banco.id)\
+                  .filter(Banco.cnpj_titular == cnpj)
         return q.order_by(MovimentacaoFinanceira.data.desc(), MovimentacaoFinanceira.id.desc()).all()
 
     @staticmethod

@@ -30,7 +30,7 @@ interface GrupoCondominio {
 const NOVA_VAZIA = { data: '', descricao: '', valor: '', fornecedor_id: '', banco_id: '', forma_pagamento: 'PIX' };
 
 function FornecedoresContent() {
-  const { ano, mes, setAno, setMes } = useFiltrosFluxo();
+  const { ano, mes, cnpjFiltro, setAno, setMes, setCnpjFiltro } = useFiltrosFluxo();
   const [movs, setMovs] = useState<Movimentacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [soSemServico, setSoSemServico] = useState(false);
@@ -175,6 +175,7 @@ function FornecedoresContent() {
     try {
       const params: Record<string, string | number | boolean> = { ano, mes, tipo: 'SAIDA', grupo: 'FORNECEDOR' };
       if (soSemServico) params.sem_servico_vinculado = true;
+      if (cnpjFiltro) params.cnpj = cnpjFiltro;
       const r = await api.get('/financeiro/movimentacoes', { params });
       // Decimal do backend serializa como string
       setMovs(r.data.map((m: Movimentacao) => ({ ...m, valor: Number(m.valor) })));
@@ -183,7 +184,7 @@ function FornecedoresContent() {
     } finally {
       setLoading(false);
     }
-  }, [ano, mes, soSemServico]);
+  }, [ano, mes, soSemServico, cnpjFiltro]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -205,7 +206,8 @@ function FornecedoresContent() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        <FiltrosFluxo ano={ano} mes={mes} onAnoChange={setAno} onMesChange={setMes} acoesExtra={
+        <FiltrosFluxo ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} onAnoChange={setAno} onMesChange={setMes}
+          onCnpjChange={setCnpjFiltro} mostrarFiltroCnpj acoesExtra={
           <button onClick={abrirNova}
             className="px-4 py-2 bg-orange-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all whitespace-nowrap">
             + Nova Saída Fornecedor
