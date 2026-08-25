@@ -225,3 +225,18 @@ Classificação de apoio já gerada: `fluxo-financeiro/recorrentes_geral_vs_func
   - Fluxo-mensal (Visão Geral) conferido na tela de produção: janeiro mostra R$46.033,78 = R$21.713,82 (despesas migradas, pela data real de pagamento) + R$24.319,96 (Salário/Adiantamento preservado) — bate exato com o que a API retorna.
   - `npx tsc --noEmit` limpo.
   - **Feature Despesa Geral está completa e no ar em produção com dado real.** Falta: as 5 melhorias de UX pedidas pelo Atila (ver detalhe da despesa com todas as parcelas, botão excluir despesa, badge "Vencida", separar Total Pago/Pendente/Geral, edição mais completa).
+
+- **25/08/2026: Fase 8 (5 melhorias de UX) concluída e validada no navegador — ainda não deployada em produção.**
+  - Backend: novo endpoint `PUT /despesas/{id}` (schema `DespesaUpdate`) permitindo editar descrição/categoria/banco previsto/observação da despesa (separado do `PUT /despesas/parcelas/{id}` que já existia só pra valor/data de parcela pendente). Commitado em `0a7af4b`.
+  - Frontend (opencode, prompt em `fluxo-financeiro/opencode-prompts/fase8_melhorias_ux_despesas.txt`, revisado e com 1 ajuste manual): reescreveu `despesas/page.tsx` com as 5 melhorias:
+    1. Modal de detalhe da despesa (clicando na descrição) mostrando todas as parcelas juntas, com badge de status por parcela.
+    2. Botão excluir despesa (soft delete) dentro do modal de detalhe.
+    3. Badge "Vencida" pra parcela PENDENTE com `data_vencimento` no passado (antes só existia Pago/Pendente).
+    4. Cards de estatística separados: Total Pago / Total Pendente / Total Geral (antes era um total só, misturado).
+    5. Edição mais completa no modal de detalhe: descrição, categoria, banco previsto e observação (antes só dava pra editar valor/data de uma parcela pendente isolada).
+  - Estado `despesaDetalhe` derivado via `useMemo` a partir do array `despesas` (não guardado separado) — garante que o modal sempre reflete o dado mais recente depois de qualquer mutação (editar, marcar pago, excluir), sem precisar recarregar a lista manualmente.
+  - Bug achado e corrigido durante o teste: parcela de despesa RECORRENTE mostrava "Única" no modal de detalhe (porque `total_parcelas=0` no banco pra recorrente) — corrigido checando `tipo_pagamento === 'RECORRENTE'` primeiro e mostrando "Parcela N" nesse caso.
+  - Testado de verdade no navegador via Playwright contra dado real de produção (local, porta 3001): abri detalhe de uma despesa recorrente confirmando "Parcela 1/2/3...", editei categoria e confirmei persistência, badge "Vencida" aparecendo certo em parcela pendente com data passada, cards Pago/Pendente/Geral batendo com a soma visível na tabela, excluir despesa com confirm dialog (`browser_handle_dialog`) removendo da lista.
+  - `npx tsc --noEmit` limpo.
+  - Commitado em `d484acc` (frontend) + `0a7af4b` (backend, já commitado antes).
+  - **Ainda não deployado em produção** — falta `git push origin master` quando o Atila confirmar.
