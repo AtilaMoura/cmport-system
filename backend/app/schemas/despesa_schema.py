@@ -90,3 +90,10 @@ class MarcarPagoRequest(BaseModel):
 class EditarParcelaRequest(BaseModel):
     valor: Optional[Decimal] = None
     data_vencimento: Optional[date] = None
+
+
+class DespesaUpdate(BaseModel):
+    descricao: Optional[str] = None
+    categoria_id: Optional[int] = None
+    banco_previsto_id: Optional[int] = None
+    observacao: Optional[str] = None

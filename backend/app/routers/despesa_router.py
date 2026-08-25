@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from app.core.database import SessionLocal
 from app.services.despesa_service import DespesaService
-from app.schemas.despesa_schema import DespesaCreate, DespesaResponse, MarcarPagoRequest, EditarParcelaRequest
+from app.schemas.despesa_schema import DespesaCreate, DespesaResponse, MarcarPagoRequest, EditarParcelaRequest, DespesaUpdate
 
 router = APIRouter()
 
@@ -44,6 +44,14 @@ def buscar(id: int, db: Session = Depends(get_db)):
         return DespesaService.buscar(db, id)
     except Exception as e:
         raise HTTPException(404, str(e))
+
+
+@router.put("/{id}", response_model=DespesaResponse)
+def editar(id: int, req: DespesaUpdate, db: Session = Depends(get_db)):
+    try:
+        return DespesaService.editar(db, id, req)
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 @router.patch("/parcelas/{parcela_id}/pagar", response_model=DespesaResponse)

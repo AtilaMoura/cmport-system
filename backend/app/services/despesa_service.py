@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.despesa_model import Despesa, DespesaParcela, StatusParcelaDespesa, TipoPagamentoDespesa
 from app.models.fin_movimentacao_model import MovimentacaoFinanceira
 from app.repositories.despesa_repository import DespesaRepository
-from app.schemas.despesa_schema import DespesaCreate, DespesaResponse, MarcarPagoRequest, EditarParcelaRequest
+from app.schemas.despesa_schema import DespesaCreate, DespesaResponse, MarcarPagoRequest, EditarParcelaRequest, DespesaUpdate
 
 HORIZONTE_MESES_RECORRENTE = 12
 
@@ -73,6 +73,16 @@ class DespesaService:
         despesa = DespesaRepository.get_by_id(db, id)
         if not despesa:
             raise Exception("Despesa não encontrada.")
+        return DespesaResponse.model_validate(despesa)
+
+    @staticmethod
+    def editar(db: Session, id: int, req: DespesaUpdate) -> DespesaResponse:
+        despesa = DespesaRepository.get_by_id(db, id)
+        if not despesa:
+            raise Exception("Despesa não encontrada.")
+        dados = {k: v for k, v in req.model_dump().items() if v is not None}
+        if dados:
+            DespesaRepository.update(db, despesa, dados)
         return DespesaResponse.model_validate(despesa)
 
     @staticmethod
