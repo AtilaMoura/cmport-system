@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { fmtValor, fmtData, agruparPorCategoria, agruparPorBanco, type Movimentacao, type ServicoVinculado, type OsFornecedorReferencia, FORMAS_PAGAMENTO, FORMA_LABEL } from '@/lib/fluxoFinanceiro';
 import { BuscaVinculo } from './BuscaVinculo';
@@ -29,9 +29,10 @@ interface Props {
   mostrarBancoOrigem?: boolean;
   mostrarFornecedor?: boolean;
   onAtualizado?: () => void;
+  breakdownExtra?: ReactNode;
 }
 
-export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFornecedor, onAtualizado }: Props) {
+export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFornecedor, onAtualizado, breakdownExtra }: Props) {
   const [busca, setBusca] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('');
   const [bancoFiltro, setBancoFiltro] = useState('');
@@ -220,6 +221,8 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
           <div className="text-2xl font-black text-slate-900 dark:text-white">{filtradas.length}</div>
         </div>
       </div>
+
+      {breakdownExtra}
 
       {/* Breakdown por categoria */}
       <div className="flex flex-wrap gap-2">

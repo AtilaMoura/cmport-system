@@ -246,20 +246,6 @@ function FornecedoresContent() {
           </button>
         } />
 
-        {!loading && cnpjsInfoFornecedor.length > 0 && (
-          <div className={`grid grid-cols-1 ${cnpjsInfoFornecedor.length > 1 ? 'sm:grid-cols-3' : ''} gap-3`}>
-            {cnpjsInfoFornecedor.map(c => (
-              <div key={c.chave} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">{c.labelCurto}</h3>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{c.qtd}</span>
-                </div>
-                <div className="text-xl font-black text-orange-700 dark:text-orange-400">{fmtValor(c.total)}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {!loading && semServicoCount > 0 && (
           <button onClick={() => setSoSemServico(s => !s)}
             className={`w-full text-left rounded-2xl p-4 border transition-colors ${
@@ -276,7 +262,20 @@ function FornecedoresContent() {
         {loading ? (
           <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
         ) : (
-          <DetalheMovimentacoes movs={movs} cor="text-orange-700 dark:text-orange-400" mostrarFornecedor onAtualizado={carregar} />
+          <DetalheMovimentacoes movs={movs} cor="text-orange-700 dark:text-orange-400" mostrarFornecedor onAtualizado={carregar}
+            breakdownExtra={cnpjsInfoFornecedor.length > 0 && (
+              <div className="space-y-3">
+                {cnpjsInfoFornecedor.map(c => (
+                  <div key={c.chave} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">{c.labelCurto}</h3>
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{c.qtd}</span>
+                    </div>
+                    <div className="text-xl font-black text-orange-700 dark:text-orange-400">{fmtValor(c.total)}</div>
+                  </div>
+                ))}
+              </div>
+            )} />
         )}
       </div>
 
