@@ -1372,14 +1372,18 @@ export default function ServicoDetalhesPage({ params }: { params: Promise<{ id: 
         lista.push({
           key: `boleto-${b.id}`,
           label: `boleto_parcela_${b.numero_parcela}.pdf`,
-          url: b.codigo_solicitacao ? `/boletos/${b.codigo_solicitacao}/pdf` : null,
+          url: b.codigo_solicitacao
+            ? `/boletos/${b.codigo_solicitacao}/pdf`
+            : (b.pdf_object_key ? `/boletos/${b.id}/pdf-stream` : null),
         });
       });
     } else {
       lista.push({
         key: `boleto-${modalEmail.id}`,
-        label: `boleto_${modalEmail.codigo_solicitacao}.pdf`,
-        url: modalEmail.codigo_solicitacao ? `/boletos/${modalEmail.codigo_solicitacao}/pdf` : null,
+        label: `boleto_${modalEmail.codigo_solicitacao || modalEmail.numero_parcela}.pdf`,
+        url: modalEmail.codigo_solicitacao
+          ? `/boletos/${modalEmail.codigo_solicitacao}/pdf`
+          : (modalEmail.pdf_object_key ? `/boletos/${modalEmail.id}/pdf-stream` : null),
       });
     }
     if (notaFiscal?.pdf_object_key) {
