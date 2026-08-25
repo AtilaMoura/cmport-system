@@ -212,3 +212,16 @@ Classificação de apoio já gerada: `fluxo-financeiro/recorrentes_geral_vs_func
   - Total geral confirmado igual à V1: **558 movimentações PAGAS, R$178.138,41 exato**, mais 594 parcelas totais (inclui as PENDENTE fabricadas + as futuras das recorrentes).
   - Validado na UI: janeiro/2026 mostra 87 lançamentos, categorias corretas no filtro (Combustível, Veículo IPVA/multa, etc.), sem erro no console.
   - **`migrar_despesa_geral.py` (V1) fica só como histórico** — não usar mais, a V2 é a versão vigente. Produção continua sem receber nenhuma das duas ainda.
+
+- **25/08/2026: DEPLOY EM PRODUÇÃO + reconciliação de fornecedores + Fase 7 (validação final) — concluídos.**
+  - **Achado antes do deploy**: produção já tinha 839 lançamentos grupo=DESPESA (Jan-Jul/2026, R$409.089,65) lançados manualmente pela tela antiga/genérica, desde antes dessa feature existir — 232 deles (R$180k) jogados em "Diversos" por falta de categoria melhor. Confirmado via backup de 20/08 que é dado parado, não coisa nova sendo digitada.
+  - Sincronizados 18 lançamentos de FORNECEDOR (não-despesa) que produção tinha e local não — criados os fornecedores/categorias que faltavam em local, bate exato (R$9.672,32).
+  - Backup dos dois bancos feito antes de qualquer mudança em produção.
+  - **Deploy**: `git push origin master` (commit `04b5233`) — GitHub Actions buildou e subiu, tabelas `despesas`/`despesa_parcelas` criadas em produção via auto-migração.
+  - Criadas as 8 categorias novas em produção (ids diferentes de local: 56-63 lá vs 53-60 aqui, já que produção tem mais categorias de fornecedor no meio — script `gerar_sql_migracao_producao.py` remapeia automaticamente).
+  - **Testado antes em ambiente descartável** (banco de teste criado a partir do backup de produção) antes de aplicar de verdade — pegou zero erro.
+  - **Aplicado em produção**: 558 novos (R$178.138,41 exato) + 761 antigos removidos via soft-delete (Salário/Adiantamento, categorias 29/30, preservados intactos — R$111.020,52 não tocado). Backend reiniciado, parcelas futuras das 14 recorrentes geradas até agosto/2027.
+  - **Fase 7 — validação final**: reconciliação mês a mês (planilha vs produção, por `data_vencimento`) bateu **100% exata** em todos os 9 meses (Jan-Set), R$178.138,41. Achado e corrigido durante a validação: 1 parcela (Banco Tarifa Boleto R$17,43) tinha `data_vencimento` com typo de ano na planilha original ("2023-01-20" em vez de "2026-01-20") que o filtro de correção do script só pegava anos <2020, não esse caso específico — corrigido direto via UPDATE nos dois bancos (local e produção).
+  - Fluxo-mensal (Visão Geral) conferido na tela de produção: janeiro mostra R$46.033,78 = R$21.713,82 (despesas migradas, pela data real de pagamento) + R$24.319,96 (Salário/Adiantamento preservado) — bate exato com o que a API retorna.
+  - `npx tsc --noEmit` limpo.
+  - **Feature Despesa Geral está completa e no ar em produção com dado real.** Falta: as 5 melhorias de UX pedidas pelo Atila (ver detalhe da despesa com todas as parcelas, botão excluir despesa, badge "Vencida", separar Total Pago/Pendente/Geral, edição mais completa).
