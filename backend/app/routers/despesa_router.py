@@ -24,9 +24,10 @@ def listar(
     ano: Optional[int] = None,
     cnpj: Optional[str] = None,
     status: Optional[str] = None,
+    origem: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    return DespesaService.listar(db, mes=mes, ano=ano, cnpj=cnpj, status=status)
+    return DespesaService.listar(db, mes=mes, ano=ano, cnpj=cnpj, status=status, origem=origem)
 
 
 @router.post("", response_model=DespesaResponse, status_code=201)

@@ -250,6 +250,7 @@ export interface Despesa {
   id: number;
   descricao: string;
   categoria_id: number | null;
+  fornecedor_id: number | null;
   cnpj: string;
   banco_previsto_id: number | null;
   tipo_pagamento: string;

@@ -9,10 +9,15 @@ class DespesaRepository:
 
     @staticmethod
     def listar(db: Session, mes: Optional[int] = None, ano: Optional[int] = None,
-                cnpj: Optional[str] = None, status: Optional[str] = None) -> List[Despesa]:
+                cnpj: Optional[str] = None, status: Optional[str] = None,
+                origem: Optional[str] = None) -> List[Despesa]:
         q = db.query(Despesa).filter(Despesa.deletado_em == None)  # noqa
         if cnpj:
             q = q.filter(Despesa.cnpj == cnpj)
+        if origem == "FORNECEDOR":
+            q = q.filter(Despesa.fornecedor_id.isnot(None))
+        elif origem == "GERAL":
+            q = q.filter(Despesa.fornecedor_id.is_(None))
         condicoes_parcela = []
         if mes:
             condicoes_parcela.append(extract("month", DespesaParcela.data_vencimento) == mes)

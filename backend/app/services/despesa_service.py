@@ -8,6 +8,9 @@ from app.models.despesa_model import Despesa, DespesaParcela, StatusParcelaDespe
 from app.models.fin_movimentacao_model import MovimentacaoFinanceira
 from app.repositories.despesa_repository import DespesaRepository
 from app.schemas.despesa_schema import DespesaCreate, DespesaResponse, MarcarPagoRequest, EditarParcelaRequest, DespesaUpdate
+from app.models.servico_model import ManutencaoAssistencia
+from app.models.orcamento_model import Orcamento
+from app.models.ordem_servico_model import OrdemServico
 
 HORIZONTE_MESES_RECORRENTE = 12
 
@@ -16,9 +19,15 @@ class DespesaService:
 
     @staticmethod
     def criar(db: Session, req: DespesaCreate) -> DespesaResponse:
+        categoria_id = req.categoria_id
+        if req.fornecedor_id and not categoria_id:
+            from app.services.fin_movimentacao_service import FinMovimentacaoService
+            categoria_id = FinMovimentacaoService._resolver_categoria_por_fornecedor(db, req.fornecedor_id)
+
         despesa = Despesa(
             descricao=req.descricao,
-            categoria_id=req.categoria_id,
+            categoria_id=categoria_id,
+            fornecedor_id=req.fornecedor_id,
             cnpj=req.cnpj,
             banco_previsto_id=req.banco_previsto_id,
             tipo_pagamento=req.tipo_pagamento,
@@ -60,12 +69,25 @@ class DespesaService:
             DespesaService._garantir_parcelas_recorrente(db, despesa, data_base_inicial=req.data_inicio)
             db.refresh(despesa)
 
+        DespesaService._sync_vinculos(db, despesa, req.servico_ids, req.orcamento_ids, req.os_fornecedor_ids)
+
         return DespesaResponse.model_validate(despesa)
 
     @staticmethod
+    def _sync_vinculos(db: Session, despesa: Despesa, servico_ids, orcamento_ids, os_fornecedor_ids) -> None:
+        if servico_ids is not None:
+            despesa.servicos = db.query(ManutencaoAssistencia).filter(ManutencaoAssistencia.id.in_(servico_ids)).all() if servico_ids else []
+        if orcamento_ids is not None:
+            despesa.orcamentos = db.query(Orcamento).filter(Orcamento.id.in_(orcamento_ids)).all() if orcamento_ids else []
+        if os_fornecedor_ids is not None:
+            despesa.os_fornecedor = db.query(OrdemServico).filter(OrdemServico.id.in_(os_fornecedor_ids)).all() if os_fornecedor_ids else []
+        db.commit()
+
+    @staticmethod
     def listar(db: Session, mes: Optional[int] = None, ano: Optional[int] = None,
-                cnpj: Optional[str] = None, status: Optional[str] = None) -> List[DespesaResponse]:
-        despesas = DespesaRepository.listar(db, mes=mes, ano=ano, cnpj=cnpj, status=status)
+                cnpj: Optional[str] = None, status: Optional[str] = None,
+                origem: Optional[str] = None) -> List[DespesaResponse]:
+        despesas = DespesaRepository.listar(db, mes=mes, ano=ano, cnpj=cnpj, status=status, origem=origem)
         return [DespesaResponse.model_validate(d) for d in despesas]
 
     @staticmethod
@@ -102,6 +124,7 @@ class DespesaService:
             valor=parcela.valor,
             tipo="SAIDA",
             categoria_id=despesa.categoria_id,
+            fornecedor_id=despesa.fornecedor_id,
             origem="MANUAL",
             status="VALIDADO",
             banco_id=req.banco_id,
@@ -110,6 +133,12 @@ class DespesaService:
         db.add(movimentacao)
         db.commit()
         db.refresh(movimentacao)
+
+        if despesa.fornecedor_id:
+            movimentacao.servicos = list(despesa.servicos)
+            movimentacao.orcamentos = list(despesa.orcamentos)
+            movimentacao.os_fornecedor = list(despesa.os_fornecedor)
+            db.commit()
 
         DespesaRepository.update(db, parcela, {
             "status": StatusParcelaDespesa.PAGO,

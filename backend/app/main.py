@@ -209,6 +209,12 @@ def _run_migrations():
         "ALTER TABLE despesas ADD COLUMN ativo TINYINT(1) NOT NULL DEFAULT 1",
 
         "ALTER TABLE corpos_nota ADD COLUMN conteudo_manual TINYINT(1) NOT NULL DEFAULT 0",
+
+        # Despesa de Fornecedor — reaproveita Despesa/DespesaParcela com fornecedor_id
+        # (tabelas despesa_servicos/despesa_orcamentos/despesa_os_fornecedor sao N:N,
+        # criadas automaticamente pelo create_all acima, nao precisam de ALTER TABLE aqui)
+        "ALTER TABLE despesas ADD COLUMN fornecedor_id INT NULL",
+        "ALTER TABLE despesas ADD CONSTRAINT fk_despesa_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES condominios(id) ON DELETE SET NULL",
     ]
     try:
         for stmt in stmts:
