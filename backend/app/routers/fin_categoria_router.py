@@ -35,6 +35,11 @@ def listar(
 def criar(req: CategoriaFinanceiraCreate, db: Session = Depends(get_db)):
     if req.grupo not in (g.value for g in GrupoCategoria):
         raise HTTPException(400, "grupo inválido. Use RECEITA, FORNECEDOR ou DESPESA.")
+    existente = FinCategoriaRepository.get_by_nome_grupo(db, req.nome, req.grupo)
+    if existente:
+        if existente.ativo:
+            raise HTTPException(400, f"Já existe uma categoria ativa com o nome '{req.nome}' nesse grupo.")
+        return FinCategoriaRepository.reativar(db, existente)
     tipo = "ENTRADA" if req.grupo == "RECEITA" else "SAIDA"
     try:
         return FinCategoriaRepository.create(db, {"nome": req.nome, "grupo": req.grupo, "tipo": tipo, "ordem": req.ordem})

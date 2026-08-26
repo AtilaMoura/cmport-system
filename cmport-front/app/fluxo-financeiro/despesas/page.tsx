@@ -483,8 +483,8 @@ function DespesasContent() {
       setNovaDespesa(p => ({ ...p, categoria_id: String(data.id) }));
       setNovaCategoriaAberto(false);
       setNovaCategoriaNome('');
-    } catch {
-      alert('Erro ao criar categoria (talvez já exista uma com esse nome).');
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao criar categoria.');
     } finally {
       setCriandoCategoria(false);
     }

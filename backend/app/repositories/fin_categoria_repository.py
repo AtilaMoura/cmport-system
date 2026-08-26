@@ -20,6 +20,19 @@ class FinCategoriaRepository:
         return db.query(CategoriaFinanceira).filter(CategoriaFinanceira.id == id).first()
 
     @staticmethod
+    def get_by_nome_grupo(db: Session, nome: str, grupo: str) -> Optional[CategoriaFinanceira]:
+        return db.query(CategoriaFinanceira).filter(
+            CategoriaFinanceira.nome == nome, CategoriaFinanceira.grupo == grupo
+        ).first()
+
+    @staticmethod
+    def reativar(db: Session, obj: CategoriaFinanceira) -> CategoriaFinanceira:
+        obj.ativo = True
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+    @staticmethod
     def create(db: Session, dados: dict) -> CategoriaFinanceira:
         obj = CategoriaFinanceira(**dados)
         db.add(obj)
