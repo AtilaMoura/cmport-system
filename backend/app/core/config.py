@@ -52,6 +52,7 @@ class Settings(BaseSettings):
             f"{self.DB_HOST}:"
             f"{self.DB_PORT}/"
             f"{self.DB_NAME}"
+            f"?charset=utf8mb4"
         )
 
 

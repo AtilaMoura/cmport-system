@@ -14,8 +14,13 @@ interface CategoriaFin { id: number; nome: string; grupo: string; }
 type TipoRecibo = 'ENTRADA' | 'SAIDA';
 type ContraparteTipo = 'CONDOMINIO' | 'MORADOR' | 'CLIENTE_EXTERNO' | 'AVULSO';
 
-const TOTAL_STEPS = 5;
-const STEP_LABELS = ['Tipo', 'Vínculo', 'Contraparte', 'OS', 'Financeiro'];
+const TOTAL_STEPS = 6;
+const STEP_LABELS = ['CNPJ', 'Tipo', 'Vínculo', 'Contraparte', 'OS', 'Financeiro'];
+
+const CNPJ_OPCOES = [
+  { label: 'CMPORT', value: '22761557000188' },
+  { label: 'CMPORT TEC', value: '65756913000188' },
+];
 
 // Mesmo cálculo do backend (_calcular_valores_parcelas): divide igual, última parcela
 // absorve o resto do arredondamento — usado como sugestão inicial editável.
@@ -36,17 +41,20 @@ function NovoReciboContent() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  // Step 1 — Tipo
+  // Step 1 — CNPJ emitente (qual empresa está emitindo o recibo)
+  const [cnpjEmpresa, setCnpjEmpresa] = useState<string>(CNPJ_OPCOES[0].value);
+
+  // Step 2 — Tipo
   const [tipoRecibo, setTipoRecibo] = useState<TipoRecibo>('ENTRADA');
 
-  // Step 2 — Vínculo (condomínio ou fora do condomínio)
+  // Step 3 — Vínculo (condomínio ou fora do condomínio)
   const [temCondominio, setTemCondominio] = useState<boolean | null>(null);
   const [condominios, setCondominios] = useState<Condominio[]>([]);
   const [buscandoCond, setBuscandoCond] = useState(false);
   const [filtroCond, setFiltroCond] = useState('');
   const [condSelecionado, setCondSelecionado] = useState<Condominio | null>(null);
 
-  // Step 3 — Contraparte
+  // Step 4 — Contraparte
   const [contraparteTipo, setContraparteTipo] = useState<ContraparteTipo | null>(null);
   const [moradores, setMoradores] = useState<Cliente[]>([]);
   const [buscandoMoradores, setBuscandoMoradores] = useState(false);
@@ -60,13 +68,13 @@ function NovoReciboContent() {
   const [mostrarCadastroCliente, setMostrarCadastroCliente] = useState(false);
   const [salvandoCliente, setSalvandoCliente] = useState(false);
 
-  // Step 4 — OS (opcional, reaproveita OS existente no Auvo)
+  // Step 5 — OS (opcional, reaproveita OS existente no Auvo)
   const [ossDisponiveis, setOssDisponiveis] = useState<OsDisponivel[]>([]);
   const [buscandoOs, setBuscandoOs] = useState(false);
   const [osSelecionada, setOsSelecionada] = useState<OsDisponivel | null>(null);
   const [semOs, setSemOs] = useState(false);
 
-  // Step 5 — Financeiro
+  // Step 6 — Financeiro
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [dataEmissao, setDataEmissao] = useState(now.toISOString().slice(0, 10));
@@ -92,29 +100,29 @@ function NovoReciboContent() {
       api.get(`/condominios/${condId}`).then(r => {
         setTemCondominio(true);
         setCondSelecionado(r.data);
-        setStep(3);
+        setStep(4);
       }).catch(() => {});
     }
     if (clienteId) {
       api.get(`/clientes/${clienteId}`).then(r => {
         setClienteSelecionado(r.data);
         setContraparteTipo(r.data.condominio_id ? 'MORADOR' : 'CLIENTE_EXTERNO');
-        setStep(4);
+        setStep(5);
       }).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Carrega condomínios ativos (Step 2)
+  // Carrega condomínios ativos (Step 3)
   useEffect(() => {
-    if (step !== 2 || !temCondominio) return;
+    if (step !== 3 || !temCondominio) return;
     setBuscandoCond(true);
     api.get('/condominios?ativo=true&limit=700').then(r => setCondominios(r.data)).catch(() => setCondominios([])).finally(() => setBuscandoCond(false));
   }, [step, temCondominio]);
 
-  // Carrega moradores do condomínio selecionado ou clientes externos (Step 3)
+  // Carrega moradores do condomínio selecionado ou clientes externos (Step 4)
   useEffect(() => {
-    if (step !== 3) return;
+    if (step !== 4) return;
     if (temCondominio && condSelecionado) {
       setBuscandoMoradores(true);
       api.get('/clientes', { params: { condominio_id: condSelecionado.id, apenas_ativos: true } })
@@ -130,9 +138,9 @@ function NovoReciboContent() {
     }
   }, [step, temCondominio, condSelecionado]);
 
-  // Busca OS disponíveis pra reaproveitar (Step 4)
+  // Busca OS disponíveis pra reaproveitar (Step 5)
   useEffect(() => {
-    if (step !== 4) return;
+    if (step !== 5) return;
     const condId = temCondominio ? condSelecionado?.id : undefined;
     const cliId = !temCondominio && contraparteTipo === 'CLIENTE_EXTERNO' ? clienteSelecionado?.id : undefined;
     if (!condId && !cliId) { setOssDisponiveis([]); return; }
@@ -143,16 +151,16 @@ function NovoReciboContent() {
       .finally(() => setBuscandoOs(false));
   }, [step, temCondominio, condSelecionado, contraparteTipo, clienteSelecionado]);
 
-  // Carrega contas Inter e Bancos (Step 5)
+  // Carrega contas Inter e Bancos (Step 6)
   useEffect(() => {
-    if (step !== 5) return;
+    if (step !== 6) return;
     api.get('/configuracoes/inter').then(r => setContasInter((r.data ?? []).filter((c: ContaInter) => c.ativo))).catch(() => setContasInter([]));
     api.get('/configuracoes/bancos').then(r => setBancos((r.data ?? []).filter((b: any) => b.ativo))).catch(() => setBancos([]));
   }, [step]);
 
-  // Carrega categorias de despesa/fornecedor pra SAIDA (Step 5)
+  // Carrega categorias de despesa/fornecedor pra SAIDA (Step 6)
   useEffect(() => {
-    if (step !== 5 || tipoRecibo !== 'SAIDA') return;
+    if (step !== 6 || tipoRecibo !== 'SAIDA') return;
     api.get('/categorias-financeiras/', { params: { ativo: true } })
       .then(r => setCategorias((r.data ?? []).filter((c: CategoriaFin) => c.grupo === 'DESPESA' || c.grupo === 'FORNECEDOR')))
       .catch(() => setCategorias([]));
@@ -199,7 +207,7 @@ function NovoReciboContent() {
       setClienteSelecionado(r.data);
       setContraparteTipo('CLIENTE_EXTERNO');
       setMostrarCadastroCliente(false);
-      setStep(4);
+      setStep(5);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setErro(msg || 'Erro ao cadastrar cliente.');
@@ -210,13 +218,13 @@ function NovoReciboContent() {
     setOsSelecionada(os);
     setSemOs(false);
     if (os.descricao_completa) setDescricao(os.descricao_completa);
-    setStep(5);
+    setStep(6);
   };
 
   const pularOs = () => {
     setOsSelecionada(null);
     setSemOs(true);
-    setStep(5);
+    setStep(6);
   };
 
   const confirmar = async () => {
@@ -234,7 +242,7 @@ function NovoReciboContent() {
         condominio_id: temCondominio ? (condSelecionado?.id ?? null) : null,
         cliente_nome_avulso: contraparteTipo === 'AVULSO' ? nomeAvulso : (contraparteTipo === 'CONDOMINIO' ? contraparteNome : null),
         configuracao_inter_id: contaInterSelecionada?.id ?? null,
-        cnpj_emitente: contaInterSelecionada?.cnpj ?? null,
+        cnpj_emitente: cnpjEmpresa,
         banco_id: bancoSelecionado?.id ?? null,
         cnpj_cliente: cnpjCliente,
         descricao_servico: descricao,
@@ -299,30 +307,47 @@ function NovoReciboContent() {
             })}
           </div>
 
-          {/* ── STEP 1 — Tipo ── */}
+          {/* ── STEP 1 — CNPJ emitente ── */}
           {step === 1 && (
+            <div className="space-y-4">
+              <h2 className="text-lg font-black text-slate-800 dark:text-white">Qual empresa está emitindo?</h2>
+              <p className="text-sm text-slate-500">Define o CNPJ do recibo — precisa ser escolhido explicitamente pra aparecer certo no Fluxo Financeiro depois.</p>
+              <div className="grid grid-cols-2 gap-3">
+                {CNPJ_OPCOES.map(o => (
+                  <button key={o.value} type="button" onClick={() => { setCnpjEmpresa(o.value); setStep(2); }}
+                    className={`p-5 rounded-2xl border-2 text-left transition-all ${cnpjEmpresa === o.value ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10' : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'}`}>
+                    <div className="font-black text-slate-900 dark:text-white">{o.label}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 2 — Tipo ── */}
+          {step === 2 && (
             <div className="space-y-4">
               <h2 className="text-lg font-black text-slate-800 dark:text-white">Tipo do Recibo</h2>
               <p className="text-sm text-slate-500">O recibo é uma entrada (cliente pagou a CMPort) ou uma saída (CMPort pagou um subcontratado)?</p>
               <div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => { setTipoRecibo('ENTRADA'); setStep(2); }}
+                <button type="button" onClick={() => { setTipoRecibo('ENTRADA'); setStep(3); }}
                   className={`p-5 rounded-2xl border-2 text-left transition-all ${tipoRecibo === 'ENTRADA' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300'}`}>
                   <div className="text-2xl mb-1">⬇️</div>
                   <div className="font-black text-slate-900 dark:text-white">Entrada</div>
                   <div className="text-xs text-slate-500 mt-1">Cliente pagou a CMPort</div>
                 </button>
-                <button type="button" onClick={() => { setTipoRecibo('SAIDA'); setStep(2); }}
+                <button type="button" onClick={() => { setTipoRecibo('SAIDA'); setStep(3); }}
                   className={`p-5 rounded-2xl border-2 text-left transition-all ${tipoRecibo === 'SAIDA' ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10' : 'border-slate-200 dark:border-slate-700 hover:border-amber-300'}`}>
                   <div className="text-2xl mb-1">⬆️</div>
                   <div className="font-black text-slate-900 dark:text-white">Saída</div>
                   <div className="text-xs text-slate-500 mt-1">CMPort pagou um subcontratado</div>
                 </button>
               </div>
+              <button onClick={() => setStep(1)} className="text-sm font-bold text-slate-500 hover:text-violet-600 transition-colors">← Voltar</button>
             </div>
           )}
 
-          {/* ── STEP 2 — Vínculo (condomínio ou fora) ── */}
-          {step === 2 && (
+          {/* ── STEP 3 — Vínculo (condomínio ou fora) ── */}
+          {step === 3 && (
             <div className="space-y-4">
               <h2 className="text-lg font-black text-slate-800 dark:text-white">O serviço tem um condomínio?</h2>
               <div className="grid grid-cols-2 gap-3">
@@ -330,7 +355,7 @@ function NovoReciboContent() {
                   className={`p-4 rounded-xl border-2 text-left transition-all ${temCondominio === true ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10' : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'}`}>
                   <div className="font-bold text-sm text-slate-900 dark:text-white">🏢 Sim, tem condomínio</div>
                 </button>
-                <button type="button" onClick={() => { setTemCondominio(false); setCondSelecionado(null); setContraparteTipo(null); setStep(3); }}
+                <button type="button" onClick={() => { setTemCondominio(false); setCondSelecionado(null); setContraparteTipo(null); setStep(4); }}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${temCondominio === false ? 'border-violet-600 bg-violet-50 dark:bg-violet-500/10' : 'border-slate-200 dark:border-slate-700 hover:border-violet-300'}`}>
                   <div className="font-bold text-sm text-slate-900 dark:text-white">🏠 Fora do condomínio (PF/comércio)</div>
                 </button>
@@ -346,7 +371,7 @@ function NovoReciboContent() {
                   ) : (
                     <div className="max-h-72 overflow-y-auto space-y-1.5">
                       {condsFiltrados.slice(0, 50).map(c => (
-                        <button key={c.id} type="button" onClick={() => { setCondSelecionado(c); setStep(3); }}
+                        <button key={c.id} type="button" onClick={() => { setCondSelecionado(c); setStep(4); }}
                           className="w-full text-left px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-all text-sm font-semibold text-slate-800 dark:text-white">
                           {c.nome}
                         </button>
@@ -361,8 +386,8 @@ function NovoReciboContent() {
             </div>
           )}
 
-          {/* ── STEP 3 — Contraparte ── */}
-          {step === 3 && (
+          {/* ── STEP 4 — Contraparte ── */}
+          {step === 4 && (
             <div className="space-y-4">
               <div>
                 <h2 className="text-lg font-black text-slate-800 dark:text-white">
@@ -463,19 +488,19 @@ function NovoReciboContent() {
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => { setErro(null); setStep(2); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">← Voltar</button>
+                <button onClick={() => { setErro(null); setStep(3); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">← Voltar</button>
                 <button onClick={() => {
                   const contraparteOk = contraparteTipo === 'CONDOMINIO' || clienteSelecionado || (contraparteTipo === 'AVULSO' && nomeAvulso);
                   if (!contraparteOk) { setErro('Selecione a contraparte ou digite o nome.'); return; }
-                  setErro(null); setStep(4);
+                  setErro(null); setStep(5);
                 }} className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors">Próximo →</button>
               </div>
               {erro && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 rounded-xl p-3">{erro}</p>}
             </div>
           )}
 
-          {/* ── STEP 4 — OS (opcional) ── */}
-          {step === 4 && (
+          {/* ── STEP 5 — OS (opcional) ── */}
+          {step === 5 && (
             <div className="space-y-4">
               <div>
                 <h2 className="text-lg font-black text-slate-800 dark:text-white">Vincular OS existente?</h2>
@@ -506,14 +531,14 @@ function NovoReciboContent() {
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => { setErro(null); setStep(3); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">← Voltar</button>
+                <button onClick={() => { setErro(null); setStep(4); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">← Voltar</button>
                 <button onClick={pularOs} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">Sem OS →</button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 5 — Financeiro ── */}
-          {step === 5 && (
+          {/* ── STEP 6 — Financeiro ── */}
+          {step === 6 && (
             <div className="space-y-4">
               <div>
                 <h2 className="text-lg font-black text-slate-800 dark:text-white">Dados Financeiros</h2>
@@ -709,7 +734,7 @@ function NovoReciboContent() {
               {erro && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 rounded-xl p-3">{erro}</p>}
 
               <div className="flex gap-3">
-                <button onClick={() => { setErro(null); setStep(4); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">← Voltar</button>
+                <button onClick={() => { setErro(null); setStep(5); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors">← Voltar</button>
                 <button onClick={confirmar} disabled={loading || (Number(parcelas) > 1 && !parcelasBatem)}
                   className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors disabled:opacity-50 shadow-lg shadow-violet-600/20">
                   {loading ? 'Salvando...' : '✓ Criar Recibo'}
