@@ -1,0 +1,770 @@
+<title>Conferência de Bancos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --bg:        #f4f6f9;
+    --surface:   #ffffff;
+    --surface-2: #eef1f5;
+    --ink:       #1b2230;
+    --muted:     #5b6675;
+    --faint:     #8b95a4;
+    --border:    #e0e5ec;
+    --border-2:  #cdd4de;
+    --accent:    #2f5b8c;
+    --accent-ink:#ffffff;
+    --amber:     #b06d0a;
+    --amber-bg:  #fbf1e0;
+    --green:     #2f7d4f;
+    --green-bg:  #e6f1ea;
+    --red:       #b23b3b;
+    --shadow:    0 1px 2px rgba(20,30,50,.06), 0 8px 24px rgba(20,30,50,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:        #10131a;
+      --surface:   #191e28;
+      --surface-2: #212734;
+      --ink:       #e6e9ef;
+      --muted:     #9aa4b2;
+      --faint:     #6b7684;
+      --border:    #2a313d;
+      --border-2:  #3a4350;
+      --accent:    #7aa9db;
+      --accent-ink:#0d1017;
+      --amber:     #e0a253;
+      --amber-bg:  #2e2617;
+      --green:     #7cc79b;
+      --green-bg:  #16271e;
+      --red:       #e08b8b;
+      --shadow:    0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:        #10131a;
+    --surface:   #191e28;
+    --surface-2: #212734;
+    --ink:       #e6e9ef;
+    --muted:     #9aa4b2;
+    --faint:     #6b7684;
+    --border:    #2a313d;
+    --border-2:  #3a4350;
+    --accent:    #7aa9db;
+    --accent-ink:#0d1017;
+    --amber:     #e0a253;
+    --amber-bg:  #2e2617;
+    --green:     #7cc79b;
+    --green-bg:  #16271e;
+    --red:       #e08b8b;
+    --shadow:    0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { text-wrap: balance; }
+
+  .num { font-variant-numeric: tabular-nums; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---------- top bar ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .bar {
+    max-width: 1180px; margin: 0 auto; padding: 12px 20px;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 500; font-size: 21px; margin: 0; letter-spacing: .1px;
+  }
+  .brand .sub { color: var(--faint); font-size: 12px; }
+
+  .progress-wrap { flex: 1; min-width: 220px; }
+  .progress-line { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .progress-line b { color: var(--ink); font-weight: 600; }
+  .track { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+  .track > span { display: block; height: 100%; background: var(--green); width: 0%; transition: width .25s ease; }
+
+  button {
+    font: inherit; cursor: pointer; border-radius: 7px;
+    border: 1px solid var(--border-2); background: var(--surface);
+    color: var(--ink); padding: 7px 13px; transition: background .12s, border-color .12s;
+  }
+  button:hover { background: var(--surface-2); }
+  button.primary {
+    background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600;
+  }
+  button.primary:hover { filter: brightness(1.06); background: var(--accent); }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+
+  /* ---------- filters ---------- */
+  .filters {
+    max-width: 1180px; margin: 0 auto; padding: 14px 20px 4px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .months { display: flex; gap: 6px; flex-wrap: wrap; }
+  .month-pill {
+    border: 1px solid var(--border-2); background: var(--surface);
+    border-radius: 7px; padding: 6px 11px; font-size: 13px; display: flex; gap: 8px; align-items: center;
+  }
+  .month-pill[aria-pressed="true"] {
+    border-color: var(--accent); background: var(--accent); color: var(--accent-ink);
+  }
+  .month-pill .mp-count {
+    font-size: 11px; opacity: .8; font-variant-numeric: tabular-nums;
+  }
+  .month-pill .mp-dot {
+    width: 7px; height: 7px; border-radius: 99px; background: var(--amber);
+  }
+  .month-pill[data-done="1"] .mp-dot { background: var(--green); }
+  .month-pill[aria-pressed="true"] .mp-dot { box-shadow: 0 0 0 2px rgba(255,255,255,.5); }
+
+  .filter-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--border-2); border-radius: 7px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 6px 12px; font-size: 13px; background: var(--surface); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .seg button + button { border-left: 1px solid var(--border-2); }
+  label.check { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  input[type="search"] {
+    font: inherit; padding: 7px 11px; border-radius: 7px; border: 1px solid var(--border-2);
+    background: var(--surface); color: var(--ink); min-width: 200px;
+  }
+  select {
+    font: inherit; padding: 6px 9px; border-radius: 6px; border: 1px solid var(--border-2);
+    background: var(--surface); color: var(--ink); max-width: 100%;
+  }
+
+  .intro {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent); border-radius: 8px;
+    padding: 12px 14px; font-size: 13px; color: var(--muted); line-height: 1.55;
+  }
+  .intro b { color: var(--ink); font-weight: 600; }
+  .intro button {
+    border: 0; background: transparent; color: var(--faint); padding: 2px 6px; flex-shrink: 0;
+  }
+  .intro.hidden { display: none; }
+
+  .bulk {
+    max-width: 1180px; margin: 0 auto; padding: 6px 20px 0;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted);
+  }
+
+  /* ---------- list ---------- */
+  main { max-width: 1180px; margin: 0 auto; padding: 14px 20px 120px; }
+  .month-head {
+    font-family: "Newsreader", Georgia, serif; font-weight: 500; font-size: 17px;
+    margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .month-head .mh-meta { font-family: "IBM Plex Sans", sans-serif; font-size: 12px; color: var(--faint); }
+
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+  .row {
+    display: grid;
+    grid-template-columns: 82px 1fr 64px 124px 124px 164px 22px;
+    gap: 12px; align-items: center;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 8px; padding: 9px 12px;
+  }
+  .row[data-state="revisado"] { border-left-color: var(--green); }
+  .row[data-state="alterado"] { border-left-color: var(--green); background: var(--green-bg); }
+  .row .r-date { font-size: 12px; color: var(--muted); }
+  .row .r-desc { min-width: 0; }
+  .row .r-desc .d1 { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .r-desc .d2 { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .r-parcela { font-size: 12px; color: var(--muted); text-align: center; }
+  .row .r-valor { display: flex; align-items: center; gap: 3px; justify-content: flex-end; }
+  .row .r-valor .rs { font-size: 11px; color: var(--faint); }
+  .row .r-valor .valor-inp {
+    width: 92px; text-align: right; font-weight: 500; font-size: 13px;
+    border: 1px solid transparent; border-radius: 5px; padding: 4px 6px;
+    background: transparent; color: var(--ink);
+  }
+  .row .r-valor .valor-inp:hover { border-color: var(--border-2); }
+  .row .r-valor .valor-inp:focus { border-color: var(--accent); background: var(--surface); outline: none; }
+  .row .r-valor .valor-inp.changed {
+    border-color: var(--green); background: var(--green-bg); font-weight: 600;
+  }
+  .chip {
+    display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 99px;
+    border: 1px solid var(--border-2); color: var(--muted); white-space: nowrap;
+  }
+  .chip.mig { background: var(--amber-bg); border-color: transparent; color: var(--amber); }
+  .chip.pend { background: var(--surface-2); }
+  .chip.tipo-Geral        { color: var(--muted); }
+  .chip.tipo-Fornecedor   { color: var(--accent); border-color: var(--accent); }
+  .chip.tipo-Funcionrio   { color: var(--green);  border-color: var(--green); }
+  .chip.tipo-Transferncia { color: var(--red);    border-color: var(--red); }
+  .r-was { font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .r-was s { color: var(--red); }
+  .r-bank select { width: 100%; }
+  .r-dot {
+    width: 14px; height: 14px; border-radius: 99px; border: 2px solid var(--border-2);
+    background: var(--surface); cursor: pointer; padding: 0;
+  }
+  .row[data-state="revisado"] .r-dot, .row[data-state="alterado"] .r-dot {
+    background: var(--green); border-color: var(--green);
+  }
+
+  .empty { padding: 40px; text-align: center; color: var(--faint); }
+
+  /* ---------- report dialog ---------- */
+  dialog {
+    border: 1px solid var(--border-2); border-radius: 12px; padding: 0;
+    background: var(--surface); color: var(--ink); max-width: 640px; width: calc(100% - 40px);
+    box-shadow: var(--shadow);
+  }
+  dialog::backdrop { background: rgba(10,15,25,.5); }
+  .dlg-head { padding: 18px 20px 12px; border-bottom: 1px solid var(--border); }
+  .dlg-head h2 { margin: 0; font-family: "Newsreader", serif; font-weight: 500; font-size: 19px; }
+  .dlg-head p { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+  .dlg-body { padding: 16px 20px; }
+  .dlg-body textarea {
+    width: 100%; height: 200px; font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    border: 1px solid var(--border-2); border-radius: 8px; background: var(--bg); color: var(--ink);
+    padding: 10px; resize: vertical;
+  }
+  .dlg-foot { padding: 12px 20px 18px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  @media (max-width: 860px) {
+    .row { grid-template-columns: 1fr 150px; grid-auto-rows: auto; row-gap: 6px; }
+    .row .r-date { order: 1; }
+    .row .r-parcela { order: 2; text-align: right; }
+    .row .r-desc { order: 3; grid-column: 1 / -1; }
+    .row .r-valor { order: 4; }
+    .row .r-origem { order: 5; text-align: right; }
+    .row .r-bank { order: 6; grid-column: 1 / -1; }
+    .row .r-dot { order: 7; }
+  }
+</style>
+
+<header>
+  <div class="bar">
+    <div class="brand">
+      <h1>Conferência de Bancos</h1>
+      <span class="sub">fluxo financeiro · saídas · CMPort</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-line">
+        <span><b id="p-rev">0</b> de <b id="p-total">0</b> conferidas</span>
+        <span><b id="p-alt">0</b> com correção (banco/valor)</span>
+      </div>
+      <div class="track"><span id="p-fill"></span></div>
+    </div>
+    <button class="primary" id="btn-report">Gerar relatório</button>
+  </div>
+</header>
+
+<div class="filters">
+  <div class="intro" id="intro">
+    <div>
+      <b>Como usar:</b> escolha um mês e confira, linha a linha: o <b>seletor de banco</b> à direita lista
+      todas as contas (CMPORT e TEC) — troque as que estiverem na conta errada; e o <b>valor</b> é editável —
+      corrija se algum lançamento entrou com o valor errado (digite e aperte Enter ou clique fora).
+      As linhas da migração entraram com <b>Itaú</b> (CMPORT) ou <b>Inter</b> (TEC) por padrão.
+      Use os filtros de <b>tipo</b> e de empresa pra separar o trabalho. O progresso fica salvo neste navegador.
+      No fim, clique em <b>Gerar relatório</b> e mande o conteúdo pro Atila.
+    </div>
+    <button id="intro-x" title="fechar">✕</button>
+  </div>
+  <div class="months" id="months"></div>
+  <div class="filter-row">
+    <div class="seg" id="seg-cnpj">
+      <button data-v="todos" aria-pressed="true">Todos</button>
+      <button data-v="22761557000188">CMPORT</button>
+      <button data-v="65756913000188">TEC</button>
+    </div>
+    <div class="seg" id="seg-tipo">
+      <button data-v="todos" aria-pressed="true">Tudo</button>
+      <button data-v="Geral">Geral</button>
+      <button data-v="Fornecedor">Fornecedor</button>
+      <button data-v="Funcionário">Funcionário</button>
+      <button data-v="Transferência">Transf.</button>
+    </div>
+    <label class="check"><input type="checkbox" id="f-pendrev"> só as que faltam conferir</label>
+    <label class="check"><input type="checkbox" id="f-suspeita"> só banco vazio ou Itaú</label>
+    <input type="search" id="f-busca" placeholder="buscar descrição, fornecedor…">
+  </div>
+  <div class="bulk">
+    <span>Definir banco de todas as linhas visíveis ainda não conferidas:</span>
+    <select id="bulk-bank"></select>
+    <button id="bulk-apply">Aplicar</button>
+    <span id="bulk-info"></span>
+  </div>
+</div>
+
+<main id="list"></main>
+
+<dialog id="dlg">
+  <div class="dlg-head">
+    <h2>Relatório de correção de bancos</h2>
+    <p>Copie o conteúdo abaixo e envie pro Atila. Só entram as linhas em que você trocou o banco ou o valor.</p>
+  </div>
+  <div class="dlg-body">
+    <div class="stat-grid">
+      <div class="stat"><b id="s-alt" class="num">0</b><span>linhas corrigidas</span></div>
+      <div class="stat"><b id="s-rev" class="num">0</b><span>linhas conferidas</span></div>
+      <div class="stat"><b id="s-tot" class="num">0</b><span>total de linhas</span></div>
+    </div>
+    <textarea id="dlg-json" readonly></textarea>
+  </div>
+  <div class="dlg-foot">
+    <button id="dlg-reset">Reiniciar conferência</button>
+    <button class="primary" id="dlg-copy">Copiar relatório</button>
+    <button id="dlg-close">Fechar</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script id="dataset" type="application/json">/*DATASET*/</script>
+<script>
+(function () {
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("dataset").textContent);
+  var BANCOS = DATA.bancos;
+  var ROWS = DATA.rows;
+  var STORE_KEY = "cmport_revisao_bancos_v1";
+  var CNPJ_NOME = { "22761557000188": "CMPORT", "65756913000188": "TEC" };
+
+  var bancoById = {};
+  BANCOS.forEach(function (b) { bancoById[b.id] = b; });
+
+  function bancosDoCnpj(cnpj) {
+    return BANCOS.filter(function (b) {
+      return String(b.cnpj_titular).replace(/\D/g, "") === cnpj;
+    });
+  }
+
+  // ---------- estado persistente ----------
+  var state = { escolha: {}, revisado: {}, valor: {} };
+  try {
+    var raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      var p = JSON.parse(raw);
+      state.escolha = p.escolha || {};
+      state.revisado = p.revisado || {};
+      state.valor = p.valor || {};
+    }
+  } catch (e) {}
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function escolhaDe(r) {
+    return state.escolha.hasOwnProperty(r.mov_id) ? state.escolha[r.mov_id] : r.banco_atual;
+  }
+  function valorDe(r) {
+    return state.valor.hasOwnProperty(r.mov_id) ? state.valor[r.mov_id] : r.valor;
+  }
+  function isRevisado(r) { return !!state.revisado[r.mov_id]; }
+  function bancoMudou(r) {
+    var e = escolhaDe(r);
+    return e != null && String(e) !== String(r.banco_atual);
+  }
+  function valorMudou(r) {
+    var v = valorDe(r);
+    return v != null && Math.abs(Number(v) - Number(r.valor)) >= 0.005;
+  }
+  function isAlterado(r) {
+    return bancoMudou(r) || valorMudou(r);
+  }
+  function rowState(r) {
+    if (isAlterado(r)) return "alterado";
+    if (isRevisado(r)) return "revisado";
+    return "pendente";
+  }
+
+  // ---------- filtros ----------
+  var meses = Array.from(new Set(ROWS.map(function (r) { return (r.data || "?").slice(0, 7); }))).sort();
+  var filtro = { mes: meses[0], cnpj: "todos", tipo: "todos", pendrev: false, suspeita: false, busca: "" };
+
+  var MES_LABEL = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  function labelMes(ym) {
+    var pp = ym.split("-");
+    return MES_LABEL[parseInt(pp[1], 10)] + " " + pp[0];
+  }
+
+  function rowsDoMes(ym) {
+    return ROWS.filter(function (r) { return (r.data || "?").slice(0, 7) === ym; });
+  }
+  function passaFiltro(r) {
+    if ((r.data || "?").slice(0, 7) !== filtro.mes) return false;
+    if (filtro.cnpj !== "todos" && r.cnpj !== filtro.cnpj) return false;
+    if (filtro.tipo !== "todos" && r.tipo !== filtro.tipo) return false;
+    if (filtro.pendrev && (isRevisado(r) || isAlterado(r))) return false;
+    if (filtro.suspeita) {
+      var suspeito = r.banco_atual == null || r.banco_atual === 1;
+      if (!suspeito) return false;
+    }
+    if (filtro.busca) {
+      var hay = ((r.descricao || "") + " " + (r.fornecedor || "") + " " + (r.categoria || "")).toLowerCase();
+      if (hay.indexOf(filtro.busca.toLowerCase()) === -1) return false;
+    }
+    return true;
+  }
+
+  // ---------- render meses ----------
+  var elMonths = document.getElementById("months");
+  function renderMonths() {
+    elMonths.innerHTML = "";
+    meses.forEach(function (ym) {
+      var rs = rowsDoMes(ym);
+      var conf = rs.filter(function (r) { return isRevisado(r) || isAlterado(r); }).length;
+      var done = conf === rs.length ? "1" : "0";
+      var b = document.createElement("button");
+      b.className = "month-pill";
+      b.setAttribute("aria-pressed", ym === filtro.mes ? "true" : "false");
+      b.setAttribute("data-done", done);
+      b.innerHTML = '<span class="mp-dot"></span><span>' + labelMes(ym) +
+        '</span><span class="mp-count">' + conf + "/" + rs.length + "</span>";
+      b.addEventListener("click", function () { filtro.mes = ym; renderAll(); });
+      elMonths.appendChild(b);
+    });
+  }
+
+  // ---------- render lista ----------
+  var elList = document.getElementById("list");
+
+  // agrupa os bancos por empresa titular, na ordem em que aparecem
+  var GRUPOS_BANCO = (function () {
+    var vistos = [], grupos = {};
+    BANCOS.forEach(function (b) {
+      var emp = CNPJ_NOME[String(b.cnpj_titular).replace(/\D/g, "")] || b.razao || "Outros";
+      if (!grupos[emp]) { grupos[emp] = []; vistos.push(emp); }
+      grupos[emp].push(b);
+    });
+    return vistos.map(function (emp) { return { empresa: emp, bancos: grupos[emp] }; });
+  })();
+
+  function optionsHtml(r) {
+    var cur = escolhaDe(r);
+    var html = '<option value="">— escolher —</option>';
+    GRUPOS_BANCO.forEach(function (g) {
+      html += '<optgroup label="' + g.empresa + '">';
+      g.bancos.forEach(function (b) {
+        var sel = String(cur) === String(b.id) ? " selected" : "";
+        html += '<option value="' + b.id + '"' + sel + ">" + b.nome + "</option>";
+      });
+      html += "</optgroup>";
+    });
+    return html;
+  }
+
+  function fmtBRL(v) {
+    return "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function numBR(v) {
+    return Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function parseBR(s) {
+    if (s == null) return null;
+    var t = String(s).trim().replace(/\s|R\$/gi, "");
+    if (!t) return null;
+    // pt-BR: ponto = milhar, vírgula = decimal
+    t = t.replace(/\./g, "").replace(",", ".");
+    var n = Number(t);
+    return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+  }
+
+  function renderList() {
+    var visiveis = ROWS.filter(passaFiltro);
+    elList.innerHTML = "";
+
+    var head = document.createElement("div");
+    head.className = "month-head";
+    var totMes = fmtBRL(visiveis.reduce(function (a, r) { return a + r.valor; }, 0));
+    head.innerHTML = "<span>" + labelMes(filtro.mes) + "</span>" +
+      '<span class="mh-meta">' + visiveis.length + " lançamentos · " + totMes + "</span>";
+    elList.appendChild(head);
+
+    if (!visiveis.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "Nenhum lançamento com os filtros atuais.";
+      elList.appendChild(e);
+      return;
+    }
+
+    var wrap = document.createElement("div");
+    wrap.className = "rows";
+    visiveis.forEach(function (r) {
+      var div = document.createElement("div");
+      div.className = "row";
+      div.setAttribute("data-state", rowState(r));
+
+      var tipoChip = '<span class="chip tipo-' + (r.tipo || "").normalize("NFD").replace(/[^\w]/g, "") + '">' + (r.tipo || "—") + "</span> ";
+      var origemChip = '<span class="chip' + (r.origem === "Migração histórica" ? " mig" : "") + '">' + r.origem + "</span>";
+      var pendChip = r.status === "PENDENTE" ? ' <span class="chip pend">pendente</span>' : "";
+      var cnpjTag = filtro.cnpj === "todos" ? '<span class="chip">' + (CNPJ_NOME[r.cnpj] || "?") + "</span> " : "";
+
+      function wasHtmlFor() {
+        var partes = [];
+        if (bancoMudou(r)) {
+          var de = r.banco_atual == null ? "vazio" : (bancoById[r.banco_atual] ? bancoById[r.banco_atual].nome : r.banco_atual);
+          partes.push("banco <s>" + de + "</s>");
+        }
+        if (valorMudou(r)) {
+          partes.push("valor <s>" + fmtBRL(r.valor) + "</s>");
+        }
+        return partes.length ? '<div class="r-was">antes: ' + partes.join(" · ") + "</div>" : "";
+      }
+
+      div.innerHTML =
+        '<div class="r-date num">' + (r.data || "—") + "</div>" +
+        '<div class="r-desc"><div class="d1">' + esc(r.descricao || "(sem descrição)") + "</div>" +
+          '<div class="d2">' + esc([r.fornecedor, r.categoria].filter(Boolean).join(" · ") || "—") + '</div><div class="r-was-slot">' + wasHtmlFor() + "</div></div>" +
+        '<div class="r-parcela">' + (r.parcela || "") + "</div>" +
+        '<div class="r-valor"><span class="rs">R$</span><input type="text" inputmode="decimal" class="valor-inp mono" value="' +
+          numBR(valorDe(r)) + '"></div>' +
+        '<div class="r-origem">' + cnpjTag + tipoChip + origemChip + pendChip + "</div>" +
+        '<div class="r-bank"><select>' + optionsHtml(r) + "</select></div>" +
+        '<button class="r-dot" title="marcar como conferida"></button>';
+
+      var sel = div.querySelector("select");
+      sel.addEventListener("change", function () {
+        var v = sel.value === "" ? null : Number(sel.value);
+        if (v == null) { delete state.escolha[r.mov_id]; }
+        else { state.escolha[r.mov_id] = v; }
+        state.revisado[r.mov_id] = true;
+        save();
+        div.setAttribute("data-state", rowState(r));
+        div.querySelector(".r-was-slot").innerHTML = wasHtmlFor();
+        refreshBits();
+      });
+
+      var inp = div.querySelector(".valor-inp");
+      function commitValor() {
+        var n = parseBR(inp.value);
+        if (n == null || Math.abs(n - Number(r.valor)) < 0.005) {
+          delete state.valor[r.mov_id];
+          inp.value = numBR(r.valor);
+        } else {
+          state.valor[r.mov_id] = n;
+          state.revisado[r.mov_id] = true;
+          inp.value = numBR(n);
+        }
+        save();
+        div.setAttribute("data-state", rowState(r));
+        div.querySelector(".r-was-slot").innerHTML = wasHtmlFor();
+        inp.classList.toggle("changed", valorMudou(r));
+        refreshBits();
+      }
+      inp.addEventListener("blur", commitValor);
+      inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); inp.blur(); } });
+      inp.classList.toggle("changed", valorMudou(r));
+      div.querySelector(".r-dot").addEventListener("click", function () {
+        state.revisado[r.mov_id] = !state.revisado[r.mov_id];
+        if (!state.revisado[r.mov_id]) delete state.revisado[r.mov_id];
+        save();
+        div.setAttribute("data-state", rowState(r));
+        refreshBits();
+      });
+
+      wrap.appendChild(div);
+    });
+    elList.appendChild(wrap);
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  // ---------- progresso / bits ----------
+  function refreshBits() {
+    var rev = ROWS.filter(function (r) { return isRevisado(r) || isAlterado(r); }).length;
+    var alt = ROWS.filter(isAlterado).length;
+    document.getElementById("p-rev").textContent = rev;
+    document.getElementById("p-total").textContent = ROWS.length;
+    document.getElementById("p-alt").textContent = alt;
+    document.getElementById("p-fill").style.width = (rev / ROWS.length * 100).toFixed(1) + "%";
+    // atualiza contadores dos meses sem re-render completo
+    Array.prototype.forEach.call(elMonths.children, function (b, i) {
+      var rs = rowsDoMes(meses[i]);
+      var conf = rs.filter(function (r) { return isRevisado(r) || isAlterado(r); }).length;
+      b.setAttribute("data-done", conf === rs.length ? "1" : "0");
+      b.querySelector(".mp-count").textContent = conf + "/" + rs.length;
+    });
+    updateBulkInfo();
+  }
+
+  function renderAll() {
+    renderMonths();
+    renderList();
+    refreshBits();
+    syncSegs();
+  }
+
+  // ---------- filtros UI ----------
+  function syncSegs() {
+    Array.prototype.forEach.call(document.querySelectorAll("#seg-cnpj button"), function (b) {
+      b.setAttribute("aria-pressed", b.dataset.v === filtro.cnpj ? "true" : "false");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#seg-tipo button"), function (b) {
+      b.setAttribute("aria-pressed", b.dataset.v === filtro.tipo ? "true" : "false");
+    });
+  }
+  document.querySelectorAll("#seg-cnpj button").forEach(function (b) {
+    b.addEventListener("click", function () { filtro.cnpj = b.dataset.v; renderList(); syncSegs(); });
+  });
+  document.querySelectorAll("#seg-tipo button").forEach(function (b) {
+    b.addEventListener("click", function () { filtro.tipo = b.dataset.v; renderList(); syncSegs(); });
+  });
+  document.getElementById("f-pendrev").addEventListener("change", function (e) { filtro.pendrev = e.target.checked; renderList(); });
+  document.getElementById("f-suspeita").addEventListener("change", function (e) { filtro.suspeita = e.target.checked; renderList(); });
+  var buscaT;
+  document.getElementById("f-busca").addEventListener("input", function (e) {
+    clearTimeout(buscaT);
+    buscaT = setTimeout(function () { filtro.busca = e.target.value; renderList(); }, 180);
+  });
+
+  // ---------- bulk ----------
+  var bulkSel = document.getElementById("bulk-bank");
+  function populateBulk() {
+    bulkSel.innerHTML = GRUPOS_BANCO.map(function (g) {
+      return '<optgroup label="' + g.empresa + '">' + g.bancos.map(function (b) {
+        return '<option value="' + b.id + '">' + b.nome + "</option>";
+      }).join("") + "</optgroup>";
+    }).join("");
+  }
+  function visiveisNaoConferidas() {
+    return ROWS.filter(function (r) { return passaFiltro(r) && !isRevisado(r) && !isAlterado(r); });
+  }
+  function updateBulkInfo() {
+    var n = visiveisNaoConferidas().length;
+    document.getElementById("bulk-info").textContent = n ? "(" + n + " linha" + (n > 1 ? "s" : "") + ")" : "(nenhuma)";
+  }
+  document.getElementById("bulk-apply").addEventListener("click", function () {
+    var alvo = visiveisNaoConferidas();
+    if (!alvo.length) return;
+    var v = Number(bulkSel.value);
+    if (!v) return;
+    var bb = bancoById[v];
+    var nomeBanco = bb ? bb.nome + " (" + (CNPJ_NOME[String(bb.cnpj_titular).replace(/\D/g, "")] || bb.razao) + ")" : "";
+    if (alvo.length > 15 && !confirm("Marcar " + alvo.length + " linhas como " + nomeBanco + "? Só afeta as que ainda não foram conferidas e aparecem nos filtros atuais.")) return;
+    alvo.forEach(function (r) {
+      state.escolha[r.mov_id] = v;
+      state.revisado[r.mov_id] = true;
+    });
+    save();
+    renderList();
+    refreshBits();
+    showToast(alvo.length + " linha(s) marcada(s)");
+  });
+
+  // ---------- relatório ----------
+  function buildReport() {
+    var alt = ROWS.filter(isAlterado).map(function (r) {
+      var para = escolhaDe(r);
+      var bMud = bancoMudou(r), vMud = valorMudou(r);
+      return {
+        mov_id: r.mov_id,
+        parcela_id: r.parcela_id,
+        despesa_id: r.despesa_id,
+        cnpj: r.cnpj,
+        tipo: r.tipo,
+        data: r.data,
+        descricao: r.descricao,
+        mudou_banco: bMud,
+        mudou_valor: vMud,
+        banco_de: bMud ? r.banco_atual : null,
+        banco_de_nome: bMud && r.banco_atual != null && bancoById[r.banco_atual] ? bancoById[r.banco_atual].nome : null,
+        banco_para: bMud ? para : null,
+        banco_para_nome: bMud && bancoById[para] ? bancoById[para].nome : null,
+        valor_de: vMud ? Number(r.valor) : null,
+        valor_para: vMud ? Number(valorDe(r)) : null,
+        valor_atual: Number(r.valor)
+      };
+    });
+    return {
+      gerado_em: new Date().toISOString(),
+      total_linhas: ROWS.length,
+      linhas_conferidas: ROWS.filter(function (r) { return isRevisado(r) || isAlterado(r); }).length,
+      total_alteracoes: alt.length,
+      alteracoes: alt
+    };
+  }
+
+  var dlg = document.getElementById("dlg");
+  document.getElementById("btn-report").addEventListener("click", function () {
+    var rep = buildReport();
+    document.getElementById("s-alt").textContent = rep.total_alteracoes;
+    document.getElementById("s-rev").textContent = rep.linhas_conferidas;
+    document.getElementById("s-tot").textContent = rep.total_linhas;
+    document.getElementById("dlg-json").value = JSON.stringify(rep, null, 1);
+    if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+  });
+  document.getElementById("dlg-close").addEventListener("click", function () { dlg.close(); });
+  document.getElementById("dlg-copy").addEventListener("click", function () {
+    var ta = document.getElementById("dlg-json");
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) {}
+    if (navigator.clipboard) { navigator.clipboard.writeText(ta.value).then(function(){}, function(){}); ok = true; }
+    showToast(ok ? "Relatório copiado" : "Selecione e copie manualmente");
+  });
+  document.getElementById("dlg-reset").addEventListener("click", function () {
+    if (!confirm("Isso apaga todas as conferências feitas nesta tela. Continuar?")) return;
+    state = { escolha: {}, revisado: {}, valor: {} };
+    save();
+    dlg.close();
+    renderAll();
+    showToast("Conferência reiniciada");
+  });
+
+  var toastT;
+  function showToast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastT);
+    toastT = setTimeout(function () { t.classList.remove("show"); }, 2200);
+  }
+
+  // ---------- intro ----------
+  try {
+    if (localStorage.getItem(STORE_KEY + "_intro") === "off") document.getElementById("intro").classList.add("hidden");
+  } catch (e) {}
+  document.getElementById("intro-x").addEventListener("click", function () {
+    document.getElementById("intro").classList.add("hidden");
+    try { localStorage.setItem(STORE_KEY + "_intro", "off"); } catch (e) {}
+  });
+
+  // ---------- init ----------
+  populateBulk();
+  renderAll();
+})();
+</script>
