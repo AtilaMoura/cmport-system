@@ -42,6 +42,12 @@ mysql-data/
 alembic/versions/*.pyc
 
 # =========================
+# Claude Code — settings.local.json é pessoal/local (allowlist de
+# permissões por máquina); só .claude/settings.json é compartilhado
+# =========================
+.claude/settings.local.json
+
+# =========================
 # IDEs / OS
 # =========================
 .vscode/
