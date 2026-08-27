@@ -93,13 +93,13 @@ function TransferenciasContent() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
           <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Transferências Internas</h1>
           <p className="text-xs text-slate-500 mt-0.5">Entre contas próprias, rendimentos e ajustes — não é receita de condomínio</p>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <FiltrosFluxo ano={ano} mes={mes} onAnoChange={setAno} onMesChange={setMes} acoesExtra={
           <button onClick={abrirNova}
             className="px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all whitespace-nowrap">

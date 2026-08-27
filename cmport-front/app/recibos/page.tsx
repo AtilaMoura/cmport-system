@@ -85,7 +85,7 @@ export default function RecibosPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recibos</h1>
@@ -99,7 +99,7 @@ export default function RecibosPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-4">
 
         {/* Cards resumo */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

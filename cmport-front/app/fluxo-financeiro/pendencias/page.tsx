@@ -148,13 +148,13 @@ function PendenciasContent() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
           <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Pendências</h1>
           <p className="text-xs text-slate-500 mt-0.5">Boletos e recibos com vencimento no mês escolhido</p>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <FiltrosFluxo ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} onAnoChange={setAno} onMesChange={setMes}
           onCnpjChange={setCnpjFiltro} mostrarFiltroCnpj />
 
