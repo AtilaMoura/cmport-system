@@ -180,7 +180,7 @@
   .rows { display: flex; flex-direction: column; gap: 6px; }
   .row {
     display: grid;
-    grid-template-columns: 82px 1fr 64px 124px 124px 164px 22px;
+    grid-template-columns: 116px 1fr 58px 116px 118px 150px 20px;
     gap: 12px; align-items: center;
     background: var(--surface); border: 1px solid var(--border);
     border-left: 3px solid var(--amber);
@@ -189,6 +189,13 @@
   .row[data-state="revisado"] { border-left-color: var(--green); }
   .row[data-state="alterado"] { border-left-color: var(--green); background: var(--green-bg); }
   .row .r-date { font-size: 12px; color: var(--muted); }
+  .row .r-date .data-inp {
+    width: 100%; font-size: 12px; border: 1px solid transparent; border-radius: 5px;
+    padding: 4px 5px; background: transparent; color: var(--ink); font-family: inherit;
+  }
+  .row .r-date .data-inp:hover { border-color: var(--border-2); }
+  .row .r-date .data-inp:focus { border-color: var(--accent); background: var(--surface); outline: none; }
+  .row .r-date .data-inp.changed { border-color: var(--green); background: var(--green-bg); font-weight: 600; }
   .row .r-desc { min-width: 0; }
   .row .r-desc .d1 { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row .r-desc .d2 { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -290,12 +297,13 @@
 <div class="filters">
   <div class="intro" id="intro">
     <div>
-      <b>Como usar:</b> escolha um mês e confira, linha a linha: o <b>seletor de banco</b> à direita lista
-      todas as contas (CMPORT e TEC) — troque as que estiverem na conta errada; e o <b>valor</b> é editável —
-      corrija se algum lançamento entrou com o valor errado (digite e aperte Enter ou clique fora).
-      As linhas da migração entraram com <b>Itaú</b> (CMPORT) ou <b>Inter</b> (TEC) por padrão.
-      Use os filtros de <b>tipo</b> e de empresa pra separar o trabalho. O progresso fica salvo neste navegador.
-      No fim, clique em <b>Gerar relatório</b> e mande o conteúdo pro Atila.
+      <b>Como usar:</b> escolha um mês e confira cada linha. Dá pra corrigir três coisas:
+      a <b>data</b> (calendário à esquerda), o <b>banco</b> (seletor à direita, lista todas as contas
+      CMPORT e TEC) e o <b>valor</b> (digite e aperte Enter). As linhas da migração entraram com
+      <b>Itaú</b> (CMPORT) ou <b>Inter</b> (TEC) por padrão. Se um lançamento <b>ainda não foi pago</b>,
+      ponha o valor como <b>0</b> — isso avisa pra reverter pra pendente (o valor real não é apagado).
+      Use os filtros de <b>tipo</b> e empresa. O progresso fica salvo no navegador.
+      No fim, <b>Gerar relatório</b> e mande pro Atila.
     </div>
     <button id="intro-x" title="fechar">✕</button>
   </div>
@@ -369,7 +377,7 @@
   }
 
   // ---------- estado persistente ----------
-  var state = { escolha: {}, revisado: {}, valor: {} };
+  var state = { escolha: {}, revisado: {}, valor: {}, data: {} };
   try {
     var raw = localStorage.getItem(STORE_KEY);
     if (raw) {
@@ -377,6 +385,7 @@
       state.escolha = p.escolha || {};
       state.revisado = p.revisado || {};
       state.valor = p.valor || {};
+      state.data = p.data || {};
     }
   } catch (e) {}
   function save() {
@@ -389,6 +398,9 @@
   function valorDe(r) {
     return state.valor.hasOwnProperty(r.mov_id) ? state.valor[r.mov_id] : r.valor;
   }
+  function dataDe(r) {
+    return state.data.hasOwnProperty(r.mov_id) ? state.data[r.mov_id] : r.data;
+  }
   function isRevisado(r) { return !!state.revisado[r.mov_id]; }
   function bancoMudou(r) {
     var e = escolhaDe(r);
@@ -398,8 +410,12 @@
     var v = valorDe(r);
     return v != null && Math.abs(Number(v) - Number(r.valor)) >= 0.005;
   }
+  function dataMudou(r) {
+    var d = dataDe(r);
+    return !!d && d !== r.data;
+  }
   function isAlterado(r) {
-    return bancoMudou(r) || valorMudou(r);
+    return bancoMudou(r) || valorMudou(r) || dataMudou(r);
   }
   function rowState(r) {
     if (isAlterado(r)) return "alterado";
@@ -532,6 +548,9 @@
 
       function wasHtmlFor() {
         var partes = [];
+        if (dataMudou(r)) {
+          partes.push("data <s>" + (r.data ? r.data.split("-").reverse().join("/") : "—") + "</s>");
+        }
         if (bancoMudou(r)) {
           var de = r.banco_atual == null ? "vazio" : (bancoById[r.banco_atual] ? bancoById[r.banco_atual].nome : r.banco_atual);
           partes.push("banco <s>" + de + "</s>");
@@ -543,7 +562,7 @@
       }
 
       div.innerHTML =
-        '<div class="r-date num">' + (r.data || "—") + "</div>" +
+        '<div class="r-date"><input type="date" class="data-inp mono" value="' + (dataDe(r) || "") + '"></div>' +
         '<div class="r-desc"><div class="d1">' + esc(r.descricao || "(sem descrição)") + "</div>" +
           '<div class="d2">' + esc([r.fornecedor, r.categoria].filter(Boolean).join(" · ") || "—") + '</div><div class="r-was-slot">' + wasHtmlFor() + "</div></div>" +
         '<div class="r-parcela">' + (r.parcela || "") + "</div>" +
@@ -564,6 +583,24 @@
         div.querySelector(".r-was-slot").innerHTML = wasHtmlFor();
         refreshBits();
       });
+
+      var dinp = div.querySelector(".data-inp");
+      dinp.addEventListener("change", function () {
+        var d = dinp.value || null;
+        if (!d || d === r.data) {
+          delete state.data[r.mov_id];
+          dinp.value = r.data || "";
+        } else {
+          state.data[r.mov_id] = d;
+          state.revisado[r.mov_id] = true;
+        }
+        save();
+        div.setAttribute("data-state", rowState(r));
+        div.querySelector(".r-was-slot").innerHTML = wasHtmlFor();
+        dinp.classList.toggle("changed", dataMudou(r));
+        refreshBits();
+      });
+      dinp.classList.toggle("changed", dataMudou(r));
 
       var inp = div.querySelector(".valor-inp");
       function commitValor() {
@@ -690,7 +727,7 @@
   function buildReport() {
     var alt = ROWS.filter(isAlterado).map(function (r) {
       var para = escolhaDe(r);
-      var bMud = bancoMudou(r), vMud = valorMudou(r);
+      var bMud = bancoMudou(r), vMud = valorMudou(r), dMud = dataMudou(r);
       return {
         mov_id: r.mov_id,
         parcela_id: r.parcela_id,
@@ -701,13 +738,16 @@
         descricao: r.descricao,
         mudou_banco: bMud,
         mudou_valor: vMud,
+        mudou_data: dMud,
         banco_de: bMud ? r.banco_atual : null,
         banco_de_nome: bMud && r.banco_atual != null && bancoById[r.banco_atual] ? bancoById[r.banco_atual].nome : null,
         banco_para: bMud ? para : null,
         banco_para_nome: bMud && bancoById[para] ? bancoById[para].nome : null,
         valor_de: vMud ? Number(r.valor) : null,
         valor_para: vMud ? Number(valorDe(r)) : null,
-        valor_atual: Number(r.valor)
+        valor_atual: Number(r.valor),
+        data_de: dMud ? r.data : null,
+        data_para: dMud ? dataDe(r) : null
       };
     });
     return {
@@ -739,7 +779,7 @@
   });
   document.getElementById("dlg-reset").addEventListener("click", function () {
     if (!confirm("Isso apaga todas as conferências feitas nesta tela. Continuar?")) return;
-    state = { escolha: {}, revisado: {}, valor: {} };
+    state = { escolha: {}, revisado: {}, valor: {}, data: {} };
     save();
     dlg.close();
     renderAll();

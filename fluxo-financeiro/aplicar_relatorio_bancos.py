@@ -59,17 +59,19 @@ def carregar_estado(ambiente):
     """Devolve (mov, parc) onde:
        mov[id]  = {'banco_id': int|None, 'valor': float}
        parc[id] = {'banco_id': int|None, 'valor': float, 'despesa_id': int}"""
-    q_mov = "SELECT id, banco_id, valor FROM fin_movimentacoes"
-    q_parc = "SELECT id, banco_id, valor, despesa_id FROM despesa_parcelas"
+    q_mov = "SELECT id, banco_id, valor, DATE_FORMAT(data,'%Y-%m-%d') FROM fin_movimentacoes"
+    q_parc = ("SELECT id, banco_id, valor, despesa_id, "
+              "DATE_FORMAT(data_pagamento,'%Y-%m-%d') FROM despesa_parcelas")
 
     if ambiente == "local":
         conn = pymysql.connect(**LOCAL_DB)
         cur = conn.cursor()
         cur.execute("SET NAMES utf8mb4")
         cur.execute(q_mov)
-        mov = {r[0]: {"banco_id": r[1], "valor": float(r[2])} for r in cur.fetchall()}
+        mov = {r[0]: {"banco_id": r[1], "valor": float(r[2]), "data": r[3]} for r in cur.fetchall()}
         cur.execute(q_parc)
-        parc = {r[0]: {"banco_id": r[1], "valor": float(r[2]), "despesa_id": r[3]} for r in cur.fetchall()}
+        parc = {r[0]: {"banco_id": r[1], "valor": float(r[2]), "despesa_id": r[3],
+                       "data_pagamento": r[4]} for r in cur.fetchall()}
         conn.close()
         return mov, parc
 
@@ -85,11 +87,13 @@ def carregar_estado(ambiente):
         i.channel.shutdown_write()
         return o.read().decode("utf-8", "replace")
 
-    mov = {int(r[0]): {"banco_id": None if r[1] is None else int(r[1]), "valor": float(r[2])}
-           for r in _parse_tsv(run(q_mov), 3)}
+    mov = {int(r[0]): {"banco_id": None if r[1] is None else int(r[1]), "valor": float(r[2]),
+                       "data": None if r[3] in (None, "NULL") else r[3]}
+           for r in _parse_tsv(run(q_mov), 4)}
     parc = {int(r[0]): {"banco_id": None if r[1] is None else int(r[1]), "valor": float(r[2]),
-                        "despesa_id": None if r[3] is None else int(r[3])}
-            for r in _parse_tsv(run(q_parc), 4)}
+                        "despesa_id": None if r[3] is None else int(r[3]),
+                        "data_pagamento": None if r[4] in (None, "NULL") else r[4]}
+            for r in _parse_tsv(run(q_parc), 5)}
     ssh.close()
     return mov, parc
 
@@ -130,20 +134,20 @@ def main():
 
     mov_e, parc_e = carregar_estado(args.ambiente)
 
-    updates = []          # (mov_id, coluna, valor_novo, parc_id_ou_None)
+    updates = []          # (tabela, coluna, valor_novo, id)   tabela in {"mov","parc"}
     despesas_recalc = set()
     problemas = []        # (a, texto)
     ja_feito = 0
 
     for a in alts:
         mid, pid = a["mov_id"], a.get("parcela_id")
-        did = a.get("despesa_id")
         if mid not in mov_e:
             problemas.append((a, "mov nao existe (SUMIU)"))
             continue
 
         quer_banco = a.get("mudou_banco", a.get("banco_para") is not None)
         quer_valor = a.get("mudou_valor", a.get("valor_para") is not None)
+        quer_data = a.get("mudou_data", a.get("data_para") is not None)
 
         # ---- BANCO
         if quer_banco:
@@ -152,9 +156,9 @@ def main():
             if atual == para:
                 ja_feito += 1
             elif atual == de or (de is None and atual is None):
-                updates.append((mid, "banco_id", para, None))
+                updates.append(("mov", "banco_id", para, mid))
                 if pid and pid in parc_e:
-                    updates.append((mid, "banco_id", para, pid))
+                    updates.append(("parc", "banco_id", para, pid))
                 a["_banco"] = f"{a.get('banco_de_nome') or 'vazio'} -> {a.get('banco_para_nome')}"
             else:
                 problemas.append((a, f"banco DIVERGE: relatorio {de}->{para}, atual {atual}"))
@@ -166,14 +170,28 @@ def main():
             if abs(atual - para) < TOL:
                 ja_feito += 1
             elif abs(atual - de) < TOL:
-                updates.append((mid, "valor", para, None))
+                updates.append(("mov", "valor", para, mid))
                 if pid and pid in parc_e:
-                    updates.append((mid, "valor", para, pid))
+                    updates.append(("parc", "valor", para, pid))
                     if parc_e[pid].get("despesa_id"):
                         despesas_recalc.add(parc_e[pid]["despesa_id"])
                 a["_valor"] = f"R$ {de:.2f} -> R$ {para:.2f}"
             else:
                 problemas.append((a, f"valor DIVERGE: relatorio {de:.2f}->{para:.2f}, atual {atual:.2f}"))
+
+        # ---- DATA (mov.data + parcela.data_pagamento)
+        if quer_data:
+            de, para = a.get("data_de"), a["data_para"]
+            atual = mov_e[mid]["data"]
+            if atual == para:
+                ja_feito += 1
+            elif atual == de:
+                updates.append(("mov", "data", para, mid))
+                if pid and pid in parc_e:
+                    updates.append(("parc", "data_pagamento", para, pid))
+                a["_data"] = f"{de} -> {para}"
+            else:
+                problemas.append((a, f"data DIVERGE: relatorio {de}->{para}, atual {atual}"))
 
     # ---- relatorio de problemas
     if problemas:
@@ -186,30 +204,34 @@ def main():
         print(f"ℹ️  {ja_feito} campo(s) ja no destino — pulando.\n")
 
     # ---- montar SQL
+    TABELA = {"mov": "fin_movimentacoes", "parc": "despesa_parcelas"}
     linhas = ["SET NAMES utf8mb4;", "USE cmport_gerenciamento;", ""]
-    n_mov_b = n_parc_b = n_mov_v = n_parc_v = 0
-    for mid, col, val, pid in updates:
-        v = "NULL" if val is None else (f"{val}" if col == "banco_id" else f"{float(val):.2f}")
-        if pid is None:
-            linhas.append(f"UPDATE fin_movimentacoes SET {col} = {v} WHERE id = {mid};")
-            n_mov_b += col == "banco_id"; n_mov_v += col == "valor"
-        else:
-            linhas.append(f"UPDATE despesa_parcelas SET {col} = {v} WHERE id = {pid};")
-            n_parc_b += col == "banco_id"; n_parc_v += col == "valor"
+    cont = {"banco_id": 0, "valor": 0, "data": 0, "data_pagamento": 0}
+    for tab, col, val, rid in updates:
+        if val is None:
+            v = "NULL"
+        elif col == "banco_id":
+            v = str(int(val))
+        elif col == "valor":
+            v = f"{float(val):.2f}"
+        else:  # data / data_pagamento
+            v = "'" + str(val) + "'"
+        linhas.append(f"UPDATE {TABELA[tab]} SET {col} = {v} WHERE id = {rid};")
+        cont[col] += 1
     for did in sorted(despesas_recalc):
         linhas.append(f"UPDATE despesas SET valor_total = "
                       f"(SELECT COALESCE(SUM(valor),0) FROM despesa_parcelas WHERE despesa_id = {did}) "
                       f"WHERE id = {did};")
 
-    print(f"✅ A APLICAR:")
-    print(f"    banco : {n_mov_b} fin_movimentacoes + {n_parc_b} despesa_parcelas")
-    print(f"    valor : {n_mov_v} fin_movimentacoes + {n_parc_v} despesa_parcelas "
-          f"+ {len(despesas_recalc)} despesas.valor_total recalculado\n")
+    print("✅ A APLICAR:")
+    print(f"    banco : {cont['banco_id']} updates")
+    print(f"    valor : {cont['valor']} updates + {len(despesas_recalc)} despesas.valor_total recalculado")
+    print(f"    data  : {cont['data'] + cont['data_pagamento']} updates\n")
     for a in alts:
-        if a.get("_banco") or a.get("_valor"):
-            det = " | ".join(x for x in (a.get("_banco"), a.get("_valor")) if x)
+        if a.get("_banco") or a.get("_valor") or a.get("_data"):
+            det = " | ".join(x for x in (a.get("_data"), a.get("_banco"), a.get("_valor")) if x)
             print(f"  mov {a['mov_id']:>5} parc {str(a.get('parcela_id')):>5}  {a.get('data')}  "
-                  f"{(a.get('descricao') or '')[:40]:40}  {det}")
+                  f"{(a.get('descricao') or '')[:38]:38}  {det}")
 
     print()
     if not updates:
