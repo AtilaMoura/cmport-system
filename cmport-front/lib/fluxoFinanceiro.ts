@@ -174,10 +174,10 @@ export interface Movimentacao {
   os_fornecedor_vinculadas: OsFornecedorReferencia[];
 }
 
-export const FORMAS_PAGAMENTO = ['PIX', 'DINHEIRO', 'TRANSFERENCIA', 'CHEQUE', 'BOLETO_ITAU', 'BOLETO_INTER'];
+export const FORMAS_PAGAMENTO = ['PIX', 'DINHEIRO', 'CARTAO_DEBITO', 'TRANSFERENCIA', 'CHEQUE', 'BOLETO_ITAU', 'BOLETO_INTER'];
 export const FORMA_LABEL: Record<string, string> = {
   BOLETO_INTER: 'Boleto Inter', BOLETO_ITAU: 'Boleto Itaú', PIX: 'PIX',
-  DINHEIRO: 'Dinheiro', TRANSFERENCIA: 'Transferência', CHEQUE: 'Cheque',
+  DINHEIRO: 'Dinheiro', CARTAO_DEBITO: 'Cartão de débito', TRANSFERENCIA: 'Transferência', CHEQUE: 'Cheque',
 };
 export interface DashboardFinanceiro {
   mes: number;
