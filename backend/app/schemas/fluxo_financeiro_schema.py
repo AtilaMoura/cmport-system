@@ -15,6 +15,9 @@ class FluxoFinanceiroLinha(BaseModel):
     origem: str  # BOLETO | RECIBO
     banco_id: Optional[int] = None
     banco_nome: Optional[str] = None
+    # navegacao pra tela de origem (frontend monta o link)
+    nota_id: Optional[int] = None      # nota fiscal vinculada (so BOLETO)
+    servico_id: Optional[int] = None   # 1o servico vinculado a essa nota, se houver
 
 
 class FluxoFinanceiroCnpj(BaseModel):

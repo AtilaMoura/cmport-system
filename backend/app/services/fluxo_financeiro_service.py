@@ -79,6 +79,18 @@ class FluxoFinanceiroService:
                 .all()
             )
 
+            # servico_id (1o servico) por nota, pra montar o link na tela de Entrada
+            nota_ids_boletos = {nota.id for _, nota, _, _ in boletos}
+            servico_por_nota: dict[int, int] = {}
+            if nota_ids_boletos:
+                for sid, nfid in (
+                    db.query(ManutencaoAssistencia.id, ManutencaoAssistencia.nota_fiscal_id)
+                    .filter(ManutencaoAssistencia.nota_fiscal_id.in_(nota_ids_boletos))
+                    .order_by(ManutencaoAssistencia.id)
+                    .all()
+                ):
+                    servico_por_nota.setdefault(nfid, sid)
+
             total_manutencao = 0.0
             total_assistencia = 0.0
             total_produto = 0.0
@@ -109,6 +121,8 @@ class FluxoFinanceiroService:
                     origem="BOLETO",
                     banco_id=boleto.banco_id,
                     banco_nome=banco.nome if banco else None,
+                    nota_id=nota.id,
+                    servico_id=servico_por_nota.get(nota.id),
                 ))
 
             # Recibos ENTRADA/PAGO do mes deste CNPJ, sem nota fiscal vinculada

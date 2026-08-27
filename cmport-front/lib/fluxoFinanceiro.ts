@@ -31,6 +31,8 @@ export interface FluxoFinanceiroLinha {
   origem: string;
   banco_id: number | null;
   banco_nome: string | null;
+  nota_id: number | null;      // nota fiscal vinculada (só BOLETO) — pra navegação
+  servico_id: number | null;   // 1º serviço vinculado, se houver
 }
 export interface FluxoFinanceiroCnpj {
   cnpj: string;

@@ -25,6 +25,7 @@ function EntradaServicosContent() {
   const [loading, setLoading] = useState(true);
   const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
   const [bancoFiltro, setBancoFiltro] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
   const [dispensando, setDispensando] = useState<number | null>(null);
   const [bancos, setBancos] = useState<BancoOpcao[]>([]);
   const [modalLinha, setModalLinha] = useState<FluxoFinanceiroLinha | null>(null);
@@ -152,6 +153,14 @@ function EntradaServicosContent() {
       <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <FiltrosFluxo ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} onAnoChange={setAno} onMesChange={setMes}
           onCnpjChange={setCnpjFiltro} mostrarFiltroCnpj />
+
+        <input
+          type="text"
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+          placeholder="Buscar por condomínio, nº da nota ou valor..."
+          className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+        />
 
         {alertasSemBoleto.length > 0 && (
           <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4">
@@ -315,9 +324,16 @@ function EntradaServicosContent() {
             {cnpjsInfo.map(c => (
               <div key={`${c.cnpj}-linhas`} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
                 {(() => {
+                  const q = busca.trim().toLowerCase();
                   const linhasFiltradas = c.linhas
                     .filter(l => !tipoFiltro || l.tipo === tipoFiltro)
-                    .filter(l => !bancoFiltro || (l.banco_nome ?? 'Sem banco') === bancoFiltro);
+                    .filter(l => !bancoFiltro || (l.banco_nome ?? 'Sem banco') === bancoFiltro)
+                    .filter(l =>
+                      !q ||
+                      l.condominio_nome.toLowerCase().includes(q) ||
+                      l.numero_nota.toLowerCase().includes(q) ||
+                      String(l.valor).includes(q)
+                    );
                   if (linhasFiltradas.length === 0) {
                     return (
                       <div className="text-center py-8 text-sm text-slate-400">
@@ -388,6 +404,24 @@ function EntradaServicosContent() {
                   <span className="font-semibold text-slate-900 dark:text-white">{fmtData(modalLinha.data_pagamento)}</span>
                 </div>
               </div>
+
+              {/* Navegação pra nota / serviço vinculado */}
+              {(modalLinha.nota_id || modalLinha.servico_id) && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {modalLinha.nota_id && (
+                    <Link href={`/notas/${modalLinha.nota_id}`} target="_blank"
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/30 transition-colors">
+                      📄 Ver nota {modalLinha.numero_nota}
+                    </Link>
+                  )}
+                  {modalLinha.servico_id && (
+                    <Link href={`/servicos/${modalLinha.servico_id}`} target="_blank"
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:hover:bg-violet-500/30 transition-colors">
+                      🔧 Ver serviço
+                    </Link>
+                  )}
+                </div>
+              )}
 
               <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Conta bancária</label>

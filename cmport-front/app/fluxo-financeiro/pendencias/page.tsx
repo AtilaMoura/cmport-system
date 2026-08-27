@@ -46,6 +46,7 @@ function PendenciasContent() {
   const [busca, setBusca] = useState('');
   const [situacoesAtivas, setSituacoesAtivas] = useState<Set<string>>(new Set());
   const [tiposAtivos, setTiposAtivos] = useState<Set<string>>(new Set());
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [marcandoPago, setMarcandoPago] = useState<number | null>(null);
   const [bancos, setBancos] = useState<BancoOpcao[]>([]);
   const [modalPagamento, setModalPagamento] = useState<PendenciaLinha | null>(null);
@@ -137,6 +138,14 @@ function PendenciasContent() {
     });
   };
 
+  const toggleExpandir = (chave: string) => {
+    setExpandidos(prev => {
+      const next = new Set(prev);
+      if (next.has(chave)) next.delete(chave); else next.add(chave);
+      return next;
+    });
+  };
+
   const linhas = data?.linhas ?? [];
   const q = busca.trim().toLowerCase();
   const filtradas = linhas.filter(l =>
@@ -219,7 +228,8 @@ function PendenciasContent() {
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {filtradas.map(l => (
-                <div key={`${l.origem}-${l.origem_id}`} className="flex items-center gap-4 p-4">
+                <div key={`${l.origem}-${l.origem_id}`}>
+                <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" onClick={() => toggleExpandir(`${l.origem}-${l.origem_id}`)}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-black text-sm text-slate-900 dark:text-white truncate">{l.condominio_nome}</span>
@@ -254,7 +264,7 @@ function PendenciasContent() {
                     {l.situacao !== 'PAGO' && (
                       l.origem === 'RECIBO' ? (
                         <button
-                          onClick={() => marcarPago(l.origem_id)}
+                          onClick={(e) => { e.stopPropagation(); marcarPago(l.origem_id); }}
                           disabled={marcandoPago === l.origem_id}
                           className="px-2.5 py-1 bg-green-600 text-white text-[10px] font-bold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                         >
@@ -262,7 +272,7 @@ function PendenciasContent() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => abrirModalPagamento(l)}
+                          onClick={(e) => { e.stopPropagation(); abrirModalPagamento(l); }}
                           className="px-2.5 py-1 bg-green-600 text-white text-[10px] font-bold rounded-lg hover:bg-green-700 transition-colors"
                         >
                           ✓ Pago
@@ -270,6 +280,27 @@ function PendenciasContent() {
                       )
                     )}
                   </div>
+                </div>
+                {expandidos.has(`${l.origem}-${l.origem_id}`) && (
+                  <div className="px-4 pb-4 pt-1 bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-600 dark:text-slate-300 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
+                    <div><span className="block text-[10px] uppercase font-bold text-slate-400">Tipo</span>{LABEL_TIPO[l.tipo] ?? l.tipo}</div>
+                    <div><span className="block text-[10px] uppercase font-bold text-slate-400">Situação</span>{LABEL_SITUACAO[l.situacao] ?? l.situacao}</div>
+                    <div><span className="block text-[10px] uppercase font-bold text-slate-400">Origem</span>{l.origem === 'BOLETO' ? 'Boleto' : 'Recibo'} #{l.origem_id}</div>
+                    <div><span className="block text-[10px] uppercase font-bold text-slate-400">Nº da nota</span>{l.numero_nota}</div>
+                    <div><span className="block text-[10px] uppercase font-bold text-slate-400">Parcela</span>{l.numero_parcela}/{l.total_parcelas}</div>
+                    <div><span className="block text-[10px] uppercase font-bold text-slate-400">Vencimento</span>{fmtData(l.data_vencimento)}</div>
+                    <div><span className="block text-[10px] uppercase font-bold text-slate-400">Valor total</span>{fmtValor(l.valor)}</div>
+                    {l.valor_recebido != null && (
+                      <div><span className="block text-[10px] uppercase font-bold text-slate-400">Recebido</span>{fmtValor(l.valor_recebido)}</div>
+                    )}
+                    {l.situacao !== 'PAGO' && (
+                      <div><span className="block text-[10px] uppercase font-bold text-slate-400">Falta receber</span>{fmtValor(l.valor_pendente)}</div>
+                    )}
+                    {l.data_pagamento && (
+                      <div><span className="block text-[10px] uppercase font-bold text-slate-400">Pago em</span>{fmtData(l.data_pagamento)}</div>
+                    )}
+                  </div>
+                )}
                 </div>
               ))}
             </div>
