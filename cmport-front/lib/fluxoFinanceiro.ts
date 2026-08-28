@@ -113,6 +113,10 @@ export interface PendenciaLinha {
   situacao: string;
   valor_recebido?: number | null;
   valor_pendente: number;
+  nota_id?: number | null;       // nota fiscal vinculada (só origem BOLETO)
+  servico_id?: number | null;    // 1º serviço vinculado à nota, se houver
+  cnpj_emitente?: string | null;
+  empresa?: string | null;       // "CMPORT" | "TEC" | null
 }
 export interface PendenciasResponse {
   ano: number;

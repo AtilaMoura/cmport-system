@@ -123,6 +123,11 @@ class PendenciaLinha(BaseModel):
     situacao: str  # PAGO | PENDENTE | VENCIDO
     valor_recebido: Optional[float] = None  # preenchido so quando situacao == PARCIAL
     valor_pendente: float  # valor - valor_recebido (PARCIAL); valor (nao pago); 0 (PAGO)
+    # navegacao / rotulo (frontend monta os links e o chip)
+    nota_id: Optional[int] = None       # nota fiscal vinculada (so origem BOLETO)
+    servico_id: Optional[int] = None    # 1o servico vinculado a essa nota, se houver
+    cnpj_emitente: Optional[str] = None
+    empresa: Optional[str] = None       # "CMPORT" | "TEC" | None
 
 
 class PendenciasResponse(BaseModel):

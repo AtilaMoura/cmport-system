@@ -137,6 +137,12 @@ class AtualizarBancoRequest(BaseModel):
     banco_id: Optional[int] = None
 
 
+class AtualizarBoletoRequest(BaseModel):
+    """Edicao de um boleto ainda NAO pago — so valor e/ou vencimento."""
+    valor_nominal: Optional[float] = None
+    data_vencimento: Optional[date] = None
+
+
 class NotaSemBoletoResponse(BaseModel):
     id: int
     numero_nota: str

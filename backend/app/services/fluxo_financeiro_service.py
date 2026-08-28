@@ -19,6 +19,13 @@ from app.schemas.fluxo_financeiro_schema import (
     AlertaParcelaFaltando,
 )
 
+# CNPJ (so digitos) -> empresa, pra rotular a linha na tela. Mesmo mapa da
+# tela "Conferencia de Bancos".
+EMPRESA_POR_CNPJ = {
+    "22761557000188": "CMPORT",
+    "65756913000188": "TEC",
+}
+
 
 def normalizar_numero_nota(numero: str) -> str:
     """Reduz um numero_nota ao numero base, pra permitir comparar/agrupar
@@ -214,6 +221,19 @@ class FluxoFinanceiroService:
         if cnpj_limpo:
             query_boletos = query_boletos.filter(NotaFiscal.cnpj_emitente == cnpj_limpo)
         boletos = query_boletos.all()
+
+        # servico_id (1o servico) por nota, pra montar o link "Ver servico"
+        nota_ids_boletos = {nota.id for _, nota, _ in boletos}
+        servico_por_nota: dict[int, int] = {}
+        if nota_ids_boletos:
+            for sid, nfid in (
+                db.query(ManutencaoAssistencia.id, ManutencaoAssistencia.nota_fiscal_id)
+                .filter(ManutencaoAssistencia.nota_fiscal_id.in_(nota_ids_boletos))
+                .order_by(ManutencaoAssistencia.id)
+                .all()
+            ):
+                servico_por_nota.setdefault(nfid, sid)
+
         for boleto, nota, condominio in boletos:
             if boleto.situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO):
                 situacao = "PAGO"
@@ -232,6 +252,7 @@ class FluxoFinanceiroService:
                 valor_pendente = round(valor_nominal - valor_recebido, 2)
             else:
                 valor_pendente = valor_nominal
+            cnpj_nota = "".join(filter(str.isdigit, nota.cnpj_emitente or ""))
             linhas.append(PendenciaLinha(
                 origem_id=boleto.id,
                 origem="BOLETO",
@@ -247,6 +268,10 @@ class FluxoFinanceiroService:
                 situacao=situacao,
                 valor_recebido=valor_recebido,
                 valor_pendente=valor_pendente,
+                nota_id=nota.id,
+                servico_id=servico_por_nota.get(nota.id),
+                cnpj_emitente=nota.cnpj_emitente,
+                empresa=EMPRESA_POR_CNPJ.get(cnpj_nota),
             ))
 
         query_recibos = (
@@ -270,6 +295,7 @@ class FluxoFinanceiroService:
                 situacao = "VENCIDO"
             else:
                 situacao = "PENDENTE"
+            cnpj_rec = "".join(filter(str.isdigit, recibo.cnpj_emitente or ""))
             linhas.append(PendenciaLinha(
                 origem_id=recibo.id,
                 origem="RECIBO",
@@ -284,6 +310,8 @@ class FluxoFinanceiroService:
                 data_pagamento=recibo.data_pagamento,
                 situacao=situacao,
                 valor_pendente=0.0 if situacao == "PAGO" else round(float(recibo.valor or 0), 2),
+                cnpj_emitente=recibo.cnpj_emitente,
+                empresa=EMPRESA_POR_CNPJ.get(cnpj_rec),
             ))
 
         total = round(sum(l.valor for l in linhas), 2)

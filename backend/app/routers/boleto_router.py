@@ -15,7 +15,8 @@ from app.schemas.boleto_schema import (
     SincronizarResponse, SincronizarInterResponse, BoletoStats,
     RegistrarPagamentoRequest, CriarBoletoManualRequest, GerarParcelasFaltantesResponse,
     GerarParcelasFaltantesRequest, VincularNotaRequest, NotaSemBoletoResponse,
-    ConfigImpostosResponse, AtualizarBancoRequest, BoletoPagamentoResponse,
+    ConfigImpostosResponse, AtualizarBancoRequest, AtualizarBoletoRequest,
+    BoletoPagamentoResponse,
 )
 
 router = APIRouter()
@@ -160,6 +161,15 @@ def atualizar_banco(boleto_id: int, request: AtualizarBancoRequest, db: Session 
     """Corrige/define o banco de um boleto ja existente, sem alterar mais nada."""
     try:
         return BoletoService.atualizar_banco(db, boleto_id, request.banco_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/{boleto_id}", response_model=BoletoResponse)
+def atualizar_boleto(boleto_id: int, request: AtualizarBoletoRequest, db: Session = Depends(get_db)):
+    """Edita valor e/ou vencimento de um boleto ainda nao pago (botao Editar em Pendencias)."""
+    try:
+        return BoletoService.atualizar_boleto(db, boleto_id, request)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

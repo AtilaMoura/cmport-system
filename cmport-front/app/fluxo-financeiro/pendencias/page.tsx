@@ -56,6 +56,11 @@ function PendenciasContent() {
   const [pagBancoId, setPagBancoId] = useState<number | ''>('');
   const [pagObservacao, setPagObservacao] = useState('');
   const [registrandoPagamento, setRegistrandoPagamento] = useState(false);
+  // modal de edição do boleto (valor + vencimento) — só boleto não pago
+  const [modalEdicao, setModalEdicao] = useState<PendenciaLinha | null>(null);
+  const [edValor, setEdValor] = useState('');
+  const [edVencimento, setEdVencimento] = useState('');
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -100,6 +105,29 @@ function PendenciasContent() {
     setPagFormaPagamento('PIX');
     setPagBancoId('');
     setPagObservacao('');
+  };
+
+  const abrirModalEdicao = (linha: PendenciaLinha) => {
+    setModalEdicao(linha);
+    setEdValor(String(linha.valor));
+    setEdVencimento(linha.data_vencimento.slice(0, 10));
+  };
+
+  const confirmarEdicao = async () => {
+    if (!modalEdicao) return;
+    setSalvandoEdicao(true);
+    try {
+      await api.patch(`/boletos/${modalEdicao.origem_id}`, {
+        valor_nominal: Number(edValor),
+        data_vencimento: edVencimento,
+      });
+      setModalEdicao(null);
+      await carregar();
+    } catch {
+      alert('Erro ao salvar. Boleto que já tem pagamento não pode ser editado.');
+    } finally {
+      setSalvandoEdicao(false);
+    }
   };
 
   const confirmarPagamento = async () => {
@@ -233,6 +261,13 @@ function PendenciasContent() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-black text-sm text-slate-900 dark:text-white truncate">{l.condominio_nome}</span>
+                      {l.empresa && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          l.empresa === 'TEC'
+                            ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400'
+                            : 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400'
+                        }`}>{l.empresa}</span>
+                      )}
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${TIPO_CLS[l.tipo] ?? ''}`}>{l.tipo}</span>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${SITUACAO_CLS[l.situacao] ?? ''}`}>
                         {LABEL_SITUACAO[l.situacao] ?? l.situacao}
@@ -282,7 +317,8 @@ function PendenciasContent() {
                   </div>
                 </div>
                 {expandidos.has(`${l.origem}-${l.origem_id}`) && (
-                  <div className="px-4 pb-4 pt-1 bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-600 dark:text-slate-300 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
+                  <div className="px-4 pb-4 pt-1 bg-slate-50 dark:bg-slate-800/40">
+                  <div className="text-xs text-slate-600 dark:text-slate-300 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
                     <div><span className="block text-[10px] uppercase font-bold text-slate-400">Tipo</span>{LABEL_TIPO[l.tipo] ?? l.tipo}</div>
                     <div><span className="block text-[10px] uppercase font-bold text-slate-400">Situação</span>{LABEL_SITUACAO[l.situacao] ?? l.situacao}</div>
                     <div><span className="block text-[10px] uppercase font-bold text-slate-400">Origem</span>{l.origem === 'BOLETO' ? 'Boleto' : 'Recibo'} #{l.origem_id}</div>
@@ -299,6 +335,48 @@ function PendenciasContent() {
                     {l.data_pagamento && (
                       <div><span className="block text-[10px] uppercase font-bold text-slate-400">Pago em</span>{fmtData(l.data_pagamento)}</div>
                     )}
+                  </div>
+
+                  {/* Rodapé de ações */}
+                  <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex flex-wrap gap-2">
+                    {l.origem === 'BOLETO' && l.situacao !== 'PAGO' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); abrirModalEdicao(l); }}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
+                      >
+                        ✎ Editar
+                      </button>
+                    )}
+                    {l.situacao !== 'PAGO' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (l.origem === 'RECIBO') marcarPago(l.origem_id); else abrirModalPagamento(l);
+                        }}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-green-600 text-white hover:bg-green-700"
+                      >
+                        ✓ Registrar pagamento
+                      </button>
+                    )}
+                    {l.nota_id && (
+                      <a
+                        href={`/notas/${l.nota_id}`} target="_blank" rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Ver nota ↗
+                      </a>
+                    )}
+                    {l.servico_id && (
+                      <a
+                        href={`/servicos/${l.servico_id}`} target="_blank" rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Ver serviço ↗
+                      </a>
+                    )}
+                  </div>
                   </div>
                 )}
                 </div>
@@ -360,6 +438,38 @@ function PendenciasContent() {
                 {registrandoPagamento
                   ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
                   : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal de edição de boleto (valor + vencimento) ── */}
+      {modalEdicao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setModalEdicao(null)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white mb-1">Editar boleto</h2>
+            <p className="text-xs text-slate-500 mb-4 font-mono">{modalEdicao.condominio_nome} · NF {modalEdicao.numero_nota}</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Valor</label>
+                <input type="number" step="0.01" min="0" value={edValor} onChange={e => setEdValor(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Vencimento</label>
+                <input type="date" value={edVencimento} onChange={e => setEdVencimento(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setModalEdicao(null)}
+                className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm">
+                Cancelar
+              </button>
+              <button onClick={confirmarEdicao} disabled={salvandoEdicao}
+                className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50">
+                {salvandoEdicao ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
           </div>

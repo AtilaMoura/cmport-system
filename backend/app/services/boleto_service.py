@@ -1234,6 +1234,31 @@ class BoletoService:
         return BoletoResponse.model_validate(db_boleto)
 
     @staticmethod
+    def atualizar_boleto(db: Session, boleto_id: int, req) -> BoletoResponse:
+        """Edita valor e/ou vencimento de um boleto que ainda NAO foi pago —
+        usado pelo botao 'Editar' no painel de Pendencias. Bloqueia se o boleto
+        ja tem pagamento (PAGO/BAIXADO/PARCIAL) — nesse caso o certo e' usar o
+        fluxo de registrar/estornar pagamento, nao editar o valor por baixo."""
+        db_boleto = BoletoRepository.get_by_id(db, boleto_id)
+        if not db_boleto:
+            raise Exception("Boleto não encontrado.")
+        if db_boleto.situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO, SituacaoBoleto.PARCIAL):
+            raise Exception("Não dá pra editar um boleto que já tem pagamento. Estorne o pagamento primeiro.")
+
+        dados = {}
+        if req.valor_nominal is not None:
+            if req.valor_nominal <= 0:
+                raise Exception("Valor precisa ser maior que zero.")
+            dados["valor_nominal"] = round(float(req.valor_nominal), 2)
+        if req.data_vencimento is not None:
+            dados["data_vencimento"] = req.data_vencimento
+        if not dados:
+            raise Exception("Nada pra atualizar.")
+
+        BoletoRepository.update(db, db_boleto, dados)
+        return BoletoResponse.model_validate(db_boleto)
+
+    @staticmethod
     def get_notas_sem_boleto(db: Session) -> List[NotaSemBoletoResponse]:
         from app.models.nota_fiscal_model import NotaFiscal, StatusNota
         from app.models.boleto_model import Boleto
