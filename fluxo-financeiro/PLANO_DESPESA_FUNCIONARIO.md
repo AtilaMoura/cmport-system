@@ -24,10 +24,12 @@ tabela dedicada, não reuso de Despesa+categoria._
     planos). Viram Despesa categoria grupo FUNCIONARIO, bucket "Folha – Encargos" /
     "Folha – Convênio". O `encargos_percentual` por funcionário é só projeção.
 - **Coleta dos dados que faltam:** HTML `docs-e-planilhas/CADASTRO_FUNCIONARIOS.html`
-  (gitignored — tem nome+salário de gente real) pré-preenchido com os 7 do histórico;
-  a cliente confere/completa (salário atual, dia de pagamento, cargo, admissão),
-  marca desligados, adiciona novos, e gera um JSON pra devolver. Esse JSON alimenta
-  a Fase D.
+  (gitignored — tem nome+salário de gente real), publicado como Artifact
+  **https://claude.ai/code/artifact/aa1ee935-6217-4f90-acea-865a82f378dd**
+  (28/08, a pedido do Atila pra mandar pro cliente). Pré-preenchido com os 7 do
+  histórico; a cliente confere/completa (salário atual, dia de pagamento, cargo,
+  admissão), marca desligados, adiciona novos, e gera um JSON pra devolver. Esse
+  JSON alimenta a Fase D.
 
 ## Os 7 funcionários no histórico (2026)
 André Moreira Rosa · Luis Antonio Melgarejo Neves · Welligton Lucas Menezes
