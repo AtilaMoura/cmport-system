@@ -78,15 +78,35 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
   const porCategoria = useMemo(() => agruparPorCategoria(movs), [movs]);
   const porBanco = useMemo(() => agruparPorBanco(movs), [movs]);
 
-  // empresa (CMPORT/TEC) de um banco pelo id, e da movimentação como um todo
+  const bancoPorId = useMemo(() => {
+    const map = new Map<number, BancoOpcao>();
+    bancos.forEach(b => map.set(b.id, b));
+    return map;
+  }, [bancos]);
+
+  // empresa curta (CMPORT/TEC) de um banco pelo id
   const empresaDeBanco = useMemo(() => (bancoId: number | null): string | null => {
     if (bancoId == null) return null;
-    const b = bancos.find(x => x.id === bancoId);
+    const b = bancoPorId.get(bancoId);
     if (!b) return null;
     const dig = (b.cnpj_titular ?? '').replace(/\D/g, '');
     return EMPRESA_POR_CNPJ[dig] ?? b.razao_social_titular ?? null;
-  }, [bancos]);
+  }, [bancoPorId]);
 
+  // rótulo completo "Inter (CMPORT)" / "Inter (CMPORT TEC)" pro badge de origem→destino
+  const bancoLabel = useMemo(() => (bancoId: number | null, nomeFallback: string | null): string => {
+    const b = bancoId != null ? bancoPorId.get(bancoId) : null;
+    if (b) return b.razao_social_titular ? `${b.nome} (${b.razao_social_titular})` : b.nome;
+    return nomeFallback ?? '?';
+  }, [bancoPorId]);
+
+  // empresa da mov = a de ORIGEM (de onde o dinheiro saiu); cai pro destino se não houver origem
+  const empresaOrigem = useMemo(
+    () => (m: Movimentacao): string | null => empresaDeBanco(m.banco_origem_id) ?? empresaDeBanco(m.banco_id),
+    [empresaDeBanco],
+  );
+
+  // todas as empresas que a mov toca (origem e/ou destino) — pro chip informativo da linha
   const empresasDaMov = useMemo(() => (m: Movimentacao): string[] => {
     const e = new Set<string>();
     const eo = empresaDeBanco(m.banco_origem_id);
@@ -96,18 +116,18 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
     return [...e];
   }, [empresaDeBanco]);
 
-  // resumo por empresa (conta só uma vez cada mov, mesmo que envolva as duas)
+  // resumo por empresa de ORIGEM
   const porEmpresa = useMemo(() => {
     const acc: Record<string, { total: number; itens: number }> = {};
     for (const m of movs) {
-      for (const emp of empresasDaMov(m)) {
-        acc[emp] = acc[emp] || { total: 0, itens: 0 };
-        acc[emp].total += m.valor;
-        acc[emp].itens += 1;
-      }
+      const emp = empresaOrigem(m);
+      if (!emp) continue;
+      acc[emp] = acc[emp] || { total: 0, itens: 0 };
+      acc[emp].total += m.valor;
+      acc[emp].itens += 1;
     }
     return Object.entries(acc).sort((a, b) => b[1].total - a[1].total);
-  }, [movs, empresasDaMov]);
+  }, [movs, empresaOrigem]);
 
   const abrirDetalhe = (m: Movimentacao) => {
     setModalMov(m);
@@ -227,7 +247,7 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
     if (busca && !m.descricao.toLowerCase().includes(busca.toLowerCase())) return false;
     if (categoriaFiltro && (m.categoria?.nome ?? 'Sem categoria') !== categoriaFiltro) return false;
     if (bancoFiltro && (m.banco_nome ?? 'Sem banco') !== bancoFiltro) return false;
-    if (empresaFiltro && !empresasDaMov(m).includes(empresaFiltro)) return false;
+    if (empresaFiltro && empresaOrigem(m) !== empresaFiltro) return false;
     return true;
   });
   const total = filtradas.reduce((s, m) => s + m.valor, 0);
@@ -248,18 +268,21 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
             <option value="">Todos os bancos</option>
             {porBanco.map(g => <option key={g.nome} value={g.nome}>{g.nome}</option>)}
           </select>
-          <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-            {['', 'CMPORT', 'TEC'].map(emp => (
-              <button key={emp || 'todas'} type="button"
-                onClick={() => setEmpresaFiltro(emp)}
-                className={`px-3 py-2 text-sm font-bold transition-colors ${
-                  empresaFiltro === emp
-                    ? 'bg-teal-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                } ${emp ? 'border-l border-slate-200 dark:border-slate-700' : ''}`}>
-                {emp || 'Todas'}
-              </button>
-            ))}
+          <div className="inline-flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">De onde saiu</span>
+            <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+              {['', 'CMPORT', 'TEC'].map(emp => (
+                <button key={emp || 'todas'} type="button"
+                  onClick={() => setEmpresaFiltro(emp)}
+                  className={`px-3 py-2 text-sm font-bold transition-colors ${
+                    empresaFiltro === emp
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  } ${emp ? 'border-l border-slate-200 dark:border-slate-700' : ''}`}>
+                  {emp || 'Todas'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -309,7 +332,7 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
         ))}
       </div>
 
-      {/* Breakdown por empresa (CMPORT / TEC) — conta a mov em cada empresa que ela toca */}
+      {/* Breakdown por empresa de ORIGEM (de onde o dinheiro saiu) */}
       {porEmpresa.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {porEmpresa.map(([emp, g]) => (
@@ -319,7 +342,7 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
                   ? 'bg-slate-900 text-white dark:bg-slate-600'
                   : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}>
-              <span className="font-semibold">🏢 {emp}</span>{' '}
+              <span className="font-semibold">🏢 Saiu de {emp}</span>{' '}
               <span className="font-black">{fmtValor(g.total)}</span>
               <span className="opacity-70"> ({g.itens})</span>
             </button>
@@ -350,9 +373,9 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
                             : 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400'
                         }`}>🏢 {emp}</span>
                       ))}
-                      {m.banco_origem_nome && (
+                      {(m.banco_origem_id != null || m.banco_origem_nome) && (
                         <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                          {m.banco_origem_nome} → {m.banco_nome ?? '?'}
+                          {bancoLabel(m.banco_origem_id, m.banco_origem_nome)} → {bancoLabel(m.banco_id, m.banco_nome)}
                         </span>
                       )}
                       {!m.banco_origem_nome && m.banco_nome && (
