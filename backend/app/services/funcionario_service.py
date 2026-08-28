@@ -1,13 +1,25 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import List
 
 from sqlalchemy.orm import Session
 
 from app.models.funcionario_model import Funcionario
+from app.models.fin_categoria_model import CategoriaFinanceira
+from app.models.despesa_model import (
+    Despesa, DespesaParcela, TipoPagamentoDespesa, StatusParcelaDespesa,
+)
 from app.repositories.funcionario_repository import FuncionarioRepository
 from app.schemas.funcionario_schema import (
     FuncionarioCreate, FuncionarioUpdate, FuncionarioResponse,
 )
+
+
+def _dia_ok(d) -> int:
+    """Dia de vencimento seguro pro engine RECORRENTE (usa .replace(day=), quebra >28)."""
+    try:
+        return min(max(int(d), 1), 28)
+    except (TypeError, ValueError):
+        return 5
 
 
 class FuncionarioService:
@@ -41,6 +53,7 @@ class FuncionarioService:
         funcionario = FuncionarioRepository.create(db, funcionario)
         if req.variaveis is not None:
             FuncionarioRepository.upsert_variaveis(db, funcionario.id, req.variaveis.model_dump())
+        FuncionarioService.sincronizar_recorrentes(db, funcionario.id)
         return FuncionarioService.buscar(db, funcionario.id)
 
     @staticmethod
@@ -56,6 +69,7 @@ class FuncionarioService:
             FuncionarioRepository.update(db, funcionario, dados)
         if variaveis is not None:
             FuncionarioRepository.upsert_variaveis(db, id, variaveis)
+        FuncionarioService.sincronizar_recorrentes(db, id)
         return FuncionarioService.buscar(db, id)
 
     @staticmethod
@@ -66,3 +80,125 @@ class FuncionarioService:
             raise Exception("Funcionario nao encontrado.")
         registrar_exclusao(db, "funcionario", id, {"id": funcionario.id, "nome": funcionario.nome})
         FuncionarioRepository.update(db, funcionario, {"deletado_em": datetime.utcnow(), "ativo": False})
+        # funcionario removido -> desativa as despesas recorrentes dele (nao apaga histórico)
+        FuncionarioService.sincronizar_recorrentes(db, id)
+
+    # ── Motor de geração (Fase B) ────────────────────────────────────────────
+    # Cada COMPONENTE fixo das variáveis do funcionário vira uma Despesa RECORRENTE
+    # identificada por (funcionario_id, categoria_id). O scheduler existente
+    # (_gerar_despesas_recorrentes_auto) gera as parcelas mensais sozinho.
+    # Componentes VARIÁVEIS (plantão, hora extra, adiantamento que varia) NÃO
+    # entram aqui — são lançados no fechamento mensal (Fase C2).
+    _COMPONENTES_FIXOS = [
+        # (categoria_nome, attr_valor, attr_dia, prefixo_descricao)
+        ("Salario (folha mensal)",        "salario_mensal",  "dia_pagamento_salario",      "Salário"),
+        ("Adiantamento de salario",       "adiantamento_valor", "dia_pagamento_adiantamento", "Adiantamento"),
+        ("Vale transporte",               "vale_transporte", "dia_pagamento_salario",      "Vale transporte"),
+        ("Vale refeicao/alimentacao",     "vale_refeicao",   "dia_pagamento_salario",      "Vale refeição"),
+    ]
+
+    @staticmethod
+    def sincronizar_recorrentes(db: Session, funcionario_id: int) -> dict:
+        """Cria/atualiza/desativa as Despesas RECORRENTE do funcionário a partir
+        das variáveis correntes. Idempotente. Retorna contagem do que mudou."""
+        from app.services.despesa_service import DespesaService
+
+        func = (
+            db.query(Funcionario)
+            .filter(Funcionario.id == funcionario_id)
+            .first()
+        )
+        if not func:
+            return {"criadas": 0, "atualizadas": 0, "desativadas": 0}
+        v = func.variaveis
+
+        cats = {
+            c.nome: c.id
+            for c in db.query(CategoriaFinanceira).filter(CategoriaFinanceira.grupo == "FUNCIONARIO").all()
+        }
+
+        # estado desejado: só os componentes fixos com valor > 0, e só se o
+        # funcionário está ativo e não foi soft-deletado
+        desejado = []  # (categoria_id, valor, dia, descricao)
+        ativo = bool(func.ativo) and func.deletado_em is None
+        if ativo and v is not None:
+            for cat_nome, attr_valor, attr_dia, prefixo in FuncionarioService._COMPONENTES_FIXOS:
+                cat_id = cats.get(cat_nome)
+                if not cat_id:
+                    continue
+                # adiantamento só entra se for FIXO
+                if attr_valor == "adiantamento_valor" and getattr(v, "adiantamento_tipo", "NENHUM") != "FIXO":
+                    continue
+                valor = float(getattr(v, attr_valor, 0) or 0)
+                if valor <= 0:
+                    continue
+                dia = _dia_ok(getattr(v, attr_dia, None) or getattr(v, "dia_pagamento_salario", None))
+                desejado.append((cat_id, valor, dia, f"{prefixo} — {func.nome}"))
+
+        cat_ids_desejados = {c for c, *_ in desejado}
+
+        existentes = {
+            d.categoria_id: d
+            for d in db.query(Despesa).filter(
+                Despesa.funcionario_id == funcionario_id,
+                Despesa.tipo_pagamento == TipoPagamentoDespesa.RECORRENTE,
+                Despesa.deletado_em.is_(None),
+            ).all()
+        }
+
+        criadas = atualizadas = desativadas = 0
+
+        for cat_id, valor, dia, descricao in desejado:
+            d = existentes.get(cat_id)
+            if d is None:
+                d = Despesa(
+                    descricao=descricao,
+                    categoria_id=cat_id,
+                    funcionario_id=funcionario_id,
+                    cnpj=func.empresa_padrao_cnpj,
+                    tipo_pagamento=TipoPagamentoDespesa.RECORRENTE,
+                    valor_total=valor,
+                    total_parcelas=0,
+                    dia_vencimento=dia,
+                    ativo=True,
+                    observacao="Gerada automaticamente das variáveis do funcionário.",
+                )
+                db.add(d)
+                db.commit()
+                db.refresh(d)
+                DespesaService._garantir_parcelas_recorrente(db, d)
+                criadas += 1
+            else:
+                mudou = False
+                if abs(float(d.valor_total or 0) - valor) > 0.005:
+                    d.valor_total = valor
+                    mudou = True
+                if d.dia_vencimento != dia:
+                    d.dia_vencimento = dia
+                    mudou = True
+                if d.cnpj != func.empresa_padrao_cnpj:
+                    d.cnpj = func.empresa_padrao_cnpj
+                    mudou = True
+                if not d.ativo:
+                    d.ativo = True
+                    mudou = True
+                if mudou:
+                    db.commit()
+                    # ajusta o valor das parcelas FUTURAS ainda PENDENTES (não mexe nas pagas)
+                    db.query(DespesaParcela).filter(
+                        DespesaParcela.despesa_id == d.id,
+                        DespesaParcela.status == StatusParcelaDespesa.PENDENTE,
+                        DespesaParcela.data_vencimento >= date.today(),
+                    ).update({"valor": valor}, synchronize_session=False)
+                    db.commit()
+                    atualizadas += 1
+                DespesaService._garantir_parcelas_recorrente(db, d)
+
+        # componente que saiu do estado desejado -> desativa a despesa (mantém histórico)
+        for cat_id, d in existentes.items():
+            if cat_id not in cat_ids_desejados and d.ativo:
+                d.ativo = False
+                db.commit()
+                desativadas += 1
+
+        return {"criadas": criadas, "atualizadas": atualizadas, "desativadas": desativadas}

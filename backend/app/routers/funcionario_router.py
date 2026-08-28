@@ -56,3 +56,13 @@ def deletar(id: int, db: Session = Depends(get_db)):
         FuncionarioService.deletar(db, id)
     except Exception as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/{id}/sincronizar-recorrentes")
+def sincronizar_recorrentes(id: int, db: Session = Depends(get_db)):
+    """Recria/atualiza as Despesas RECORRENTE do funcionário a partir das
+    variáveis correntes (salário, adiantamento fixo, VT, VR)."""
+    try:
+        return FuncionarioService.sincronizar_recorrentes(db, id)
+    except Exception as e:
+        raise HTTPException(400, str(e))
