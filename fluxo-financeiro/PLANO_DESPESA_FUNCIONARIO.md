@@ -63,10 +63,13 @@ Rosa Salomão. Todos aparecem pagos pelos 2 CNPJs.
 | dia_pagamento_adiantamento | int (1-31) null | |
 | vale_transporte | numeric(10,2) default 0 | por pessoa |
 | vale_refeicao | numeric(10,2) default 0 | VR/VA, por pessoa |
+| tem_plantao | bool default 0 | se sim, a folha do mês inclui linha Plantão (valor entra no fechamento) |
+| tem_hora_extra | bool default 0 | idem, linha Hora extra |
 | encargos_percentual | numeric(5,2) default 0 | **só projeção** — encargo real é bucket de folha |
 
 Campos batem 1:1 com o que o `CADASTRO_FUNCIONARIOS.html` coleta.
 Encargos/convênio NÃO são campos de funcionário (bucket de folha, ver Decisões).
+**Comissão** NÃO é campo/flag (poucos têm, caso raro) — é lançamento eventual na tela do funcionário.
 
 ### `despesas` — coluna nova
 - `funcionario_id` int FK null (ondelete SET NULL). Amarra a despesa ao funcionário.
@@ -74,22 +77,35 @@ Encargos/convênio NÃO são campos de funcionário (bucket de folha, ver Decis�
 
 ## Categorias (grupo novo FUNCIONARIO)
 Seed idempotente, `GrupoCategoria.FUNCIONARIO`:
-Salário (folha mensal) · Adiantamento de salário · Encargos trabalhistas (FGTS/GPS) ·
-Sindicato · Benefício — convênio médico/odontológico · Vale transporte ·
-Vale refeição/alimentação · Férias · Rescisão · PRL (participação resultado) ·
-Passagem/reembolso pessoal
+Salário (folha mensal) · Adiantamento de salário · **Plantão** · **Hora extra** ·
+**Comissão** · Encargos trabalhistas (FGTS/GPS) · Sindicato · Benefício — convênio
+médico/odontológico · Vale transporte · Vale refeição/alimentação · Férias · 13º salário ·
+Rescisão · PRL (participação resultado) · Passagem/reembolso pessoal
 
 ## Motor de geração
-- Cada variável não-zero do funcionário → uma `Despesa` tipo RECORRENTE
-  (categoria FUNCIONARIO correspondente, `funcionario_id` setado, `fornecedor_id` null,
-  `cnpj` = empresa_padrao, `dia_vencimento` = o dia da variável, `valor_recorrente` = valor).
-  Encargo: `valor = salario_mensal * encargos_percentual / 100`.
-- Sincronização: ao criar/editar variáveis, cria/atualiza/desativa as Despesas
-  RECORRENTE do funcionário (`FuncionarioService.sincronizar_recorrentes`).
-- `gerar_recorrentes_pendentes` (já roda no scheduler) passa a gerar as parcelas
-  mensais dessas despesas automaticamente — sem código novo de scheduler.
-- Eventuais (férias, rescisão, PRL, reembolso) → lançamento UNICO manual na tela
-  do funcionário quando acontece.
+- **Componentes fixos** (salário, adiantamento FIXO, VT, VR): variável não-zero →
+  `Despesa` RECORRENTE (categoria FUNCIONARIO, `funcionario_id`, `fornecedor_id` null,
+  `cnpj` = empresa_padrao, `dia_vencimento` = dia da variável, `valor_recorrente` = valor).
+- **Componentes variáveis** (adiantamento VARIÁVEL, plantão se `tem_plantao`, hora extra
+  se `tem_hora_extra`): também RECORRENTE, mas `valor_recorrente = 0` — a parcela nasce
+  em 0 e é **editada no fechamento do mês** com o valor real.
+- Todas as parcelas são editáveis na hora de pagar (o salário também varia).
+- Sincronização: ao criar/editar variáveis, `FuncionarioService.sincronizar_recorrentes`
+  cria/atualiza/desativa as Despesas RECORRENTE do funcionário.
+- `gerar_recorrentes_pendentes` (scheduler existente) gera as parcelas mensais — sem
+  código novo de scheduler.
+- **Eventuais** (férias, 13º, rescisão, PRL, comissão, reembolso) → lançamento UNICO
+  manual na tela do funcionário quando acontece.
+
+## Férias (e 13º) — controle
+- **Pagamento:** lançamento UNICO categoria Férias, vinculado ao funcionário, com
+  **calculadora** (sugestão `salario_mensal + salario_mensal/3`; editável — pode ter
+  abono, dias vendidos, média de variáveis).
+- **Alerta de vencimento:** a partir de `data_admissao` + histórico de lançamentos de
+  Férias do funcionário, calcular o período aquisitivo aberto e sinalizar quando passa
+  de ~11 meses sem férias tiradas. Entra na página de pendências/alertas do fluxo.
+- 13º: mesma mecânica (categoria 13º salário, alerta em novembro), 1ª e 2ª parcela.
+- **Sem provisão contábil mensal** (1/12) — a planilha da cliente é regime de caixa.
 
 ## Fases
 
@@ -108,9 +124,11 @@ Passagem/reembolso pessoal
 
 ### Fase C — frontend
 - Página `/fluxo-financeiro/funcionarios` — lista + CRUD.
-- Form de variáveis por funcionário.
-- Lista de despesas do funcionário (reusa componentes de parcela/pagamento).
-- Botão de lançamento avulso (férias/rescisão/PRL).
+- Form de variáveis por funcionário (inclui flags tem_plantao / tem_hora_extra).
+- Lista de despesas do funcionário (reusa componentes de parcela/pagamento);
+  fechamento do mês = editar valor das parcelas variáveis (plantão/HE/adiantamento).
+- Botão de lançamento avulso (férias c/ calculadora, 13º, rescisão, PRL, comissão, reembolso).
+- Alerta de férias vencendo na página de pendências/alertas.
 - Link no menu.
 
 ### Fase D — migração do histórico
@@ -133,8 +151,15 @@ Passagem/reembolso pessoal
 - `validar_fluxo_todos_meses.py` — ver se os meses passam a bater com a planilha
   da cliente agora que a folha entrou.
 
+## Requisitos adicionais (Atila, 28/08)
+- **Plantão / Hora extra:** valor total em R$ por mês, componente por funcionário
+  (flag `tem_plantao` / `tem_hora_extra`), parcela mensal nasce em 0 e é editada no fechamento.
+- **Comissão:** poucos têm — lançamento eventual, não componente.
+- **Férias:** registrar pagamento (calculadora salário+1/3) + alerta de vencimento do
+  período aquisitivo. 13º mesma mecânica.
+
 ## Fora do escopo desta rodada (pendências futuras)
 - Versionamento histórico das variáveis (mudança de salário com data).
-- Cálculo de 13º, férias proporcionais, provisões.
+- Férias proporcionais, provisão contábil mensal (1/12).
 - Vínculo funcionário ↔ serviço/OS do Auvo.
 - eSocial / integração contábil.
