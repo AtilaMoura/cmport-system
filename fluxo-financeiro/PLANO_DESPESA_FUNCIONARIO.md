@@ -119,10 +119,18 @@ Rescisão · PRL (participação resultado) · Passagem/reembolso pessoal
   Regressão: Despesa Geral 661 / Fornecedor 209 sem mudança.
 - Feito em 6 slices via opencode (mimo-v2.5-free), specs em `opencode_A3_faseA_*.txt`.
 
-### Fase B — motor de geração
-- `FuncionarioService.sincronizar_recorrentes(funcionario_id)`.
-- Chamado ao salvar variáveis. Reaproveita `Despesa` RECORRENTE + engine existente.
-- Endpoint `POST /funcionarios/{id}/sincronizar-recorrentes` (idempotente).
+### Fase B — motor de geração ✅ FEITA 28/08 (commit `abf2763`, deployada)
+- `FuncionarioService.sincronizar_recorrentes(funcionario_id)` — cada componente
+  **fixo** (salário, adiantamento FIXO, VT, VR) vira `Despesa` RECORRENTE
+  identificada por `(funcionario_id, categoria_id)`. Chamado auto em criar/editar/desligar.
+- Editar salário → atualiza `valor_total` + parcelas futuras PENDENTES. Zerar componente
+  ou desligar funcionário → desativa a RECORRENTE (mantém histórico).
+- `dia_vencimento` clampado a 1-28 (engine usa `.replace(day=)`).
+- O scheduler existente `_gerar_despesas_recorrentes_auto` (startup + dia 1) gera as
+  parcelas mensais — sem código novo de agendamento.
+- Endpoint `POST /funcionarios/{id}/sincronizar-recorrentes`.
+- **Plantão / hora extra / adiantamento variável NÃO entram aqui** — Fase C2 (fechamento mensal).
+- Testado ponta a ponta em local; regressão Geral/Fornecedor OK.
 
 ### Fase C — frontend
 - **C1 ✅ FEITA 28/08 (commit `c72c740`, deployada):** página `/fluxo-financeiro/funcionarios`
