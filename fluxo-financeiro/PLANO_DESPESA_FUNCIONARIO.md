@@ -109,13 +109,15 @@ Rescisão · PRL (participação resultado) · Passagem/reembolso pessoal
 
 ## Fases
 
-### Fase A — cadastro (backend)
-- `GrupoCategoria.FUNCIONARIO` + seed idempotente das categorias.
-- model `Funcionario` + `FuncionarioVariaveis`; `despesas.funcionario_id` + ALTER.
-- schema Pydantic → repository → service → router `/funcionarios` (CRUD + variáveis).
-- `despesa_repository.listar`: `origem="FUNCIONARIO"` = `funcionario_id IS NOT NULL`;
-  corrigir `origem="GERAL"` pra `funcionario_id IS NULL AND fornecedor_id IS NULL`.
-- Sem geração ainda. tsc/testes.
+### Fase A — cadastro (backend) ✅ FEITA 28/08 (commit `89d1ce6`, local)
+- ✅ `GrupoCategoria.FUNCIONARIO` + `_seed_categorias_funcionario()` (15 categorias, idempotente).
+- ✅ models `Funcionario` + `FuncionarioVariaveis` (enum `AdiantamentoTipo`); `despesas.funcionario_id` + ALTER.
+- ✅ schema → repository → service → router CRUD `/api/v1/funcionarios` (soft delete).
+- ✅ `despesa_repository.listar`: `origem="FUNCIONARIO"` = `funcionario_id IS NOT NULL`;
+  `origem="GERAL"` = `fornecedor_id IS NULL AND funcionario_id IS NULL`.
+- Testado ponta a ponta em local (CRUD + upsert variáveis + soft delete + CNPJ normalizado).
+  Regressão: Despesa Geral 661 / Fornecedor 209 sem mudança.
+- Feito em 6 slices via opencode (mimo-v2.5-free), specs em `opencode_A3_faseA_*.txt`.
 
 ### Fase B — motor de geração
 - `FuncionarioService.sincronizar_recorrentes(funcionario_id)`.
