@@ -3,10 +3,9 @@
 _Criado 27/08/2026. Escopo redefinido pelo Atila: módulo de folha/pessoal com
 tabela dedicada, não reuso de Despesa+categoria._
 
-## Decisões do Atila (27/08)
+## Decisões do Atila (27–28/08)
 - Tabela **dedicada `funcionarios`** (pensada pra uso futuro além da folha).
 - **Variáveis por funcionário** geram as despesas (não lançamento avulso).
-- Encargos trabalhistas = **% sobre o salário** (campo por funcionário).
 - Empresa pagadora = **por lançamento** (funcionário tem empresa padrão, cada
   despesa gerada pode ser CMPORT ou TEC, editável).
 - Geração das despesas mensais = **automática** (reusa o scheduler que já roda
@@ -14,6 +13,27 @@ tabela dedicada, não reuso de Despesa+categoria._
 - Nome no sistema: **"Despesa Funcionário"**. Página: `/fluxo-financeiro/funcionarios`.
 - Histórico a migrar: `despesas_funcionario.json` (240 transações, R$ 258.755,94,
   fonte de verdade confirmada).
+- **Salário varia todo mês** → `funcionario_variaveis` guarda o valor **corrente**
+  (sugestão); a parcela gerada é **editável** na hora de pagar. Histórico entra com
+  o valor real de cada mês. (Não versiona salário por vigência — decisão 28/08.)
+- **Dois tipos de custo de funcionário** (medido no histórico 28/08):
+  - **Individual** (vincula a `funcionario_id`): salário, adiantamento, VT/VR,
+    férias, rescisão, PRL, reembolso.
+  - **Folha / consolidado** (SEM `funcionario_id`): encargos (FGTS/GPS/Sindicato,
+    pagos como guia da folha inteira) e convênio médico/odontológico (fatura dos
+    planos). Viram Despesa categoria grupo FUNCIONARIO, bucket "Folha – Encargos" /
+    "Folha – Convênio". O `encargos_percentual` por funcionário é só projeção.
+- **Coleta dos dados que faltam:** HTML `docs-e-planilhas/CADASTRO_FUNCIONARIOS.html`
+  (gitignored — tem nome+salário de gente real) pré-preenchido com os 7 do histórico;
+  a cliente confere/completa (salário atual, dia de pagamento, cargo, admissão),
+  marca desligados, adiciona novos, e gera um JSON pra devolver. Esse JSON alimenta
+  a Fase D.
+
+## Os 7 funcionários no histórico (2026)
+André Moreira Rosa · Luis Antonio Melgarejo Neves · Welligton Lucas Menezes
+Rodrigues · Pedro Henrique da Silva (**desligado ago/26**) · Fabiana Pedretti
+Moreira Rosa · Gabriel Moreira Pedretti (entrou no meio do ano) · Almira Moreira
+Rosa Salomão. Todos aparecem pagos pelos 2 CNPJs.
 
 ## Modelo de dados
 
@@ -30,20 +50,21 @@ tabela dedicada, não reuso de Despesa+categoria._
 | observacao | text null | |
 | criado_em / atualizado_em / deletado_em | datetime | soft delete |
 
-### `funcionario_variaveis` (1:1 com funcionário, começa simples)
+### `funcionario_variaveis` (1:1 com funcionário) — valores CORRENTES (sugestão da geração)
 | campo | tipo | nota |
 |---|---|---|
 | funcionario_id | int FK unique | |
-| salario_mensal | numeric(10,2) | 0 = não gera |
-| dia_pagamento_salario | int (1-28) null | |
-| adiantamento_valor | numeric(10,2) default 0 | |
-| dia_pagamento_adiantamento | int (1-28) null | |
-| vale_transporte | numeric(10,2) default 0 | |
-| vale_refeicao | numeric(10,2) default 0 | VR/VA |
-| convenio_medico | numeric(10,2) default 0 | |
-| encargos_percentual | numeric(5,2) default 0 | % sobre salario_mensal (FGTS+GPS patronal) |
-| sindicato_valor | numeric(10,2) default 0 | fixo mensal, opcional |
-| dia_pagamento_encargos | int (1-28) null | |
+| salario_mensal | numeric(10,2) | valor atual; parcela gerada é editável |
+| dia_pagamento_salario | int (1-31) null | |
+| adiantamento_tipo | enum NENHUM/FIXO/VARIAVEL | |
+| adiantamento_valor | numeric(10,2) default 0 | só usado se tipo=FIXO |
+| dia_pagamento_adiantamento | int (1-31) null | |
+| vale_transporte | numeric(10,2) default 0 | por pessoa |
+| vale_refeicao | numeric(10,2) default 0 | VR/VA, por pessoa |
+| encargos_percentual | numeric(5,2) default 0 | **só projeção** — encargo real é bucket de folha |
+
+Campos batem 1:1 com o que o `CADASTRO_FUNCIONARIOS.html` coleta.
+Encargos/convênio NÃO são campos de funcionário (bucket de folha, ver Decisões).
 
 ### `despesas` — coluna nova
 - `funcionario_id` int FK null (ondelete SET NULL). Amarra a despesa ao funcionário.
@@ -91,13 +112,19 @@ Passagem/reembolso pessoal
 - Link no menu.
 
 ### Fase D — migração do histórico
-- Script `migrar_despesa_funcionario.py`: extrai nomes das descrições dos 240
-  lançamentos → cria `funcionarios` (empresa_padrao = CNPJ mais frequente do nome)
-  → cada lançamento vira `Despesa` UNICO PAGO + `DespesaParcela` PAGO +
-  `fin_movimentacoes`, com `funcionario_id` e categoria conforme subcategoria.
+- **Insumo:** o JSON que a cliente devolve do `CADASTRO_FUNCIONARIOS.html` (dados
+  reais dos funcionários) + `despesas_funcionario.json` (os 240 lançamentos).
+- Mapa **curado** `nome_na_descrição → funcionario_id` (não regex — "Fabiana
+  Pedretti" = "Fabiana Pedretti Moreira Rosa"; ver os 7 nomes acima).
+- Script `migrar_despesa_funcionario.py`: cria os `funcionarios` + `funcionario_variaveis`
+  a partir do JSON da cliente; cada um dos 240 lançamentos vira `Despesa` UNICO PAGO
+  + `DespesaParcela` PAGO + `fin_movimentacoes`:
+  - individual (salário/adiantamento/VT/VR/férias/rescisão/PRL/reembolso) → com `funcionario_id`
+  - folha (encargos/convênio) → SEM `funcionario_id`, categoria "Folha – Encargos"/"Folha – Convênio"
 - `id_externo_banco = MIGRACAO-FUNCIONARIO-{cnpj}-{linha_planilha}` (dedup).
-- Cuidado: mojibake nas subcategorias do JSON; os 19 itens já reclassificados
-  pra GERAL (ver `gerar_sql_incremento_funcionario.py`) NÃO entram.
+- Cuidado: mojibake nas subcategorias do JSON (cp1252); 1 data furada `2006-08-28`
+  (era 2026); os 19 itens já reclassificados pra GERAL (ver
+  `gerar_sql_incremento_funcionario.py`) NÃO entram.
 - Aplicar local → conferir totais por subcategoria x JSON → produção c/ backup + aprovação.
 
 ### Fase E — revalidação
