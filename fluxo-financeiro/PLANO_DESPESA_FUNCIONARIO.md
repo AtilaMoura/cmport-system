@@ -125,13 +125,14 @@ Rescisão · PRL (participação resultado) · Passagem/reembolso pessoal
 - Endpoint `POST /funcionarios/{id}/sincronizar-recorrentes` (idempotente).
 
 ### Fase C — frontend
-- Página `/fluxo-financeiro/funcionarios` — lista + CRUD.
-- Form de variáveis por funcionário (inclui flags tem_plantao / tem_hora_extra).
-- Lista de despesas do funcionário (reusa componentes de parcela/pagamento);
+- **C1 ✅ FEITA 28/08 (commit `c72c740`, deployada):** página `/fluxo-financeiro/funcionarios`
+  — lista + cards resumo + busca + modal CRUD (funcionário + variáveis, flags
+  tem_plantao/tem_hora_extra) + soft delete. Item "Funcionários" no menu FINANCEIRO.
+  tsc/lint OK, não testada no browser (sem ambiente local).
+- **C2 (falta):** lista de despesas do funcionário (reusa componentes de parcela/pagamento);
   fechamento do mês = editar valor das parcelas variáveis (plantão/HE/adiantamento).
-- Botão de lançamento avulso (férias c/ calculadora, 13º, rescisão, PRL, comissão, reembolso).
-- Alerta de férias vencendo na página de pendências/alertas.
-- Link no menu.
+  Botão de lançamento avulso (férias c/ calculadora, 13º, rescisão, PRL, comissão, reembolso).
+  Alerta de férias vencendo na página de pendências/alertas. → depende da Fase B.
 
 ### Fase D — migração do histórico
 - **Insumo:** o JSON que a cliente devolve do `CADASTRO_FUNCIONARIOS.html` (dados
