@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { fmtValor } from '@/lib/fluxoFinanceiro';
+import { DespesasFuncionario } from '@/components/fluxo-financeiro/DespesasFuncionario';
 
 // CNPJ (só dígitos) das duas empresas que pagam a folha
 const EMPRESAS = [
@@ -74,6 +75,7 @@ export default function FuncionariosPage() {
   const [form, setForm] = useState<FormState>(formVazio());
   const [salvando, setSalvando] = useState(false);
   const [removendo, setRemovendo] = useState<number | null>(null);
+  const [verDespesas, setVerDespesas] = useState<Funcionario | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -255,6 +257,10 @@ export default function FuncionariosPage() {
                       {f.variaveis?.salario_mensal ? ` · ${fmtValor(Number(f.variaveis.salario_mensal))}` : ''}
                     </div>
                   </button>
+                  <button onClick={() => setVerDespesas(f)}
+                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors">
+                    Despesas
+                  </button>
                   <button onClick={() => remover(f)} disabled={removendo === f.id}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50">
                     {removendo === f.id ? '...' : 'Remover'}
@@ -421,6 +427,16 @@ export default function FuncionariosPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {verDespesas && (
+        <DespesasFuncionario
+          funcionarioId={verDespesas.id}
+          funcionarioNome={verDespesas.nome}
+          empresaPadraoCnpj={verDespesas.empresa_padrao_cnpj}
+          onClose={() => setVerDespesas(null)}
+          onMudou={carregar}
+        />
       )}
     </div>
   );

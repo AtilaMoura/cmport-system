@@ -14,6 +14,7 @@ class DespesaCreate(BaseModel):
     descricao: str
     categoria_id: Optional[int] = None
     fornecedor_id: Optional[int] = None
+    funcionario_id: Optional[int] = None
     servico_ids: Optional[List[int]] = None
     orcamento_ids: Optional[List[int]] = None
     os_fornecedor_ids: Optional[List[int]] = None
@@ -36,8 +37,8 @@ class DespesaCreate(BaseModel):
 
     @model_validator(mode="after")
     def validar_por_tipo(self):
-        if not self.categoria_id and not self.fornecedor_id:
-            raise ValueError("informe categoria_id ou fornecedor_id")
+        if not self.categoria_id and not self.fornecedor_id and not self.funcionario_id:
+            raise ValueError("informe categoria_id, fornecedor_id ou funcionario_id")
         if self.tipo_pagamento == "UNICO":
             if self.valor_total is None or self.data_primeira_parcela is None:
                 raise ValueError("pagamento único precisa de valor_total e data_primeira_parcela")
@@ -74,6 +75,7 @@ class DespesaResponse(BaseModel):
     descricao: str
     categoria_id: Optional[int] = None
     fornecedor_id: Optional[int] = None
+    funcionario_id: Optional[int] = None
     cnpj: str
     banco_previsto_id: Optional[int] = None
     tipo_pagamento: str
@@ -92,6 +94,8 @@ class MarcarPagoRequest(BaseModel):
     data_pagamento: date
     banco_id: int
     forma_pagamento: Optional[str] = "PIX"
+    # valor real pago (fechamento do mês) — se None, usa o valor atual da parcela
+    valor: Optional[Decimal] = None
 
 
 class EditarParcelaRequest(BaseModel):

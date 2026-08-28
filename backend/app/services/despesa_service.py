@@ -28,6 +28,7 @@ class DespesaService:
             descricao=req.descricao,
             categoria_id=categoria_id,
             fornecedor_id=req.fornecedor_id,
+            funcionario_id=req.funcionario_id,
             cnpj=req.cnpj,
             banco_previsto_id=req.banco_previsto_id,
             tipo_pagamento=req.tipo_pagamento,
@@ -86,8 +87,9 @@ class DespesaService:
     @staticmethod
     def listar(db: Session, mes: Optional[int] = None, ano: Optional[int] = None,
                 cnpj: Optional[str] = None, status: Optional[str] = None,
-                origem: Optional[str] = None) -> List[DespesaResponse]:
-        despesas = DespesaRepository.listar(db, mes=mes, ano=ano, cnpj=cnpj, status=status, origem=origem)
+                origem: Optional[str] = None, funcionario_id: Optional[int] = None) -> List[DespesaResponse]:
+        despesas = DespesaRepository.listar(db, mes=mes, ano=ano, cnpj=cnpj, status=status,
+                                            origem=origem, funcionario_id=funcionario_id)
         return [DespesaResponse.model_validate(d) for d in despesas]
 
     @staticmethod
@@ -113,6 +115,11 @@ class DespesaService:
         if not parcela:
             raise Exception("Parcela não encontrada.")
         despesa = parcela.despesa
+
+        # fechamento do mês: o valor real pode ser diferente da sugestão
+        # (adiantamento, plantão, hora extra, VR por dias trabalhados)
+        if req.valor is not None and float(req.valor) != float(parcela.valor):
+            DespesaRepository.update(db, parcela, {"valor": req.valor})
 
         descricao_mov = despesa.descricao
         if parcela.total_parcelas > 1:

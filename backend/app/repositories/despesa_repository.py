@@ -10,10 +10,12 @@ class DespesaRepository:
     @staticmethod
     def listar(db: Session, mes: Optional[int] = None, ano: Optional[int] = None,
                 cnpj: Optional[str] = None, status: Optional[str] = None,
-                origem: Optional[str] = None) -> List[Despesa]:
+                origem: Optional[str] = None, funcionario_id: Optional[int] = None) -> List[Despesa]:
         q = db.query(Despesa).filter(Despesa.deletado_em == None)  # noqa
         if cnpj:
             q = q.filter(Despesa.cnpj == cnpj)
+        if funcionario_id is not None:
+            q = q.filter(Despesa.funcionario_id == funcionario_id)
         if origem == "FORNECEDOR":
             q = q.filter(Despesa.fornecedor_id.isnot(None))
         elif origem == "FUNCIONARIO":
