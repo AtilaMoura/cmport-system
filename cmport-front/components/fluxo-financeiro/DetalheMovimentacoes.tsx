@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { api } from '@/lib/api';
-import { fmtValor, fmtData, agruparPorCategoria, agruparPorBanco, type Movimentacao, type ServicoVinculado, type OsFornecedorReferencia, FORMAS_PAGAMENTO, FORMA_LABEL } from '@/lib/fluxoFinanceiro';
+import { fmtValor, fmtData, agruparPorCategoria, type Movimentacao, type ServicoVinculado, type OsFornecedorReferencia, FORMAS_PAGAMENTO, FORMA_LABEL } from '@/lib/fluxoFinanceiro';
 import { BuscaVinculo } from './BuscaVinculo';
 import { BuscaCondominio } from './BuscaCondominio';
 
@@ -42,7 +42,7 @@ interface Props {
 export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFornecedor, onAtualizado, breakdownExtra }: Props) {
   const [busca, setBusca] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('');
-  const [bancoFiltro, setBancoFiltro] = useState('');
+  const [bancoIdFiltro, setBancoIdFiltro] = useState<number | ''>('');  // conta específica (origem OU destino)
   const [empresaFiltro, setEmpresaFiltro] = useState('');   // '' | 'CMPORT' | 'TEC'
   const [bancos, setBancos] = useState<BancoOpcao[]>([]);
   const [fornecedores, setFornecedores] = useState<FornecedorOpcao[]>([]);
@@ -76,7 +76,6 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
   }, [mostrarFornecedor]);
 
   const porCategoria = useMemo(() => agruparPorCategoria(movs), [movs]);
-  const porBanco = useMemo(() => agruparPorBanco(movs), [movs]);
 
   const bancoPorId = useMemo(() => {
     const map = new Map<number, BancoOpcao>();
@@ -93,12 +92,29 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
     return EMPRESA_POR_CNPJ[dig] ?? b.razao_social_titular ?? null;
   }, [bancoPorId]);
 
-  // rótulo completo "Inter (CMPORT)" / "Inter (CMPORT TEC)" pro badge de origem→destino
+  // rótulo completo "Inter (CMPORT)" / "Inter (CMPORT TEC)"
   const bancoLabel = useMemo(() => (bancoId: number | null, nomeFallback: string | null): string => {
     const b = bancoId != null ? bancoPorId.get(bancoId) : null;
     if (b) return b.razao_social_titular ? `${b.nome} (${b.razao_social_titular})` : b.nome;
     return nomeFallback ?? '?';
   }, [bancoPorId]);
+
+  // resumo por CONTA (banco+empresa): quanto SAIU (conta = origem) e quanto ENTROU (conta = destino)
+  const porConta = useMemo(() => {
+    const acc = new Map<number, { label: string; saiu: number; entrou: number; itens: number }>();
+    const get = (id: number, nome: string | null) => {
+      let g = acc.get(id);
+      if (!g) { g = { label: bancoLabel(id, nome), saiu: 0, entrou: 0, itens: 0 }; acc.set(id, g); }
+      return g;
+    };
+    for (const m of movs) {
+      if (m.banco_origem_id != null) { const g = get(m.banco_origem_id, m.banco_origem_nome); g.saiu += m.valor; g.itens += 1; }
+      if (m.banco_id != null && m.banco_id !== m.banco_origem_id) { const g = get(m.banco_id, m.banco_nome); g.entrou += m.valor; g.itens += 1; }
+    }
+    return [...acc.entries()]
+      .map(([id, g]) => ({ id, ...g }))
+      .sort((a, b) => (b.saiu + b.entrou) - (a.saiu + a.entrou));
+  }, [movs, bancoLabel]);
 
   // empresa da mov = a de ORIGEM (de onde o dinheiro saiu); cai pro destino se não houver origem
   const empresaOrigem = useMemo(
@@ -246,7 +262,7 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
   const filtradas = movs.filter(m => {
     if (busca && !m.descricao.toLowerCase().includes(busca.toLowerCase())) return false;
     if (categoriaFiltro && (m.categoria?.nome ?? 'Sem categoria') !== categoriaFiltro) return false;
-    if (bancoFiltro && (m.banco_nome ?? 'Sem banco') !== bancoFiltro) return false;
+    if (bancoIdFiltro !== '' && m.banco_id !== bancoIdFiltro && m.banco_origem_id !== bancoIdFiltro) return false;
     if (empresaFiltro && empresaOrigem(m) !== empresaFiltro) return false;
     return true;
   });
@@ -263,10 +279,10 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
             <option value="">Todas as categorias</option>
             {porCategoria.map(g => <option key={g.nome} value={g.nome}>{g.nome}</option>)}
           </select>
-          <select value={bancoFiltro} onChange={e => setBancoFiltro(e.target.value)}
+          <select value={bancoIdFiltro} onChange={e => setBancoIdFiltro(e.target.value === '' ? '' : Number(e.target.value))}
             className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white">
-            <option value="">Todos os bancos</option>
-            {porBanco.map(g => <option key={g.nome} value={g.nome}>{g.nome}</option>)}
+            <option value="">Todas as contas</option>
+            {porConta.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
           </select>
           <div className="inline-flex items-center gap-2">
             <span className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">De onde saiu</span>
@@ -316,18 +332,20 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
         ))}
       </div>
 
-      {/* Breakdown por banco */}
+      {/* Breakdown por conta (banco + empresa) — quanto saiu (origem) e quanto entrou (destino) */}
       <div className="flex flex-wrap gap-2">
-        {porBanco.map(g => (
-          <button key={g.nome} onClick={() => setBancoFiltro(bancoFiltro === g.nome ? '' : g.nome)}
-            className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
-              bancoFiltro === g.nome
+        {porConta.map(g => (
+          <button key={g.id} onClick={() => setBancoIdFiltro(bancoIdFiltro === g.id ? '' : g.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs text-left transition-colors ${
+              bancoIdFiltro === g.id
                 ? 'bg-teal-900 text-white dark:bg-teal-600'
                 : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}>
-            <span className="font-semibold">💳 {g.nome}</span>{' '}
-            <span className="font-black">{fmtValor(g.total)}</span>
-            <span className="opacity-70"> ({g.itens.length})</span>
+            <div className="font-semibold">💳 {g.label}</div>
+            <div className="flex gap-3 opacity-90">
+              {g.saiu > 0 && <span>↑ saiu <span className="font-black">{fmtValor(g.saiu)}</span></span>}
+              {g.entrou > 0 && <span>↓ entrou <span className="font-black">{fmtValor(g.entrou)}</span></span>}
+            </div>
           </button>
         ))}
       </div>
