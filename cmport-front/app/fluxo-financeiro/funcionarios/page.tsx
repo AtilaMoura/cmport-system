@@ -26,7 +26,9 @@ interface Variaveis {
   vale_transporte: number | string;
   vale_refeicao: number | string;
   tem_plantao: boolean;
+  plantao_valor: number | string;
   tem_hora_extra: boolean;
+  hora_extra_valor: number | string;
   encargos_percentual: number | string;
 }
 
@@ -45,7 +47,8 @@ interface Funcionario {
 const varVazia = (): Variaveis => ({
   salario_mensal: '', dia_pagamento_salario: 11,
   adiantamento_tipo: 'NENHUM', adiantamento_valor: '', dia_pagamento_adiantamento: 21,
-  vale_transporte: '', vale_refeicao: '', tem_plantao: false, tem_hora_extra: false,
+  vale_transporte: '', vale_refeicao: '',
+  tem_plantao: false, plantao_valor: '', tem_hora_extra: false, hora_extra_valor: '',
   encargos_percentual: '',
 });
 
@@ -112,7 +115,9 @@ export default function FuncionariosPage() {
             vale_transporte: f.variaveis.vale_transporte ?? '',
             vale_refeicao: f.variaveis.vale_refeicao ?? '',
             tem_plantao: !!f.variaveis.tem_plantao,
+            plantao_valor: f.variaveis.plantao_valor ?? '',
             tem_hora_extra: !!f.variaveis.tem_hora_extra,
+            hora_extra_valor: f.variaveis.hora_extra_valor ?? '',
             encargos_percentual: f.variaveis.encargos_percentual ?? '',
           }
         : varVazia(),
@@ -149,7 +154,9 @@ export default function FuncionariosPage() {
           vale_transporte: num(form.variaveis.vale_transporte),
           vale_refeicao: num(form.variaveis.vale_refeicao),
           tem_plantao: form.variaveis.tem_plantao,
+          plantao_valor: form.variaveis.tem_plantao ? num(form.variaveis.plantao_valor) : 0,
           tem_hora_extra: form.variaveis.tem_hora_extra,
+          hora_extra_valor: form.variaveis.tem_hora_extra ? num(form.variaveis.hora_extra_valor) : 0,
           encargos_percentual: num(form.variaveis.encargos_percentual),
         },
       };
@@ -372,7 +379,27 @@ export default function FuncionariosPage() {
                     <input type="checkbox" checked={form.variaveis.tem_hora_extra} onChange={e => setV({ tem_hora_extra: e.target.checked })} />
                     Recebe hora extra
                   </label>
+                  {form.variaveis.tem_plantao && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Plantão — valor padrão (R$)</label>
+                      <input type="number" step="0.01" min="0" value={form.variaveis.plantao_valor}
+                        onChange={e => setV({ plantao_valor: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                    </div>
+                  )}
+                  {form.variaveis.tem_hora_extra && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Hora extra — valor padrão (R$)</label>
+                      <input type="number" step="0.01" min="0" value={form.variaveis.hora_extra_valor}
+                        onChange={e => setV({ hora_extra_valor: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                    </div>
+                  )}
                 </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  Salário, adiantamento, vales, plantão e hora extra geram uma pendência todo mês
+                  com esse valor de sugestão — dá pra ajustar o valor real na hora de marcar como pago.
+                </p>
               </div>
 
               <div>

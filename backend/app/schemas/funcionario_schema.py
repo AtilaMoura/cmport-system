@@ -13,7 +13,9 @@ class FuncionarioVariaveisIn(BaseModel):
     vale_transporte: Decimal = Decimal("0")
     vale_refeicao: Decimal = Decimal("0")
     tem_plantao: bool = False
+    plantao_valor: Decimal = Decimal("0")
     tem_hora_extra: bool = False
+    hora_extra_valor: Decimal = Decimal("0")
     encargos_percentual: Decimal = Decimal("0")
 
 

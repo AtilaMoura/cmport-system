@@ -221,6 +221,9 @@ def _run_migrations():
         "ALTER TABLE despesas ADD COLUMN funcionario_id INT NULL",
         "ALTER TABLE despesas ADD INDEX ix_despesas_funcionario (funcionario_id)",
         "ALTER TABLE despesas ADD CONSTRAINT fk_despesas_funcionario FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE SET NULL",
+        # Despesa Funcionario — valor padrao de plantao / hora extra (Fase B revisao)
+        "ALTER TABLE funcionario_variaveis ADD COLUMN plantao_valor DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE funcionario_variaveis ADD COLUMN hora_extra_valor DECIMAL(10,2) NOT NULL DEFAULT 0",
     ]
     try:
         for stmt in stmts:

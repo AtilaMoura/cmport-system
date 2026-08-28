@@ -84,17 +84,21 @@ class FuncionarioService:
         FuncionarioService.sincronizar_recorrentes(db, id)
 
     # ── Motor de geração (Fase B) ────────────────────────────────────────────
-    # Cada COMPONENTE fixo das variáveis do funcionário vira uma Despesa RECORRENTE
-    # identificada por (funcionario_id, categoria_id). O scheduler existente
-    # (_gerar_despesas_recorrentes_auto) gera as parcelas mensais sozinho.
-    # Componentes VARIÁVEIS (plantão, hora extra, adiantamento que varia) NÃO
-    # entram aqui — são lançados no fechamento mensal (Fase C2).
-    _COMPONENTES_FIXOS = [
-        # (categoria_nome, attr_valor, attr_dia, prefixo_descricao)
-        ("Salario (folha mensal)",        "salario_mensal",  "dia_pagamento_salario",      "Salário"),
-        ("Adiantamento de salario",       "adiantamento_valor", "dia_pagamento_adiantamento", "Adiantamento"),
-        ("Vale transporte",               "vale_transporte", "dia_pagamento_salario",      "Vale transporte"),
-        ("Vale refeicao/alimentacao",     "vale_refeicao",   "dia_pagamento_salario",      "Vale refeição"),
+    # Cada COMPONENTE das variáveis do funcionário vira uma Despesa RECORRENTE
+    # identificada por (funcionario_id, categoria_id). O valor da variável é só
+    # a SUGESTÃO — a parcela mensal é editável no pagamento (salário varia, VR
+    # varia por dias trabalhados, adiantamento/plantão/HE variam). O scheduler
+    # existente (_gerar_despesas_recorrentes_auto) gera as parcelas mensais.
+    _COMPONENTES = [
+        # (categoria_nome, attr_valor, attr_dia, prefixo, gatilho)
+        #   gatilho: "salario"=só se salario>0 | "adiantamento"=se tipo!=NENHUM |
+        #            "valor"=se valor>0 | "flag:<attr_bool>"=se a flag é True
+        ("Salario (folha mensal)",     "salario_mensal",    "dia_pagamento_salario",      "Salário",         "salario"),
+        ("Adiantamento de salario",    "adiantamento_valor","dia_pagamento_adiantamento", "Adiantamento",    "adiantamento"),
+        ("Vale transporte",            "vale_transporte",   "dia_pagamento_salario",      "Vale transporte", "valor"),
+        ("Vale refeicao/alimentacao",  "vale_refeicao",     "dia_pagamento_salario",      "Vale refeição",   "valor"),
+        ("Plantao",                    "plantao_valor",     "dia_pagamento_salario",      "Plantão",         "flag:tem_plantao"),
+        ("Hora extra",                 "hora_extra_valor",  "dia_pagamento_salario",      "Hora extra",      "flag:tem_hora_extra"),
     ]
 
     @staticmethod
@@ -117,20 +121,24 @@ class FuncionarioService:
             for c in db.query(CategoriaFinanceira).filter(CategoriaFinanceira.grupo == "FUNCIONARIO").all()
         }
 
-        # estado desejado: só os componentes fixos com valor > 0, e só se o
-        # funcionário está ativo e não foi soft-deletado
+        # estado desejado: os componentes que o funcionário tem, só se ele está
+        # ativo e não foi soft-deletado. O valor é a sugestão (pode ser 0).
         desejado = []  # (categoria_id, valor, dia, descricao)
         ativo = bool(func.ativo) and func.deletado_em is None
         if ativo and v is not None:
-            for cat_nome, attr_valor, attr_dia, prefixo in FuncionarioService._COMPONENTES_FIXOS:
+            salario = float(getattr(v, "salario_mensal", 0) or 0)
+            for cat_nome, attr_valor, attr_dia, prefixo, gatilho in FuncionarioService._COMPONENTES:
                 cat_id = cats.get(cat_nome)
                 if not cat_id:
                     continue
-                # adiantamento só entra se for FIXO
-                if attr_valor == "adiantamento_valor" and getattr(v, "adiantamento_tipo", "NENHUM") != "FIXO":
-                    continue
                 valor = float(getattr(v, attr_valor, 0) or 0)
-                if valor <= 0:
+                if gatilho == "salario" and salario <= 0:
+                    continue
+                if gatilho == "adiantamento" and getattr(v, "adiantamento_tipo", "NENHUM") == "NENHUM":
+                    continue
+                if gatilho == "valor" and valor <= 0:
+                    continue
+                if gatilho.startswith("flag:") and not getattr(v, gatilho.split(":", 1)[1], False):
                     continue
                 dia = _dia_ok(getattr(v, attr_dia, None) or getattr(v, "dia_pagamento_salario", None))
                 desejado.append((cat_id, valor, dia, f"{prefixo} — {func.nome}"))
