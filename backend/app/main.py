@@ -43,6 +43,7 @@ import app.models.fin_saldo_inicial_model    # financeiro — saldo inicial mens
 import app.models.duplicata_dispensada_model  # pares de nota marcados como "não é duplicata"
 import app.models.banco_model                 # contas bancárias (Itaú/Inter/Bradesco/BTG)
 import app.models.despesa_model              # financeiro — despesa geral (unico/parcelado)
+import app.models.funcionario_model          # financeiro — funcionarios + variaveis (folha)
 
 # Importar todos os routers
 from app.routers.auth_router import router as auth_router
@@ -70,6 +71,7 @@ from app.routers.fluxo_financeiro_router import router as fluxo_financeiro_route
 from app.routers.cliente_router import router as clientes_router
 from app.routers.recibo_router import router as recibos_router
 from app.routers.declaracao_fiscal_router import router as declaracoes_router
+from app.routers.funcionario_router import router as funcionario_router
 
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
@@ -215,6 +217,10 @@ def _run_migrations():
         # criadas automaticamente pelo create_all acima, nao precisam de ALTER TABLE aqui)
         "ALTER TABLE despesas ADD COLUMN fornecedor_id INT NULL",
         "ALTER TABLE despesas ADD CONSTRAINT fk_despesa_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES condominios(id) ON DELETE SET NULL",
+        # Despesa Funcionario — vinculo da despesa ao funcionario (Fase A)
+        "ALTER TABLE despesas ADD COLUMN funcionario_id INT NULL",
+        "ALTER TABLE despesas ADD INDEX ix_despesas_funcionario (funcionario_id)",
+        "ALTER TABLE despesas ADD CONSTRAINT fk_despesas_funcionario FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE SET NULL",
     ]
     try:
         for stmt in stmts:
@@ -338,6 +344,54 @@ def _seed_categorias_financeiras():
 
 
 _seed_categorias_financeiras()
+
+
+def _seed_categorias_funcionario():
+    """Garante as categorias do grupo FUNCIONARIO (folha/pessoal). Idempotente --
+    roda sempre, insere so o que falta (a tabela ja tem dados de outros grupos)."""
+    from app.core.database import SessionLocal
+    from app.models.fin_categoria_model import CategoriaFinanceira
+    CATEGORIAS = [
+        ("Salario (folha mensal)", 1),
+        ("Adiantamento de salario", 2),
+        ("Plantao", 3),
+        ("Hora extra", 4),
+        ("Comissao", 5),
+        ("Encargos trabalhistas (FGTS/GPS)", 6),
+        ("Sindicato", 7),
+        ("Convenio medico/odontologico", 8),
+        ("Vale transporte", 9),
+        ("Vale refeicao/alimentacao", 10),
+        ("Ferias", 11),
+        ("13o salario", 12),
+        ("Rescisao", 13),
+        ("PRL (participacao nos resultados)", 14),
+        ("Passagem/reembolso pessoal", 15),
+    ]
+    db = SessionLocal()
+    try:
+        criadas = 0
+        for nome, ordem in CATEGORIAS:
+            existe = (
+                db.query(CategoriaFinanceira)
+                .filter(CategoriaFinanceira.nome == nome,
+                        CategoriaFinanceira.grupo == "FUNCIONARIO")
+                .first()
+            )
+            if not existe:
+                db.add(CategoriaFinanceira(nome=nome, grupo="FUNCIONARIO", tipo="SAIDA", ordem=ordem))
+                criadas += 1
+        if criadas:
+            db.commit()
+            print(f"[seed] {criadas} categorias FUNCIONARIO criadas.")
+    except Exception as e:
+        db.rollback()
+        print(f"[seed_categorias_funcionario] erro: {e}")
+    finally:
+        db.close()
+
+
+_seed_categorias_funcionario()
 
 
 def _seed_sync_auto():
@@ -670,6 +724,7 @@ app.include_router(fluxo_financeiro_router, prefix="/api/v1/financeiro",        
 app.include_router(clientes_router,     prefix="/api/v1/clientes",                tags=["Clientes"],           dependencies=_auth)
 app.include_router(recibos_router,      prefix="/api/v1/recibos",                 tags=["Recibos"],            dependencies=_auth)
 app.include_router(declaracoes_router,  prefix="/api/v1/servicos",                tags=["Declarações Fiscais"], dependencies=_auth)
+app.include_router(funcionario_router,  prefix="/api/v1/funcionarios",            tags=["Financeiro"],         dependencies=_auth)
 
 
 @app.get("/", tags=["Root"])

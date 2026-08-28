@@ -16,8 +16,10 @@ class DespesaRepository:
             q = q.filter(Despesa.cnpj == cnpj)
         if origem == "FORNECEDOR":
             q = q.filter(Despesa.fornecedor_id.isnot(None))
+        elif origem == "FUNCIONARIO":
+            q = q.filter(Despesa.funcionario_id.isnot(None))
         elif origem == "GERAL":
-            q = q.filter(Despesa.fornecedor_id.is_(None))
+            q = q.filter(Despesa.fornecedor_id.is_(None), Despesa.funcionario_id.is_(None))
         condicoes_parcela = []
         if mes:
             condicoes_parcela.append(extract("month", DespesaParcela.data_vencimento) == mes)

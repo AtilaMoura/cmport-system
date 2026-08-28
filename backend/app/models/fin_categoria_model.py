@@ -8,9 +8,10 @@ from app.core.database import Base
 
 
 class GrupoCategoria(str, enum.Enum):
-    RECEITA    = "RECEITA"
-    FORNECEDOR = "FORNECEDOR"
-    DESPESA    = "DESPESA"
+    RECEITA     = "RECEITA"
+    FORNECEDOR  = "FORNECEDOR"
+    DESPESA     = "DESPESA"
+    FUNCIONARIO = "FUNCIONARIO"
 
 
 class TipoMovimentacao(str, enum.Enum):

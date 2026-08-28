@@ -27,6 +27,8 @@ class Despesa(Base):
     categoria = relationship("CategoriaFinanceira")
     fornecedor_id = Column(Integer, ForeignKey("condominios.id", ondelete="SET NULL"), nullable=True, index=True)
     fornecedor = relationship("Condominio")
+    funcionario_id = Column(Integer, ForeignKey("funcionarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    funcionario = relationship("Funcionario")
     cnpj = Column(String(20), nullable=False)
     banco_previsto_id = Column(Integer, ForeignKey("bancos.id", ondelete="SET NULL"), nullable=True)
     tipo_pagamento = Column(SQLEnum(TipoPagamentoDespesa), default=TipoPagamentoDespesa.UNICO, nullable=False)
