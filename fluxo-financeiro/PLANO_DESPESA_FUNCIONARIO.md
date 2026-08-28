@@ -137,10 +137,14 @@ Rescisão · PRL (participação resultado) · Passagem/reembolso pessoal
   — lista + cards resumo + busca + modal CRUD (funcionário + variáveis, flags
   tem_plantao/tem_hora_extra) + soft delete. Item "Funcionários" no menu FINANCEIRO.
   tsc/lint OK, não testada no browser (sem ambiente local).
-- **C2 (falta):** lista de despesas do funcionário (reusa componentes de parcela/pagamento);
-  fechamento do mês = editar valor das parcelas variáveis (plantão/HE/adiantamento).
-  Botão de lançamento avulso (férias c/ calculadora, 13º, rescisão, PRL, comissão, reembolso).
-  Alerta de férias vencendo na página de pendências/alertas. → depende da Fase B.
+- **C2 ✅ FEITA 28/08 (commit `c611900`):** componente `DespesasFuncionario` (modal) —
+  parcelas do funcionário por mês, **registrar pagamento inline** com valor real
+  editável (fechamento) + banco + forma, e **lançamento avulso** (Férias/13º/Rescisão/
+  PRL/Comissão/Reembolso via categoria FUNCIONARIO). Botão "Despesas" na página.
+  Backend: `funcionario_id` em `DespesaCreate/Response` + `GET /despesas?funcionario_id=`
+  + `MarcarPagoRequest.valor`. Testado backend local; tsc/lint OK.
+- **Alerta de férias: adiado** (decisão do Atila 28/08) — férias/13º entram só como
+  lançamento avulso manual por enquanto.
 
 ### Fase D — migração do histórico
 - **Insumo:** o JSON que a cliente devolve do `CADASTRO_FUNCIONARIOS.html` (dados
