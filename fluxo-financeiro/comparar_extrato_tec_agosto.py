@@ -76,6 +76,9 @@ def carregar_sistema():
     n = f'REPLACE(REPLACE(REPLACE(nf.cnpj_emitente,".",""),"/",""),"-","")="{TEC}"'
     nr = n.replace("nf.", "r.")
 
+    # entradas TEC = nota emitida pela TEC OU dinheiro recebido na conta TEC
+    # (banco_id 4/5) mesmo quando a nota e' de outro CNPJ (caso cross-empresa,
+    # ex: nota CMPORT paga por engano/PIX direto na conta TEC).
     boletos = [
         {"origem": "boleto", "id": int(r[0]),
          "data": date(*map(int, r[1].split("-"))), "valor": round(float(r[2]), 2),
@@ -85,7 +88,7 @@ def carregar_sistema():
                    COALESCE(c.nome,''), nf.numero_nota
             FROM boletos b JOIN notas_fiscais nf ON nf.id=b.nota_fiscal_id
             LEFT JOIN condominios c ON c.id=nf.condominio_id
-            WHERE {n} AND b.situacao IN ('PAGO','BAIXADO','PARCIAL')
+            WHERE ({n} OR b.banco_id IN (4,5)) AND b.situacao IN ('PAGO','BAIXADO','PARCIAL')
               AND YEAR(b.data_pagamento)=2026 AND MONTH(b.data_pagamento)=8;""")
     ]
     recibos = [
