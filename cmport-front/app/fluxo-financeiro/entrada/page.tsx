@@ -360,6 +360,13 @@ function EntradaServicosContent() {
                             {l.banco_nome && (
                               <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold font-sans bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400">💳 {l.banco_nome}</span>
                             )}
+                            {l.cross_cnpj && (
+                              <span
+                                title={l.observacao ?? `Nota emitida no CNPJ ${l.empresa_emitente_nota ?? 'de outra empresa'}, mas o dinheiro entrou nesta conta.`}
+                                className="px-1.5 py-0.5 rounded-full text-[10px] font-bold font-sans bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                                ⇄ NF do {l.empresa_emitente_nota ?? 'outro CNPJ'}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="text-right shrink-0">
@@ -403,6 +410,17 @@ function EntradaServicosContent() {
                   <span className="text-slate-500">Data de pagamento</span>
                   <span className="font-semibold text-slate-900 dark:text-white">{fmtData(modalLinha.data_pagamento)}</span>
                 </div>
+                {modalLinha.cross_cnpj && (
+                  <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3 text-xs">
+                    <div className="font-bold text-amber-700 dark:text-amber-300 mb-1">
+                      ⇄ Nota emitida no CNPJ {modalLinha.empresa_emitente_nota ?? modalLinha.cnpj_emitente_nota ?? 'de outra empresa'}
+                    </div>
+                    <p className="text-amber-800/80 dark:text-amber-200/70 leading-snug">
+                      O dinheiro entrou na conta {modalLinha.banco_nome ?? 'bancária'} deste CNPJ, então a entrada é contada aqui (não no CNPJ que emitiu a nota).
+                      {modalLinha.observacao && <><br /><span className="italic">{modalLinha.observacao}</span></>}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Navegação pra nota / serviço vinculado */}

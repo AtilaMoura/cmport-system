@@ -54,129 +54,154 @@ class FluxoFinanceiroService:
         configs = ConfiguracaoInterRepository.get_all(db)
         cnpj_limpo = "".join(filter(str.isdigit, cnpj)) if cnpj else None
 
+        def so_digitos(v: Optional[str]) -> str:
+            return "".join(filter(str.isdigit, v or ""))
+
+        # A entrada e' atribuida ao CNPJ da CONTA que recebeu o dinheiro (nao ao
+        # emitente da nota). Quando nao ha banco vinculado, cai no emitente da
+        # nota/recibo como fallback. Caso cross-empresa: nota emitida num CNPJ,
+        # paga por PIX/transferencia direto na conta do outro (ex: NF CMPORT
+        # recebida na conta Inter TEC) -> conta como entrada do CNPJ da conta.
+        # So' aparece na tela se o CNPJ resolvido for um dos configurados.
+        cnpjs_config = [so_digitos(cfg.cnpj) for cfg in configs]
+        cnpjs_config_set = set(cnpjs_config)
+
+        def resolver_cnpj(banco: Optional[Banco], cnpj_emitente: Optional[str]) -> str:
+            if banco is not None:
+                d = so_digitos(banco.cnpj_titular)
+                if d in cnpjs_config_set:
+                    return d
+            return so_digitos(cnpj_emitente)
+
+        # ---- Boletos PAGO/BAIXADO/PARCIAL do mes (os dois CNPJs de uma vez) ----
+        # PARCIAL entra tambem -- o valor ja recebido conta como entrada no mes em que
+        # chegou (nao espera completar o boleto), usando valor_total_recebido em vez do
+        # valor_nominal cheio. Risco aceito: se o MESMO boleto receber parcelas parciais em
+        # meses diferentes, o valor do mes anterior "muda" pro mes mais recente (data_pagamento
+        # e sobrescrita a cada novo pagamento) -- nao duplica, mas pode deslocar; caso raro.
+        boletos = (
+            db.query(Boleto, NotaFiscal, Condominio, Banco)
+            .join(NotaFiscal, Boleto.nota_fiscal_id == NotaFiscal.id)
+            .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
+            .outerjoin(Banco, Boleto.banco_id == Banco.id)
+            .filter(
+                NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
+                NotaFiscal.status != StatusNota.CANCELADA,
+                Boleto.situacao.in_([SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO, SituacaoBoleto.PARCIAL]),
+                func.year(Boleto.data_pagamento) == ano,
+                func.month(Boleto.data_pagamento) == mes,
+            )
+            .all()
+        )
+
+        # servico_id (1o servico) por nota, pra montar o link na tela de Entrada
+        nota_ids_boletos = {nota.id for _, nota, _, _ in boletos}
+        servico_por_nota: dict[int, int] = {}
+        if nota_ids_boletos:
+            for sid, nfid in (
+                db.query(ManutencaoAssistencia.id, ManutencaoAssistencia.nota_fiscal_id)
+                .filter(ManutencaoAssistencia.nota_fiscal_id.in_(nota_ids_boletos))
+                .order_by(ManutencaoAssistencia.id)
+                .all()
+            ):
+                servico_por_nota.setdefault(nfid, sid)
+
+        # ---- Recibos ENTRADA/PAGO do mes, sem nota fiscal vinculada ----
+        # (mesma regra de resumo_financeiro: nunca soma recibo + boleto do mesmo servico)
+        recibos = (
+            db.query(Recibo, Condominio, Banco)
+            .outerjoin(Condominio, Recibo.condominio_id == Condominio.id)
+            .outerjoin(ManutencaoAssistencia, ManutencaoAssistencia.recibo_id == Recibo.id)
+            .outerjoin(Banco, Recibo.banco_id == Banco.id)
+            .filter(
+                Recibo.tipo == "ENTRADA",
+                Recibo.status == "PAGO",
+                Recibo.deletado_em.is_(None),
+                func.year(Recibo.data_pagamento) == ano,
+                func.month(Recibo.data_pagamento) == mes,
+                (ManutencaoAssistencia.nota_fiscal_id.is_(None)) | (ManutencaoAssistencia.id.is_(None)),
+            )
+            .all()
+        )
+
+        # ---- distribui cada linha no CNPJ da conta que recebeu ----
+        linhas_por_cnpj: dict[str, List[FluxoFinanceiroLinha]] = {c: [] for c in cnpjs_config}
+
+        for boleto, nota, condominio, banco in boletos:
+            alvo = resolver_cnpj(banco, nota.cnpj_emitente)
+            if alvo not in linhas_por_cnpj:
+                continue
+            # arredonda cada linha ANTES de somar — valor_nominal e FLOAT e carrega
+            # ruido binario por linha (ex: 23625.009765625 em vez de 23625.01);
+            # arredondar so o total final nao corrige isso, o viés já foi acumulado.
+            if boleto.situacao == SituacaoBoleto.PARCIAL:
+                valor = round(float(boleto.valor_total_recebido or 0), 2)
+            else:
+                valor = round(float(boleto.valor_nominal or 0), 2)
+            tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
+            cnpj_nota = so_digitos(nota.cnpj_emitente)
+            linhas_por_cnpj[alvo].append(FluxoFinanceiroLinha(
+                origem_id=boleto.id,
+                condominio_id=condominio.id,
+                condominio_nome=condominio.nome,
+                numero_nota=nota.numero_nota,
+                numero_nota_normalizado=normalizar_numero_nota(nota.numero_nota),
+                tipo=tipo,
+                valor=valor,
+                data_pagamento=boleto.data_pagamento,
+                origem="BOLETO",
+                banco_id=boleto.banco_id,
+                banco_nome=banco.nome if banco else None,
+                nota_id=nota.id,
+                servico_id=servico_por_nota.get(nota.id),
+                cnpj_emitente_nota=nota.cnpj_emitente,
+                empresa_emitente_nota=EMPRESA_POR_CNPJ.get(cnpj_nota),
+                cross_cnpj=(cnpj_nota != "" and cnpj_nota != alvo),
+                observacao=boleto.observacao,
+            ))
+
+        for recibo, condominio, banco in recibos:
+            alvo = resolver_cnpj(banco, recibo.cnpj_emitente)
+            if alvo not in linhas_por_cnpj:
+                continue
+            valor = round(float(recibo.valor or 0), 2)
+            cnpj_rec = so_digitos(recibo.cnpj_emitente)
+            linhas_por_cnpj[alvo].append(FluxoFinanceiroLinha(
+                origem_id=recibo.id,
+                condominio_id=condominio.id if condominio else None,
+                condominio_nome=condominio.nome if condominio else (recibo.cliente_nome_avulso or "Avulso"),
+                numero_nota=recibo.numero_recibo,
+                numero_nota_normalizado=recibo.numero_recibo,
+                tipo="RECIBO",
+                valor=valor,
+                data_pagamento=recibo.data_pagamento,
+                origem="RECIBO",
+                banco_id=recibo.banco_id,
+                banco_nome=banco.nome if banco else None,
+                cnpj_emitente_nota=recibo.cnpj_emitente,
+                empresa_emitente_nota=EMPRESA_POR_CNPJ.get(cnpj_rec),
+                cross_cnpj=(cnpj_rec != "" and cnpj_rec != alvo),
+                observacao=recibo.observacao,
+            ))
+
+        # ---- monta a resposta por CNPJ (mesma ordem das configs) ----
         cnpjs_resultado: List[FluxoFinanceiroCnpj] = []
         total_geral = 0.0
-
         for cfg in configs:
-            cfg_cnpj_limpo = "".join(filter(str.isdigit, cfg.cnpj or ""))
+            cfg_cnpj_limpo = so_digitos(cfg.cnpj)
             if cnpj_limpo and cfg_cnpj_limpo != cnpj_limpo:
                 continue
-
-            linhas: List[FluxoFinanceiroLinha] = []
-
-            # Boletos PAGO/BAIXADO/PARCIAL do mes, notas Manutencao/Assistencia/Produto deste CNPJ.
-            # PARCIAL entra tambem -- o valor ja recebido conta como entrada no mes em que
-            # chegou (nao espera completar o boleto), usando valor_total_recebido em vez do
-            # valor_nominal cheio. Risco aceito: se o MESMO boleto receber parcelas parciais em
-            # meses diferentes, o valor do mes anterior "muda" pro mes mais recente (data_pagamento
-            # e sobrescrita a cada novo pagamento) -- nao duplica, mas pode deslocar; caso raro.
-            boletos = (
-                db.query(Boleto, NotaFiscal, Condominio, Banco)
-                .join(NotaFiscal, Boleto.nota_fiscal_id == NotaFiscal.id)
-                .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
-                .outerjoin(Banco, Boleto.banco_id == Banco.id)
-                .filter(
-                    NotaFiscal.cnpj_emitente == cfg_cnpj_limpo,
-                    NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
-                    NotaFiscal.status != StatusNota.CANCELADA,
-                    Boleto.situacao.in_([SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO, SituacaoBoleto.PARCIAL]),
-                    func.year(Boleto.data_pagamento) == ano,
-                    func.month(Boleto.data_pagamento) == mes,
-                )
-                .all()
-            )
-
-            # servico_id (1o servico) por nota, pra montar o link na tela de Entrada
-            nota_ids_boletos = {nota.id for _, nota, _, _ in boletos}
-            servico_por_nota: dict[int, int] = {}
-            if nota_ids_boletos:
-                for sid, nfid in (
-                    db.query(ManutencaoAssistencia.id, ManutencaoAssistencia.nota_fiscal_id)
-                    .filter(ManutencaoAssistencia.nota_fiscal_id.in_(nota_ids_boletos))
-                    .order_by(ManutencaoAssistencia.id)
-                    .all()
-                ):
-                    servico_por_nota.setdefault(nfid, sid)
-
-            total_manutencao = 0.0
-            total_assistencia = 0.0
-            total_produto = 0.0
-            for boleto, nota, condominio, banco in boletos:
-                # arredonda cada linha ANTES de somar — valor_nominal e FLOAT e carrega
-                # ruido binario por linha (ex: 23625.009765625 em vez de 23625.01);
-                # arredondar so o total final nao corrige isso, o viés já foi acumulado.
-                if boleto.situacao == SituacaoBoleto.PARCIAL:
-                    valor = round(float(boleto.valor_total_recebido or 0), 2)
-                else:
-                    valor = round(float(boleto.valor_nominal or 0), 2)
-                tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
-                if tipo == "MANUTENCAO":
-                    total_manutencao += valor
-                elif tipo == "PRODUTO":
-                    total_produto += valor
-                else:
-                    total_assistencia += valor
-                linhas.append(FluxoFinanceiroLinha(
-                    origem_id=boleto.id,
-                    condominio_id=condominio.id,
-                    condominio_nome=condominio.nome,
-                    numero_nota=nota.numero_nota,
-                    numero_nota_normalizado=normalizar_numero_nota(nota.numero_nota),
-                    tipo=tipo,
-                    valor=valor,
-                    data_pagamento=boleto.data_pagamento,
-                    origem="BOLETO",
-                    banco_id=boleto.banco_id,
-                    banco_nome=banco.nome if banco else None,
-                    nota_id=nota.id,
-                    servico_id=servico_por_nota.get(nota.id),
-                ))
-
-            # Recibos ENTRADA/PAGO do mes deste CNPJ, sem nota fiscal vinculada
-            # (mesma regra de resumo_financeiro: nunca soma recibo + boleto do mesmo servico)
-            recibos = (
-                db.query(Recibo, Condominio, Banco)
-                .outerjoin(Condominio, Recibo.condominio_id == Condominio.id)
-                .outerjoin(ManutencaoAssistencia, ManutencaoAssistencia.recibo_id == Recibo.id)
-                .outerjoin(Banco, Recibo.banco_id == Banco.id)
-                .filter(
-                    Recibo.cnpj_emitente == cfg_cnpj_limpo,
-                    Recibo.tipo == "ENTRADA",
-                    Recibo.status == "PAGO",
-                    Recibo.deletado_em.is_(None),
-                    func.year(Recibo.data_pagamento) == ano,
-                    func.month(Recibo.data_pagamento) == mes,
-                    (ManutencaoAssistencia.nota_fiscal_id.is_(None)) | (ManutencaoAssistencia.id.is_(None)),
-                )
-                .all()
-            )
-
-            total_recibos = 0.0
-            for recibo, condominio, banco in recibos:
-                valor = round(float(recibo.valor or 0), 2)
-                total_recibos += valor
-                linhas.append(FluxoFinanceiroLinha(
-                    origem_id=recibo.id,
-                    condominio_id=condominio.id if condominio else None,
-                    condominio_nome=condominio.nome if condominio else (recibo.cliente_nome_avulso or "Avulso"),
-                    numero_nota=recibo.numero_recibo,
-                    numero_nota_normalizado=recibo.numero_recibo,
-                    tipo="RECIBO",
-                    valor=valor,
-                    data_pagamento=recibo.data_pagamento,
-                    origem="RECIBO",
-                    banco_id=recibo.banco_id,
-                    banco_nome=banco.nome if banco else None,
-                ))
+            linhas = linhas_por_cnpj.get(cfg_cnpj_limpo, [])
 
             # valor_nominal/valor sao colunas FLOAT — a soma binaria acumula ruido
-            # de poucos milesimos por linha; arredondar aqui evita que o total
-            # exibido caia no centavo errado (ex: .815999... -> .81 em vez de .82).
-            total_manutencao = round(total_manutencao, 2)
-            total_assistencia = round(total_assistencia, 2)
-            total_produto = round(total_produto, 2)
-            total_recibos = round(total_recibos, 2)
+            # de poucos milesimos por linha; cada linha ja veio arredondada, so
+            # arredonda o total pra nao cair no centavo errado.
+            total_manutencao = round(sum(l.valor for l in linhas if l.tipo == "MANUTENCAO"), 2)
+            total_assistencia = round(sum(l.valor for l in linhas if l.tipo == "ASSISTENCIA"), 2)
+            total_produto = round(sum(l.valor for l in linhas if l.tipo == "PRODUTO"), 2)
+            total_recibos = round(sum(l.valor for l in linhas if l.tipo == "RECIBO"), 2)
             total_cnpj = round(total_manutencao + total_assistencia + total_produto + total_recibos, 2)
+
             if linhas or not cnpj_limpo:
                 cnpjs_resultado.append(FluxoFinanceiroCnpj(
                     cnpj=cfg.cnpj,

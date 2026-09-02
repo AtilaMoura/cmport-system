@@ -18,6 +18,12 @@ class FluxoFinanceiroLinha(BaseModel):
     # navegacao pra tela de origem (frontend monta o link)
     nota_id: Optional[int] = None      # nota fiscal vinculada (so BOLETO)
     servico_id: Optional[int] = None   # 1o servico vinculado a essa nota, se houver
+    # atribuicao cross-empresa: a linha esta neste CNPJ porque o dinheiro caiu
+    # na conta dele, mas a nota/recibo foi emitida por outro CNPJ.
+    cnpj_emitente_nota: Optional[str] = None   # CNPJ que emitiu a nota/recibo
+    empresa_emitente_nota: Optional[str] = None  # "CMPORT" | "TEC" | None
+    cross_cnpj: bool = False                     # True: recebido em conta de outro CNPJ
+    observacao: Optional[str] = None             # obs do boleto/recibo (motivo do cross)
 
 
 class FluxoFinanceiroCnpj(BaseModel):

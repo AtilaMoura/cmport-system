@@ -33,6 +33,12 @@ export interface FluxoFinanceiroLinha {
   banco_nome: string | null;
   nota_id: number | null;      // nota fiscal vinculada (só BOLETO) — pra navegação
   servico_id: number | null;   // 1º serviço vinculado, se houver
+  // atribuição cross-empresa: a linha está neste CNPJ porque o dinheiro caiu na
+  // conta dele, mas a nota/recibo foi emitida por outro CNPJ.
+  cnpj_emitente_nota: string | null;
+  empresa_emitente_nota: string | null;  // "CMPORT" | "TEC" | null
+  cross_cnpj: boolean;                    // true: recebido em conta de outro CNPJ
+  observacao: string | null;             // obs do boleto/recibo (motivo do cross)
 }
 export interface FluxoFinanceiroCnpj {
   cnpj: string;
