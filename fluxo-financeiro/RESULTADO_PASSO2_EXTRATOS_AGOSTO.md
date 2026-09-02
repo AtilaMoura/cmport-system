@@ -43,6 +43,18 @@ Depois: `25.705,87 + 70,00 + 50,00 = 25.825,87` = extrato ✅
   - 05/08 R$ 4.431,78 = boleto 1354 (Estilo Higienópolis, NF 7643 p6)
   - 20/08 R$ 487,20 = boleto 1382 (J.R.I, NF 7651 p6)
 
+## Reconferência na produção (02/09, pós-relatório)
+
+| # | Item | Estado na produção | Pendência? |
+|---|---|---|---|
+| 1 | `boleto id=284` | `banco_id` = NULL, PAGO, parcela 4; parcelas 1–3 (281–283) = `banco_id` 2 | ✅ sim |
+| 2 | QUISI R$ 826,97 (11/08) | nenhuma entrada de R$ 826,97 em ago (boleto/recibo/mov) | ✅ sim — falta lançar |
+| 3 | Fortezza R$ 590,46 (31/08) | Fortezza tem série recorrente R$ 590,46 (notas 7699/7760/7802/7842 = abr–jul, pagas `banco_id` 2). **Agosto não aparece.** Boletos 1116/1117 de R$ 590,45 são de outros condôminos (Cube Vila Ipojuca / Green Gold), não é o Fortezza. | ✅ sim — é a mensalidade de agosto, falta a nota + baixa |
+| 4 | `recibo id=61` | `banco_id` = 2, PAGO, não deletado | ✅ sim — mover pra 4 |
+| 5 | `recibo id=62` | `banco_id` = 2, PAGO, não deletado | ✅ sim — mover pra 4 |
+
+**As 5 pendências continuam abertas na produção.** Nada foi resolvido no intervalo.
+
 ## Transferências entre contas (Passo 3 — não são entradas)
 
 Todas conferidas nas 2 pontas + lançamento no sistema.
