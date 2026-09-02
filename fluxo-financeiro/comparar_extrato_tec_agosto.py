@@ -79,13 +79,16 @@ def carregar_sistema():
     # entradas TEC = nota emitida pela TEC OU dinheiro recebido na conta TEC
     # (banco_id 4/5) mesmo quando a nota e' de outro CNPJ (caso cross-empresa,
     # ex: nota CMPORT paga por engano/PIX direto na conta TEC).
+    # PARCIAL: conta o que ja entrou (valor_total_recebido), nao o nominal cheio —
+    # mesma regra do fluxo_mensal. Senao infla o lado do sistema.
     boletos = [
         {"origem": "boleto", "id": int(r[0]),
-         "data": date(*map(int, r[1].split("-"))), "valor": round(float(r[2]), 2),
+         "data": date(*map(int, r[1].split("-"))),
+         "valor": round(float(r[6] if r[3] == "PARCIAL" and r[6] not in (None, "", "NULL") else r[2]), 2),
          "nome": r[4], "extra": f'NF {r[5]} ({r[3]})'}
         for r in q(ssh, f"""
             SELECT b.id, b.data_pagamento, b.valor_nominal, b.situacao,
-                   COALESCE(c.nome,''), nf.numero_nota
+                   COALESCE(c.nome,''), nf.numero_nota, b.valor_total_recebido
             FROM boletos b JOIN notas_fiscais nf ON nf.id=b.nota_fiscal_id
             LEFT JOIN condominios c ON c.id=nf.condominio_id
             WHERE ({n} OR b.banco_id IN (4,5)) AND b.situacao IN ('PAGO','BAIXADO','PARCIAL')
