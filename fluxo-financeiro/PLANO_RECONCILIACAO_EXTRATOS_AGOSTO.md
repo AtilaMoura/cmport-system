@@ -30,13 +30,28 @@ _Sessão `session_01FsuRnHpRR7rwUrbT6oh7bs` — 02/09/2026. **PLANEJANDO, nada a
   × entradas TEC (boletos pagos + recibos + `fin_movimentacoes` ENTRADA na conta 4). Estender.
 - Bancos cadastrados: Itaú/Inter/Bradesco = CMPORT · Inter/BTG = TEC. **Não existe "Itaú TEC".**
 
-## DÚVIDAS ABERTAS (pro Atila) — bloqueiam o passo 2
+## DÚVIDAS — RESPONDIDAS pelo Atila (02/09, `anotação para IA.md` l.221–223)
 
-1. **"iniciar o itau tec" — qual conta?** Não existe conta Itaú da TEC no sistema.
-   Era **Inter TEC**? **Itaú CMPORT**? Ou falta cadastrar uma conta Itaú da TEC?
-2. **Falta o extrato do BTG (TEC)?** Teve movimento nessa conta em agosto?
-3. Extrato Itaú vem **agregado por dia** ("BOLETOS RECEBIDOS 03/08S = 1339,68"), não item a item.
-   Pro cruzamento fino a gente casa a soma do dia, ou você consegue exportar detalhado?
+1. **"iniciar o itau tec"** → era **Inter TEC** (erro de nome). Conta 524203806, banco_id 4.
+2. **BTG (TEC)** → **não teve entrada** em agosto. Fora do escopo da reconciliação de entradas.
+3. **Extrato Itaú agregado por dia** → seguir assim; casar a soma do dia (`BOLETOS RECEBIDOS DD/08S`)
+   com a soma dos boletos daquele dia no sistema. "pode fazer isso".
+
+## PASSO 1 — FEITO (02/09) — `ler_extratos_agosto.py`
+
+Parser rodou, os **3 extratos fecham 100%** contra o próprio saldo corrido:
+
+| Conta | banco_id | Lçtos | Σ entradas | Σ transf. internas | Σ saídas | saldo ini→fim |
+|---|---|---|---|---|---|---|
+| Inter CMPORT | 2 | 165 | 40.915,99 (66) | −12.786,75 (18) | −27.592,10 | 551,96 → 1.089,10 ✅ |
+| Inter TEC | 4 | 113 | 28.395,04 (48) | +12.786,75 (18) | −47.178,92 | 6.740,19 → 743,06 ✅ |
+| Itaú CMPORT | 1 | 39 | 10.412,94 (9) + 0,04 rend | −2.625,16 (7) | −6.793,61 | −342,35 → −92,32 ✅ |
+
+- ⚠️ O campo "Saldo:" do cabeçalho do Inter é **saldo ao vivo** (dia da geração, já com movimento
+  de setembro) — **não** serve pra fechar agosto. O parser usa a coluna Saldo do último lançamento.
+- Transferências internas Inter↔Inter: **−12.786,75 de um lado, +12.786,75 do outro — casam exato.**
+- Itaú manda Pix pra "C&M PORT"/"CMPORT" que caem ora na Inter CMPORT, ora na Inter TEC (Passo 3).
+- Saída: `fluxo-financeiro/extratos_agosto_normalizado.json` (317 lançamentos).
 
 ## Plano (validar com o Atila antes de executar)
 
