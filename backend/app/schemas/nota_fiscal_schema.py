@@ -52,6 +52,7 @@ class NotaFiscalResponse(BaseModel):
     parcelas_json: Optional[list] = None
     data_vencimento: date
     data_pagamento: Optional[date] = None
+    data_emissao: Optional[date] = None
     cliente_nome: Optional[str] = None
     observacao: Optional[str] = None
     descricao_servico: Optional[str] = None

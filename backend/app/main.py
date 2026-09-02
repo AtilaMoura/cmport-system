@@ -224,6 +224,9 @@ def _run_migrations():
         # Despesa Funcionario — valor padrao de plantao / hora extra (Fase B revisao)
         "ALTER TABLE funcionario_variaveis ADD COLUMN plantao_valor DECIMAL(10,2) NOT NULL DEFAULT 0",
         "ALTER TABLE funcionario_variaveis ADD COLUMN hora_extra_valor DECIMAL(10,2) NOT NULL DEFAULT 0",
+        # Data de emissao da nota fiscal (backfill via script; ver fluxo-financeiro/backfill_data_emissao_notas.py)
+        "ALTER TABLE notas_fiscais ADD COLUMN data_emissao DATE NULL",
+        "ALTER TABLE notas_fiscais ADD INDEX ix_notas_fiscais_data_emissao (data_emissao)",
     ]
     try:
         for stmt in stmts:

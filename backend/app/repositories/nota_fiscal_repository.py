@@ -23,7 +23,7 @@ class NotaFiscalRepository:
         return db_nota
 
     # Campos presentes no schema mas que não são colunas do modelo NotaFiscal
-    _CAMPOS_NAO_MODELO = {'data_emissao', 'data_servico', 'numero_os'}
+    _CAMPOS_NAO_MODELO = {'data_servico', 'numero_os'}
 
     @staticmethod
     def create_importada(db: Session, nota: NotaFiscalImportada):

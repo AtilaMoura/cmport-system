@@ -7,7 +7,7 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler);
 
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { calcularImposto } from '@/lib/impostos';
@@ -60,6 +60,7 @@ interface NotaFiscal {
   razao_social_emitente: string | null;
   nota_vinculada_id?: number | null;
   criado_em?: string;
+  data_emissao?: string | null;
 }
 
 interface Boleto {
@@ -720,6 +721,13 @@ export default function ServicosPage() {
 
   const temFiltroAtivo = filtroTipo !== 'todos' || search || filtroMes || dataInicio || dataFim || condominioSelecionado || comNota !== 'todos' || filtroCnpj !== '';
 
+  // Data de referencia do servico na listagem/filtro: emissao da nota vinculada
+  // quando existir; senao a data_servico (servico nascido de recibo, sem nota).
+  const dataReferencia = useCallback((s: Servico): string => {
+    const nota = s.nota_fiscal_id ? notas[s.nota_fiscal_id] : undefined;
+    return nota?.data_emissao || s.data_servico;
+  }, [notas]);
+
   const servicosFiltrados = useMemo(() => servicos.filter(s => {
     if (filtroTipo !== 'todos' && s.tipo !== filtroTipo) return false;
     const nomeCondominio = getCondominio(condominios, s.condominio_id)?.nome || '';
@@ -727,7 +735,7 @@ export default function ServicosPage() {
       const q = search.toLowerCase();
       if (!nomeCondominio.toLowerCase().includes(q) && !s.descricao?.toLowerCase().includes(q)) return false;
     }
-    const data = pd(s.data_servico);
+    const data = pd(dataReferencia(s));
     if (filtroMes) {
       const [y, m] = filtroMes.split('-').map(Number);
       if (data.getFullYear() !== y || data.getMonth() + 1 !== m) return false;
@@ -744,7 +752,7 @@ export default function ServicosPage() {
       if (nota?.cnpj_emitente_efetivo !== filtroCnpj) return false;
     }
     return true;
-  }), [servicos, filtroTipo, search, filtroMes, dataInicio, dataFim, condominioSelecionado, comNota, condominios, filtroCnpj, notas]);
+  }), [servicos, filtroTipo, search, filtroMes, dataInicio, dataFim, condominioSelecionado, comNota, condominios, filtroCnpj, notas, dataReferencia]);
 
   const stats = useMemo(() => {
     const hoje = new Date();
@@ -761,14 +769,14 @@ export default function ServicosPage() {
       total:        servicosFiltrados.length,
       manutencoes:  servicosFiltrados.filter(s => s.tipo === 'manutencao').length,
       assistencias: servicosFiltrados.filter(s => s.tipo === 'assistencia').length,
-      esteMes:      servicosFiltrados.filter(s => { const d = pd(s.data_servico); return d.getMonth() === hoje.getMonth() && d.getFullYear() === hoje.getFullYear(); }).length,
+      esteMes:      servicosFiltrados.filter(s => { const d = pd(dataReferencia(s)); return d.getMonth() === hoje.getMonth() && d.getFullYear() === hoje.getFullYear(); }).length,
       comNota:      comNotaCount,
       semNota:      servicosFiltrados.filter(s => !s.nota_fiscal_id).length,
       mediaPorMes:  servicosFiltrados.length > 0 ? (servicosFiltrados.length / 12).toFixed(1) : '0',
       valorTotal,
       valorRecebido,
     };
-  }, [servicosFiltrados, notas, boletosPorNota, recibos]);
+  }, [servicosFiltrados, notas, boletosPorNota, recibos, dataReferencia]);
 
   const notasSemServico = useMemo(() =>
     Object.values(notas).filter(n => n.status === 'AUTORIZADA').sort((a, b) => a.numero_nota.localeCompare(b.numero_nota)),
@@ -787,7 +795,7 @@ export default function ServicosPage() {
       {
         label: 'Quantidade',
         data: ultimos6Meses.map(m => servicosFiltrados.filter(s => {
-          const d = pd(s.data_servico);
+          const d = pd(dataReferencia(s));
           return d.getMonth() === m.mes && d.getFullYear() === m.ano;
         }).length),
         backgroundColor: 'rgba(124,58,237,0.2)',
@@ -801,7 +809,7 @@ export default function ServicosPage() {
         label: 'Valor (R$)',
         data: ultimos6Meses.map(m => {
           const servicosDoMes = servicosFiltrados.filter(s => {
-            const d = pd(s.data_servico);
+            const d = pd(dataReferencia(s));
             return d.getMonth() === m.mes && d.getFullYear() === m.ano;
           });
           return servicosDoMes.reduce((acc, s) => acc + valorServico(s, notas, recibos), 0);
@@ -814,7 +822,7 @@ export default function ServicosPage() {
         yAxisID: 'y1',
       },
     ],
-  }), [servicosFiltrados, notas, recibos, ultimos6Meses]);
+  }), [servicosFiltrados, notas, recibos, ultimos6Meses, dataReferencia]);
 
   const distribuicaoTipoData = useMemo(() => ({
     labels: ['Manutencao', 'Assistencia'],
@@ -954,7 +962,7 @@ export default function ServicosPage() {
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${getTipoColor(servico.tipo)}`}>
                         {getTipoIcon(servico.tipo)} {servico.tipo === 'manutencao' ? 'Manut.' : 'Assist.'}
                       </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">{pd(servico.data_servico).toLocaleDateString('pt-BR')}</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{pd(dataReferencia(servico)).toLocaleDateString('pt-BR')}</span>
                     </div>
                   </div>
                 </div>
@@ -1015,7 +1023,7 @@ export default function ServicosPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                  {['Condominio', 'Tipo', 'Data', 'Nota Fiscal', 'Parcelas', 'Cobranca', 'Acoes'].map(h => (
+                  {['Condominio', 'Tipo', 'Emissao', 'Nota Fiscal', 'Parcelas', 'Cobranca', 'Acoes'].map(h => (
                     <th key={h} className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -1050,7 +1058,7 @@ export default function ServicosPage() {
                         </span>
                       </td>
                       <td className="px-6 py-5">
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">{pd(servico.data_servico).toLocaleDateString('pt-BR')}</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">{pd(dataReferencia(servico)).toLocaleDateString('pt-BR')}</p>
                       </td>
                       <td className="px-6 py-5">
                         {servico.nota_fiscal_id ? (

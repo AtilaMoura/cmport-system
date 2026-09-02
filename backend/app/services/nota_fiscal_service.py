@@ -178,6 +178,38 @@ def extrair_data_servico(discriminacao: str) -> Optional[date]:
     return None
 
 
+def extrair_data_emissao(xml_str: str) -> Optional[date]:
+    """Le a data de emissao direto do XML — funcao PURA, sem efeitos colaterais.
+    NFSe: <DataEmissaoNFe>; NFe: <ide><dhEmi> (fallback <dEmi>).
+    Usada no backfill e disponivel para reprocessamento. Retorna None se nao achar.
+    """
+    if not xml_str:
+        return None
+    try:
+        tipo_xml = detectar_tipo_xml(xml_str)
+        root = ET.fromstring(xml_str)
+    except Exception:
+        return None
+
+    el = None
+    if tipo_xml == 'NFSe':
+        el = root.find('.//DataEmissaoNFe')
+        if el is None:
+            el = root.find('.//DataEmissao')
+    elif tipo_xml == 'NFe':
+        ns = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+        el = root.find('.//nfe:ide/nfe:dhEmi', ns)
+        if el is None:
+            el = root.find('.//nfe:ide/nfe:dEmi', ns)
+
+    if el is not None and el.text:
+        try:
+            return parse_date(el.text)
+        except Exception:
+            return None
+    return None
+
+
 def extrair_data_vencimento(discriminacao: str, fallback: date) -> date:
     """
     Extrai o primeiro vencimento da discriminação.
@@ -722,7 +754,7 @@ class NotaFiscalService:
 
         campos_atualizaveis = {
             'tipo', 'status', 'parcelas', 'valor', 'valor_boleto_parcela',
-            'parcelas_json', 'data_vencimento', 'cliente_nome', 'cnpj_emitente',
+            'parcelas_json', 'data_vencimento', 'data_emissao', 'cliente_nome', 'cnpj_emitente',
             'observacao', 'descricao_servico', 'condominio_id',
             'iss', 'pis', 'cofins', 'inss', 'csll', 'icms', 'prev',
         }

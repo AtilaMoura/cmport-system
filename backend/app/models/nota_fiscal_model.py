@@ -39,6 +39,9 @@ class NotaFiscal(Base):
 
     data_vencimento = Column(Date, nullable=False)
     data_pagamento = Column(Date, nullable=True)
+    # Data de emissao da nota (lida do XML: NFSe=DataEmissaoNFe, NFe=dhEmi).
+    # Usada como data de referencia da nota na tela de Servicos e no Dashboard.
+    data_emissao = Column(Date, nullable=True, index=True)
 
     cliente_nome = Column(String(255), nullable=True)
     cnpj_emitente = Column(String(18), nullable=True)

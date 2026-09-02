@@ -37,6 +37,7 @@ interface Nota {
   cliente_nome: string | null;
   parcelas: number;
   nota_vinculada_id: number | null;
+  data_emissao: string | null;
 }
 
 interface Servico {
@@ -124,7 +125,7 @@ export default function DashboardPage() {
   const { inicio, fim } = useMemo(() => getPeriodRange(periodo), [periodo]);
 
   const bF = useMemo(() => boletos.filter(b => { const d = pd(b.data_emissao); return d >= inicio && d <= fim; }), [boletos, inicio, fim]);
-  const nF = useMemo(() => notas.filter(n => { if (n.status !== 'AUTORIZADA') return false; const d = pd(n.data_vencimento); return d >= inicio && d <= fim; }), [notas, inicio, fim]);
+  const nF = useMemo(() => notas.filter(n => { if (n.status !== 'AUTORIZADA') return false; const d = pd(n.data_emissao || n.data_vencimento); return d >= inicio && d <= fim; }), [notas, inicio, fim]);
   const sF = useMemo(() => servicos.filter(s => { const d = pd(s.data_servico); return d >= inicio && d <= fim; }), [servicos, inicio, fim]);
 
   const mesesPeriodo = useMemo(() => getMesesList(inicio, fim), [inicio, fim]);
@@ -136,7 +137,7 @@ export default function DashboardPage() {
   }, [inicio, fim]);
 
   const bAnt = useMemo(() => boletos.filter(b => { const d = pd(b.data_emissao); return d >= inicioAnt && d <= fimAnt; }), [boletos, inicioAnt, fimAnt]);
-  const nAnt = useMemo(() => notas.filter(n => { if (n.status !== 'AUTORIZADA') return false; const d = pd(n.data_vencimento); return d >= inicioAnt && d <= fimAnt; }), [notas, inicioAnt, fimAnt]);
+  const nAnt = useMemo(() => notas.filter(n => { if (n.status !== 'AUTORIZADA') return false; const d = pd(n.data_emissao || n.data_vencimento); return d >= inicioAnt && d <= fimAnt; }), [notas, inicioAnt, fimAnt]);
   const sAnt = useMemo(() => servicos.filter(s => { const d = pd(s.data_servico); return d >= inicioAnt && d <= fimAnt; }), [servicos, inicioAnt, fimAnt]);
 
   const kpis = useMemo(() => {
@@ -178,7 +179,7 @@ export default function DashboardPage() {
       },
       {
         label: 'Notas Fiscais',
-        data: mesesPeriodo.map(m => nF.filter(n => { const d = pd(n.data_vencimento); return d.getMonth() === m.mes && d.getFullYear() === m.ano; }).length),
+        data: mesesPeriodo.map(m => nF.filter(n => { const d = pd(n.data_emissao || n.data_vencimento); return d.getMonth() === m.mes && d.getFullYear() === m.ano; }).length),
         backgroundColor: '#ea580c', borderRadius: 6,
       },
       {
@@ -195,7 +196,7 @@ export default function DashboardPage() {
     datasets: [
       {
         label: 'Emitido',
-        data: mesesPeriodo.map(m => nF.filter(n => { const d = pd(n.data_vencimento); return d.getMonth() === m.mes && d.getFullYear() === m.ano; }).reduce((s, n) => s + n.valor, 0)),
+        data: mesesPeriodo.map(m => nF.filter(n => { const d = pd(n.data_emissao || n.data_vencimento); return d.getMonth() === m.mes && d.getFullYear() === m.ano; }).reduce((s, n) => s + n.valor, 0)),
         backgroundColor: '#ea580c', borderRadius: 6,
       },
       {
@@ -227,12 +228,12 @@ export default function DashboardPage() {
     datasets: [
       {
         label: String(anoAtual),
-        data: meses12.map(m => notas.filter(n => { const d = pd(n.data_vencimento); return d.getMonth() === m.mes && d.getFullYear() === anoAtual; }).reduce((s, n) => s + n.valor, 0)),
+        data: meses12.map(m => notas.filter(n => { const d = pd(n.data_emissao || n.data_vencimento); return d.getMonth() === m.mes && d.getFullYear() === anoAtual; }).reduce((s, n) => s + n.valor, 0)),
         borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.08)', tension: 0.4, fill: true, pointRadius: 4,
       },
       {
         label: String(anoAtual - 1),
-        data: meses12.map(m => notas.filter(n => { const d = pd(n.data_vencimento); return d.getMonth() === m.mes && d.getFullYear() === anoAtual - 1; }).reduce((s, n) => s + n.valor, 0)),
+        data: meses12.map(m => notas.filter(n => { const d = pd(n.data_emissao || n.data_vencimento); return d.getMonth() === m.mes && d.getFullYear() === anoAtual - 1; }).reduce((s, n) => s + n.valor, 0)),
         borderColor: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.08)', tension: 0.4, fill: true, borderDash: [5, 5], pointRadius: 4,
       },
     ],
