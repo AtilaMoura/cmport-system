@@ -17,10 +17,15 @@ Tirar a folha de pagamento de jan–jul/2026 do estado "solto" em que está hoje
 
 ## Pré-requisito
 
-**Cliente respondeu as pendências de `PENDENCIAS_FOLHA_CLIENTE.md`** — principalmente:
-- item 1 (folha entra pelo bruto/caixa) → se a resposta for "líquido", o plano muda e o `folha_d2_input.json` precisa ser regerado.
-- item 2 (valores de julho de André/Welligton/Fabiana/Gabriel).
-- item 10 (cancelar parcelas automáticas de agosto).
+**Jan–jul não está travado.** O `despesas_funcionario.json` (planilha FLUXO da cliente) está completo
+e consistente pros 7 funcionários — ver `PENDENCIAS_FOLHA_CLIENTE.md`, seção "Resolvido com o que temos".
+
+Só precisa de um "confirma" da cliente em 2 itens, e nenhum bloqueia começar:
+- **A** — empréstimo Fabiana R$ 9.000 (id 536+637): não está na planilha FLUXO → default = remover e não recriar.
+- **B** — Pix QUISI IR André R$ 220 (id 296): idem.
+
+Se a cliente disser que A ou B são reais, é só **não** incluir esses ids no `remover` (editar `folha_d2_input.json`).
+Agosto está fora desta rodada (tarefa separada).
 
 ---
 
@@ -38,7 +43,7 @@ cd backend && ./venv/Scripts/python.exe ../fluxo-financeiro/backup_bd.py --produ
 Script **`corrigir_cadastro_funcionarios_d2.py`** — lê `folha_d2_input.json["cadastro_correcoes"]`.
 
 - Luis (id 2): `data_admissao=2025-02-14`, `variaveis.adiantamento_tipo=FIXO`, `adiantamento_valor=1680.50`
-- Welligton (id 3): `data_admissao=2024-07-08`, `adiantamento_tipo=FIXO`, `adiantamento_valor=1739.38` _(ou 2028 — confirmar item 1/6)_
+- Welligton (id 3): `data_admissao=2024-07-08`, `adiantamento_tipo=FIXO`, `adiantamento_valor=1739.38` _(JSON confirma: R$ 1.739,38 idêntico jan→set)_
 - Pedro (id 4): `data_admissao=2025-06-02`
 - Almira (id 7): `data_admissao=2026-03-23`
 

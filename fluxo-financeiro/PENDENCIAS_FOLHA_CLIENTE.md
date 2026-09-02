@@ -1,156 +1,94 @@
-# Folha de Pagamento — Pendências para conferir com a cliente
+# Folha de Pagamento — o que dá pra fazer agora × o que precisa da cliente
 
-_Gerado 02/09/2026 · base: planilha `Controle de Funcionarios - 2026.xlsx` + `despesas_funcionario.json` (planilha FLUXO) + estado de produção._
+_Gerado 02/09/2026 · base: `Controle de Funcionarios - 2026.xlsx` + `despesas_funcionario.json` (planilha FLUXO da própria cliente) + estado de produção._
 
-Antes de migrar a folha histórica (jan–jul/2026) pro sistema, precisamos que a cliente confirme os pontos abaixo. Cada um afeta números que vão aparecer no fluxo financeiro.
-
----
-
-## 1. A folha entra no fluxo pelo valor BRUTO (cada pagamento) ou pelo LÍQUIDO (contracheque)?
-
-As duas planilhas divergem de forma **sistemática**:
-
-| | O que mostra | Exemplo — Luis, janeiro |
-|---|---|---|
-| **Controle de Funcionários** (contracheque) | o **líquido** do acerto (já desconta o adiantamento que foi pago antes) | R$ 3.591,70 |
-| **FLUXO / caixa** | **cada saída da conta**: salário no dia 12 **+** adiantamento no dia 21, separados | R$ 5.271,80 |
-
-A diferença (R$ 1.680,10) é **exatamente o adiantamento do Luis**. O mesmo padrão vale pra todo mundo:
-
-| Funcionário | Diferença mensal recorrente | = |
-|---|---|---|
-| Luis | ~R$ 1.680,50 | adiantamento fixo |
-| Welligton | ~R$ 1.739,38 (jan–abr) → ~R$ 2.028 (mai–jun) | adiantamento fixo (mudou em maio?) |
-| Pedro | R$ 872 – 1.654 | adiantamento + vale-transporte |
-| André | ~R$ 700/mês | adiantamento |
-| Fabiana | R$ 830 – 1.075 | adiantamento |
-| Gabriel | R$ 650 – 1.210 | adiantamento |
-
-**➡️ Pergunta:** o sistema deve registrar **cada pagamento que saiu da conta** (bruto — recomendado, é o que o extrato mostra) ou o **líquido do contracheque**? _Recomendação: bruto/caixa — bate com o extrato bancário e com o que já está lançado de jan a abril._
-
-**Casos pra investigar** (não seguem o padrão do adiantamento):
-- **Welligton — adiantamento subiu de R$ 1.739,38 para R$ 2.028 em maio.** Foi reajuste ou erro?
-- **Luis — junho:** diferença R$ 1.605,50 em vez de R$ 1.680,50 (R$ 75 a menos).
-- **Gabriel — março:** R$ 50 a mais no salário sem explicação.
+**Resumo:** a migração da folha de **jan–jul/2026 dá pra fazer inteira agora**, sem travar em nada.
+O `despesas_funcionario.json` é a planilha FLUXO da cliente — está completa e consistente pros 7
+funcionários, mês a mês, e já responde as dúvidas que pareciam bloqueio. Só **3 pontos** precisam
+de um "confirma" da cliente, e nenhum deles impede começar.
 
 ---
 
-## 2. Julho está incompleto na planilha Controle
+## ✅ Resolvido com o que temos (sem precisar perguntar)
 
-A aba de julho só tem lançamento pra **Luis, Pedro e Almira**. **André, Welligton, Fabiana e Gabriel estão zerados** em julho.
+### 1. A folha entra pelo BRUTO (cada pagamento) — confirmado pelos dados
+A planilha FLUXO lança **cada saída da conta separada**: salário no dia 12 **+** cada adiantamento
+no seu dia. Ex. André, janeiro: salário R$ 4.763,30 + 9 adiantamentos = R$ 6.853,30.
+E **jan–abr já está exatamente assim em produção** (as movimentações soltas que vamos organizar).
+→ A migração usa os valores do `despesas_funcionario.json` direto.
 
-O FLUXO/caixa tem os valores de julho pra todos (André R$ 5.071,10, Welligton R$ 6.158,09, Fabiana R$ 2.895,61, Gabriel R$ 2.046,10).
+### 2. Datas de admissão — a planilha diz
+Luis **14/02/2025** · Welligton **08/07/2024** · Pedro **02/06/2025** · Almira **23/03/2026**.
+→ Corrige no cadastro (Passo 1).
 
-**➡️ Pergunta:** confirmar os valores de julho desses 4, batendo com o extrato bancário de julho.
+### 3. Adiantamento fixo — a planilha mostra valor idêntico todo mês
+Luis **R$ 1.680,50** · Welligton **R$ 1.739,38** (idêntico jan→set, sem exceção).
+→ Marca os dois como adiantamento FIXO no cadastro. (Pedro R$ 722 já está certo.)
 
----
+### 4. Reajustes no meio do ano — não travam
+A migração histórica usa o **valor real de cada mês** (do JSON). O cadastro já tem o valor
+corrente certo (Luis 4.201,25 · Almira 2.055). Nada a fazer.
 
-## 3. Salário do André — pró-labore
+### 5. Julho — o JSON tem tudo
+A aba julho da planilha Controle está incompleta (falta André/Welligton/Fabiana/Gabriel), mas
+o `despesas_funcionario.json` tem julho completo pros 7 (inclusive Férias do Welligton R$ 3.516,81
+e PRL). → Usa o JSON.
 
-- Cadastro do sistema: **R$ 2.900** (pró-labore).
-- Planilha: "SÓCIO", com pagamentos mensais de **R$ 4.166 a R$ 4.763**.
-- A cliente já disse: "Gestor Sócio tem tudo incluído (refeição etc) nesse valor, mas o do André é pró-labore."
-
-**➡️ Pergunta:** o pró-labore do André é R$ 2.900 fixo + o resto (VR, plantão, bônus) é lançado à parte a cada mês? Ou o pró-labore real é ~R$ 4.500 e a planilha detalha a composição?
-
----
-
-## 4. Reajustes de salário no meio do ano
-
-A planilha mostra salários que **mudaram durante 2026** — o cadastro do sistema só guarda o valor atual:
-
-| Funcionário | Base início do ano | Mudou para | Quando |
-|---|---|---|---|
-| Luis | 3.701,25 | **4.201,25** | maio |
-| Almira | 1.805 | **2.055** | julho |
-| Gabriel | 533,33 (proporcional) | 1.600 (cheio) | maio |
-
-**➡️ Pergunta:** confirmar os valores e as datas dos reajustes. _(A migração histórica usa o valor real de cada mês, então não trava — mas o cadastro precisa refletir o valor corrente certo.)_
+### 6. PRL, Férias, Vale-refeição avulso — já vêm categorizados
+O JSON separa cada tipo; o mapa converte pras categorias novas (95–109). 144 lançamentos,
+**100% categorizados**, nenhum "sem categoria".
 
 ---
 
-## 5. Datas de admissão erradas no cadastro
+## ⚠️ Precisa de um "confirma" da cliente (mas NÃO trava jan–jul)
 
-| Funcionário | No sistema | Na planilha (correto) |
-|---|---|---|
-| Luis | 01/04/2025 | **14/02/2025** |
-| Welligton | (em branco) | **08/07/2024** |
-| Pedro | (em branco) | **02/06/2025** |
-| Almira | 02/05/2026 | **23/03/2026** (1º pagamento em abril, ref. março) |
+### A. Empréstimo de salário da Fabiana — R$ 9.000, lançado 2× em produção, **não existe na planilha FLUXO dela**
+Produção tem `id 536` (despesa) + `id 637` (movimentação), os dois de R$ 9.000 em abril.
+A planilha FLUXO da cliente **não tem esse lançamento**.
+→ **Default: a migração remove os dois e não recria** (segue a planilha da cliente).
+→ **Confirmar:** foi erro de digitação? Ou é um empréstimo real que ela controla por fora da folha?
 
-**➡️ Ação:** já vamos corrigir. Só confirmar as datas.
+### B. "Pix QUISI (Imposto de Renda - André)" — R$ 220 (id 296, maio), **não está na planilha FLUXO**
+Provável IRRF do André pago ao contador, que na planilha já está embutido no salário.
+→ **Default: remove, não recria.** Confirmar.
 
----
-
-## 6. Adiantamento — marcar como FIXO
-
-No cadastro, o adiantamento do Luis e do Welligton está como "varia". A planilha mostra valor fixo todo mês:
-- Luis: **R$ 1.680,50**
-- Welligton: **R$ 1.739,38** (ver item 1 — mudou em maio?)
-- Pedro: R$ 722 (já está certo)
-
-A cliente já orientou: "deixar um valor padrão que ela colocou, com opção de alterar na hora de marcar como pago".
-
-**➡️ Ação:** marcar Luis e Welligton como adiantamento FIXO com esses valores.
+### C. Agosto/2026 fica de fora desta rodada
+Agosto está lançado 2× em produção (19 avulsos R$ 28.427 **+** 23 parcelas automáticas R$ 17.731).
+→ **Não mexemos em agosto agora.** Vira tarefa separada. A decisão lá vai ser: manter os avulsos
+(valores reais) e cancelar as parcelas automáticas de agosto? (setembro+ = folha automática normal).
 
 ---
 
-## 7. Empréstimo de salário da Fabiana — R$ 9.000 lançado DUAS vezes
+## 📋 Informativo — pra cliente saber, sem ação
 
-Em abril tem **dois** lançamentos de "Empréstimo de Salário Fabiana (ref. abril)" de R$ 9.000 — um como despesa (id 536) e um como movimentação (id 637). O extrato deve mostrar só um.
-
-**➡️ Pergunta:** confirmar o valor real do empréstimo e que foi pago 1 vez só. _(A migração remove os dois e recria a partir da planilha — se a planilha também tiver duplicado, precisamos saber.)_
-
----
-
-## 8. "Pagamento Referente ao Mês Julho/2026" — R$ 4.543,55 sem nome
-
-Lançamento id 1005 (agosto), categoria "Salários", sem dizer de qual funcionário.
-
-**➡️ Pergunta:** de quem é esse pagamento?
+- **Pró-labore do André (cadastro = R$ 2.900):** a migração histórica usa os valores reais que
+  saíram (R$ 4.166–4.763/mês). O valor do cadastro só afeta a folha automática **de setembro em
+  diante** — se estiver errado, é só ajustar lá, não impacta o histórico.
+- **Banco de cada pagamento:** os 144 lançamentos entram **sem banco**; aparecem na tela de
+  "Conferência de Bancos" pra cliente marcar a conta, igual ela já faz com o resto (fila do B1).
+- **Rescisão do Pedro** (R$ 5.152,32 + FGTS R$ 1.079,38) e o "Pagamento ref. Julho R$ 4.543,55"
+  são de agosto → ficam pra tarefa de agosto.
 
 ---
 
-## 9. Rescisão do Pedro (desligado 07/08/2026)
-
-- id 954 "Pix Rescisão Pedro Silva" — R$ 5.152,32
-- id 902 "FGTS (Rescisão Pedro)" — R$ 1.079,38
-
-**➡️ Pergunta:** confirmar o valor total da rescisão e se tem mais alguma verba (férias proporcional, 13º proporcional, aviso).
-
----
-
-## 10. Agosto/2026 está lançado DUAS vezes
-
-- **Como pagamentos avulsos** (19 lançamentos, R$ 28.427) — foi a cliente que lançou, com os valores reais.
-- **Como parcelas da folha automática** (23 parcelas em aberto, R$ 17.731) — geradas pelo sistema quando cadastramos os funcionários.
-
-**➡️ Decisão:** manter os **avulsos** (são os valores reais pagos) e **cancelar as parcelas automáticas de agosto**? _Recomendação: sim. As parcelas automáticas passam a valer de setembro em diante._
-
----
-
-## 11. Setembro em diante = folha automática
-
-O `despesas_funcionario.json` tem 13 lançamentos de setembro (R$ 23.035). A partir de setembro, a folha automática (recorrente) já cobre isso.
-
-**➡️ Decisão:** a migração histórica vai **só até julho/2026**. Agosto = itens 10. Setembro+ = folha automática. Confirmar.
-
----
-
-## 12. Banco de cada pagamento
-
-Todos os lançamentos de folha que vamos criar entram **sem banco definido** — vão pra tela de "Conferência de Bancos" que a cliente já preenche mês a mês (mesma pilha do B1).
-
-**➡️ Sem ação agora** — só saber que a folha de jan–jul vai aparecer lá pra conferir o banco.
-
----
-
-## Resumo do que a migração vai fazer (depois do "ok")
+## O que a migração faz (jan–jul, depois do "pode ir")
 
 | Ação | Volume |
 |---|---|
-| Corrigir cadastro (admissão + adiantamento FIXO) | 4 funcionários |
-| Apagar a folha "solta" de jan–jul (movimentações sem vínculo) | 78 registros · R$ 106.680 |
-| Recriar a folha jan–jul a partir da planilha FLUXO, vinculada a cada funcionário + categoria | 144 lançamentos · R$ 176.430 |
-| Recategorizar encargos/convênio (GPS, FGTS, Amil) pras categorias novas | 26 lançamentos |
-| **Não toca:** agosto, folha automática, transferências internas, reembolsos (Pix zelador etc) | — |
+| Corrigir cadastro (4 admissões + adiantamento FIXO Luis/Welligton) | 4 funcionários |
+| Soft-delete da folha solta jan–jul (movimentações sem vínculo + abril duplicado) | 78 registros · R$ 106.680 |
+| Recriar a folha jan–jul do `despesas_funcionario.json`, vinculada a funcionário + categoria | 144 lançamentos · R$ 176.430 |
+| Recategorizar encargos/convênio (GPS/FGTS/Amil) pras categorias novas | 26 lançamentos |
+| **Não toca:** agosto, folha automática, transferências internas, reembolsos (Pix zelador etc), empréstimo Fabiana (A) e IR André (B) — removidos, não recriados | — |
+
+**Distribuição por funcionário (jan–jul, valor de caixa):**
+
+| Funcionário | Lançamentos | Total |
+|---|--:|--:|
+| Luis | 14 | R$ 37.992,05 |
+| André | 26 | R$ 36.708,65 |
+| Welligton | 16 | R$ 34.726,27 |
+| Pedro | 25 | R$ 21.743,56 |
+| Fabiana | 23 | R$ 20.997,04 |
+| Gabriel | 31 | R$ 13.409,03 |
+| Almira | 9 | R$ 10.853,25 |
