@@ -64,6 +64,7 @@ Para cada item de `remover`:
    - `UPDATE despesas SET deletado_em=NOW() WHERE id=<id>`
    - `UPDATE fin_movimentacoes SET deletado_em=NOW() WHERE id IN (SELECT movimentacao_id FROM despesa_parcelas WHERE despesa_id=<id> AND movimentacao_id IS NOT NULL)`
    - (parcelas: não tem `deletado_em`; ficam órfãs da despesa soft-deletada, que é como o resto do sistema já trata — ok.)
+   - **Confirmado no snapshot (`snapshot_pre_folha_d2_20260902_1540.txt`):** as 5 despesas (296, 536, 658, 659, 660) têm 1 parcela PAGO cada, com `movimentacao_id` = 1588, 1828, 1950, 1951, 1952 respectivamente. Essas 5 movimentações também viram soft-delete. `registrar_exclusao` pra cada uma também.
 
 Dry-run: listar os 78 com `fonte | id | data | valor | funcionário | descrição` + as checagens de segurança (PASS/FAIL por item).
 
