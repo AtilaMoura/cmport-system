@@ -62,15 +62,16 @@ Normaliza os 3 arquivos num formato só: `{conta, data, descricao, valor(+/-), t
 - Só leitura, nada de banco.
 
 ### Passo 2 — Cruzamento sistema × extrato (ENTRADAS), por conta — FEITO (02/09) — `comparar_extratos_agosto.py`
-Resultado completo em `RESULTADO_PASSO2_EXTRATOS_AGOSTO.md`. Resumo:
-- **Itaú CMPORT: 100% reconciliado** (Δ 0,00, inclusive os 3 dias agregados).
-- **Inter CMPORT:** 60 bate · falta lançar 3 itens (R$ 1.617,43: devolução QUISI 826,97,
-  boleto cobrança 200,00, Pix Fortezza 590,46) · boleto 284 (R$ 1.346,39) caiu aqui mas
-  sem `banco_id` · recibo 61 Jussara (R$ 70,00) sobrando (cross-empresa).
-- **Inter TEC:** 42 + 1 soma bate · falta lançar 2 Pix pequenos (R$ 120,00).
+Resultado completo em `RESULTADO_PASSO2_EXTRATOS_AGOSTO.md` · versão cliente em
+`RECONCILIACAO_AGOSTO_CLIENTE.html` (Artifact d0556b20). **5 ajustes fecham os 3 CNPJs a 100%:**
+- **Itaú CMPORT: 100%** (Δ 0,00, inclusive os 3 dias agregados).
+- **Inter CMPORT (3):** boleto 284 → `banco_id=2` · lançar QUISI 826,97 (11/08) · lançar
+  Fortezza 590,46 (31/08).
+- **Inter TEC (2):** recibo 61 (José Erisvaldo, R$ 70) e recibo 62 (Jussara/João Luiz, R$ 50)
+  → `banco_id` de 2 para 4 (Pix caiu na conta TEC, confirmado no extrato).
 - **Achado:** parser do Passo 1 não classifica transferência que sai do Itaú (chega como
-  "Pix recebido CMPORT..."). Script já cruzou e confirmou que estão lançadas no sistema.
-  Passo 1 precisa reclassificar antes do dashboard (Passo 5), senão conta transferência 2×.
+  "Pix recebido CMPORT..."). Script já cruzou e confirmou que estão lançadas. Passo 1
+  precisa reclassificar antes do dashboard (Passo 5), senão conta transferência como receita.
 - **Pendente deste passo:** conferência de saldo (precisa carregar SAÍDAS) — fazer junto
   com o cruzamento de saídas.
 

@@ -196,7 +196,7 @@ def main():
         ext = [{"data": d(it["data"]), "valor": it["valor"], "descricao": it["descricao"],
                 "tipo": it["tipo"], "agregado": it.get("agregado", False)}
                for it in lanc if it["banco_id"] == bid]
-        ext_ent = [e for e in ext if e["tipo"] == "ENTRADA" and not e["agregado"]]
+        ext_ent_raw = [e for e in ext if e["tipo"] == "ENTRADA" and not e["agregado"]]
         ext_agreg = [e for e in ext if e["agregado"]]
         ext_transf_in = [e for e in ext if e["tipo"] == "TRANSFERENCIA_ENTRE_CONTAS" and e["valor"] > 0]
 
@@ -206,6 +206,20 @@ def main():
         sis_transf = [s for s in sis_all if s["origem"] == "mov"
                       and s.get("banco_origem_id") is not None]
         sis_c = [s for s in sis_all if s not in sis_transf]
+
+        # linha do extrato marcada ENTRADA que na verdade é transferência interna
+        # (Pix vindo do Itaú sob o CNPJ CMPORT) — casa com um mov de transf desta conta.
+        transf_livre = list(sis_transf)
+        ext_ent, ext_transf_oculta = [], []
+        for e in sorted(ext_ent_raw, key=lambda x: x["data"]):
+            cand = [t for t in transf_livre
+                    if abs(t["valor"] - e["valor"]) <= TOL
+                    and abs((t["data"] - e["data"]).days) <= 3]
+            if cand:
+                ext_transf_oculta.append((e, cand[0]))
+                transf_livre.remove(cand[0])
+            else:
+                ext_ent.append(e)
 
         tot_ext = round(sum(e["valor"] for e in ext_ent) + sum(e["valor"] for e in ext_agreg), 2)
         tot_sis = round(sum(s["valor"] for s in sis_c), 2)
@@ -249,18 +263,7 @@ def main():
                 print(f"     {e['data']:%d/%m} R$ {e['valor']:>9,.2f}  {s['origem']} id={s['id']} "
                       f"{s['nome'][:26]:26} {s['extra'][:34]}")
 
-        # o que sobrou no extrato pode ser transferência interna que o Passo 1 não marcou
-        # (saiu do Itaú, chegou como "Pix recebido CMPORT ..." — casa com um mov de transf no sistema)
-        ext_transf_oculta, ext_falta = [], []
-        for e in ext_sem2:
-            cand = [t for t in todas_transf_sis
-                    if abs(t["valor"] - e["valor"]) <= TOL
-                    and abs((t["data"] - e["data"]).days) <= 3
-                    and t["banco_id"] == bid]
-            if cand:
-                ext_transf_oculta.append((e, cand[0]))
-            else:
-                ext_falta.append(e)
+        ext_falta = ext_sem2
 
         if ext_transf_oculta:
             print(f"\n  🔁 NO EXTRATO COMO 'Pix recebido', É TRANSFERÊNCIA INTERNA já lançada no sistema "

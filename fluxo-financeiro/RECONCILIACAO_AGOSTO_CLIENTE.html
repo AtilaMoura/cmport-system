@@ -1,0 +1,541 @@
+<title>Conciliação Bancária · Agosto 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground:      #F1F3F1;
+    --surface:     #FFFFFF;
+    --surface-sub: #F7F8F7;
+    --ink:         #1A211E;
+    --ink-soft:    #495450;
+    --ink-faint:   #7A857F;
+    --rule:        #DDE2DE;
+    --rule-soft:   #E9ECE9;
+    --accent:      #0F6E5C;
+    --accent-soft: #E1EFEA;
+    --ok:          #1F7A43;
+    --ok-soft:     #E3F1E6;
+    --warn:        #9A6410;
+    --warn-soft:   #F5EBD8;
+    --pending:     #A93B2C;
+    --pending-soft:#F5E3DF;
+    --shadow:      0 1px 2px rgba(26,33,30,.04), 0 8px 24px -12px rgba(26,33,30,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #121614;
+      --surface:     #1A1F1D;
+      --surface-sub: #161B19;
+      --ink:         #E7EBE8;
+      --ink-soft:    #A9B2AD;
+      --ink-faint:   #78827D;
+      --rule:        #2C332F;
+      --rule-soft:   #232926;
+      --accent:      #58C3A9;
+      --accent-soft: #1A2C28;
+      --ok:          #63BD82;
+      --ok-soft:     #1B2A21;
+      --warn:        #D6A24E;
+      --warn-soft:   #2C2617;
+      --pending:     #E08472;
+      --pending-soft:#2F211E;
+      --shadow:      0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #121614;
+    --surface:     #1A1F1D;
+    --surface-sub: #161B19;
+    --ink:         #E7EBE8;
+    --ink-soft:    #A9B2AD;
+    --ink-faint:   #78827D;
+    --rule:        #2C332F;
+    --rule-soft:   #232926;
+    --accent:      #58C3A9;
+    --accent-soft: #1A2C28;
+    --ok:          #63BD82;
+    --ok-soft:     #1B2A21;
+    --warn:        #D6A24E;
+    --warn-soft:   #2C2617;
+    --pending:     #E08472;
+    --pending-soft:#2F211E;
+    --shadow:      0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: clamp(28px, 6vw, 72px) clamp(18px, 5vw, 40px) 96px;
+  }
+
+  h1, h2, h3 { font-family: "Spectral", Georgia, serif; font-weight: 600; text-wrap: balance; letter-spacing: .1px; }
+  .num { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+
+  /* ---------- header ---------- */
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 24px; margin-bottom: 8px; }
+  header h1 { font-size: clamp(30px, 6vw, 42px); line-height: 1.12; margin: 0 0 12px; }
+  header .meta {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: flex; flex-wrap: wrap; gap: 6px 18px;
+  }
+  header .meta span { white-space: nowrap; }
+
+  .lede {
+    font-size: 17px;
+    color: var(--ink-soft);
+    margin: 28px 0 40px;
+    max-width: 62ch;
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- summary tiles ---------- */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 44px;
+  }
+  .tile { background: var(--surface); padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+  .tile .acct { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .05em; color: var(--ink-faint); text-transform: uppercase; }
+  .tile .delta { font-family: "IBM Plex Mono", monospace; font-size: 21px; font-weight: 500; }
+  .tile .state { font-size: 12.5px; display: flex; align-items: center; gap: 7px; color: var(--ink-soft); margin-top: auto; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.ok { background: var(--ok); }
+  .dot.pending { background: var(--pending); }
+  .tile.is-ok .delta { color: var(--ok); }
+  .tile.is-pending .delta { color: var(--pending); }
+
+  @media (max-width: 560px) {
+    .summary { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- legend ---------- */
+  .legend { margin: 0 0 52px; }
+  .legend h2 { font-size: 15px; font-family: "IBM Plex Sans", sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); margin: 0 0 16px; }
+  .legend dl { margin: 0; display: grid; gap: 14px; }
+  .legend .row { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: baseline; }
+  .legend dt { margin: 0; }
+  .legend dd { margin: 0; font-size: 14.5px; color: var(--ink-soft); }
+  @media (max-width: 520px) { .legend .row { grid-template-columns: 1fr; gap: 4px; } }
+
+  .chip {
+    display: inline-flex; align-items: center;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px; font-weight: 500;
+    letter-spacing: .04em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 5px;
+    white-space: nowrap;
+  }
+  .chip.entrada  { background: var(--pending-soft); color: var(--pending); }
+  .chip.transfer { background: var(--accent-soft); color: var(--accent); }
+  .chip.banco    { background: var(--warn-soft); color: var(--warn); }
+  .chip.ok       { background: var(--ok-soft); color: var(--ok); }
+
+  /* ---------- account sections ---------- */
+  .acct-sec { margin-bottom: 30px; padding-top: 34px; border-top: 1px solid var(--rule); }
+  .acct-sec:first-of-type { border-top: none; padding-top: 0; }
+  .acct-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; margin-bottom: 4px; }
+  .acct-head h2 { font-size: 26px; margin: 0; }
+  .acct-head .cc { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--ink-faint); }
+  .acct-status { font-size: 13.5px; color: var(--ink-soft); margin: 6px 0 22px; display: flex; align-items: center; gap: 8px; }
+
+  /* reconciliation ruler */
+  .ruler { margin: 0 0 26px; }
+  .ruler-track {
+    display: flex; height: 30px;
+    border: 1px solid var(--rule); border-radius: 6px; overflow: hidden;
+    background: var(--surface-sub);
+  }
+  .ruler-fill { background: var(--accent); }
+  .ruler-gap {
+    background-color: var(--pending-soft);
+    background-image: repeating-linear-gradient(-45deg, transparent 0 5px, rgba(169,59,44,.28) 5px 7px);
+    border-left: 1px dashed var(--pending);
+  }
+  .ruler-fill.full { background: var(--ok); }
+  .ruler-legend {
+    display: flex; flex-wrap: wrap; gap: 4px 20px;
+    font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    color: var(--ink-soft); margin-top: 9px;
+  }
+  .ruler-legend b { color: var(--ink); font-weight: 500; }
+  .ruler-legend .k { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+  .swatch.fill { background: var(--accent); }
+  .swatch.fill.full { background: var(--ok); }
+  .swatch.gap { background: var(--pending); }
+
+  /* adjustments table */
+  table.adj { width: 100%; border-collapse: collapse; margin: 4px 0 8px; font-size: 14px; }
+  table.adj caption {
+    text-align: left; font-family: "IBM Plex Mono", monospace;
+    font-size: 12px; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--ink-faint); padding-bottom: 10px;
+  }
+  table.adj th {
+    text-align: left; font-weight: 500; font-size: 11.5px;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint);
+    padding: 0 12px 8px 0; border-bottom: 1px solid var(--rule);
+  }
+  table.adj th.r, table.adj td.r { text-align: right; padding-right: 0; }
+  table.adj td { padding: 13px 12px 13px 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  table.adj tr:last-child td { border-bottom: none; }
+  table.adj td.date { font-family: "IBM Plex Mono", monospace; color: var(--ink-soft); white-space: nowrap; }
+  table.adj td.val  { font-family: "IBM Plex Mono", monospace; font-weight: 500; white-space: nowrap; }
+  table.adj td.what { color: var(--ink-soft); }
+  table.adj td.what .h { color: var(--ink); display: block; margin-bottom: 2px; }
+  .adj-wrap { overflow-x: auto; }
+
+  .noadj {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: var(--ok-soft); border: 1px solid var(--ok); border-left-width: 3px;
+    border-radius: 8px; padding: 16px 18px; font-size: 14px; color: var(--ink-soft);
+  }
+  .noadj strong { color: var(--ink); }
+  .noadj .mk { color: var(--ok); font-weight: 700; flex: none; }
+
+  .after {
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px;
+    color: var(--ink-soft); margin: 14px 0 0; padding: 11px 14px;
+    background: var(--surface-sub); border-radius: 6px;
+  }
+  .after b { color: var(--ink); font-weight: 500; }
+  .after .ok { color: var(--ok); }
+
+  /* ---------- generic block ---------- */
+  .block { margin: 56px 0 0; padding-top: 34px; border-top: 2px solid var(--ink); }
+  .block > h2 { font-size: 24px; margin: 0 0 6px; }
+  .block p { color: var(--ink-soft); font-size: 14.5px; max-width: 64ch; }
+  .block p strong { color: var(--ink); font-weight: 600; }
+
+  ul.clean { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 12px; }
+  ul.clean li {
+    display: grid; grid-template-columns: auto 1fr; gap: 12px;
+    font-size: 14.5px; color: var(--ink-soft);
+  }
+  ul.clean li .b { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-weight: 500; }
+  ul.clean li strong { color: var(--ink); font-weight: 600; }
+
+  .callout {
+    margin-top: 22px; padding: 18px 20px;
+    border: 1px solid var(--rule); border-left: 3px solid var(--warn);
+    border-radius: 6px; background: var(--surface);
+    font-size: 14px; color: var(--ink-soft);
+  }
+  .callout .tag {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--warn);
+    display: block; margin-bottom: 6px;
+  }
+  .callout strong { color: var(--ink); font-weight: 600; }
+
+  footer {
+    margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--rule);
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-faint);
+    display: flex; flex-wrap: wrap; gap: 6px 20px;
+  }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Conciliação bancária &middot; CMPORT</p>
+    <h1>Fechamento de Agosto&nbsp;2026</h1>
+    <div class="meta">
+      <span>Período: 01/08 – 31/08/2026</span>
+      <span>Contas: Itaú CMPORT &middot; Inter CMPORT &middot; Inter TEC</span>
+      <span>Base: extratos bancários &times; sistema</span>
+    </div>
+  </header>
+
+  <p class="lede">
+    Cruzamos cada <strong>entrada</strong> registrada no sistema com o extrato de cada conta.
+    O objetivo é chegar a <strong>100% de correspondência</strong>. Abaixo está exatamente o que
+    ainda falta ajustar — <strong>5 itens no total</strong> — e o que já está batendo.
+    As <strong>transferências entre contas</strong> são tratadas à parte, porque não são faturamento.
+  </p>
+
+  <section class="summary" aria-label="Resumo por conta">
+    <div class="tile is-ok">
+      <span class="acct">Itaú CMPORT</span>
+      <span class="delta num">R$ 0,00</span>
+      <span class="state"><span class="dot ok"></span>Conciliado &middot; nada a fazer</span>
+    </div>
+    <div class="tile is-pending">
+      <span class="acct">Inter CMPORT</span>
+      <span class="delta num">R$ 2.643,82</span>
+      <span class="state"><span class="dot pending"></span>3 ajustes pendentes</span>
+    </div>
+    <div class="tile is-pending">
+      <span class="acct">Inter TEC</span>
+      <span class="delta num">R$ 120,00</span>
+      <span class="state"><span class="dot pending"></span>2 ajustes pendentes</span>
+    </div>
+  </section>
+
+  <section class="legend">
+    <h2>Como ler este relatório</h2>
+    <dl>
+      <div class="row">
+        <dt><span class="chip entrada">Lançar entrada</span></dt>
+        <dd>Dinheiro de <strong>fora</strong> (cliente, condomínio, devolução) que caiu na conta
+          e <strong>não existe no sistema</strong>. Precisa ser lançado.</dd>
+      </div>
+      <div class="row">
+        <dt><span class="chip banco">Ajuste de banco</span></dt>
+        <dd>Entrada <strong>já registrada</strong> no sistema, só marcada na conta errada
+          (ou sem conta). Não muda o total do mês — muda só a visão “por banco”.</dd>
+      </div>
+      <div class="row">
+        <dt><span class="chip transfer">Transferência</span></dt>
+        <dd>Dinheiro movido <strong>entre contas da própria empresa</strong>. Não é entrada de
+          faturamento. No sistema é <strong>1 lançamento</strong> (origem → destino); no extrato
+          aparecem <strong>2 linhas</strong> (uma saída, uma entrada).</dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ============ ITAÚ ============ -->
+  <section class="acct-sec">
+    <div class="acct-head">
+      <h2>Itaú CMPORT</h2>
+      <span class="cc">ag 8135 &middot; cc 0017278-4</span>
+      <span class="chip ok">Conciliado 100%</span>
+    </div>
+    <p class="acct-status"><span class="dot ok"></span>Extrato e sistema batem exatamente. Nenhum ajuste.</p>
+
+    <div class="ruler">
+      <div class="ruler-track" role="img" aria-label="Sistema cobre 100% do extrato">
+        <div class="ruler-fill full" style="width:100%"></div>
+      </div>
+      <div class="ruler-legend">
+        <span class="k"><span class="swatch fill full"></span>Sistema <b>R$ 9.668,76</b></span>
+        <span class="k">Extrato <b>R$ 9.668,76</b></span>
+        <span class="k">Diferença <b>R$ 0,00</b></span>
+      </div>
+    </div>
+
+    <div class="noadj">
+      <span class="mk">✓</span>
+      <span>Os <strong>3 dias em que o Itaú agrupa os boletos recebidos</strong>
+        (“BOLETOS RECEBIDOS 03/08”, 05/08 e 20/08) batem centavo a centavo com os boletos
+        do sistema — mesmo quando a baixa foi registrada 1 a 2 dias depois do crédito.
+        O recibo de R$&nbsp;1.921,40 (Helbor) caiu como dois créditos de R$&nbsp;960,70 e também confere.</span>
+    </div>
+  </section>
+
+  <!-- ============ INTER CMPORT ============ -->
+  <section class="acct-sec">
+    <div class="acct-head">
+      <h2>Inter CMPORT</h2>
+      <span class="cc">conta 308310110</span>
+      <span class="chip entrada">3 ajustes</span>
+    </div>
+    <p class="acct-status"><span class="dot pending"></span>59 entradas já batem 1&nbsp;a&nbsp;1. Faltam 3 ajustes para fechar R$&nbsp;2.643,82.</p>
+
+    <div class="ruler">
+      <div class="ruler-track" role="img" aria-label="Sistema cobre 93% do extrato; faltam 7%">
+        <div class="ruler-fill" style="width:93.2%"></div>
+        <div class="ruler-gap" style="width:6.8%"></div>
+      </div>
+      <div class="ruler-legend">
+        <span class="k"><span class="swatch fill"></span>Sistema hoje <b>R$ 36.122,00</b></span>
+        <span class="k"><span class="swatch gap"></span>Falta <b>R$ 2.643,82</b></span>
+        <span class="k">Extrato <b>R$ 38.765,82</b></span>
+      </div>
+    </div>
+
+    <div class="adj-wrap">
+    <table class="adj">
+      <caption>Ajustes para conciliar</caption>
+      <thead>
+        <tr><th>Data</th><th class="r">Valor</th><th>Tipo</th><th>O que é / o que fazer</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="date">28/08</td>
+          <td class="val r">1.346,39</td>
+          <td><span class="chip banco">Ajuste de banco</span></td>
+          <td class="what">
+            <span class="h">Boleto do Cond. Ed. Olivais — NF 117-2, parcela 4 de 10 (pago)</span>
+            Entrada <strong>já registrada e baixada</strong>. As parcelas 1, 2 e 3 estão marcadas
+            como Inter CMPORT; a parcela 4 ficou sem conta. <strong>Marcar a conta = Inter CMPORT.</strong>
+            Não altera o total do mês.
+          </td>
+        </tr>
+        <tr>
+          <td class="date">11/08</td>
+          <td class="val r">826,97</td>
+          <td><span class="chip entrada">Lançar entrada</span></td>
+          <td class="what">
+            <span class="h">Devolução recebida — “Banco 509 / QUISI Contabilidade”</span>
+            Valor devolvido pela contabilidade, <strong>não existe no sistema</strong>.
+            Confirmar se é receita (“Outros recebimentos”) ou devolução de uma despesa paga a maior,
+            e lançar.
+          </td>
+        </tr>
+        <tr>
+          <td class="date">31/08</td>
+          <td class="val r">590,46</td>
+          <td><span class="chip entrada">Lançar entrada</span></td>
+          <td class="what">
+            <span class="h">Pix — Conjunto Residencial Fortezza</span>
+            Pagamento de serviço do condomínio Fortezza que <strong>não foi registrado</strong>.
+            Identificar a nota/serviço e lançar a entrada.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <p class="after">
+      Depois dos 3 ajustes: <b>36.122,00 + 1.346,39 + 826,97 + 590,46 − 120,00</b>
+      (os R$ 120,00 dos 2 recibos abaixo saem para a conta Inter&nbsp;TEC)
+      = <b>R$ 38.765,82</b> <span class="ok">= extrato ✓</span>
+    </p>
+  </section>
+
+  <!-- ============ INTER TEC ============ -->
+  <section class="acct-sec">
+    <div class="acct-head">
+      <h2>Inter TEC</h2>
+      <span class="cc">conta 524203806</span>
+      <span class="chip entrada">2 ajustes</span>
+    </div>
+    <p class="acct-status"><span class="dot pending"></span>43 entradas já batem. Faltam 2 ajustes para fechar R$&nbsp;120,00.</p>
+
+    <div class="ruler">
+      <div class="ruler-track" role="img" aria-label="Sistema cobre 99,5% do extrato; faltam 0,5%">
+        <div class="ruler-fill" style="width:99.5%"></div>
+        <div class="ruler-gap" style="width:0.5%"></div>
+      </div>
+      <div class="ruler-legend">
+        <span class="k"><span class="swatch fill"></span>Sistema hoje <b>R$ 25.705,87</b></span>
+        <span class="k"><span class="swatch gap"></span>Falta <b>R$ 120,00</b></span>
+        <span class="k">Extrato <b>R$ 25.825,87</b></span>
+      </div>
+    </div>
+
+    <div class="adj-wrap">
+    <table class="adj">
+      <caption>Ajustes para conciliar</caption>
+      <thead>
+        <tr><th>Data</th><th class="r">Valor</th><th>Tipo</th><th>O que é / o que fazer</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="date">04/08</td>
+          <td class="val r">70,00</td>
+          <td><span class="chip banco">Ajuste de banco</span></td>
+          <td class="what">
+            <span class="h">Recibo REC-2026-077 — José Erisvaldo de Araújo Silva (Ed. Jussara, apto 09, entrega de material)</span>
+            Recibo emitido pela <strong>TEC</strong> e <strong>já registrado</strong>, mas marcado
+            como Inter CMPORT. O Pix caiu na conta <strong>Inter TEC</strong> (confere no extrato,
+            04/08). Corrigir a conta para Inter TEC.
+          </td>
+        </tr>
+        <tr>
+          <td class="date">04/08</td>
+          <td class="val r">50,00</td>
+          <td><span class="chip banco">Ajuste de banco</span></td>
+          <td class="what">
+            <span class="h">Recibo REC-2026-078 — Ed. Jussara, apto 02 (2 tags) / Pix “João Luiz Garcia”</span>
+            Mesmo caso: recibo da <strong>TEC</strong>, já registrado, marcado na conta errada.
+            O Pix de R$&nbsp;50,00 entrou na Inter&nbsp;TEC em 06/08. Corrigir a conta para Inter TEC.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <p class="after">
+      Depois dos 2 ajustes: <b>25.705,87 + 70,00 + 50,00</b> = <b>R$ 25.825,87</b>
+      <span class="ok">= extrato ✓</span>
+    </p>
+  </section>
+
+  <!-- ============ TRANSFERÊNCIAS ============ -->
+  <div class="block">
+    <h2>Transferências entre contas</h2>
+    <p>
+      Dinheiro que a empresa moveu entre as próprias contas em agosto. <strong>Nenhuma delas conta
+      como entrada de faturamento.</strong> Todas foram conferidas nas duas pontas (a conta que
+      enviou e a que recebeu) e têm o lançamento correspondente no sistema.
+    </p>
+
+    <ul class="clean">
+      <li>
+        <span class="b">18&times;</span>
+        <span><strong>Inter CMPORT &harr; Inter TEC.</strong> Todas espelhadas nos dois extratos.
+          Líquido do mês: Inter&nbsp;TEC&nbsp;→&nbsp;Inter&nbsp;CMPORT R$&nbsp;7.164,36 (8 transferências)
+          e Inter&nbsp;CMPORT&nbsp;→&nbsp;Inter&nbsp;TEC R$&nbsp;19.951,11 (10 transferências).</span>
+      </li>
+      <li>
+        <span class="b">7&times;</span>
+        <span><strong>Envolvendo o Itaú.</strong> 6 saídas do Itaú para a Inter (R$&nbsp;3.369,34 no
+          total) e 1 retorno de R$&nbsp;744,18 da Inter CMPORT para o Itaú em 27/08.
+          Todas lançadas.</span>
+      </li>
+      <li>
+        <span class="b">3&times;</span>
+        <span><strong>Rendimentos do Itaú de R$&nbsp;0,01–0,02</strong> que ficaram com a categoria
+          “transferência” por engano. Valor irrelevante — só corrigir a categoria para “rendimento”.</span>
+      </li>
+    </ul>
+
+    <div class="callout">
+      <span class="tag">Ajuste no sistema — não afeta o fechamento</span>
+      As transferências que <strong>saem do Itaú</strong> chegam na Inter identificadas apenas como
+      “Pix recebido — CMPORT”. Hoje o sistema não reconhece sozinho que é transferência interna.
+      Recomendação: ajustar a importação de extrato para que o painel <strong>“Entradas por
+      banco”</strong> não some essas transferências como se fossem faturamento.
+    </div>
+  </div>
+
+  <!-- ============ FORA DE ESCOPO ============ -->
+  <div class="block">
+    <h2>Fora do escopo deste fechamento</h2>
+    <p>
+      <strong>Bradesco</strong> e <strong>BTG</strong> não entraram nesta conciliação porque não
+      temos os extratos do mês. Os movimentos nessas contas (acordos, 13º, férias e impostos de
+      funcionário) serão conferidos junto com a migração da folha de pagamento.
+    </p>
+  </div>
+
+  <footer>
+    <span>Gerado em 02/09/2026</span>
+    <span>Conferência somente leitura — nada foi alterado no sistema</span>
+    <span>CMPORT · Fluxo Financeiro</span>
+  </footer>
+
+</div>
