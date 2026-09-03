@@ -11,11 +11,23 @@ são separadas e vão pro Passo 3.
 
 ## Resultado — 5 ajustes fecham os 3 CNPJs a 100% (entradas)
 
-| Conta | banco_id | Extrato | Sistema hoje | Δ | Ajustes |
-|---|---|---|---|---|---|
-| **Itaú CMPORT** | 1 | 9.668,76 | 9.668,76 | **0,00 ✅** | nenhum |
-| **Inter CMPORT** | 2 | 38.765,82 | 36.122,00 | 2.643,82 | 3 (1 banco + 2 lançar) |
-| **Inter TEC** | 4 | 25.825,87 | 25.705,87 | 120,00 | 2 (banco) |
+| Conta | banco_id | Extrato | Sistema hoje | Δ | Após ajustes | Ajustes |
+|---|---|---|---|---|---|---|
+| **Itaú CMPORT** | 1 | 9.668,76 | 9.668,76 | **0,00 ✅** | 9.668,76 | nenhum |
+| **Inter CMPORT** | 2 | 38.765,82 | 36.122,00 | 2.643,82 | 38.765,82 | 3 (1 banco + 2 lançar) |
+| **Inter TEC** | 4 | 25.825,87 | 25.705,87 | 120,00 | 25.825,87 | 2 (banco) |
+| **TOTAL (3 contas)** | — | **74.260,45** | **71.496,63** | **2.763,82** | **74.260,45 ✅** | 5 |
+
+Δ total = as 3 entradas que faltam (1.346,39 + 826,97 + 590,46). Os recibos 61/62
+(R$ 120) só trocam de CNPJ (CMPORT→TEC), não mexem no total geral.
+
+**Por CNPJ:** CMPORT (Itaú+Inter CMPORT) 48.434,58 ext × 45.790,76 sis → 48.434,58 após ·
+TEC 25.825,87 ext × 25.705,87 sis → 25.825,87 após.
+
+**Transferências recebidas** (Passo 3, não entram no faturamento): extrato marca
+R$ 27.859,65 · sistema R$ 32.579,03 · Δ −4.719,34 = as transferências que saem do Itaú e o
+extrato da Inter rotula como "Pix recebido CMPORT" (2.150,17 na Inter CMPORT + 2.569,17 na
+Inter TEC). Somando esse valor ao lado do extrato, os 2 lados fecham.
 
 ### Inter CMPORT (banco 2) — 3 ajustes
 | # | Data | Valor | Tipo | Item | Ação |
