@@ -9,30 +9,39 @@ Casa por valor (±R$0,02) e data (±7 dias). Transferências internas (`mov` com
 `banco_origem_id`, e linhas de extrato "Pix recebido CMPORT" que casam com elas)
 são separadas e vão pro Passo 3.
 
-## Resultado — 4 ajustes fecham os 3 CNPJs a 100% (entradas)
+## Resultado — 3 CNPJs conciliados 100% (entradas). 4 ajustes APLICADOS 03/09.
 
 _Revisado 03/09 após conferir na planilha mestre (`FLUXO FINANCEIRO CMPORT TEC - 2026.xlsx`,
 aba "Entradas e SAIDAS - 2026") e reconsultar produção._
 
-| Conta | banco_id | Extrato¹ | Sistema hoje | Δ | Após ajustes | Ajustes |
-|---|---|---|---|---|---|---|
-| **Itaú CMPORT** | 1 | 9.668,76 | 9.668,76 | **0,00 ✅** | 9.668,76 | nenhum |
-| **Inter CMPORT** | 2 | 37.938,85 | 36.002,00 | 1.936,85 | 37.938,85 | 2 (1 banco + 1 baixa) |
-| **Inter TEC** | 4 | 25.825,87 | 25.825,87 | **0,00 ✅** | 25.825,87 | 2 (banco) — **APLICADO 03/09** |
-| **TOTAL (3 contas)** | — | **73.433,48** | **71.496,63** | **1.936,85** | **73.433,48 ✅** | 4 |
+| Conta | banco_id | Extrato¹ | Sistema | Δ | Status |
+|---|---|---|---|---|---|
+| **Itaú CMPORT** | 1 | 9.668,76 | 9.668,76 | **0,00** | ✅ conciliado |
+| **Inter CMPORT** | 2 | 37.938,85 | 37.938,85 | **0,00** | ✅ conciliado (61 bate 1:1) |
+| **Inter TEC** | 4 | 25.825,87 | 25.825,87 | **0,00** | ✅ conciliado (44 bate 1:1) |
+| **TOTAL (3 contas)** | — | **73.433,48** | **73.433,48** | **0,00 ✅** | — |
 
-**03/09 — APLICADO em produção:** `recibo 61` e `recibo 62` → `banco_id` 2→4 (Inter TEC).
-Script `aplicar_ajuste_banco_passo2.py`, backup `backup_producao_pre_ajuste_banco_passo2_20260903_1057.sql`
-(recibos+boletos). **Inter TEC fechou 100%** (Δ 0,00, 44 bate 1:1). Faltam só os 2 da Inter CMPORT.
+**03/09 — APLICADO em produção (via SSH, com backup):**
+- `recibo 61` + `recibo 62` → `banco_id` 2→4 (Inter TEC). Script `aplicar_ajuste_banco_passo2.py`.
+- `boleto 284` (Olivais) → `banco_id` 2 (mesmo script, `--com-boleto-284`).
+- `boleto 1152` (Fortezza NF 7895) → baixa: PAGO / 31-08 / banco 2 / forma PIX + `boleto_pagamentos`
+  + `notas_fiscais.data_pagamento` + `corpos_nota 262` PAGO + `ciclos_nota 191` CONCLUIDO.
+  Script `aplicar_baixa_fortezza_passo2.py`. Backups `backup_producao_pre_ajuste_banco_passo2_*`
+  e `backup_producao_pre_baixa_fortezza_20260903_1113.sql`.
+
+**Pendências operacionais (não afetam o fechamento):**
+- Boleto do Fortezza (cobrança `a9c2aeb2` no Inter) segue "em aberto" no app do Inter —
+  **Atila decidiu deixar como está**. Cuidado: rodar `sincronizar_do_inter` (sync por intervalo
+  de datas) para agosto poderia rebaixar o `boleto 1152` para VENCIDO/CANCELADO. O sync
+  automático (`sincronizar_status` → `get_pendentes`) NÃO pega, pois já está PAGO.
+- `boleto 1465` (NF 7883 cancelada) segue solto — [[project_bug_delete_corpo_nota_orfao_20260902]].
+- QUISI R$ 826,97 (11/08): devolução de pagamento, não é entrada. Único item que ainda
+  aparece "sem par" no extrato Inter CMPORT (par −826,97/+826,97 que se anula).
 
 ¹ Extrato Inter CMPORT **exclui** o crédito de R$ 826,97 (11/08) — é devolução de pagamento,
 não recebimento (ver QUISI abaixo). Bruto seria 38.765,82.
 
-Δ total = boleto 284 (1.346,39) + Fortezza (590,46). Os recibos 61/62 (R$ 120) só trocam de
-CNPJ (CMPORT→TEC), não mexem no total geral.
-
-**Por CNPJ:** CMPORT (Itaú+Inter CMPORT) 47.607,61 ext × 45.790,76 sis → 47.607,61 após ·
-TEC 25.825,87 ext × 25.705,87 sis → 25.825,87 após.
+**Por CNPJ:** CMPORT (Itaú+Inter CMPORT) 47.607,61 · TEC 25.825,87 — ambos batendo ext × sis.
 
 ### QUISI R$ 826,97 (11/08) — NÃO é entrada. Já esclarecido.
 
@@ -45,15 +54,15 @@ banco devolveu, ela refez por Pix.
 - Par −826,97/+826,97 do dia 11 se anula. Lançar só se quiser o extrato 100% linha a linha.
 - **Sai da lista de pendências de entrada.**
 
-### Inter CMPORT (banco 2) — 2 ajustes
-| # | Data | Valor | Tipo | Item | Ação |
+### Inter CMPORT (banco 2) — 2 ajustes ✅ APLICADOS
+| # | Data | Valor | Tipo | Item | Ação (feita) |
 |---|---|---|---|---|---|
-| 1 | 28/08 | R$ 1.346,39 | ajuste banco | `boleto id=284` — Cond. Ed. Olivais, NF 117-2, parcela **4/10**. Situação PAGO, `valor_total_recebido` 1.346,39, `forma_pagamento` BOLETO_INTER, `codigo_solicitacao` preenchido, `atualizado_em` 29/08 09:00 = **baixa automática via API Inter** (não foi o cliente). `banco_id` NULL; parcelas 1–3 (281–283) têm `banco_id=2`. Extrato: 28/08 +1.346,39 `Boleto de cobranca recebido 112/90716547560`. | `UPDATE boletos SET banco_id=2 WHERE id=284` |
-| 2 | 31/08 | R$ 590,46 | dar baixa | Cond. **742** (Assoc. Moradores Conj Res Fortezza Di Ferrara). Extrato: 31/08 +590,46 **`Pix recebido`** (não "Boleto de cobrança recebido") — pago por Pix na chave da empresa, **não pelo boleto**. Manutenção mensal (série julho = NF 7842). **NF 7895** (id 1413, AUTORIZADA) é a de agosto — `boleto id=1152` R$ 590,46 EMABERTO, `codigo_solicitacao=a9c2aeb2-180c-4aa6-aa10-d69357fe02a4` (registrado no Inter). **NF 7883** (id 1387) CANCELADA, `boleto id=1465` sem `codigo_solicitacao` (nunca foi ao Inter). | (a) baixa manual do `boleto 1152`: PAGO, data 31/08, `banco_id=2`, `forma_pagamento=PIX`. (b) `inter_client.cancelar_boleto('a9c2aeb2-…')` — senão fica "a receber" no Inter e risco de pagamento duplo. (c) soft-delete `boleto 1465`. NÃO está na planilha mestre. |
+| 1 | 28/08 | R$ 1.346,39 | ajuste banco | `boleto id=284` — Cond. Ed. Olivais, NF 117-2, parcela **4/10**. Situação PAGO, `valor_total_recebido` 1.346,39, `forma_pagamento` BOLETO_INTER, `codigo_solicitacao` preenchido, `atualizado_em` 29/08 09:00 = **baixa automática via API Inter** (não foi o cliente). `banco_id` era NULL; parcelas 1–3 (281–283) têm `banco_id=2`. Extrato: 28/08 +1.346,39 `Boleto de cobranca recebido 112/90716547560`. | ✅ `UPDATE boletos SET banco_id=2 WHERE id=284` |
+| 2 | 31/08 | R$ 590,46 | baixa | Cond. **742** (Assoc. Moradores Conj Res Fortezza Di Ferrara). Extrato: 31/08 +590,46 **`Pix recebido`** (não "Boleto de cobrança recebido") — pago por Pix na chave da empresa, **não pelo boleto**. Manutenção mensal **JULHO/2026** (corpo 262 `mes_referencia=07/2026`), vencida 20/08. **NF 7895** (id 1413) — `boleto id=1152`. **NF 7883** (id 1387) CANCELADA, `boleto id=1465` sem `codigo_solicitacao` (nunca foi ao Inter). | ✅ `aplicar_baixa_fortezza_passo2.py`: `boleto 1152` PAGO/31-08/banco 2/PIX + `boleto_pagamentos id=20` + `notas_fiscais 1413.data_pagamento` + `corpos_nota 262` PAGO + `ciclos_nota 191` CONCLUIDO. Boleto no Inter (`a9c2aeb2`) **deixado em aberto** (decisão do Atila). `boleto 1465` limpar à parte. |
 
-**Por que o Inter não deu baixa sozinho:** `boleto_service.sincronizar_status/_do_inter` só marca PAGO quando a **cobrança** no Inter volta `RECEBIDO`/`MARCADO_RECEBIDO`. O cliente mandou Pix avulso pra chave da empresa (CNPJ), não pagou o boleto → a cobrança `a9c2aeb2` fica `A_RECEBER` pra sempre. O `inter_client.py` só tem endpoints de cobrança (`consultar_boleto`, `cancelar_boleto`, `listar_cobrancas`, `baixar_pdf`) — **não lê o extrato/Pix recebidos** (`GET /banking/v2/pix`). Melhoria possível: ler Pix recebidos do Inter e casar com boleto em aberto (conecta com o card "Entradas por banco").
+**Por que o Inter não deu baixa sozinho:** `boleto_service.sincronizar_status/_do_inter` só marca PAGO quando a **cobrança** no Inter volta `RECEBIDO`/`MARCADO_RECEBIDO`. O cliente mandou Pix avulso pra chave da empresa (CNPJ), não pagou o boleto → a cobrança `a9c2aeb2` fica `A_RECEBER`. O sync **automático** (`sincronizar_status` → `get_pendentes`) não pega `boleto 1152` (já PAGO). O sync **manual por intervalo** (`sincronizar_do_inter`) NÃO tem guarda pra PAGO — rodar pra agosto poderia rebaixar. `inter_client.py` só tem endpoints de cobrança, **não lê Pix recebidos** (`GET /banking/v2/pix`) — melhoria possível pro card "Entradas por banco".
 
-Depois: `36.002,00 + 1.346,39 + 590,46 = 37.938,85` = extrato ✅
+Depois: `36.002,00 + 1.346,39 + 590,46 = 37.938,85` = extrato ✅ (61 bate 1:1)
 
 ### Inter TEC (banco 4) — FECHADO 100% (03/09)
 | # | Data | Valor | Tipo | Item | Status |
@@ -77,13 +86,12 @@ Depois: sistema 25.825,87 = extrato 25.825,87 · **Δ 0,00 · 44 bate 1:1**.
 |---|---|---|
 | `boleto id=284` | PAGO por boleto Inter, baixa automática 29/08 09:00 (`forma_pagamento` BOLETO_INTER, `codigo_solicitacao` ok). Não foi baixa manual do cliente. `banco_id` NULL. | ajuste de banco — `banco_id=2` |
 | QUISI R$ 826,97 | Extrato: 11/08 −826,97 → 11/08 +826,97 devolução → 12/08 −826,97 Pix. Despesa já lançada: `fin_movimentacoes id=1251`. Atila: cliente pagou a contabilidade, banco estornou, refez. | **não é entrada** — tirado da lista |
-| Fortezza R$ 590,46 | Cond. 742. **Nota+boleto de agosto existem** mas EMABERTO. **2 notas:** 7895 (boleto 1152, criado 04/08) e 7883 (boleto 1465, criado 18/08), ambas R$ 590,46. Provável duplicata. Não está na planilha mestre (Fortezza não aparece lá em 2026). Os 2 créditos de R$ 590,45 de 10/08 no extrato são Cube Vila Ipojuca / Green Gold (boletos 1116/1117), não Fortezza. | dar baixa (1 boleto) + cancelar duplicata — cliente confirma qual nota |
+| Fortezza R$ 590,46 | Cond. 742. Manutenção **JULHO/2026** (corpo 262 `mes_referencia=07/2026`, venc 20/08). **NF 7895** (boleto 1152) AUTORIZADA = a certa. **NF 7883** (boleto 1465) CANCELADA (deleted corpo 236) = pendência solta. Pago por Pix avulso (não boleto). Não está na planilha mestre. Os 2 créditos de R$ 590,45 de 10/08 no extrato são Cube Vila Ipojuca / Green Gold (boletos 1116/1117), não Fortezza. | baixa manual do boleto 1152 (forma PIX) |
 | `recibo id=61` (R$ 70) | `banco_id`=2, PAGO. **Na planilha** aba "Entradas e SAIDAS" r425, seção Assistências Agosto (TEC), marcado `*`. Extrato Inter TEC 04/08 bate. | ajuste de banco — `banco_id=4` |
 | `recibo id=62` (R$ 50) | `banco_id`=2, PAGO. **Na planilha** r426, mesma seção, marcado `*`. Extrato Inter TEC 06/08 bate. | ajuste de banco — `banco_id=4` |
 
-**Status 03/09:** recibos 61/62 → `banco_id=4` **APLICADO** (Inter TEC fechou 100%).
-Faltam 2 na Inter CMPORT: boleto 284 (`banco_id=2`) e Fortezza (baixa boleto 1152 + cancelar
-cobrança no Inter). QUISI não conta.
+**Status 03/09 — TODOS OS 4 AJUSTES APLICADOS em produção via SSH (com backup).**
+As 3 contas fecham 100% nos recebimentos de clientes. Pendências operacionais no topo do doc.
 
 ## Transferências entre contas (Passo 3 — não são entradas)
 

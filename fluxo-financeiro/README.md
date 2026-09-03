@@ -17,8 +17,10 @@ do módulo Fluxo Financeiro. Organizado por assunto. Atualizado 02/09/2026.
 | `PLANO_RECONCILIACAO_EXTRATOS_AGOSTO.md` | Plano em 5 passos. Passos 1–2 feitos |
 | `ler_extratos_agosto.py` | Passo 1 — parser único dos 3 extratos → `extratos_agosto_normalizado.json` |
 | `comparar_extratos_agosto.py` | Passo 2 — cruza entradas sistema × extrato por conta (SSH read-only) |
-| `RESULTADO_PASSO2_EXTRATOS_AGOSTO.md` | Resultado do Passo 2: 5 ajustes fecham os 3 CNPJs a 100% (entradas) |
-| `RECONCILIACAO_AGOSTO_CLIENTE.html` | Versão cliente do Passo 2 (Artifact) — o que falta ajustar por conta + entrada×transferência |
+| `RESULTADO_PASSO2_EXTRATOS_AGOSTO.md` | Resultado do Passo 2: 3 CNPJs conciliados 100% (entradas), 4 ajustes aplicados 03/09 |
+| `RECONCILIACAO_AGOSTO_CLIENTE.html` | Versão cliente do Passo 2 (Artifact) — conciliação por conta + entrada×transferência |
+| `aplicar_ajuste_banco_passo2.py` | Ajuste `banco_id` recibos 61/62 + boleto 284 (dry-run→backup→--aplicar) — APLICADO |
+| `aplicar_baixa_fortezza_passo2.py` | Baixa boleto 1152 (Fortezza NF 7895, Pix avulso) + corpo/ciclo — APLICADO |
 | `comparar_extrato_tec_agosto.py` | (anterior) Extrato Inter TEC × entradas TEC. Substituído pelo `comparar_extratos_agosto.py` |
 
 ### Folha de pagamento — Fase D2 (migração jan–jul) — _sessão `011C7k6iJC2MiR3MVwYikDAA`_

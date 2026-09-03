@@ -305,23 +305,22 @@
 
   <p class="lede">
     Cruzamos cada <strong>entrada</strong> registrada no sistema com o extrato de cada conta,
-    conferindo também na <strong>planilha do fluxo</strong>. O objetivo é chegar a
-    <strong>100% de correspondência</strong>. <strong>Itaú e Inter TEC já fecham 100%</strong>
-    (os 2 recibos da Jussara foram corrigidos em 03/09). Falta a <strong>Inter CMPORT</strong>,
-    com <strong>2 ajustes</strong>. As <strong>transferências entre contas</strong> são tratadas
-    à parte, porque não são faturamento.
+    conferindo também na <strong>planilha do fluxo</strong>. <strong>As 3 contas fecham 100%</strong>
+    nos recebimentos de clientes de agosto — os 4 ajustes identificados foram aplicados em 03/09.
+    Fica só 1 pendência operacional (cancelar o boleto do Fortezza no app do Inter) e as
+    <strong>transferências entre contas</strong>, tratadas à parte porque não são faturamento.
   </p>
 
   <section class="summary" aria-label="Resumo por conta">
     <div class="tile is-ok">
       <span class="acct">Itaú CMPORT</span>
       <span class="delta num">R$ 0,00</span>
-      <span class="state"><span class="dot ok"></span>Conciliado &middot; nada a fazer</span>
+      <span class="state"><span class="dot ok"></span>Conciliado 100%</span>
     </div>
-    <div class="tile is-pending">
+    <div class="tile is-ok">
       <span class="acct">Inter CMPORT</span>
-      <span class="delta num">R$ 1.936,85</span>
-      <span class="state"><span class="dot pending"></span>2 ajustes pendentes</span>
+      <span class="delta num">R$ 0,00</span>
+      <span class="state"><span class="dot ok"></span>Conciliado &middot; 2 ajustes feitos 03/09</span>
     </div>
     <div class="tile is-ok">
       <span class="acct">Inter TEC</span>
@@ -354,8 +353,8 @@
           <tr>
             <td>Inter CMPORT</td>
             <td class="r">37.938,85</td>
-            <td class="r">36.002,00</td>
-            <td class="r gap">1.936,85</td>
+            <td class="r">37.938,85</td>
+            <td class="r zero">0,00</td>
             <td class="r">37.938,85</td>
           </tr>
           <tr>
@@ -370,30 +369,28 @@
           <tr>
             <td>Total (3 contas)</td>
             <td class="r">73.433,48</td>
-            <td class="r">71.496,63</td>
-            <td class="r gap">1.936,85</td>
+            <td class="r">73.433,48</td>
+            <td class="r zero">0,00</td>
             <td class="r ok">73.433,48</td>
           </tr>
         </tfoot>
       </table>
     </div>
     <p class="totals-note">
-      A diferença total de <strong>R$&nbsp;1.936,85</strong> — toda na Inter CMPORT — é
-      <strong>só</strong> 2 itens: o boleto do Olivais R$&nbsp;1.346,39 (pago, mas sem conta
-      marcada) + a mensalidade Fortezza R$&nbsp;590,46 (paga por Pix, boleto ainda em aberto no
-      sistema). Os 2 recibos da Jussara (R$&nbsp;120,00) já foram movidos para a Inter TEC em
-      03/09 — por isso a Inter TEC agora fecha 100%.
+      <strong>Sistema e extrato batem nas 3 contas.</strong> Os 4 ajustes foram aplicados na
+      base em 03/09: boleto do Olivais R$&nbsp;1.346,39 (marcada a conta), mensalidade Fortezza
+      R$&nbsp;590,46 (baixa registrada), e os 2 recibos da Jussara R$&nbsp;120,00 (movidos para a
+      Inter TEC).
     </p>
     <p class="totals-note">
       O extrato da Inter CMPORT tem ainda um crédito de <strong>R$&nbsp;826,97</strong> em 11/08
       que <strong>não é recebimento de cliente</strong> — é a devolução de um pagamento à
-      contabilidade (QUISI) que o banco estornou e foi refeito por Pix em 12/08. Está fora
+      contabilidade (QUISI) que o banco estornou e foi refeito por Pix em 12/08. Fica fora
       da tabela acima; a despesa correspondente já está lançada no sistema.
     </p>
     <p class="totals-note">
-      <strong>Por CNPJ:</strong> CMPORT (Itaú + Inter CMPORT) R$&nbsp;47.607,61 no extrato &times;
-      R$&nbsp;45.670,76 no sistema &rarr; fecha em R$&nbsp;47.607,61 após os 2 ajustes.
-      TEC (Inter TEC) R$&nbsp;25.825,87 &times; R$&nbsp;25.825,87 &rarr; <strong>já fechado</strong>.
+      <strong>Por CNPJ:</strong> CMPORT (Itaú + Inter CMPORT) R$&nbsp;47.607,61 &middot;
+      TEC (Inter TEC) R$&nbsp;25.825,87 — ambos batendo extrato &times; sistema.
     </p>
   </section>
 
@@ -453,64 +450,56 @@
     <div class="acct-head">
       <h2>Inter CMPORT</h2>
       <span class="cc">conta 308310110</span>
-      <span class="chip entrada">2 ajustes</span>
+      <span class="chip ok">Conciliado 100%</span>
     </div>
-    <p class="acct-status"><span class="dot pending"></span>59 recebimentos já batem 1&nbsp;a&nbsp;1. Faltam 2 ajustes para fechar R$&nbsp;1.936,85.</p>
+    <p class="acct-status"><span class="dot ok"></span>61 recebimentos batem 1&nbsp;a&nbsp;1. Sistema e extrato iguais: R$&nbsp;37.938,85.</p>
 
     <div class="ruler">
-      <div class="ruler-track" role="img" aria-label="Sistema cobre 95% do extrato; faltam 5%">
-        <div class="ruler-fill" style="width:94.9%"></div>
-        <div class="ruler-gap" style="width:5.1%"></div>
+      <div class="ruler-track" role="img" aria-label="Sistema cobre 100% do extrato">
+        <div class="ruler-fill full" style="width:100%"></div>
       </div>
       <div class="ruler-legend">
-        <span class="k"><span class="swatch fill"></span>Sistema hoje <b>R$ 36.002,00</b></span>
-        <span class="k"><span class="swatch gap"></span>Falta <b>R$ 1.936,85</b></span>
+        <span class="k"><span class="swatch fill full"></span>Sistema <b>R$ 37.938,85</b></span>
         <span class="k">Extrato <b>R$ 37.938,85</b></span>
+        <span class="k">Diferença <b>R$ 0,00</b></span>
       </div>
     </div>
 
     <div class="adj-wrap">
     <table class="adj">
-      <caption>Ajustes para conciliar</caption>
+      <caption>Ajustes aplicados em 03/09</caption>
       <thead>
-        <tr><th>Data</th><th class="r">Valor</th><th>Tipo</th><th>O que é / o que fazer</th></tr>
+        <tr><th>Data</th><th class="r">Valor</th><th>Tipo</th><th>O que era / o que foi feito</th></tr>
       </thead>
       <tbody>
         <tr>
           <td class="date">28/08</td>
           <td class="val r">1.346,39</td>
-          <td><span class="chip banco">Ajuste de banco</span></td>
+          <td><span class="chip ok">Feito</span></td>
           <td class="what">
             <span class="h">Boleto do Cond. Ed. Olivais — NF 117-2, parcela 4 de 10</span>
-            Pago via boleto Inter e <strong>baixado automaticamente</strong> pelo sistema em 29/08.
-            As parcelas 1, 2 e 3 estão na conta Inter CMPORT; a parcela 4 ficou sem conta.
-            <strong>Marcar a conta = Inter CMPORT.</strong> Não altera o total do mês.
+            Já estava pago (baixa automática do Inter em 29/08), só sem a conta marcada — as
+            parcelas 1 a 3 estão na Inter CMPORT. <strong>Conta preenchida = Inter CMPORT.</strong>
+            O total do mês não mudou.
           </td>
         </tr>
         <tr>
           <td class="date">31/08</td>
           <td class="val r">590,46</td>
-          <td><span class="chip entrada">Dar baixa</span></td>
+          <td><span class="chip ok">Feito</span></td>
           <td class="what">
-            <span class="h">Pix — Conjunto Residencial Fortezza (manutenção mensal de agosto)</span>
-            A nota de agosto <strong>existe e está autorizada</strong> (nº 7895, mesma da série
-            de julho), com boleto de R$&nbsp;590,46 <strong>em aberto</strong>. O condomínio
-            pagou por <strong>Pix na chave da empresa</strong> (não pelo boleto), então o Inter
-            não deu baixa sozinho. Passos: <strong>1)</strong> baixar o boleto no sistema
-            (Inter CMPORT, 31/08, forma&nbsp;=&nbsp;Pix); <strong>2)</strong> cancelar a cobrança
-            desse boleto no Inter, para não ficar “a receber” nem correr risco de pagarem duas vezes.
-            <br>Obs.: a nota anterior (nº 7883) foi <strong>cancelada</strong> e deixou um boleto
-            solto — nunca foi enviado ao Inter, é só limpeza no sistema.
+            <span class="h">Pix — Conjunto Residencial Fortezza (manutenção mensal, nota nº 7895)</span>
+            O condomínio pagou por <strong>Pix na chave da empresa</strong> (não pelo boleto),
+            então o Inter não deu baixa sozinho. <strong>Baixa registrada no sistema</strong>
+            (Inter CMPORT, 31/08, forma = Pix); a nota ficou marcada como paga.
+            <br>Obs.: o boleto dessa nota continua “em aberto” no app do Inter — foi decidido
+            <strong>deixar como está</strong>. A nota anterior (nº 7883) foi cancelada e deixou
+            um boleto solto no sistema, que será limpo à parte.
           </td>
         </tr>
       </tbody>
     </table>
     </div>
-
-    <p class="after">
-      Depois dos 2 ajustes: <b>36.002,00 + 1.346,39 + 590,46</b>
-      = <b>R$ 37.938,85</b> <span class="ok">= extrato ✓</span>
-    </p>
 
     <div class="callout">
       <span class="tag">Esclarecido — não é recebimento de cliente</span>
@@ -604,7 +593,7 @@
 
   <footer>
     <span>Atualizado em 03/09/2026 · conferido na base de produção e na planilha do fluxo</span>
-    <span>Aplicado: correção de conta dos 2 recibos da Jussara (backup feito). Demais itens pendentes.</span>
+    <span>Aplicado em 03/09 (com backup): boleto Olivais (conta), baixa Fortezza, recibos Jussara → Inter TEC</span>
     <span>CMPORT · Fluxo Financeiro</span>
   </footer>
 
