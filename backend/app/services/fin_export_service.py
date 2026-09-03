@@ -81,92 +81,91 @@ class FinExportService:
         wb.remove(wb.active)
 
         # ── coletas ─────────────────────────────────────────────────────────
-        resumo_rows = []          # (mes, cnpj, empresa, ...campos)
+        resumo_rows = []
         entradas_rows = []
         saidas_rows = []
         transf_rows = []
         cat_mes: dict[str, dict] = {}   # categoria -> {(a,m): total}
 
         for a, m in meses:
+            rot = rotulo_mes[(a, m)]
             dash = FinDashboardService.por_banco(db, a, m)
-            # agrega o dashboard por-banco em CNPJ
-            por_cnpj: dict[str, dict] = {}
+            # saldo inicial / extrato por CNPJ (do dashboard por-banco)
+            base: dict[str, dict] = {}
             for l in dash.bancos:
                 if l.banco_id is None:
                     continue
                 emp = l.empresa or "?"
-                key = emp
-                d = por_cnpj.setdefault(key, {
-                    "saldo_inicial": 0.0, "ent_boleto": 0.0, "ent_recibo": 0.0, "ent_avulso": 0.0,
-                    "transf_rec": 0.0, "transf_env": 0.0, "rendimento": 0.0,
-                    "s_forn": 0.0, "s_desp": 0.0, "s_func": 0.0, "s_tar": 0.0,
-                    "saldo_extrato": 0.0, "tem_extrato": False,
-                })
+                d = base.setdefault(emp, {"saldo_inicial": 0.0, "saldo_extrato": 0.0,
+                                          "tem_extrato": False, "rendimento": 0.0})
                 d["saldo_inicial"] += _f(l.saldo_inicial)
-                d["ent_boleto"] += _f(l.entradas.boleto)
-                d["ent_recibo"] += _f(l.entradas.recibo)
-                d["ent_avulso"] += _f(l.entradas.avulso)
-                d["transf_rec"] += _f(l.transf_recebidas)
-                d["transf_env"] += _f(l.transf_enviadas)
                 d["rendimento"] += _f(l.rendimento)
-                d["s_forn"] += _f(l.saidas.fornecedor)
-                d["s_desp"] += _f(l.saidas.despesa)
-                d["s_func"] += _f(l.saidas.funcionario)
-                d["s_tar"] += _f(l.saidas.tarifa)
                 if l.saldo_extrato is not None:
                     d["saldo_extrato"] += _f(l.saldo_extrato)
                     d["tem_extrato"] = True
 
-            for emp, d in sorted(por_cnpj.items()):
-                if cnpj_limpo and EMPRESA_POR_CNPJ.get(cnpj_limpo) != emp:
-                    continue
-                ent_tot = round(d["ent_boleto"] + d["ent_recibo"] + d["ent_avulso"], 2)
-                sai_tot = round(d["s_forn"] + d["s_desp"] + d["s_func"] + d["s_tar"], 2)
-                saldo_mes = round(d["saldo_inicial"] + ent_tot + d["rendimento"]
-                                  + d["transf_rec"] - d["transf_env"] - sai_tot, 2)
-                resumo_rows.append({
-                    "mes": rotulo_mes[(a, m)], "empresa": emp,
-                    "saldo_inicial": d["saldo_inicial"],
-                    "ent_boleto": d["ent_boleto"], "ent_recibo": d["ent_recibo"], "ent_avulso": d["ent_avulso"],
-                    "ent_tot": ent_tot,
-                    "transf_rec": d["transf_rec"], "transf_env": d["transf_env"], "rendimento": d["rendimento"],
-                    "s_forn": d["s_forn"], "s_desp": d["s_desp"], "s_func": d["s_func"], "s_tar": d["s_tar"],
-                    "sai_tot": sai_tot,
-                    "saldo_mes": saldo_mes,
-                    "saldo_extrato": d["saldo_extrato"] if d["tem_extrato"] else None,
-                })
-
-            # entradas linha a linha
+            # entradas por CNPJ (do fluxo_mensal — totais já quebrados por tipo)
+            ent_por_emp: dict[str, dict] = {}
             fx = FluxoFinanceiroService.fluxo_mensal(db, a, m, cnpj)
             for c in fx.cnpjs:
                 emp = EMPRESA_POR_CNPJ.get(_sd(c.cnpj), c.cnpj)
+                e = ent_por_emp.setdefault(emp, {"boleto": 0.0, "recibo": 0.0})
+                e["boleto"] += _f(c.total_manutencao) + _f(c.total_assistencia) + _f(c.total_produto)
+                e["recibo"] += _f(c.total_recibos)
                 for ln in c.linhas:
                     entradas_rows.append([
-                        rotulo_mes[(a, m)], emp, ln.condominio_nome, ln.tipo,
-                        ln.numero_nota or "", ln.origem,
+                        rot, emp, ln.condominio_nome, ln.tipo, ln.numero_nota or "", ln.origem,
                         ln.data_pagamento.strftime("%d/%m/%Y") if ln.data_pagamento else "",
-                        ln.valor, ln.banco_nome or "",
-                        "cross-CNPJ" if ln.cross_cnpj else "",
+                        ln.valor, ln.banco_nome or "", "cross-CNPJ" if ln.cross_cnpj else "",
                     ])
                     chave = f"Entrada — {ln.tipo.capitalize()}"
                     cat_mes.setdefault(chave, {})
                     cat_mes[chave][(a, m)] = round(cat_mes[chave].get((a, m), 0.0) + _f(ln.valor), 2)
 
-            # saidas linha a linha (fin_movimentacoes SAIDA — razao reconciliado)
-            FinExportService._coletar_saidas(db, a, m, rotulo_mes[(a, m)], cnpj_limpo, saidas_rows, cat_mes)
-            # transferencias
-            FinExportService._coletar_transf(db, a, m, rotulo_mes[(a, m)], cnpj_limpo, transf_rows, cat_mes)
+            # saídas por CNPJ+grupo (direto dos lançamentos — pega folha sem banco)
+            sai_por_emp: dict[str, dict] = {}
+            FinExportService._coletar_saidas(db, a, m, rot, cnpj_limpo, saidas_rows, cat_mes, sai_por_emp)
+            # transferências por CNPJ (recebida/enviada)
+            transf_por_emp: dict[str, dict] = {}
+            FinExportService._coletar_transf(db, a, m, rot, cnpj_limpo, transf_rows, cat_mes, transf_por_emp)
+
+            empresas = set(base) | set(ent_por_emp) | set(sai_por_emp) | set(transf_por_emp)
+            for emp in sorted(e for e in empresas if e in ("CMPORT", "TEC")):
+                if cnpj_limpo and EMPRESA_POR_CNPJ.get(cnpj_limpo) != emp:
+                    continue
+                b = base.get(emp, {})
+                e = ent_por_emp.get(emp, {})
+                s = sai_por_emp.get(emp, {})
+                t = transf_por_emp.get(emp, {})
+                ent_boleto, ent_recibo = round(e.get("boleto", 0.0), 2), round(e.get("recibo", 0.0), 2)
+                s_forn = round(s.get("forn", 0.0), 2); s_desp = round(s.get("desp", 0.0), 2)
+                s_func = round(s.get("func", 0.0), 2); s_tar = round(s.get("tar", 0.0), 2)
+                rendimento = round(b.get("rendimento", 0.0), 2)
+                transf_rec = round(t.get("rec", 0.0), 2); transf_env = round(t.get("env", 0.0), 2)
+                saldo_ini = round(b.get("saldo_inicial", 0.0), 2)
+                ent_tot = round(ent_boleto + ent_recibo, 2)
+                sai_tot = round(s_forn + s_desp + s_func + s_tar, 2)
+                saldo_mes = round(saldo_ini + ent_tot + rendimento + transf_rec - transf_env - sai_tot, 2)
+                resumo_rows.append({
+                    "mes": rot, "empresa": emp, "saldo_inicial": saldo_ini,
+                    "ent_boleto": ent_boleto, "ent_recibo": ent_recibo, "ent_avulso": 0.0,
+                    "ent_tot": ent_tot, "transf_rec": transf_rec, "transf_env": transf_env,
+                    "rendimento": rendimento,
+                    "s_forn": s_forn, "s_desp": s_desp, "s_func": s_func, "s_tar": s_tar,
+                    "sai_tot": sai_tot, "saldo_mes": saldo_mes,
+                    "saldo_extrato": round(b.get("saldo_extrato", 0.0), 2) if b.get("tem_extrato") else None,
+                })
 
         # ── aba Resumo ─────────────────────────────────────────────────────
         ws = wb.create_sheet("Resumo")
         _cab(ws, [
             "Mês", "Empresa", "Saldo inicial",
-            "Entradas — Boletos", "Entradas — Recibos", "Entradas — Avulsos", "Entradas (total)",
+            "Entradas — Boletos/Notas", "Entradas — Recibos", "Entradas (total)",
             "Transf. recebidas", "Transf. enviadas", "Rendimento",
             "Saídas — Fornecedores", "Saídas — Despesas", "Saídas — Funcionário", "Saídas — Tarifas/IR",
             "Saídas (total)", "Saldo do mês", "Saldo do extrato",
         ])
-        campos = ["saldo_inicial", "ent_boleto", "ent_recibo", "ent_avulso", "ent_tot",
+        campos = ["saldo_inicial", "ent_boleto", "ent_recibo", "ent_tot",
                   "transf_rec", "transf_env", "rendimento",
                   "s_forn", "s_desp", "s_func", "s_tar", "sai_tot", "saldo_mes"]
         for r in resumo_rows:
@@ -241,7 +240,7 @@ class FinExportService:
 
     # ──────────────────────────────────────────────────────────────────────
     @staticmethod
-    def _coletar_saidas(db, ano, mes, rot, cnpj_limpo, saidas_rows, cat_mes):
+    def _coletar_saidas(db, ano, mes, rot, cnpj_limpo, saidas_rows, cat_mes, por_emp=None):
         dp = aliased(DespesaParcela)
         d = aliased(Despesa)
         fn = aliased(Funcionario)
@@ -270,17 +269,19 @@ class FinExportService:
             grupo = cat.grupo if cat else "?"
             nome_cat = cat.nome if cat else "-"
             nome_l = nome_cat.lower()
-            if grupo == GrupoCategoria.FORNECEDOR.value:
-                g_label = "Fornecedor"
-            elif grupo == GrupoCategoria.FUNCIONARIO.value:
-                g_label = "Funcionário"
+            # funcionario_id na despesa manda mais que o grupo da categoria da mov
+            # (a folha migrada às vezes tem a categoria certa na despesa mas não na mov)
+            if func_ is not None or grupo == GrupoCategoria.FUNCIONARIO.value:
+                g_label, bucket = "Funcionário", "func"
+            elif grupo == GrupoCategoria.FORNECEDOR.value or forn is not None:
+                g_label, bucket = "Fornecedor", "forn"
             elif any(t in nome_l for t in _TERMOS_TARIFA):
-                g_label = "Tarifa/IR"
+                g_label, bucket = "Tarifa/IR", "tar"
             else:
-                g_label = "Despesa"
+                g_label, bucket = "Despesa", "desp"
+            emp = EMPRESA_POR_CNPJ.get(cnpj_mov, cnpj_mov or "?")
             saidas_rows.append([
-                rot, EMPRESA_POR_CNPJ.get(cnpj_mov, cnpj_mov or "?"), g_label, nome_cat,
-                (mov.descricao or "")[:120],
+                rot, emp, g_label, nome_cat, (mov.descricao or "")[:120],
                 (func_.nome if func_ else (forn.nome if forn else "")),
                 mov.data.strftime("%d/%m/%Y") if mov.data else "",
                 _f(mov.valor), banco.nome if banco else "", mov.forma_pagamento or "",
@@ -288,9 +289,12 @@ class FinExportService:
             chave = f"Saída — {nome_cat}"
             cat_mes.setdefault(chave, {})
             cat_mes[chave][(ano, mes)] = round(cat_mes[chave].get((ano, mes), 0.0) + _f(mov.valor), 2)
+            if por_emp is not None:
+                por_emp.setdefault(emp, {"forn": 0.0, "desp": 0.0, "func": 0.0, "tar": 0.0})
+                por_emp[emp][bucket] += _f(mov.valor)
 
     @staticmethod
-    def _coletar_transf(db, ano, mes, rot, cnpj_limpo, transf_rows, cat_mes):
+    def _coletar_transf(db, ano, mes, rot, cnpj_limpo, transf_rows, cat_mes, por_emp=None):
         bo = aliased(Banco)
         bd = aliased(Banco)
         c = aliased(CategoriaFinanceira)
@@ -308,9 +312,11 @@ class FinExportService:
             )
         )
         for mov, borig, bdest, cat in q.all():
+            emp_orig = EMPRESA_POR_CNPJ.get(_sd(borig.cnpj_titular)) if borig else None
+            emp_dest = EMPRESA_POR_CNPJ.get(_sd(bdest.cnpj_titular)) if bdest else None
             if cnpj_limpo:
-                cnpjs = {_sd(borig.cnpj_titular) if borig else "", _sd(bdest.cnpj_titular) if bdest else ""}
-                if cnpj_limpo not in cnpjs:
+                alvo = EMPRESA_POR_CNPJ.get(cnpj_limpo)
+                if alvo not in (emp_orig, emp_dest):
                     continue
             transf_rows.append([
                 rot, mov.data.strftime("%d/%m/%Y") if mov.data else "", _f(mov.valor),
@@ -321,6 +327,11 @@ class FinExportService:
             cat_mes.setdefault("Transferência interna", {})
             cat_mes["Transferência interna"][(ano, mes)] = round(
                 cat_mes["Transferência interna"].get((ano, mes), 0.0) + _f(mov.valor), 2)
+            if por_emp is not None:
+                if emp_dest:
+                    por_emp.setdefault(emp_dest, {"rec": 0.0, "env": 0.0})["rec"] += _f(mov.valor)
+                if emp_orig:
+                    por_emp.setdefault(emp_orig, {"rec": 0.0, "env": 0.0})["env"] += _f(mov.valor)
 
     @staticmethod
     def _pendencias_saida(db, ano, mes, rot, cnpj_limpo, ws):
