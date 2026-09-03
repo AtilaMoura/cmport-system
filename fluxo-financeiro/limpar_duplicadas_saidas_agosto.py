@@ -85,6 +85,21 @@ DUPLICADAS = [
     (1265, 5, 2044, "'Conta de Luz' R$439,23 19/08 — leftover da RECORRENTE 'Conta de Luz' (despesa 10, deletada 27/08); NAO esta em nenhum dos 5 extratos; conta de luz real de agosto = ENEL R$476,95 mov 2044"),
     (2109, 5, 2147, "Salario Andre R$4542,55 13/08 = dup de 2147 R$4543,55 (extrato Inter TEC 13/08 -4543,55 'Andre Moreira Rosa' = 2147 exato)"),
     (1744, 5, 1741, "DAS 07/2026 R$259,24 20/08 — despesa 452 ja deletada 31/08; NAO esta em nenhum dos 5 extratos (nao foi pago por banco); mov solta"),
+    # LOTE 6 — transferencias-saida duplicadas que o comparar_saidas casou por engano
+    #          com as linhas de transferencia do extrato. keeper = mov ENTRADA c/ banco_origem_id.
+    (2021, 6, 2073, "transf Inter CMPORT->Bradesco R$858 13/08 (espelho ENTRADA 2073)"),
+    (2022, 6, 2074, "transf Inter CMPORT->Bradesco R$321 14/08 (espelho ENTRADA 2074)"),
+    (2023, 6, 2156, "transf Inter CMPORT->BTG R$270 14/08 (espelho ENTRADA 2156)"),
+    (2035, 6, 2075, "transf Inter CMPORT->Bradesco R$600 26/08 (espelho ENTRADA 2075)"),
+    (2036, 6, 2002, "transf Inter CMPORT->Itau R$744,18 27/08 (espelho ENTRADA 2002)"),
+    (2104, 6, 2154, "transf Inter TEC->BTG R$1080 12/08 13o (espelho ENTRADA 2154)"),
+    (2110, 6, 2155, "transf Inter TEC->BTG R$769,09 14/08 imposto (espelho ENTRADA 2155)"),
+    (2111, 6, 2157, "transf Inter TEC->BTG R$498 14/08 imposto (espelho ENTRADA 2157)"),
+    (2114, 6, 2158, "transf Inter TEC->BTG R$130 17/08 imposto (espelho ENTRADA 2158)"),
+    (2118, 6, 2159, "transf Inter TEC->BTG R$509,62 20/08 GPS (espelho ENTRADA 2159)"),
+    (2125, 6, 2160, "transf Inter TEC->BTG R$800 24/08 ferias Luis (espelho ENTRADA 2160)"),
+    (2130, 6, 2161, "transf Inter TEC->BTG R$1800 26/08 ferias/13o (espelho ENTRADA 2161)"),
+    (2153, 6, 2012, "transf BTG->Inter CMPORT R$1350 24/08 (a transf e a ENTRADA 2012; 2153 e a 2a cópia como saida no BTG)"),
 ]
 
 MOTIVO = "Passo 2b reconciliacao agosto — saida duplicada (ver RESULTADO_PASSO2B_SAIDAS_AGOSTO.md)"
@@ -100,6 +115,8 @@ CORRIGIR_CAMPO = [
      "descricao era 'Pagamento Referente ao Mes Julho/2026' — e o salario do Andre 13/08 (extrato Inter TEC -4543,55)"),
     (2075, "banco_origem_id", "2",
      "transf p/ Bradesco R$600 saiu da Inter CMPORT (extrato Inter CM 26/08 -600 'Pix enviado CM PORT'), nao do Itau"),
+    (2012, "banco_origem_id", "5",
+     "transf de R$1350 p/ Inter CMPORT (24/08) saiu do BTG (extrato BTG -1350 'Cmport Sistemas'), nao da Inter TEC"),
 ]
 
 

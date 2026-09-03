@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
 import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
+import { DashboardPorBanco } from '@/components/fluxo-financeiro/DashboardPorBanco';
 import {
   fmtValor, type FluxoFinanceiroResponse, type AlertaDuplicata, type DashboardFinanceiro,
 } from '@/lib/fluxoFinanceiro';
@@ -146,6 +147,11 @@ function FluxoFinanceiroContent() {
                   </div>
                 </Link>
               ))}
+            </div>
+
+            {/* Conciliação por banco — saldo inicial → entradas → saídas → saldo calculado × extrato */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+              <DashboardPorBanco ano={ano} mes={mes} />
             </div>
           </>
         )}

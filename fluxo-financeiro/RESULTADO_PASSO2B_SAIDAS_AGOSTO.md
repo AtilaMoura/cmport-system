@@ -36,24 +36,40 @@ Backup: `backup_producao_pre_limpeza_duplicadas_saidas_agosto_20260903_1332.sql`
 - **mov `2075`**: `banco_origem_id` 1→2 — a transf de R$ 600 pro Bradesco (26/08) saiu da **Inter CMPORT**
   (extrato Inter CM), não do Itaú. → **Itaú passa a fechar 100% também no SALDO** (calc −92,32 = extrato −92,32).
 
-### mov 1744 "DAS Simples 07/2026" R$ 259,24 — também é fantasma, EXCLUÍDA
+### mov 1744 "DAS Simples 07/2026" R$ 259,24 — fantasma, EXCLUÍDA
 
 A **despesa 452** (DAS 07/2026) já tinha sido soft-deletada em 31/08 (mesma coisa da mov 1265 e 2109:
-despesa apagada, mov solta). Não está em nenhum dos 5 extratos. Há outros DAS de R$ 259,24 (mov 1741
-ref 05/2026 pago 15/06; mov 1745). → **mov 1744 soft-deletada** (só a mov, despesa já estava).
+despesa apagada, mov solta). Não está em nenhum dos 5 extratos. → **mov 1744 soft-deletada**.
 
-### ✅ ESTADO FINAL — SAÍDAS sistema × extrato: 5 de 5 contas fecham 100%
+### Lote 6 (03/09) — 13 transferências-saída duplicadas que o `comparar_saidas` casou por engano
 
-| Conta | Saídas sistema | Saídas extrato | Δ |
+O `comparar_saidas_agosto.py` deu "bate 100%" **falso** porque casou estas duplicatas com as linhas de
+transferência do extrato (que o parser rotula como SAÍDA quando a contraparte é "CM PORT" / nosso CNPJ):
+
+- **Inter CMPORT (R$ 2.793,18):** movs `2021` (→Bradesco 858), `2022` (→Bradesco 321), `2023` (→BTG 270),
+  `2035` (→Bradesco 600), `2036` (→Itaú 744,18) — cada uma tem espelho ENTRADA (2073/2074/2156/2075/2002).
+- **Inter TEC (R$ 5.586,71):** movs `2104` `2110` `2111` `2114` `2118` `2125` `2130` — transferências
+  TEC→BTG (13º / impostos / GPS / férias), espelho ENTRADA 2154–2161.
+- **BTG (R$ 1.350):** mov `2153` — a transf BTG→Inter CMPORT já é a ENTRADA `2012`; `2153` era 2ª cópia.
+- **Correção:** mov `2012` `banco_origem_id` 4→5 (a transf de R$ 1.350 saiu do BTG, não da Inter TEC).
+
+### ✅ ESTADO FINAL — 5 de 5 contas conciliadas 100% NO SALDO
+
+| Conta | Saldo calculado (sistema) | Saldo extrato | Diferença |
 |---|---|---|---|
-| **Itaú CMPORT** | 6.793,61 | 6.793,61 | **0,00 ✅** |
-| **Inter CMPORT** | 26.126,76 | 26.126,76¹ | **0,00 ✅** |
-| **Bradesco CMPORT** | 2.444,09 | 2.444,09 | **0,00 ✅** |
-| **Inter TEC** | 47.178,92 | 47.178,92 | **0,00 ✅** |
-| **BTG TEC** | 3.502,48 | 3.502,48 | **0,00 ✅** |
+| **Itaú CMPORT** | −92,32 | −92,32 | **0,00 ✅** |
+| **Inter CMPORT** | 1.089,10 | 1.089,10 | **0,00 ✅** |
+| **Bradesco CMPORT** | 0,00 | 0,00 | **0,00 ✅** |
+| **Inter TEC** | 743,06 | 743,06 | **0,00 ✅** |
+| **BTG TEC** | 2.354,29 | 2.354,29 | **0,00 ✅** |
+| **CONSOLIDADO** | **4.094,13** | **4.094,13** | **0,00 ✅** |
 
-**45 saídas duplicadas/fantasma removidas** de agosto (Lotes 1–5) + 3 correções de metadado
-(mov 1934 data, mov 2147 descrição, mov 2075 origem). Itaú, Bradesco e BTG também fecham no **saldo**.
+**58 saídas duplicadas/fantasma removidas** de agosto (Lotes 1–6) + 4 correções de metadado
+(mov 1934 data · mov 2147 descrição · mov 2075 e 2012 origem da transferência).
+Saldos de agosto informados nas 5 contas (Itaú/Inter dos extratos + import Inter; Bradesco/BTG manual do PDF).
+
+> BTG: saldo abertura informado como R$ 0,06 — o extrato tem ~R$ 0,06 de micro-crédito não itemizado
+> (o saldo corrido do próprio extrato fecha com +0,06 vs a soma das linhas visíveis).
 
 ### Ainda aberto (fora do escopo de saídas)
 
