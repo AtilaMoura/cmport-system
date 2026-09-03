@@ -101,7 +101,7 @@ Todas conferidas nas 2 pontas + lançamento no sistema.
 |---|---|---|
 | Inter CMPORT ↔ Inter TEC | 18 | Espelhadas nos 2 extratos. Líquido: TEC→CMPORT R$ 7.164,36 (8×) · CMPORT→TEC R$ 19.951,11 (10×). movs 2003–2014 / 2060–2072. |
 | Envolvendo Itaú | 7 | 6 saídas Itaú→Inter (R$ 3.369,34: 200 / 50 / 1.882,24 / 199,73 / 487,20 / 550,17) + 1 volta Inter CMPORT→Itaú R$ 744,18 (27/08, mov 2002). movs 2005/2006, 2011, 2060, 2062, 2067. |
-| Rendimentos Itaú mal categorizados | 3 | movs 2015/2016/2162, R$ 0,01–0,02, `banco_origem_id` = `banco_id` (categoria errada, deveria ser Rendimento puro). Cosmético. |
+| ~~Rendimentos com banco_origem_id~~ | 5 | ✅ CORRIGIDO 03/09: movs 2015/2016/2162 (Itaú) + 2076/2077 (Bradesco), R$ 0,09 total → `banco_origem_id = NULL`. Jan–Jul (43 rendimentos) já estavam OK. |
 
 **Achado pro Passo 1 / dashboard (Passo 5):** as transferências que saem do Itaú chegam
 na Inter como `Pix recebido: Cp :60701190-CMPORT SISTEMAS DE ELETRONICOS` (CNPJ CMPORT) —
@@ -113,10 +113,13 @@ banco", senão a transferência do Itaú entra como faturamento.
 
 ## Pedidos de melhoria do Atila (03/09)
 
-- **Rendimento fácil:** criar no fluxo financeiro um jeito rápido de lançar "Rendimento"
-  (categoria já existe) — botão/atalho, sem virar transferência. Hoje os rendimentos do Itaú
-  entraram como `mov` ENTRADA com `banco_origem_id` preenchido (5 movs, R$ 0,09 em agosto:
-  2015/2016/2162 Itaú + 2076/2077 Bradesco). Limpeza: `SET banco_origem_id = NULL` nessas 5.
+- **Rendimento fácil (feature):** hoje rendimento é lançado pelo modal "+ Nova Transferência"
+  (`/fluxo-financeiro/transferencias`, `CATEGORIAS_TRANSFERENCIA` inclui 'Rendimento') — por
+  isso ganha `banco_origem_id`. Correção: quando categoria = Rendimento, esconder/zerar o campo
+  "conta de origem" (rendimento não vem de outra conta). Dados de agosto já corrigidos.
+- **Dashboard completo do Fluxo** (`/fluxo-financeiro`): somas/subtrações no detalhe —
+  extrato × saldo em cada banco × entradas × saídas (incl. funcionário). Ver
+  `PLANO_DASHBOARD_FLUXO.md`. Depende da migração da folha (Fase D2) pra "saída de funcionário".
 - **Parser Passo 1:** classificar "Pix recebido CMPORT/C&M PORT/CEM PORT" como transferência
   interna (pré-requisito do card "Entradas por banco").
 
