@@ -36,19 +36,24 @@ Backup: `backup_producao_pre_limpeza_duplicadas_saidas_agosto_20260903_1332.sql`
 - **mov `2075`**: `banco_origem_id` 1→2 — a transf de R$ 600 pro Bradesco (26/08) saiu da **Inter CMPORT**
   (extrato Inter CM), não do Itaú. → **Itaú passa a fechar 100% também no SALDO** (calc −92,32 = extrato −92,32).
 
-### Estado final — SAÍDAS sistema × extrato (5 contas)
+### mov 1744 "DAS Simples 07/2026" R$ 259,24 — também é fantasma, EXCLUÍDA
+
+A **despesa 452** (DAS 07/2026) já tinha sido soft-deletada em 31/08 (mesma coisa da mov 1265 e 2109:
+despesa apagada, mov solta). Não está em nenhum dos 5 extratos. Há outros DAS de R$ 259,24 (mov 1741
+ref 05/2026 pago 15/06; mov 1745). → **mov 1744 soft-deletada** (só a mov, despesa já estava).
+
+### ✅ ESTADO FINAL — SAÍDAS sistema × extrato: 5 de 5 contas fecham 100%
 
 | Conta | Saídas sistema | Saídas extrato | Δ |
 |---|---|---|---|
 | **Itaú CMPORT** | 6.793,61 | 6.793,61 | **0,00 ✅** |
 | **Inter CMPORT** | 26.126,76 | 26.126,76¹ | **0,00 ✅** |
 | **Bradesco CMPORT** | 2.444,09 | 2.444,09 | **0,00 ✅** |
-| **Inter TEC** | 47.438,16 | 47.178,92 | **+259,24** |
+| **Inter TEC** | 47.178,92 | 47.178,92 | **0,00 ✅** |
 | **BTG TEC** | 3.502,48 | 3.502,48 | **0,00 ✅** |
 
-**4 de 5 contas fecham 100% nas saídas.** O único resíduo é **mov `1744` DAS Simples R$ 259,24**
-(Inter TEC, 20/08) — **não está em nenhum dos 5 extratos** → não foi pago por banco em agosto
-(pendente / setembro / dinheiro). Mantido como despesa a pedido do cliente.
+**45 saídas duplicadas/fantasma removidas** de agosto (Lotes 1–5) + 3 correções de metadado
+(mov 1934 data, mov 2147 descrição, mov 2075 origem). Itaú, Bradesco e BTG também fecham no **saldo**.
 
 ### Ainda aberto (fora do escopo de saídas)
 

@@ -84,6 +84,7 @@ DUPLICADAS = [
     # LOTE 5 — resolvidos com os 5 extratos completos (BTG + Bradesco)
     (1265, 5, 2044, "'Conta de Luz' R$439,23 19/08 — leftover da RECORRENTE 'Conta de Luz' (despesa 10, deletada 27/08); NAO esta em nenhum dos 5 extratos; conta de luz real de agosto = ENEL R$476,95 mov 2044"),
     (2109, 5, 2147, "Salario Andre R$4542,55 13/08 = dup de 2147 R$4543,55 (extrato Inter TEC 13/08 -4543,55 'Andre Moreira Rosa' = 2147 exato)"),
+    (1744, 5, 1741, "DAS 07/2026 R$259,24 20/08 — despesa 452 ja deletada 31/08; NAO esta em nenhum dos 5 extratos (nao foi pago por banco); mov solta"),
 ]
 
 MOTIVO = "Passo 2b reconciliacao agosto — saida duplicada (ver RESULTADO_PASSO2B_SAIDAS_AGOSTO.md)"
