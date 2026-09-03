@@ -17,9 +17,13 @@ aba "Entradas e SAIDAS - 2026") e reconsultar produção._
 | Conta | banco_id | Extrato¹ | Sistema hoje | Δ | Após ajustes | Ajustes |
 |---|---|---|---|---|---|---|
 | **Itaú CMPORT** | 1 | 9.668,76 | 9.668,76 | **0,00 ✅** | 9.668,76 | nenhum |
-| **Inter CMPORT** | 2 | 37.938,85 | 36.122,00 | 1.816,85 | 37.938,85 | 2 (1 banco + 1 baixa) |
-| **Inter TEC** | 4 | 25.825,87 | 25.705,87 | 120,00 | 25.825,87 | 2 (banco) |
+| **Inter CMPORT** | 2 | 37.938,85 | 36.002,00 | 1.936,85 | 37.938,85 | 2 (1 banco + 1 baixa) |
+| **Inter TEC** | 4 | 25.825,87 | 25.825,87 | **0,00 ✅** | 25.825,87 | 2 (banco) — **APLICADO 03/09** |
 | **TOTAL (3 contas)** | — | **73.433,48** | **71.496,63** | **1.936,85** | **73.433,48 ✅** | 4 |
+
+**03/09 — APLICADO em produção:** `recibo 61` e `recibo 62` → `banco_id` 2→4 (Inter TEC).
+Script `aplicar_ajuste_banco_passo2.py`, backup `backup_producao_pre_ajuste_banco_passo2_20260903_1057.sql`
+(recibos+boletos). **Inter TEC fechou 100%** (Δ 0,00, 44 bate 1:1). Faltam só os 2 da Inter CMPORT.
 
 ¹ Extrato Inter CMPORT **exclui** o crédito de R$ 826,97 (11/08) — é devolução de pagamento,
 não recebimento (ver QUISI abaixo). Bruto seria 38.765,82.
@@ -49,16 +53,15 @@ banco devolveu, ela refez por Pix.
 
 **Por que o Inter não deu baixa sozinho:** `boleto_service.sincronizar_status/_do_inter` só marca PAGO quando a **cobrança** no Inter volta `RECEBIDO`/`MARCADO_RECEBIDO`. O cliente mandou Pix avulso pra chave da empresa (CNPJ), não pagou o boleto → a cobrança `a9c2aeb2` fica `A_RECEBER` pra sempre. O `inter_client.py` só tem endpoints de cobrança (`consultar_boleto`, `cancelar_boleto`, `listar_cobrancas`, `baixar_pdf`) — **não lê o extrato/Pix recebidos** (`GET /banking/v2/pix`). Melhoria possível: ler Pix recebidos do Inter e casar com boleto em aberto (conecta com o card "Entradas por banco").
 
-Depois: `36.122,00 + 1.346,39 + 590,46 − 120,00 = 37.938,85` = extrato ✅
-(os −120,00 são os recibos 61+62 que migram pra Inter TEC, ajustes 3 e 4.)
+Depois: `36.002,00 + 1.346,39 + 590,46 = 37.938,85` = extrato ✅
 
-### Inter TEC (banco 4) — 2 ajustes
-| # | Data | Valor | Tipo | Item | Ação |
+### Inter TEC (banco 4) — FECHADO 100% (03/09)
+| # | Data | Valor | Tipo | Item | Status |
 |---|---|---|---|---|---|
-| 3 | 04/08 | R$ 70,00 | ajuste banco | `recibo id=61` REC-2026-077 — "Jose Erivaldo - Cond. Jussara" (troca sinaleiro portão), `cnpj_emitente` TEC, hoje `banco_id=2`. **Na planilha:** aba "Entradas e SAIDAS", r425, seção ASSISTÊNCIAS MÊS AGOSTO (= TEC), marcado `*`. Extrato Inter TEC 04/08 R$ 70,00 `Pix recebido JOSE ERISVALDO`. | `UPDATE recibos SET banco_id=4 WHERE id=61` |
-| 4 | 04/08 | R$ 50,00 | ajuste banco | `recibo id=62` REC-2026-078 — "João Garcia - Cond. Jussara", `cnpj_emitente` TEC, hoje `banco_id=2`. **Na planilha:** r426, mesma seção, marcado `*`. Extrato Inter TEC 06/08 R$ 50,00 `Pix recebido JOAO LUIZ GARCIA`. | `UPDATE recibos SET banco_id=4 WHERE id=62` |
+| 3 | 04/08 | R$ 70,00 | ajuste banco | `recibo id=61` REC-2026-077 — "Jose Erivaldo - Cond. Jussara". Planilha r425 (seção Assistências Agosto = TEC), `*`. Extrato Inter TEC 04/08. | ✅ `banco_id` 2→4 aplicado |
+| 4 | 04/08 | R$ 50,00 | ajuste banco | `recibo id=62` REC-2026-078 — "João Garcia - Cond. Jussara". Planilha r426. Extrato Inter TEC 06/08. | ✅ `banco_id` 2→4 aplicado |
 
-Depois: `25.705,87 + 70,00 + 50,00 = 25.825,87` = extrato ✅
+Depois: sistema 25.825,87 = extrato 25.825,87 · **Δ 0,00 · 44 bate 1:1**.
 
 ### Itaú CMPORT (banco 1) — 100%, nada a fazer
 - 3 itens 1:1 + recibo 81 (R$ 1.921,40 = 2×960,70).
@@ -78,8 +81,9 @@ Depois: `25.705,87 + 70,00 + 50,00 = 25.825,87` = extrato ✅
 | `recibo id=61` (R$ 70) | `banco_id`=2, PAGO. **Na planilha** aba "Entradas e SAIDAS" r425, seção Assistências Agosto (TEC), marcado `*`. Extrato Inter TEC 04/08 bate. | ajuste de banco — `banco_id=4` |
 | `recibo id=62` (R$ 50) | `banco_id`=2, PAGO. **Na planilha** r426, mesma seção, marcado `*`. Extrato Inter TEC 06/08 bate. | ajuste de banco — `banco_id=4` |
 
-**Resumo:** 4 ajustes reais (2 de banco + 1 baixa + 2 de banco = 4, sendo os 2 recibos juntos).
-QUISI não conta. Todas as pendências continuam abertas.
+**Status 03/09:** recibos 61/62 → `banco_id=4` **APLICADO** (Inter TEC fechou 100%).
+Faltam 2 na Inter CMPORT: boleto 284 (`banco_id=2`) e Fortezza (baixa boleto 1152 + cancelar
+cobrança no Inter). QUISI não conta.
 
 ## Transferências entre contas (Passo 3 — não são entradas)
 
