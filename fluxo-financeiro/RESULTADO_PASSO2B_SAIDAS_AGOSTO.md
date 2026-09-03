@@ -24,13 +24,37 @@ Backup: `backup_producao_pre_limpeza_duplicadas_saidas_agosto_20260903_1332.sql`
   +826,97 "Devolução", refeito 12/08 = mov 1251) − 638,37 (CM PORT 31/08: é a transferência
   CMPORT→Bradesco, mov ENTRADA 2078 — o parser do extrato classificou como SAÍDA).
 
-### O que resta
+### Lote 5 (03/09, com os 5 extratos — BTG + Bradesco chegaram)
 
-- **Itaú: 100% conciliado.**
-- **Inter CMPORT: só mov `1265` "Conta de Luz" R$ 439,23 (19/08)** — não está no extrato; valor idêntico à
-  transferência CMPORT→TEC. **Flag pra cliente:** é conta de luz mesmo, ou 3ª cópia da transferência?
-- **Inter TEC: mov `2109` (salário André R$ 4.542,55) + mov `1744` (DAS R$ 259,24)** = R$ 4.801,79 exato.
-  Folha — **Fase D2** (conferir se foi pago de outra conta / é duplicata / não foi pago).
+- **Bradesco: saídas 100% conciliadas** (R$ 2.444,09): tarifas 26,67+57,53, "Capital de Giro" 1.559,89, "Moya Consultor" 800,00.
+- **BTG: saídas 100% conciliadas** (R$ 3.502,48): GPS 1.816,59, presentes 69,99+40,90, Jusmarina 225,00, transf p/ Inter CMPORT 1.350,00.
+- **mov `1265` "Conta de Luz" R$ 439,23 → soft-delete.** Era leftover da RECORRENTE "Conta de Luz"
+  (despesa 10, abandonada/deletada 27/08). Não está em NENHUM dos 5 extratos. A conta de luz real de
+  agosto é a **ENEL R$ 476,95** (mov 2044, no extrato Inter CMPORT).
+- **mov `2109` salário André R$ 4.542,55 → soft-delete.** É duplicata da mov `2147` (R$ 4.543,55, que
+  bate exato com o extrato Inter TEC de 13/08). mov 2147 renomeada "Salário André Moreira Rosa - Agosto/2026".
+- **mov `2075`**: `banco_origem_id` 1→2 — a transf de R$ 600 pro Bradesco (26/08) saiu da **Inter CMPORT**
+  (extrato Inter CM), não do Itaú. → **Itaú passa a fechar 100% também no SALDO** (calc −92,32 = extrato −92,32).
+
+### Estado final — SAÍDAS sistema × extrato (5 contas)
+
+| Conta | Saídas sistema | Saídas extrato | Δ |
+|---|---|---|---|
+| **Itaú CMPORT** | 6.793,61 | 6.793,61 | **0,00 ✅** |
+| **Inter CMPORT** | 26.126,76 | 26.126,76¹ | **0,00 ✅** |
+| **Bradesco CMPORT** | 2.444,09 | 2.444,09 | **0,00 ✅** |
+| **Inter TEC** | 47.438,16 | 47.178,92 | **+259,24** |
+| **BTG TEC** | 3.502,48 | 3.502,48 | **0,00 ✅** |
+
+**4 de 5 contas fecham 100% nas saídas.** O único resíduo é **mov `1744` DAS Simples R$ 259,24**
+(Inter TEC, 20/08) — **não está em nenhum dos 5 extratos** → não foi pago por banco em agosto
+(pendente / setembro / dinheiro). Mantido como despesa a pedido do cliente.
+
+### Ainda aberto (fora do escopo de saídas)
+
+- **Conciliação de SALDO das contas Inter** — Inter CMPORT e Inter TEC ainda não fecham no saldo
+  (diferença nas TRANSFERÊNCIAS, Passo 3: origens/destinos, transferências lançadas só de um lado).
+  Itaú, Bradesco e BTG: saídas ok; saldo do Itaú fecha; Bradesco/BTG sem saldo inicial informado.
 
 ---
 

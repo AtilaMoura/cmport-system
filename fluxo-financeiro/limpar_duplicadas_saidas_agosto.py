@@ -81,6 +81,9 @@ DUPLICADAS = [
     (2030, 4, 2045, "Cafe R$15,69 24/08 (dup de 2045)"),
     (1708, 4, 2043, "Posto Gasolina R$1319,99 22/08 = valor errado de 2043 R$1391,99 (extrato)"),
     (2091, 4, 2096, "Pix Andre R$50 03/08 (o de 03/08 no extrato e transf; pagto real ao Andre = 2096 04/08)"),
+    # LOTE 5 — resolvidos com os 5 extratos completos (BTG + Bradesco)
+    (1265, 5, 2044, "'Conta de Luz' R$439,23 19/08 — leftover da RECORRENTE 'Conta de Luz' (despesa 10, deletada 27/08); NAO esta em nenhum dos 5 extratos; conta de luz real de agosto = ENEL R$476,95 mov 2044"),
+    (2109, 5, 2147, "Salario Andre R$4542,55 13/08 = dup de 2147 R$4543,55 (extrato Inter TEC 13/08 -4543,55 'Andre Moreira Rosa' = 2147 exato)"),
 ]
 
 MOTIVO = "Passo 2b reconciliacao agosto — saida duplicada (ver RESULTADO_PASSO2B_SAIDAS_AGOSTO.md)"
@@ -88,6 +91,14 @@ MOTIVO = "Passo 2b reconciliacao agosto — saida duplicada (ver RESULTADO_PASSO
 # (mov_id, data_nova, motivo) — pagamento real, so a data estava errada vs extrato
 CORRIGIR_DATA = [
     (1934, "2026-08-26", "Convenio Medico = Assoc. Beneficencia no extrato (26/08, nao 20/08)"),
+]
+
+# (mov_id, campo, valor_novo, motivo) — correcoes de metadado sem apagar
+CORRIGIR_CAMPO = [
+    (2147, "descricao", "Salário André Moreira Rosa - Agosto/2026",
+     "descricao era 'Pagamento Referente ao Mes Julho/2026' — e o salario do Andre 13/08 (extrato Inter TEC -4543,55)"),
+    (2075, "banco_origem_id", "2",
+     "transf p/ Bradesco R$600 saiu da Inter CMPORT (extrato Inter CM 26/08 -600 'Pix enviado CM PORT'), nao do Itau"),
 ]
 
 
@@ -122,6 +133,8 @@ def main():
     parc = {}
     for r in q(ssh, f"SELECT dp.movimentacao_id,dp.id,dp.despesa_id FROM despesa_parcelas dp WHERE dp.movimentacao_id IN ({ids});"):
         parc[r[0]] = (r[1], r[2])
+    desp_ids = ",".join({str(p[1]) for p in parc.values()}) or "0"
+    desp_del = {r[0]: (r[1] not in ("", "NULL", None)) for r in q(ssh, f"SELECT id, deletado_em FROM despesas WHERE id IN ({desp_ids});")}
 
     print("=" * 100)
     print(f"LIMPAR SAÍDAS DUPLICADAS — {'APLICAR' if APLICAR else 'DRY-RUN'}  ({len(DUPLICADAS)} movs)")
@@ -177,17 +190,28 @@ def main():
         # registro de exclusao (mov)
         q(ssh, f"INSERT INTO registros_exclusoes (tipo_registro, registro_id, dados_completos, motivo_exclusao, usuario_exclusao, data_exclusao) VALUES ('fin_movimentacao', {mov_id}, '{esc(snap)}', '{esc(MOTIVO)}', 'claude-passo2b', '{now}');")
         q(ssh, f"UPDATE fin_movimentacoes SET deletado_em = '{now}' WHERE id = {mov_id} AND deletado_em IS NULL;")
-        if p:
+        despesa_txt = "-"
+        if p and not desp_del.get(str(p[1]), False):
             despesa_id = p[1]
             q(ssh, f"INSERT INTO registros_exclusoes (tipo_registro, registro_id, dados_completos, motivo_exclusao, usuario_exclusao, data_exclusao) VALUES ('despesa', {despesa_id}, '{esc(snap)}', '{esc(MOTIVO)}', 'claude-passo2b', '{now}');")
             q(ssh, f"UPDATE despesas SET deletado_em = '{now}', ativo = 0 WHERE id = {despesa_id} AND deletado_em IS NULL;")
-        print(f"  mov {mov_id} + despesa {p[1] if p else '-'} soft-deletados")
+            despesa_txt = str(despesa_id)
+        elif p:
+            despesa_txt = f"{p[1]} (já deletada, só a mov)"
+        print(f"  mov {mov_id} soft-deletado · despesa {despesa_txt}")
 
     for mov_id, data_nova, motivo in CORRIGIR_DATA:
         r = q(ssh, f"SELECT data, deletado_em FROM fin_movimentacoes WHERE id = {mov_id};")
         if r and r[0][1] in ("", "NULL", None):
             q(ssh, f"UPDATE fin_movimentacoes SET data = '{data_nova}' WHERE id = {mov_id};")
             print(f"  mov {mov_id}: data {r[0][0]} -> {data_nova}  ({motivo})")
+
+    for mov_id, campo, valor_novo, motivo in CORRIGIR_CAMPO:
+        r = q(ssh, f"SELECT {campo}, deletado_em FROM fin_movimentacoes WHERE id = {mov_id};")
+        if r and r[0][1] in ("", "NULL", None):
+            v = valor_novo if campo == "banco_origem_id" else f"'{esc(valor_novo)}'"
+            q(ssh, f"UPDATE fin_movimentacoes SET {campo} = {v} WHERE id = {mov_id};")
+            print(f"  mov {mov_id}: {campo} '{r[0][0]}' -> {valor_novo}  ({motivo[:60]})")
 
     # confere totais depois
     print("\nDEPOIS — saídas fin_movimentacoes por banco ago/2026:")
