@@ -40,6 +40,7 @@ import app.models.parcela_faltando_dispensada_model  # dispensa do alerta de par
 import app.models.fin_categoria_model        # financeiro — categorias
 import app.models.fin_movimentacao_model     # financeiro — movimentações
 import app.models.fin_saldo_inicial_model    # financeiro — saldo inicial mensal
+import app.models.fin_extrato_saldo_model     # financeiro — saldo final do extrato bancário
 import app.models.duplicata_dispensada_model  # pares de nota marcados como "não é duplicata"
 import app.models.banco_model                 # contas bancárias (Itaú/Inter/Bradesco/BTG)
 import app.models.despesa_model              # financeiro — despesa geral (unico/parcelado)
@@ -227,6 +228,15 @@ def _run_migrations():
         # Data de emissao da nota fiscal (backfill via script; ver fluxo-financeiro/backfill_data_emissao_notas.py)
         "ALTER TABLE notas_fiscais ADD COLUMN data_emissao DATE NULL",
         "ALTER TABLE notas_fiscais ADD INDEX ix_notas_fiscais_data_emissao (data_emissao)",
+        # Dashboard "por banco" — saldo inicial deixa de ser 1 valor global por mes
+        # e passa a ter uma linha por conta bancaria (banco_id NULL = global legado).
+        # A tabela fin_extrato_saldo e criada pelo create_all acima.
+        "ALTER TABLE fin_saldo_inicial ADD COLUMN banco_id INT NULL",
+        "ALTER TABLE fin_saldo_inicial ADD INDEX ix_saldo_inicial_banco (banco_id)",
+        "ALTER TABLE fin_saldo_inicial ADD CONSTRAINT fk_saldo_inicial_banco FOREIGN KEY (banco_id) REFERENCES bancos(id) ON DELETE CASCADE",
+        "ALTER TABLE fin_saldo_inicial DROP INDEX uq_saldo_inicial_ano_mes",
+        "ALTER TABLE fin_saldo_inicial ADD UNIQUE INDEX uq_saldo_inicial_ano_mes_banco (ano, mes, banco_id)",
+        "ALTER TABLE fin_saldo_inicial MODIFY valor DECIMAL(12,2) NOT NULL DEFAULT 0",
     ]
     try:
         for stmt in stmts:

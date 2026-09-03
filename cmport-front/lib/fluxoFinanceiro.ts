@@ -203,6 +203,64 @@ export interface DashboardFinanceiro {
   saldo_acumulado: number;
 }
 
+// ── Dashboard "por banco" / Conciliação bancária ────────────────────────────
+export interface EntradasBreakdown { boleto: number; recibo: number; avulso: number; }
+export interface SaidasBreakdown { fornecedor: number; despesa: number; funcionario: number; tarifa: number; }
+export interface DashboardBancoLinha {
+  banco_id: number | null;
+  banco_nome: string;
+  empresa: string | null;                 // "CMPORT" | "TEC"
+  saldo_inicial: number | null;
+  saldo_inicial_informado: boolean;
+  entradas: EntradasBreakdown;
+  entradas_total: number;
+  transf_recebidas: number;
+  transf_enviadas: number;
+  rendimento: number;
+  saidas: SaidasBreakdown;
+  saidas_total: number;
+  saldo_calculado: number | null;
+  saldo_extrato: number | null;
+  saldo_extrato_fonte: string | null;     // "MANUAL" | "INTER"
+  diferenca: number | null;
+  bate: boolean | null;
+}
+export interface DashboardPorBancoResponse {
+  ano: number;
+  mes: number;
+  bancos: DashboardBancoLinha[];
+  consolidado: DashboardBancoLinha;
+}
+export interface SaldoInicialBancoLinha {
+  banco_id: number;
+  banco_nome: string;
+  empresa: string | null;
+  valor: number;
+  informado: boolean;
+  observacao: string | null;
+}
+export interface SaldoInicialPorBancoResponse {
+  ano: number; mes: number; linhas: SaldoInicialBancoLinha[]; total: number;
+}
+export interface ExtratoSaldoBancoLinha {
+  banco_id: number;
+  banco_nome: string;
+  empresa: string | null;
+  saldo_final: number | null;
+  fonte: string | null;
+  conferido_em: string | null;
+  observacao: string | null;
+}
+export interface ExtratoSaldoPorBancoResponse {
+  ano: number; mes: number; linhas: ExtratoSaldoBancoLinha[];
+}
+export interface ImportarInterItem {
+  banco_id: number; banco_nome: string; status: string; saldo_final: number | null;
+}
+export interface ImportarInterResponse {
+  importados: number; mensagem: string; detalhes: ImportarInterItem[];
+}
+
 export const TIPO_CLS: Record<string, string> = {
   MANUTENCAO:  'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
   ASSISTENCIA: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400',

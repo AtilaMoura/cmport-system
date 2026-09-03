@@ -4,7 +4,33 @@ _Pedido do Atila (03/09): dashboard em `/fluxo-financeiro` com **somas e subtra�
 mostrando **o saldo do extrato**, **o que ficou em cada banco**, e **as saídas (inclusive
 funcionário) no detalhe**. É o Passo 5 do `PLANO_RECONCILIACAO_EXTRATOS_AGOSTO.md`, ampliado._
 
-**NADA IMPLEMENTADO. Aguardando aprovação do Atila (fases + ordem).**
+## STATUS (03/09 — sessão `session_01Ln9cjBN2m6XSPS9D14BqGZ`)
+
+**Fases 1, 2, 3 + tela mínima IMPLEMENTADAS em local. Não deployado.**
+D2 da folha fica com outro agente (não é dependência bloqueante — a linha
+"funcionário" já está no código, populará sozinha quando as categorias FUNCIONARIO
+existirem).
+
+| Fase | O que foi feito | Arquivos |
+|---|---|---|
+| 1 | `GET /financeiro/dashboard/por-banco?ano&mes` — cascata por conta (saldo inicial → entradas boleto/recibo/avulso → transf +/− → rendimento → saídas fornecedor/despesa/funcionário/tarifa → saldo calculado × extrato × diferença) + consolidado | `services/fin_dashboard_service.py`, `schemas/fin_dashboard_schema.py` |
+| 2 | `fin_saldo_inicial` +`banco_id` (NULL = global legado). `GET /financeiro/saldo-inicial-banco/{ano}/{mes}` + `PUT .../{banco_id}`. Migração de agosto: `migrar_saldo_inicial_por_banco.py` (dry-run OK, **não aplicado em produção**) | model, repo, `services/fin_conciliacao_service.py`, migração em `main.py` |
+| 3 | Tabela `fin_extrato_saldo` (MANUAL\|INTER). `GET /financeiro/extrato-saldo/{ano}/{mes}` + `PUT .../{banco_id}` + `POST .../importar-inter`. `InterClient.consultar_saldo()` (`GET /banking/v2/saldo`, escopo `extrato.read` — **não testado contra API real**) | model, repo, service, `services/inter_client.py` |
+| tela | `/fluxo-financeiro/bancos` — aba "Por Banco". Cascata por conta, editar saldo inicial/extrato inline, botão importar Inter, cards consolidados | `app/fluxo-financeiro/bancos/page.tsx`, `lib/fluxoFinanceiro.ts`, `FiltrosFluxo.tsx` |
+
+**Validação local (agosto/2026):** entradas consolidadas batem **exato** com `RESULTADO_PASSO2` (R$ 73.433,48); transferências +/− fecham (R$ 40.853,07).
+**Achado:** as **SAÍDAS não reconciliam** com o extrato — Inter CMPORT sistema R$ 49k × extrato R$ 27,6k; Inter TEC R$ 70,7k × R$ 47,2k. Causa: B1 (banco genérico nas saídas migradas) só teve agosto lote 1 aplicado; o resto ainda está no banco default. **O dashboard está mostrando isso de propósito** (diferença vermelha). Reconciliação de saídas = tarefa separada (Passo 2b).
+
+### Pendências desta rodada
+- [ ] Deploy do backend + frontend (`git push origin master`)
+- [ ] Rodar `migrar_saldo_inicial_por_banco.py --aplicar --ambiente producao` (com ok do Atila) — ou a cliente informa na tela
+- [ ] Testar `POST /extrato-saldo/{ano}/{mes}/importar-inter` contra a API real (escopo `extrato.read` pode não estar habilitado nas credenciais Inter)
+- [ ] Reconciliação de SAÍDAS × extrato (Passo 2b) — depende de B1 Jan–Jul + revisão de agosto
+- [ ] Fases 4/5 originais: waterfall com drill-down nos lançamentos + card "entradas por banco" no topo da Visão Geral
+
+---
+
+_Plano original abaixo (fases 4/5 e refinamentos ainda valem):_
 
 ---
 

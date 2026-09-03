@@ -171,6 +171,56 @@ class InterClient:
             pagina += 1
         return todos
 
+    def _token_banking(self) -> str:
+        """Token com escopo de extrato/saldo (banking) — separado do de cobrança,
+        que usa outro escopo. Não faz cache (uso pontual, 1x por sync de saldo)."""
+        credentials = base64.b64encode(
+            f"{self.client_id}:{self.client_secret}".encode()
+        ).decode()
+        response = requests.post(
+            f"{self._base_url()}/oauth/v2/token",
+            headers={
+                "Authorization": f"Basic {credentials}",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data={"grant_type": "client_credentials", "scope": "extrato.read"},
+            cert=self._cert(),
+            timeout=TIMEOUT,
+        )
+        if response.status_code != 200:
+            raise Exception(
+                f"Token banking Inter [{self.env}/{self.conta_corrente}] falhou: "
+                f"{response.status_code} — {response.text} "
+                f"(a credencial precisa do escopo 'extrato.read' habilitado no app do Inter)"
+            )
+        token = response.json().get("access_token")
+        if not token:
+            raise Exception("Token banking Inter sem access_token na resposta.")
+        return token
+
+    def consultar_saldo(self, data_saldo: Optional[str] = None) -> dict:
+        """GET /banking/v2/saldo — saldo da conta. data_saldo YYYY-MM-DD (opcional;
+        omitido = saldo atual). Retorna o JSON cru da Inter (campo 'disponivel')."""
+        headers = {
+            "Authorization": f"Bearer {self._token_banking()}",
+            "x-conta-corrente": self.conta_corrente,
+            "Content-Type": "application/json",
+        }
+        params = {"dataSaldo": data_saldo} if data_saldo else {}
+        response = requests.get(
+            f"{self._base_url()}/banking/v2/saldo",
+            headers=headers,
+            params=params,
+            cert=self._cert(),
+            timeout=TIMEOUT,
+        )
+        if response.status_code == 200:
+            return response.json()
+        raise Exception(
+            f"Erro ao consultar saldo Inter [{self.env}/{self.conta_corrente}]: "
+            f"{response.status_code} — {response.text}"
+        )
+
     def baixar_pdf(self, codigo_solicitacao: str) -> bytes:
         response = requests.get(
             f"{self._base_url()}/cobranca/v3/cobrancas/{codigo_solicitacao}/pdf",
