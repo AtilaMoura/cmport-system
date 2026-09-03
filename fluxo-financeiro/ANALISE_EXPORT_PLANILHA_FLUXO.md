@@ -1,6 +1,26 @@
 # Análise — Exportar planilha completa do Fluxo para o cliente
 
-_Criado 28/08/2026. Pedido do Atila: analisar (1) como o cliente monta a planilha
+## ✅ IMPLEMENTADO 03/09/2026 (sessão `session_01Ln9cjBN2m6XSPS9D14BqGZ`)
+
+`GET /financeiro/exportar-fluxo?ano_inicio&mes_inicio[&ano_fim&mes_fim][&cnpj][&incluir_pendentes]`
+→ `backend/app/services/fin_export_service.py` (`FinExportService.gerar_xlsx`).
+
+Abas: **Resumo** (mês × empresa + linha TOTAL) · **Entradas** (boleto/recibo linha a linha) ·
+**Saídas** (`fin_movimentacoes` SAIDA — grupo Fornecedor/Despesa/Funcionário/Tarifa-IR) ·
+**Transferências** · **Categoria x Mês** · **Pendências** (opcional).
+Regime de caixa (data de pagamento). Autofilter + freeze na 1ª linha.
+
+Filtros: mês único **ou** intervalo · um CNPJ **ou** os dois · com/sem pendências —
+as 4 decisões do Atila (ver `anotação para IA.md` l.177-184) já contempladas.
+Frontend: botão "⬇ Exportar Excel" com popover de filtros na Visão Geral (`ExportarFluxoBtn.tsx`).
+
+**Limitação atual:** a folha de agosto já sai (fin_movimentacoes tem os pagamentos), mas
+jan–jul depende da **Fase D2** pra ficar completa. A coluna "Saídas — Funcionário" do Resumo
+fica R$ 0,00 até a D2 recategorizar a folha do grupo DESPESA pro grupo FUNCIONARIO.
+
+---
+
+_Análise original abaixo. Criado 28/08/2026. Pedido do Atila: analisar (1) como o cliente monta a planilha
 que manda pra gente e (2) como o sistema pode gerar uma planilha completa do fluxo
 pra devolver pro cliente — incluindo a parte de funcionário. **É análise/plano,
 ainda não implementação.**_
