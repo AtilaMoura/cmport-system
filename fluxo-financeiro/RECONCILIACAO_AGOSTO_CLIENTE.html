@@ -304,10 +304,12 @@
   </header>
 
   <p class="lede">
-    Cruzamos cada <strong>entrada</strong> registrada no sistema com o extrato de cada conta.
-    O objetivo é chegar a <strong>100% de correspondência</strong>. Abaixo está exatamente o que
-    ainda falta ajustar — <strong>5 itens no total</strong> — e o que já está batendo.
-    As <strong>transferências entre contas</strong> são tratadas à parte, porque não são faturamento.
+    Cruzamos cada <strong>entrada</strong> registrada no sistema com o extrato de cada conta,
+    conferindo também na <strong>planilha do fluxo</strong>. O objetivo é chegar a
+    <strong>100% de correspondência</strong>. Abaixo está o que ainda falta ajustar —
+    <strong>4 ajustes</strong> — mais 1 lançamento na conta que já foi esclarecido
+    (devolução da contabilidade, não é receita). As <strong>transferências entre contas</strong>
+    são tratadas à parte, porque não são faturamento.
   </p>
 
   <section class="summary" aria-label="Resumo por conta">
@@ -318,8 +320,8 @@
     </div>
     <div class="tile is-pending">
       <span class="acct">Inter CMPORT</span>
-      <span class="delta num">R$ 2.643,82</span>
-      <span class="state"><span class="dot pending"></span>3 ajustes pendentes</span>
+      <span class="delta num">R$ 1.816,85</span>
+      <span class="state"><span class="dot pending"></span>2 ajustes pendentes</span>
     </div>
     <div class="tile is-pending">
       <span class="acct">Inter TEC</span>
@@ -329,7 +331,7 @@
   </section>
 
   <section class="totals-sec" aria-label="Comparação de totais">
-    <h2>Totais — entradas do mês</h2>
+    <h2>Totais — recebimentos de clientes no mês</h2>
     <div class="adj-wrap">
       <table class="totals">
         <thead>
@@ -338,7 +340,7 @@
             <th class="r">Extrato</th>
             <th class="r">Sistema hoje</th>
             <th class="r">Falta</th>
-            <th class="r">Após os 5 ajustes</th>
+            <th class="r">Após os ajustes</th>
           </tr>
         </thead>
         <tbody>
@@ -351,10 +353,10 @@
           </tr>
           <tr>
             <td>Inter CMPORT</td>
-            <td class="r">38.765,82</td>
+            <td class="r">37.938,85</td>
             <td class="r">36.122,00</td>
-            <td class="r gap">2.643,82</td>
-            <td class="r">38.765,82</td>
+            <td class="r gap">1.816,85</td>
+            <td class="r">37.938,85</td>
           </tr>
           <tr>
             <td>Inter TEC</td>
@@ -367,25 +369,31 @@
         <tfoot>
           <tr>
             <td>Total (3 contas)</td>
-            <td class="r">74.260,45</td>
+            <td class="r">73.433,48</td>
             <td class="r">71.496,63</td>
-            <td class="r gap">2.763,82</td>
-            <td class="r ok">74.260,45</td>
+            <td class="r gap">1.936,85</td>
+            <td class="r ok">73.433,48</td>
           </tr>
         </tfoot>
       </table>
     </div>
     <p class="totals-note">
-      A diferença total de <strong>R$&nbsp;2.763,82</strong> é <strong>só</strong> as 3 entradas
-      que faltam: boleto do Olivais R$&nbsp;1.346,39 (sem conta) + devolução QUISI R$&nbsp;826,97
-      + mensalidade Fortezza R$&nbsp;590,46. Os 2 recibos da Jussara (R$&nbsp;120,00) apenas trocam
-      de conta (Inter CMPORT&nbsp;→&nbsp;Inter TEC) e não mexem no total geral.
+      A diferença total de <strong>R$&nbsp;1.936,85</strong> é <strong>só</strong> 2 itens:
+      o boleto do Olivais R$&nbsp;1.346,39 (pago, mas sem conta marcada) + a mensalidade
+      Fortezza R$&nbsp;590,46 (paga por Pix, boleto ainda em aberto no sistema). Os 2 recibos
+      da Jussara (R$&nbsp;120,00) apenas trocam de conta (Inter CMPORT&nbsp;→&nbsp;Inter TEC) e
+      não mexem no total geral.
     </p>
     <p class="totals-note">
-      <strong>Por CNPJ:</strong> CMPORT (Itaú + Inter CMPORT) extrato R$&nbsp;48.434,58 &times;
-      sistema R$&nbsp;45.790,76 &rarr; fecha em R$&nbsp;48.434,58 após os ajustes.
-      TEC (Inter TEC) extrato R$&nbsp;25.825,87 &times; sistema R$&nbsp;25.705,87 &rarr; fecha em
-      R$&nbsp;25.825,87.
+      O extrato da Inter CMPORT tem ainda um crédito de <strong>R$&nbsp;826,97</strong> em 11/08
+      que <strong>não é recebimento de cliente</strong> — é a devolução de um pagamento à
+      contabilidade (QUISI) que o banco estornou e foi refeito por Pix em 12/08. Está fora
+      da tabela acima; a despesa correspondente já está lançada no sistema.
+    </p>
+    <p class="totals-note">
+      <strong>Por CNPJ:</strong> CMPORT (Itaú + Inter CMPORT) R$&nbsp;47.607,61 no extrato &times;
+      R$&nbsp;45.790,76 no sistema &rarr; fecha após os ajustes.
+      TEC (Inter TEC) R$&nbsp;25.825,87 &times; R$&nbsp;25.705,87 &rarr; fecha após os ajustes.
     </p>
   </section>
 
@@ -393,14 +401,14 @@
     <h2>Como ler este relatório</h2>
     <dl>
       <div class="row">
-        <dt><span class="chip entrada">Lançar entrada</span></dt>
-        <dd>Dinheiro de <strong>fora</strong> (cliente, condomínio, devolução) que caiu na conta
-          e <strong>não existe no sistema</strong>. Precisa ser lançado.</dd>
-      </div>
-      <div class="row">
         <dt><span class="chip banco">Ajuste de banco</span></dt>
         <dd>Entrada <strong>já registrada</strong> no sistema, só marcada na conta errada
           (ou sem conta). Não muda o total do mês — muda só a visão “por banco”.</dd>
+      </div>
+      <div class="row">
+        <dt><span class="chip entrada">Dar baixa</span></dt>
+        <dd>A nota e o boleto <strong>existem</strong> no sistema, mas o boleto está
+          <strong>em aberto</strong> — o pagamento entrou na conta e falta registrar a baixa.</dd>
       </div>
       <div class="row">
         <dt><span class="chip transfer">Transferência</span></dt>
@@ -445,19 +453,19 @@
     <div class="acct-head">
       <h2>Inter CMPORT</h2>
       <span class="cc">conta 308310110</span>
-      <span class="chip entrada">3 ajustes</span>
+      <span class="chip entrada">2 ajustes</span>
     </div>
-    <p class="acct-status"><span class="dot pending"></span>59 entradas já batem 1&nbsp;a&nbsp;1. Faltam 3 ajustes para fechar R$&nbsp;2.643,82.</p>
+    <p class="acct-status"><span class="dot pending"></span>59 recebimentos já batem 1&nbsp;a&nbsp;1. Faltam 2 ajustes para fechar R$&nbsp;1.816,85.</p>
 
     <div class="ruler">
-      <div class="ruler-track" role="img" aria-label="Sistema cobre 93% do extrato; faltam 7%">
-        <div class="ruler-fill" style="width:93.2%"></div>
-        <div class="ruler-gap" style="width:6.8%"></div>
+      <div class="ruler-track" role="img" aria-label="Sistema cobre 95% do extrato; faltam 5%">
+        <div class="ruler-fill" style="width:95.2%"></div>
+        <div class="ruler-gap" style="width:4.8%"></div>
       </div>
       <div class="ruler-legend">
         <span class="k"><span class="swatch fill"></span>Sistema hoje <b>R$ 36.122,00</b></span>
-        <span class="k"><span class="swatch gap"></span>Falta <b>R$ 2.643,82</b></span>
-        <span class="k">Extrato <b>R$ 38.765,82</b></span>
+        <span class="k"><span class="swatch gap"></span>Falta <b>R$ 1.816,85</b></span>
+        <span class="k">Extrato <b>R$ 37.938,85</b></span>
       </div>
     </div>
 
@@ -473,33 +481,23 @@
           <td class="val r">1.346,39</td>
           <td><span class="chip banco">Ajuste de banco</span></td>
           <td class="what">
-            <span class="h">Boleto do Cond. Ed. Olivais — NF 117-2, parcela 4 de 10 (pago)</span>
-            Entrada <strong>já registrada e baixada</strong>. As parcelas 1, 2 e 3 estão marcadas
-            como Inter CMPORT; a parcela 4 ficou sem conta. <strong>Marcar a conta = Inter CMPORT.</strong>
-            Não altera o total do mês.
-          </td>
-        </tr>
-        <tr>
-          <td class="date">11/08</td>
-          <td class="val r">826,97</td>
-          <td><span class="chip entrada">Lançar entrada</span></td>
-          <td class="what">
-            <span class="h">Devolução recebida — “Banco 509 / QUISI Contabilidade”</span>
-            Valor devolvido pela contabilidade, <strong>não existe no sistema</strong>.
-            Confirmar se é receita (“Outros recebimentos”) ou devolução de uma despesa paga a maior,
-            e lançar.
+            <span class="h">Boleto do Cond. Ed. Olivais — NF 117-2, parcela 4 de 10</span>
+            Pago via boleto Inter e <strong>baixado automaticamente</strong> pelo sistema em 29/08.
+            As parcelas 1, 2 e 3 estão na conta Inter CMPORT; a parcela 4 ficou sem conta.
+            <strong>Marcar a conta = Inter CMPORT.</strong> Não altera o total do mês.
           </td>
         </tr>
         <tr>
           <td class="date">31/08</td>
           <td class="val r">590,46</td>
-          <td><span class="chip entrada">Lançar entrada</span></td>
+          <td><span class="chip entrada">Dar baixa</span></td>
           <td class="what">
-            <span class="h">Pix — Conjunto Residencial Fortezza</span>
-            É a <strong>mensalidade de agosto do Fortezza</strong> (série recorrente de
-            R$&nbsp;590,46 — abr, mai, jun, jul já pagos). O Pix caiu na conta em 31/08, mas
-            a nota/boleto de agosto <strong>não está no sistema</strong>. Gerar a nota do mês
-            e dar a baixa.
+            <span class="h">Pix — Conjunto Residencial Fortezza (mensalidade de agosto)</span>
+            A nota e o boleto de agosto <strong>existem no sistema</strong> (R$&nbsp;590,46,
+            vencimento 20/08), mas o boleto está <strong>em aberto</strong> — o Pix entrou em
+            31/08 e falta a baixa. <strong>Atenção:</strong> há <strong>duas notas</strong> de
+            agosto para o Fortezza (nº 7883 e 7895, ambas R$&nbsp;590,46) — confirmar qual é a
+            correta, dar baixa nela (Inter CMPORT, 31/08) e cancelar a duplicada.
           </td>
         </tr>
       </tbody>
@@ -507,10 +505,20 @@
     </div>
 
     <p class="after">
-      Depois dos 3 ajustes: <b>36.122,00 + 1.346,39 + 826,97 + 590,46 − 120,00</b>
+      Depois dos 2 ajustes: <b>36.122,00 + 1.346,39 + 590,46 − 120,00</b>
       (os R$ 120,00 dos 2 recibos abaixo saem para a conta Inter&nbsp;TEC)
-      = <b>R$ 38.765,82</b> <span class="ok">= extrato ✓</span>
+      = <b>R$ 37.938,85</b> <span class="ok">= extrato ✓</span>
     </p>
+
+    <div class="callout">
+      <span class="tag">Esclarecido — não é recebimento de cliente</span>
+      <strong>11/08 · R$ 826,97 · “Devolução — Banco 509 / QUISI Contabilidade”.</strong>
+      A cliente pagou a contabilidade (QUISI), o banco <strong>estornou</strong> o pagamento
+      (por isso o crédito de volta na conta) e ela <strong>refez o pagamento por Pix em 12/08</strong>.
+      A despesa da contabilidade já está lançada no sistema (Pix de 12/08). O par
+      saída&nbsp;→&nbsp;devolução do dia 11 se anula; só precisa ser lançado se você quiser o
+      extrato batendo linha a linha — não muda nenhum total.
+    </div>
   </section>
 
   <!-- ============ INTER TEC ============ -->
@@ -546,10 +554,11 @@
           <td class="val r">70,00</td>
           <td><span class="chip banco">Ajuste de banco</span></td>
           <td class="what">
-            <span class="h">Recibo REC-2026-077 — José Erisvaldo de Araújo Silva (Ed. Jussara, apto 09, entrega de material)</span>
-            Recibo emitido pela <strong>TEC</strong> e <strong>já registrado</strong>, mas marcado
-            como Inter CMPORT. O Pix caiu na conta <strong>Inter TEC</strong> (confere no extrato,
-            04/08). Corrigir a conta para Inter TEC.
+            <span class="h">Recibo REC-2026-077 — José Erivaldo, Cond. Jussara (troca do sinaleiro do portão)</span>
+            Assistência da <strong>TEC</strong>, <strong>já registrada</strong> e conferida na
+            planilha do fluxo (seção Assistências Agosto). Está marcada como Inter CMPORT, mas o
+            Pix caiu na <strong>Inter TEC</strong> em 04/08 (confere no extrato).
+            <strong>Corrigir a conta para Inter TEC.</strong>
           </td>
         </tr>
         <tr>
@@ -557,9 +566,10 @@
           <td class="val r">50,00</td>
           <td><span class="chip banco">Ajuste de banco</span></td>
           <td class="what">
-            <span class="h">Recibo REC-2026-078 — Ed. Jussara, apto 02 (2 tags) / Pix “João Luiz Garcia”</span>
-            Mesmo caso: recibo da <strong>TEC</strong>, já registrado, marcado na conta errada.
-            O Pix de R$&nbsp;50,00 entrou na Inter&nbsp;TEC em 06/08. Corrigir a conta para Inter TEC.
+            <span class="h">Recibo REC-2026-078 — João Garcia, Cond. Jussara (troca do sinaleiro do portão)</span>
+            Mesmo caso: assistência da <strong>TEC</strong>, já registrada e na planilha, marcada
+            na conta errada. O Pix de R$&nbsp;50,00 entrou na Inter&nbsp;TEC em 06/08.
+            <strong>Corrigir a conta para Inter TEC.</strong>
           </td>
         </tr>
       </tbody>
@@ -578,7 +588,8 @@
     <p>
       Dinheiro que a empresa moveu entre as próprias contas em agosto. <strong>Nenhuma delas conta
       como entrada de faturamento.</strong> Todas foram conferidas nas duas pontas (a conta que
-      enviou e a que recebeu) e têm o lançamento correspondente no sistema.
+      enviou e a que recebeu), têm o lançamento correspondente no sistema e já aparecem na seção
+      “Entrada/Bancos” da planilha do fluxo.
     </p>
 
     <ul class="clean">
@@ -621,7 +632,7 @@
   </div>
 
   <footer>
-    <span>Gerado em 02/09/2026 · pendências reconferidas na base de produção</span>
+    <span>Gerado em 03/09/2026 · conferido na base de produção e na planilha do fluxo</span>
     <span>Conferência somente leitura — nada foi alterado no sistema</span>
     <span>CMPORT · Fluxo Financeiro</span>
   </footer>

@@ -9,41 +9,52 @@ Casa por valor (±R$0,02) e data (±7 dias). Transferências internas (`mov` com
 `banco_origem_id`, e linhas de extrato "Pix recebido CMPORT" que casam com elas)
 são separadas e vão pro Passo 3.
 
-## Resultado — 5 ajustes fecham os 3 CNPJs a 100% (entradas)
+## Resultado — 4 ajustes fecham os 3 CNPJs a 100% (entradas)
 
-| Conta | banco_id | Extrato | Sistema hoje | Δ | Após ajustes | Ajustes |
+_Revisado 03/09 após conferir na planilha mestre (`FLUXO FINANCEIRO CMPORT TEC - 2026.xlsx`,
+aba "Entradas e SAIDAS - 2026") e reconsultar produção._
+
+| Conta | banco_id | Extrato¹ | Sistema hoje | Δ | Após ajustes | Ajustes |
 |---|---|---|---|---|---|---|
 | **Itaú CMPORT** | 1 | 9.668,76 | 9.668,76 | **0,00 ✅** | 9.668,76 | nenhum |
-| **Inter CMPORT** | 2 | 38.765,82 | 36.122,00 | 2.643,82 | 38.765,82 | 3 (1 banco + 2 lançar) |
+| **Inter CMPORT** | 2 | 37.938,85 | 36.122,00 | 1.816,85 | 37.938,85 | 2 (1 banco + 1 baixa) |
 | **Inter TEC** | 4 | 25.825,87 | 25.705,87 | 120,00 | 25.825,87 | 2 (banco) |
-| **TOTAL (3 contas)** | — | **74.260,45** | **71.496,63** | **2.763,82** | **74.260,45 ✅** | 5 |
+| **TOTAL (3 contas)** | — | **73.433,48** | **71.496,63** | **1.936,85** | **73.433,48 ✅** | 4 |
 
-Δ total = as 3 entradas que faltam (1.346,39 + 826,97 + 590,46). Os recibos 61/62
-(R$ 120) só trocam de CNPJ (CMPORT→TEC), não mexem no total geral.
+¹ Extrato Inter CMPORT **exclui** o crédito de R$ 826,97 (11/08) — é devolução de pagamento,
+não recebimento (ver QUISI abaixo). Bruto seria 38.765,82.
 
-**Por CNPJ:** CMPORT (Itaú+Inter CMPORT) 48.434,58 ext × 45.790,76 sis → 48.434,58 após ·
+Δ total = boleto 284 (1.346,39) + Fortezza (590,46). Os recibos 61/62 (R$ 120) só trocam de
+CNPJ (CMPORT→TEC), não mexem no total geral.
+
+**Por CNPJ:** CMPORT (Itaú+Inter CMPORT) 47.607,61 ext × 45.790,76 sis → 47.607,61 após ·
 TEC 25.825,87 ext × 25.705,87 sis → 25.825,87 após.
 
-**Transferências recebidas** (Passo 3, não entram no faturamento): extrato marca
-R$ 27.859,65 · sistema R$ 32.579,03 · Δ −4.719,34 = as transferências que saem do Itaú e o
-extrato da Inter rotula como "Pix recebido CMPORT" (2.150,17 na Inter CMPORT + 2.569,17 na
-Inter TEC). Somando esse valor ao lado do extrato, os 2 lados fecham.
+### QUISI R$ 826,97 (11/08) — NÃO é entrada. Já esclarecido.
 
-### Inter CMPORT (banco 2) — 3 ajustes
+Sequência no extrato Inter CMPORT: **11/08 −826,97** (pagamento boleto QUISI) → **11/08 +826,97**
+(`Devolucao: Banco 509 - QUISI CONTABILIDADE`, banco estornou) → **12/08 −826,97**
+(`Pix enviado Cp :60701190-QUISI CONTABILIDADE`, refeito). A cliente pagou a contabilidade, o
+banco devolveu, ela refez por Pix.
+- Despesa **já lançada:** `fin_movimentacoes id=1251` SAIDA 12/08 R$ 826,97 banco 2 "Quisi Contabilidade"
+  (+ `id=1255` SAIDA 11/08 R$ 413,48 banco 4 "Quisi Contabilidade TEC" — parte da TEC).
+- Par −826,97/+826,97 do dia 11 se anula. Lançar só se quiser o extrato 100% linha a linha.
+- **Sai da lista de pendências de entrada.**
+
+### Inter CMPORT (banco 2) — 2 ajustes
 | # | Data | Valor | Tipo | Item | Ação |
 |---|---|---|---|---|---|
-| 1 | 28/08 | R$ 1.346,39 | ajuste banco | `boleto id=284` — Cond. Ed. Olivais, NF 117-2, parcela **4/10**, PAGO, `banco_id` NULL. Parcelas 1–3 (ids 281–283) têm `banco_id=2`. | `UPDATE boletos SET banco_id=2 WHERE id=284` |
-| 2 | 11/08 | R$ 826,97 | lançar entrada | Extrato: `Devolucao: Banco 509 - QUISI CONTABILIDADE`. Sem registro. | criar entrada (receita "Outros" **ou** devolução de despesa paga a maior — confirmar) |
-| 3 | 31/08 | R$ 590,46 | lançar entrada | Extrato: `Pix recebido - CONJUNTO RESIDENCIAL FORTEZZA`. Sem registro. | identificar nota/serviço e lançar |
+| 1 | 28/08 | R$ 1.346,39 | ajuste banco | `boleto id=284` — Cond. Ed. Olivais, NF 117-2, parcela **4/10**. Situação PAGO, `valor_total_recebido` 1.346,39, `forma_pagamento` BOLETO_INTER, `codigo_solicitacao` preenchido, `atualizado_em` 29/08 09:00 = **baixa automática via API Inter** (não foi o cliente). `banco_id` NULL; parcelas 1–3 (281–283) têm `banco_id=2`. Extrato: 28/08 +1.346,39 `Boleto de cobranca recebido 112/90716547560`. | `UPDATE boletos SET banco_id=2 WHERE id=284` |
+| 2 | 31/08 | R$ 590,46 | dar baixa | Cond. **742** (Assoc. Moradores Conj Res Fortezza Di Ferrara). Extrato: 31/08 +590,46 `Pix recebido Cp :60701190-CONJUNTO RESIDENCIAL FORTEZZA`. **A nota e o boleto existem** mas EMABERTO — e há **DUAS notas de agosto**: NF **7895** (id 1413, boleto 1152, criado 04/08) e NF **7883** (id 1387, boleto 1465, criado 18/08), ambas R$ 590,46, venc 20/08. Provável duplicata. | cliente confirma a nota certa → `baixa` do boleto (data 31/08, banco 2) → cancelar a duplicada. **NÃO está na planilha mestre** (nem Fortezza aparece lá em 2026). |
 
-Depois: `36.122,00 + 1.346,39 + 826,97 + 590,46 − 120,00 = 38.765,82` = extrato ✅
-(os −120,00 são os recibos 61+62 que migram pra Inter TEC, ajustes 4 e 5.)
+Depois: `36.122,00 + 1.346,39 + 590,46 − 120,00 = 37.938,85` = extrato ✅
+(os −120,00 são os recibos 61+62 que migram pra Inter TEC, ajustes 3 e 4.)
 
 ### Inter TEC (banco 4) — 2 ajustes
 | # | Data | Valor | Tipo | Item | Ação |
 |---|---|---|---|---|---|
-| 4 | 04/08 | R$ 70,00 | ajuste banco | `recibo id=61` REC-2026-077 — `cliente_nome_avulso` = "Jose Erisvaldo de Araujo Silva", Ed. Jussara apto 09, `cnpj_emitente` = 65756913000188 (**TEC**), hoje `banco_id=2`. Extrato Inter TEC 04/08 R$ 70,00 `Pix recebido JOSE ERISVALDO DE ARAUJO SILVA` — match exato. | `UPDATE recibos SET banco_id=4 WHERE id=61` |
-| 5 | 04/08 | R$ 50,00 | ajuste banco | `recibo id=62` REC-2026-078 — Ed. Jussara apto 02 (2 tags), `cnpj_emitente` TEC, hoje `banco_id=2`. Extrato Inter TEC 06/08 R$ 50,00 `Pix recebido JOAO LUIZ GARCIA`. | `UPDATE recibos SET banco_id=4 WHERE id=62` |
+| 3 | 04/08 | R$ 70,00 | ajuste banco | `recibo id=61` REC-2026-077 — "Jose Erivaldo - Cond. Jussara" (troca sinaleiro portão), `cnpj_emitente` TEC, hoje `banco_id=2`. **Na planilha:** aba "Entradas e SAIDAS", r425, seção ASSISTÊNCIAS MÊS AGOSTO (= TEC), marcado `*`. Extrato Inter TEC 04/08 R$ 70,00 `Pix recebido JOSE ERISVALDO`. | `UPDATE recibos SET banco_id=4 WHERE id=61` |
+| 4 | 04/08 | R$ 50,00 | ajuste banco | `recibo id=62` REC-2026-078 — "João Garcia - Cond. Jussara", `cnpj_emitente` TEC, hoje `banco_id=2`. **Na planilha:** r426, mesma seção, marcado `*`. Extrato Inter TEC 06/08 R$ 50,00 `Pix recebido JOAO LUIZ GARCIA`. | `UPDATE recibos SET banco_id=4 WHERE id=62` |
 
 Depois: `25.705,87 + 70,00 + 50,00 = 25.825,87` = extrato ✅
 
@@ -55,17 +66,18 @@ Depois: `25.705,87 + 70,00 + 50,00 = 25.825,87` = extrato ✅
   - 05/08 R$ 4.431,78 = boleto 1354 (Estilo Higienópolis, NF 7643 p6)
   - 20/08 R$ 487,20 = boleto 1382 (J.R.I, NF 7651 p6)
 
-## Reconferência na produção (02/09, pós-relatório)
+## Investigação 03/09 (planilha mestre + produção)
 
-| # | Item | Estado na produção | Pendência? |
-|---|---|---|---|
-| 1 | `boleto id=284` | `banco_id` = NULL, PAGO, parcela 4; parcelas 1–3 (281–283) = `banco_id` 2 | ✅ sim |
-| 2 | QUISI R$ 826,97 (11/08) | nenhuma entrada de R$ 826,97 em ago (boleto/recibo/mov) | ✅ sim — falta lançar |
-| 3 | Fortezza R$ 590,46 (31/08) | Fortezza tem série recorrente R$ 590,46 (notas 7699/7760/7802/7842 = abr–jul, pagas `banco_id` 2). **Agosto não aparece.** Boletos 1116/1117 de R$ 590,45 são de outros condôminos (Cube Vila Ipojuca / Green Gold), não é o Fortezza. | ✅ sim — é a mensalidade de agosto, falta a nota + baixa |
-| 4 | `recibo id=61` | `banco_id` = 2, PAGO, não deletado | ✅ sim — mover pra 4 |
-| 5 | `recibo id=62` | `banco_id` = 2, PAGO, não deletado | ✅ sim — mover pra 4 |
+| Item | Achado | Conclusão |
+|---|---|---|
+| `boleto id=284` | PAGO por boleto Inter, baixa automática 29/08 09:00 (`forma_pagamento` BOLETO_INTER, `codigo_solicitacao` ok). Não foi baixa manual do cliente. `banco_id` NULL. | ajuste de banco — `banco_id=2` |
+| QUISI R$ 826,97 | Extrato: 11/08 −826,97 → 11/08 +826,97 devolução → 12/08 −826,97 Pix. Despesa já lançada: `fin_movimentacoes id=1251`. Atila: cliente pagou a contabilidade, banco estornou, refez. | **não é entrada** — tirado da lista |
+| Fortezza R$ 590,46 | Cond. 742. **Nota+boleto de agosto existem** mas EMABERTO. **2 notas:** 7895 (boleto 1152, criado 04/08) e 7883 (boleto 1465, criado 18/08), ambas R$ 590,46. Provável duplicata. Não está na planilha mestre (Fortezza não aparece lá em 2026). Os 2 créditos de R$ 590,45 de 10/08 no extrato são Cube Vila Ipojuca / Green Gold (boletos 1116/1117), não Fortezza. | dar baixa (1 boleto) + cancelar duplicata — cliente confirma qual nota |
+| `recibo id=61` (R$ 70) | `banco_id`=2, PAGO. **Na planilha** aba "Entradas e SAIDAS" r425, seção Assistências Agosto (TEC), marcado `*`. Extrato Inter TEC 04/08 bate. | ajuste de banco — `banco_id=4` |
+| `recibo id=62` (R$ 50) | `banco_id`=2, PAGO. **Na planilha** r426, mesma seção, marcado `*`. Extrato Inter TEC 06/08 bate. | ajuste de banco — `banco_id=4` |
 
-**As 5 pendências continuam abertas na produção.** Nada foi resolvido no intervalo.
+**Resumo:** 4 ajustes reais (2 de banco + 1 baixa + 2 de banco = 4, sendo os 2 recibos juntos).
+QUISI não conta. Todas as pendências continuam abertas.
 
 ## Transferências entre contas (Passo 3 — não são entradas)
 
@@ -84,6 +96,15 @@ o parser do Passo 1 só marca como `TRANSFERENCIA` os Pix entre as 2 contas Inte
 `mov` de transferência e confirma que **estão lançadas**. Mas o `ler_extratos_agosto.py`
 precisa reclassificá-las (casar contraparte = nosso CNPJ) antes do card "Entradas por
 banco", senão a transferência do Itaú entra como faturamento.
+
+## Pedidos de melhoria do Atila (03/09)
+
+- **Rendimento fácil:** criar no fluxo financeiro um jeito rápido de lançar "Rendimento"
+  (categoria já existe) — botão/atalho, sem virar transferência. Hoje os rendimentos do Itaú
+  entraram como `mov` ENTRADA com `banco_origem_id` preenchido (5 movs, R$ 0,09 em agosto:
+  2015/2016/2162 Itaú + 2076/2077 Bradesco). Limpeza: `SET banco_origem_id = NULL` nessas 5.
+- **Parser Passo 1:** classificar "Pix recebido CMPORT/C&M PORT/CEM PORT" como transferência
+  interna (pré-requisito do card "Entradas por banco").
 
 ## Fora de escopo (sem extrato)
 
