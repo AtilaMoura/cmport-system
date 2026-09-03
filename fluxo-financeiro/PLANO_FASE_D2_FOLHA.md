@@ -1,6 +1,21 @@
 # Fase D parte 2 — Migração da folha histórica (jan–jul/2026)
 
-_Plano montado 02/09/2026 — sessão `session_011C7k6iJC2MiR3MVwYikDAA`. **NADA aplicado.** Aguardando o Atila mandar iniciar._
+_Plano montado 02/09/2026 — sessão `session_011C7k6iJC2MiR3MVwYikDAA`._
+
+_**03/09/2026 (`session_01CaTGrQicK8wsyA4XNJ5Tj3`):** Atila mandou iniciar. Claude:_
+_· re-rodou `conferir_folha_funcionarios.py` + `preparar_folha_d2.py` → `folha_d2_input.json`_
+_  **idêntico** ao de 02/09 (folha jan–jul de produção não mudou) — lista validada._
+_· escreveu os 4 scripts + `_folha_d2_ssh.py` (helper local/SSH). Dry-run em LOCAL: 4 OK_
+_  (6 UPDATEs cadastro · 78 soft-delete todos com checagem PASS · 144 lançamentos R$176.429,85 ·_
+_  26 recategorizações). Caminho de INSERT testado em local com rollback._
+_· **CORREÇÃO de schema:** `fin_movimentacoes` **não tem** `cnpj_titular` (era erro do TASK spec)._
+_  A empresa da mov vem do `banco_id → bancos.cnpj_titular`. Como os 144 entram com `banco_id=NULL`,_
+_  a estrutura da mov copia `DespesaService.marcar_pago`: `origem='MANUAL'`, `status='VALIDADO'`._
+_  A despesa carrega o `cnpj` (é o que a tela de Despesas usa). Sem duplo-count: o dashboard soma_
+_  `fin_movimentacoes` SAIDA, não `despesa_parcelas` — igual à folha automática._
+_· **NADA aplicado em produção.** Falta: backup fresco + dry-run produção + `--aplicar` passo a passo._
+_· ⚠️ pós-D2: re-salvar Luis(2)/Welligton(3) na tela (raw SQL não dispara `sincronizar_recorrentes` —_
+_  o adiantamento FIXO só começa a gerar parcela automática depois disso)._
 
 ## Objetivo
 
@@ -120,13 +135,17 @@ Se o modelo free do opencode travar (já aconteceu, 502), **Claude escreve os sc
 
 ## Ordem de aplicação em produção (cada uma com "ok" do Atila)
 
+Rodar de `cd backend`. Cada passo: **primeiro dry-run** (sem `--aplicar`) → Claude confere → `--aplicar`.
+
 ```
-Passo 0  backup + snapshot
-Passo 1  corrigir_cadastro_funcionarios_d2.py --ambiente producao --aplicar
-Passo 2  remover_folha_solta_d2.py          --ambiente producao --aplicar
-Passo 3  migrar_folha_historica_d2.py       --ambiente producao --aplicar
-Passo 4  recategorizar_bucket_d2.py         --ambiente producao --aplicar   (opcional)
-Passo 5  revalidação (Claude)
+Passo 0  ./venv/Scripts/python.exe ../fluxo-financeiro/snapshot_pre_folha_d2.py   (+ backup do BD)
+Passo 1  ./venv/Scripts/python.exe ../fluxo-financeiro/corrigir_cadastro_funcionarios_d2.py --ambiente producao [--aplicar]
+Passo 2  ./venv/Scripts/python.exe ../fluxo-financeiro/remover_folha_solta_d2.py          --ambiente producao [--aplicar]
+Passo 3  ./venv/Scripts/python.exe ../fluxo-financeiro/migrar_folha_historica_d2.py       --ambiente producao [--aplicar]
+Passo 4  ./venv/Scripts/python.exe ../fluxo-financeiro/recategorizar_bucket_d2.py         --ambiente producao [--aplicar]   (opcional)
+Passo 5  ./venv/Scripts/python.exe ../fluxo-financeiro/conferir_folha_funcionarios.py     (revalidação)
 ```
+
+Todos os scripts são **idempotentes** (rodar 2x não duplica). Passo 2 e 3 pulam o que já foi feito.
 
 Rollback: `backup_producao_pre_folha_d2_<ts>.sql` restaura tudo. Passo 2 é soft-delete (dá pra reverter `deletado_em` sem o backup).
