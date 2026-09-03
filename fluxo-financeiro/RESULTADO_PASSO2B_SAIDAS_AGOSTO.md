@@ -73,26 +73,33 @@ agregada `PAGAMENTOS — COORD ADM FINANCEIRA CAF` do extrato).
 
 ---
 
-## B. Saídas do sistema SEM par no extrato (não são transferência) — precisa da planilha
+## B. Inter TEC — o overage é uma RE-ENTRADA da folha+fornecedores em 31/08 🔴
 
-### Inter TEC (banco 4) — 14 itens, R$ 16.079,52 🔴
+**Achado (investigação item a item, 03/09):** em **2026-08-31, entre 18:43 e 20:14**,
+alguém lançou **58 saídas na Inter TEC (movs 2090–2147, R$ 63.919,67)** — praticamente
+o mês inteiro de folha + fornecedores + transferências, de novo. (+ 9 movs no mesmo
+batch na Inter CMPORT, movs 2080–2088.)
 
-Salário/folha + fornecedores lançados na Inter TEC mas **não aparecem no extrato
-Inter TEC**. Provável: pagos de outra conta (Inter CMPORT / BTG) ou duplicados.
-**São exatamente o escopo da Fase D2 da folha + B1.**
+O que já existia antes desse batch:
+- **Batch A — 25/08 (migração Fornecedor, `project_despesa_fornecedor_parcelamento`):**
+  movs 1240–1282 + 1744 + 1994–2001 (12 movs banco 4, `fornecedor_id` preenchido).
+- Transferências internas corretas (movs 2003–2014 ENTRADA c/ `banco_origem_id`).
 
-| mov | data | valor | categoria | descrição |
-|---|---|---|---|---|
-| 2097 | 07/08 | 5.152,32 | Salários | Pix Rescisão Pedro Silva |
-| 2109 | 13/08 | 4.542,55 | Salários | Andre Moreira Rosa |
-| 2137/2138/2142 | 07–11/08 | 1.579,60 | FORN DIPROSSEG | DIPROSSEG VILA PRUDENTE |
-| 2139/2140 | 14–17/08 | 2.270,36 | FORN TELMAN MOOCA | TELMAN MOOCA |
-| 2143/2145 | 14–26/08 | 1.075,55 | FORN DISFER | DISFER |
-| 2113 | 14/08 | 1.000,00 | Desenv. Sistema | Atila da Silva Gonçalves Moura |
-| 2141 | 18/08 | 110,00 | FORN JT Thenório | JT Thenório |
-| 2116 | 17/08 | 39,90 | Quero Faturar | Quero Faturar |
-| 1744 | 20/08 | 259,24 | Impostos | DAS Simples Nacional ref. 07 |
-| 2096 | 04/08 | 50,00 | Adiantamento | Pix Andre Moreira Rosa |
+Sobreposição medida: **11 das 58 têm valor+data idênticos a uma mov do Batch A**
+(DIPROSSEG, TELMAN, DISFER, JT Thenório, Quero Faturar, Atila, Rescisão Pedro).
+
+### Decomposição do overage da Inter TEC (~R$ 23.489)
+
+| Grupo | Movs | R$ aprox. | Ação |
+|---|---|---|---|
+| Transferências duplicadas (seção A) | 8 | 7.409 | soft-delete (Lote 1) |
+| Fornecedor: 31/08 repete o Batch A de 25/08 | 11–12 | 11.578 | **Lote 2** — soft-delete o par de 31/08, manter o de 25/08 (`fornecedor_id`) |
+| `2090`+`2094` "Pix Cmport Inter" R$ 245 ×2 | 2 | 490 | só há 1 transf −245 no extrato; há `−245 Pix enviado LSC` no extrato Inter CMPORT — ver |
+| **Folha (salários) do batch 31/08** — Almira, Welligton, Gabriel, Luis, Fabiana, André, Pedro rescisão, impostos, sindicatos, convênios | ~30 | ~35–40k | **NÃO é duplicata de mov** — é o registro da folha de agosto. Colide com as 23 parcelas RECORRENTE PENDENTE → **escopo da Fase D2, coordenar com o agente da folha** |
+| Órfãos reais: `2109` André R$ 4.542,55 · `1744` DAS R$ 259,24 | 2 | 4.802 | precisa da planilha / cliente |
+
+Depois dos Lotes 1+2 a Inter TEC cai de R$ 70.667 para ~R$ 51.680, contra extrato
+R$ 47.178 — o resto (~R$ 4,5k) é o `2109` + a folha (Fase D2).
 
 ### Inter CMPORT (banco 2) — 6 itens, R$ 3.635,58 ⚠️
 
@@ -113,12 +120,26 @@ Parte casa com o extrato por data/descrição diferente:
 
 ## Plano proposto
 
-1. **Lote 1 (seguro, alto grau de certeza)** — soft-delete das 24–25 transferências
-   duplicadas como SAÍDA (seção A): Itaú 6 + Inter CMPORT 10 + Inter TEC 8.
-   Script novo `limpar_transf_duplicada_saida_agosto.py` no padrão do Passo 2 da D2
-   (soft-delete `despesas` + `despesa_parcelas` + `fin_movimentacoes`, `registrar_exclusao`,
-   backup, dry-run → `--aplicar` com ok do Atila). Depois: Itaú fecha 100%, Inter CMPORT ~R$1,5k, Inter TEC ~R$16k.
-2. **Lote 2** — ajuste dos pares que casam com data/descrição diferente (Convênio Médico
-   ↔ ABF; QUISI; multas moto ↔ CAF) — só marcar como conciliado / ajustar data, sem apagar.
-3. **Lote 3 (depende da planilha + Fase D2)** — os R$ 16k da Inter TEC (folha + fornecedores):
-   decidir conta certa / duplicata caso a caso com a cliente. Coordenar com o agente da D2.
+**Validação feita:** as 24 da seção A foram conferidas contra o extrato do banco (cada
+transferência aparece 1× no extrato e casa com a mov ENTRADA correta) E contra a mov
+ENTRADA no sistema. A SAÍDA é a sobra.
+
+1. **Lote 1 — 24 transferências duplicadas como SAÍDA** (Itaú 6 + Inter CMPORT 10 + Inter TEC 8).
+   Confirmadas sistema + extrato. Script `limpar_transf_duplicada_saida_agosto.py` no padrão
+   do Passo 2 da D2 (soft-delete `despesas` + `despesa_parcelas` + `fin_movimentacoes`,
+   `registrar_exclusao`, backup, dry-run → `--aplicar` com ok do Atila).
+   Resultado: **Itaú fecha 100%**, Inter CMPORT vai a ~R$ 1,5k, Inter TEC a ~R$ 16k.
+2. **Lote 2 — 11–12 pares fornecedor 31/08 × 25/08** — soft-delete a cópia de 31/08
+   (movs 2137–2145 e afins), manter a de 25/08 (tem `fornecedor_id`). Conferir 1 a 1
+   com a planilha antes. Coordenar com o agente da D2 (o batch 31/08 é meio-folha).
+3. **Lote 3 — ajuste de pares com data/descrição diferente** (Convênio Médico ↔ ABF;
+   multas moto ↔ CAF; QUISI) — só marcar como conciliado, sem apagar.
+4. **Fase D2 (outro agente)** — a folha do batch 31/08 (~R$ 35–40k) + `2109` André +
+   `1744` DAS + as 23 parcelas RECORRENTE PENDENTE de agosto. **Não mexer sem alinhar.**
+
+## ⚠️ Fronteira com a Fase D2
+
+O batch de 31/08 (58 movs, R$ 63.919,67 na Inter TEC) é ao mesmo tempo:
+transferências duplicadas (Lote 1) + fornecedor duplicado (Lote 2) + **a folha de
+agosto** (D2). Os Lotes 1 e 2 são separáveis e seguros, mas a folha dentro do mesmo
+batch é da D2 — **combinar a ordem com o agente da folha antes de aplicar**.
