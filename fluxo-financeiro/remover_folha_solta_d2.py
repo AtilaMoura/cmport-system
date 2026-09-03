@@ -57,12 +57,15 @@ def main():
     mov = [x for x in itens if x["fonte"] == "mov_orfa"]
     desp = [x for x in itens if x["fonte"] == "despesa_avulsa"]
 
+    esperado = inp["resumo"]["remover"]
+    esperado_total = inp["resumo"]["remover_total_R$"]
     print(f"=== Passo 2 — soft-delete ({args.ambiente}, {'APLICAR' if args.aplicar else 'DRY-RUN'}) ===")
-    print(f"    {len(mov)} fin_movimentacoes + {len(desp)} despesas  "
-          f"(esperado: 73 + 5 = 78, total R$ {sum(x['valor'] for x in itens):,.2f})\n")
+    print(f"    {len(mov)} fin_movimentacoes + {len(desp)} despesas = {len(itens)}  "
+          f"(resumo do input: {esperado}, total R$ {sum(x['valor'] for x in itens):,.2f})\n")
 
-    if len(itens) != 78:
-        print(f"  !! lista tem {len(itens)} itens, esperado 78 — ABORTAR")
+    if len(itens) != esperado or abs(sum(x["valor"] for x in itens) - esperado_total) > 0.05:
+        print(f"  !! lista ({len(itens)} itens / R$ {sum(x['valor'] for x in itens):,.2f}) "
+              f"não bate com o resumo ({esperado} / R$ {esperado_total:,.2f}) — ABORTAR")
         sys.exit(1)
 
     falhas = []
