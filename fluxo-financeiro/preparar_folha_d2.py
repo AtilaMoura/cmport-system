@@ -59,11 +59,15 @@ CADASTRO_CORRECOES = [
 ]
 
 # --- 2. o que SOFT-DELETAR (folha solta com pessoa, antes de agosto) ----------
-# Exceções confirmadas com a cliente — NÃO remover, são lançamentos reais que
-# só não aparecem na planilha FLUXO (ficam como estão em produção):
-#   despesa 296 = "Pix QUISI (Imposto de Renda - André)" R$ 220 — cliente
-#     confirmou 03/09 que é pagamento à parte (IRRF do pró-labore do André).
-REMOVER_EXCECOES = {("despesa_avulsa", 296)}
+# Exceções confirmadas com a cliente (03/09/2026) — NÃO remover:
+#   despesa 296 = "Pix QUISI (Imposto de Renda - André)" R$ 220 — pagamento à
+#     parte (IRRF do pró-labore do André), só não está na planilha FLUXO. Fica
+#     como está em produção.
+#   despesa 536 = "Emprestimo de Salario Fabiana..." R$ 9.000 (14/04) — cliente
+#     confirmou que é CUSTO DA EMPRESA, não é folha, não tem devolução. Fica como
+#     Despesa Geral (categoria 49 "Diversos", grupo DESPESA, funcionario_id NULL).
+#     A DUPLICATA — mov órfã 637, mesmo valor/data/texto — CONTINUA na remoção.
+REMOVER_EXCECOES = {("despesa_avulsa", 296), ("despesa_avulsa", 536)}
 remover = []
 for r in MAPA["folha_solta_com_pessoa"]:
     if (r["fonte"], r["id"]) in REMOVER_EXCECOES:

@@ -35,11 +35,14 @@ Tirar a folha de pagamento de jan–jul/2026 do estado "solto" em que está hoje
 **Jan–jul não está travado.** O `despesas_funcionario.json` (planilha FLUXO da cliente) está completo
 e consistente pros 7 funcionários — ver `PENDENCIAS_FOLHA_CLIENTE.md`, seção "Resolvido com o que temos".
 
-Só precisa de um "confirma" da cliente em 2 itens, e nenhum bloqueia começar:
-- **A** — empréstimo Fabiana R$ 9.000 (id 536+637): não está na planilha FLUXO → default = remover e não recriar.
-- **B** — Pix QUISI IR André R$ 220 (id 296): idem.
+**Pendências A e B — RESPONDIDAS pela cliente (03/09/2026):**
+- **A — empréstimo Fabiana R$ 9.000 (14/04):** é **custo real da empresa**, não é folha, sem devolução.
+  → despesa **536 fica** (categoria 49 "Diversos", grupo DESPESA — já é Despesa Geral). A **duplicata mov
+  órfã 637 sai** (mesmo valor/data/texto). Tratado via `REMOVER_EXCECOES` em `preparar_folha_d2.py`.
+- **B — Pix QUISI IR André R$ 220 (15/05):** é **pagamento à parte** (IRRF do pró-labore), só não está na
+  planilha FLUXO. → despesa **296 fica** como está. Idem `REMOVER_EXCECOES`.
 
-Se a cliente disser que A ou B são reais, é só **não** incluir esses ids no `remover` (editar `folha_d2_input.json`).
+Resultado: `remover` = **76** (73 mov órfãs + 3 despesas 658/659/660), R$ 97.460,47.
 Agosto está fora desta rodada (tarefa separada).
 
 ---
