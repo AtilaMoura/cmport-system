@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -6,6 +8,7 @@ from app.core.database import SessionLocal
 from app.services.fluxo_financeiro_service import FluxoFinanceiroService
 from app.services.fin_dashboard_service import FinDashboardService
 from app.services.fin_conciliacao_service import FinConciliacaoService
+from app.services.fin_export_service import FinExportService
 from app.schemas.fluxo_financeiro_schema import (
     FluxoFinanceiroResponse, AlertaDuplicata, DispensarDuplicataRequest, PendenciasResponse,
     AlertaNotaSemBoleto, DispensarNotaSemBoletoRequest,
@@ -172,3 +175,35 @@ def importar_extrato_saldo_inter(ano: int, mes: int, db: Session = Depends(get_d
         return FinConciliacaoService.importar_inter(db, ano, mes)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, str(e))
+
+
+@router.get("/exportar-fluxo")
+def exportar_fluxo_xlsx(
+    ano_inicio: int = Query(..., ge=2020, le=2100),
+    mes_inicio: int = Query(..., ge=1, le=12),
+    ano_fim: Optional[int] = Query(None, ge=2020, le=2100),
+    mes_fim: Optional[int] = Query(None, ge=1, le=12),
+    cnpj: Optional[str] = Query(None, description="CMPORT (22761557000188) ou TEC (65756913000188). Omitir = ambos."),
+    incluir_pendentes: bool = Query(True),
+    db: Session = Depends(get_db),
+):
+    """Gera o .xlsx completo do Fluxo Financeiro (Resumo / Entradas / Saídas /
+    Transferências / Categoria x Mês / Pendências), regime de caixa, no filtro
+    escolhido (mês único ou intervalo, um CNPJ ou os dois)."""
+    a_fim = ano_fim or ano_inicio
+    m_fim = mes_fim or mes_inicio
+    if (a_fim, m_fim) < (ano_inicio, mes_inicio):
+        raise HTTPException(400, "Fim do período antes do início.")
+    try:
+        conteudo = FinExportService.gerar_xlsx(
+            db, ano_inicio, mes_inicio, a_fim, m_fim, cnpj=cnpj, incluir_pendentes=incluir_pendentes,
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, str(e))
+    empresa = {"22761557000188": "cmport", "65756913000188": "tec"}.get("".join(filter(str.isdigit, cnpj or "")), "geral")
+    nome = f"fluxo_{empresa}_{ano_inicio}{mes_inicio:02d}-{a_fim}{m_fim:02d}_{datetime.now():%Y%m%d_%H%M}.xlsx"
+    return Response(
+        content=conteudo,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={nome}"},
+    )

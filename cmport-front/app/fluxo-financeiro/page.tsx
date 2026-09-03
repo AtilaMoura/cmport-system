@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
 import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
 import { DashboardPorBanco } from '@/components/fluxo-financeiro/DashboardPorBanco';
+import { ExportarFluxoBtn } from '@/components/fluxo-financeiro/ExportarFluxoBtn';
 import {
   fmtValor, type FluxoFinanceiroResponse, type AlertaDuplicata, type DashboardFinanceiro,
 } from '@/lib/fluxoFinanceiro';
@@ -99,7 +100,8 @@ function FluxoFinanceiroContent() {
       </div>
 
       <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        <FiltrosFluxo ano={ano} mes={mes} onAnoChange={setAno} onMesChange={setMes} />
+        <FiltrosFluxo ano={ano} mes={mes} onAnoChange={setAno} onMesChange={setMes}
+          acoesExtra={<ExportarFluxoBtn ano={ano} mes={mes} />} />
 
         {alertas.length > 0 && (
           <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl p-4">
