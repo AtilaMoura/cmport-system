@@ -787,9 +787,16 @@ class NotaFiscalService:
                     aviso_servico = f"Nota reprocessada, mas erro ao criar serviço: {e}"
                     print(f"[Reprocessar] Erro ao criar servico: {e}")
 
-        # Tenta vincular ao corpo da nota (cobre notas PRODUTO que não vincularam na importação)
+        # Tenta vincular ao corpo da nota (cobre notas PRODUTO que não vincularam na importação).
+        # Também tenta quando a nota está "presa" a um corpo já soft-deletado — nesse caso
+        # tentar_vincular_por_nota_fiscal limpa o vínculo morto e procura o corpo novo.
         aviso_corpo = None
-        if not nota.corpo_nota_id:
+        corpo_vinculado_vivo = False
+        if nota.corpo_nota_id:
+            from app.models.corpo_nota_model import CorpoNota as _CorpoNotaChk
+            _c = db.query(_CorpoNotaChk).filter(_CorpoNotaChk.id == nota.corpo_nota_id).first()
+            corpo_vinculado_vivo = bool(_c and _c.deletado_em is None)
+        if not corpo_vinculado_vivo:
             try:
                 from app.services.corpo_nota_service import CorpoNotaService
                 candidatos = CorpoNotaService.tentar_vincular_por_nota_fiscal(db, nota.id)

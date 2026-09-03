@@ -594,6 +594,31 @@ class CorpoNotaService:
         if corpo.status == StatusCorpoNota.PAGO:
             raise HTTPException(status_code=403, detail="Não é possível excluir corpo com status PAGO.")
 
+        # Bloqueia exclusão enquanto a nota vinculada tiver boleto ativo — nesse
+        # caso o operador precisa cancelar o boleto (ou desvincular a nota) antes,
+        # senão o boleto fica pendurado num corpo que deixou de existir.
+        notas_vinculadas_ids = [
+            nid for nid in (corpo.nota_fiscal_id, corpo.nota_produto_id) if nid
+        ]
+        if notas_vinculadas_ids:
+            from app.models.boleto_model import Boleto, SituacaoBoleto
+            boleto_ativo = (
+                db.query(Boleto)
+                .filter(
+                    Boleto.nota_fiscal_id.in_(notas_vinculadas_ids),
+                    ~Boleto.situacao.in_([SituacaoBoleto.CANCELADO, SituacaoBoleto.BAIXADO]),
+                )
+                .first()
+            )
+            if boleto_ativo:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Este corpo tem nota fiscal com boleto ativo. Cancele o boleto "
+                        "ou desvincule a nota antes de excluir o corpo."
+                    ),
+                )
+
         from app.routers.auditoria_router import registrar_exclusao
         registrar_exclusao(
             db=db,
@@ -609,11 +634,58 @@ class CorpoNotaService:
                 "valor_bruto": str(corpo.valor_bruto) if corpo.valor_bruto else None,
                 "valor_liquido": str(corpo.valor_liquido) if corpo.valor_liquido else None,
                 "nota_fiscal_id": corpo.nota_fiscal_id,
+                "nota_produto_id": corpo.nota_produto_id,
             },
             motivo=f"Exclusão por {usuario or 'sistema'}",
         )
+
+        # Desfaz os vínculos com nota fiscal ANTES do soft-delete. Sem isso a nota
+        # continua apontando (notas_fiscais.corpo_nota_id) para um corpo que não
+        # existe mais e nunca mais pode ser religada a outro corpo — nem pela tela
+        # (vincular_nota_fiscal barra com 409) nem pelo vínculo automático de XML
+        # (tentar_vincular_por_nota_fiscal só age quando corpo_nota_id está vazio).
+        CorpoNotaService._desvincular_notas_para_exclusao(db, corpo)
+
         corpo.deletado_em = datetime.utcnow()
         CorpoNotaRepository.save(db, corpo)
+
+        ciclo = CicloNotaRepository.get_by_id(db, corpo.ciclo_id)
+        if ciclo:
+            CicloNotaService.atualizar_status_pelo_corpo(db, ciclo)
+
+    @staticmethod
+    def _desvincular_notas_para_exclusao(db: Session, corpo: CorpoNota) -> None:
+        """Limpa os vínculos nota fiscal ↔ corpo antes de excluir o corpo.
+
+        Espelha o que `desvincular_nota` / `desvincular_nota_produto` fazem, mas
+        sem mexer no status do corpo (ele está prestes a virar deletado_em) e
+        cobrindo os dois campos (nota_fiscal_id e nota_produto_id) de uma vez.
+        """
+        from app.models.nota_fiscal_model import NotaFiscal
+
+        nota = None
+        if corpo.nota_fiscal_id:
+            nota = db.query(NotaFiscal).filter(NotaFiscal.id == corpo.nota_fiscal_id).first()
+            if nota:
+                nota.corpo_nota_id = None
+                db.add(nota)
+
+        nota_prod = None
+        if corpo.nota_produto_id:
+            nota_prod = db.query(NotaFiscal).filter(NotaFiscal.id == corpo.nota_produto_id).first()
+            if nota_prod:
+                db.add(nota_prod)
+
+        # Desfaz o vínculo simétrico nota_vinculada_id (serviço ↔ produto) quando
+        # as duas notas do corpo apontam uma para a outra.
+        if nota and nota_prod:
+            if nota.nota_vinculada_id == nota_prod.id:
+                nota.nota_vinculada_id = None
+            if nota_prod.nota_vinculada_id == nota.id:
+                nota_prod.nota_vinculada_id = None
+
+        corpo.nota_fiscal_id = None
+        corpo.nota_produto_id = None
 
     # ── Geração de número NF ─────────────────────────────────────────────────
 
@@ -1435,6 +1507,21 @@ class CorpoNotaService:
         nota = db.query(NotaFiscal).filter(NotaFiscal.id == nota_fiscal_id).first()
         if not nota or not nota.condominio_id:
             return None
+
+        # Defensivo: se a nota ainda aponta para um corpo que foi soft-deletado,
+        # trata como se estivesse sem vínculo (o corpo antigo não conta mais) e
+        # libera o matching para achar o corpo novo.
+        if nota.corpo_nota_id:
+            corpo_atual = (
+                db.query(CorpoNota)
+                .filter(CorpoNota.id == nota.corpo_nota_id)
+                .first()
+            )
+            if corpo_atual and corpo_atual.deletado_em is not None:
+                nota.corpo_nota_id = None
+                if corpo_atual.nota_fiscal_id == nota.id:
+                    corpo_atual.nota_fiscal_id = None
+                db.add(nota)
 
         tipo_map = {
             TipoNota.MANUTENCAO: TipoNotaCorpo.MANUTENCAO,

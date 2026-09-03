@@ -421,7 +421,11 @@ export default function DetalheCorpoNotaPage() {
   };
 
   const deletar = async () => {
-    if (!confirm('Excluir este corpo de nota? A ação registra a exclusão na auditoria.')) return;
+    const temNota = corpo?.nota_fiscal_id || corpo?.nota_produto_id;
+    const aviso = temNota
+      ? 'Excluir este corpo de nota? A nota fiscal vinculada será desvinculada e voltará a ficar disponível para outro corpo. A ação registra a exclusão na auditoria.'
+      : 'Excluir este corpo de nota? A ação registra a exclusão na auditoria.';
+    if (!confirm(aviso)) return;
     try {
       await api.delete(`/corpos-nota/${id}`);
       router.push('/corpos-nota');
