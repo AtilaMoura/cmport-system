@@ -6,7 +6,14 @@ funcionário) no detalhe**. É o Passo 5 do `PLANO_RECONCILIACAO_EXTRATOS_AGOSTO
 
 ## STATUS (03/09 — sessão `session_01Ln9cjBN2m6XSPS9D14BqGZ`)
 
-**Fases 1, 2, 3 + tela mínima IMPLEMENTADAS em local. Não deployado.**
+**Fases 1, 2, 3 + tela mínima IMPLEMENTADAS e DEPLOYADAS EM PRODUÇÃO (03/09 ~12:45).**
+Commit `6179fc3` (push `f7de212`). Testado em produção:
+- `GET /financeiro/dashboard/por-banco?ano=2026&mes=8` → OK, entradas consolidadas R$ 73.433,48 (bate).
+- `POST /extrato-saldo/2026/8/importar-inter` → **funcionou** — Inter CMPORT R$ 1.089,10 (bate exato com extrato). Inter TEC "sem credencial" (só CMPORT tem API Inter) → manual.
+- Saldo inicial de agosto semeado em produção: Itaú −342,35 · Inter CM 551,96 · Inter TEC 6.740,19
+  (`migrar_saldo_inicial_por_banco.py --aplicar --ambiente producao`, backup `backup_producao_pre_saldo_inicial_banco_20260903_1246.sql`).
+- Saldo do extrato de agosto preenchido: Itaú −92,32 · Inter CM 1.089,10 (INTER) · Inter TEC 743,06 (MANUAL).
+- **Diferenças todas vermelhas** (Inter CM: calc −24.025 × ext 1.089 = −25.114) — é o gap das SAÍDAS (B1 + folha), esperado. Reconciliação de saídas é a próxima tarefa.
 D2 da folha fica com outro agente (não é dependência bloqueante — a linha
 "funcionário" já está no código, populará sozinha quando as categorias FUNCIONARIO
 existirem).
