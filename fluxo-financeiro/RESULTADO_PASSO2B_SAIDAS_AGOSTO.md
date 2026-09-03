@@ -2,19 +2,35 @@
 
 _Rodado 03/09/2026 via `comparar_saidas_agosto.py`._
 
-## ✅ APLICADO EM PRODUÇÃO 03/09 ~13:35 — `limpar_duplicadas_saidas_agosto.py --aplicar`
+## ✅ APLICADO EM PRODUÇÃO 03/09 — `limpar_duplicadas_saidas_agosto.py --aplicar`
 
 Backup: `backup_producao_pre_limpeza_duplicadas_saidas_agosto_20260903_1332.sql` (9,9 MB).
-**37 saídas duplicadas soft-deletadas** (mov + despesa + `registros_exclusoes`):
-26 transferências (Lote 1) + 10 fornecedor 31/08 (Lote 2) + 1 folha (Lote 3: mov 2097).
+**42 saídas duplicadas soft-deletadas** (mov + despesa + `registros_exclusoes`) + 1 correção de data:
+- Lote 1 (26) — transferência lançada 2× como SAÍDA
+- Lote 2 (10) — fornecedor do batch 31/08 repetindo a migração de 25/08
+- Lote 3 (1)  — folha: mov 2097 (cópia de 2092)
+- Lote 4 (5)  — dups do cruzamento fino: `2041` (Armarinhos), `2027` (Zona Azul/Café), `2030` (Café), `1708` (Posto Gasolina valor errado), `2091` (Pix André)
+- Data: mov `1934` "Convênio Médico" 20/08 → 26/08 (= linha "Assoc. Beneficência" do extrato)
 
-| Conta | Saídas sistema — antes | depois | Extrato | Δ residual |
-|---|---|---|---|---|
-| **Itaú CMPORT** | 10.162,95 | **6.793,61** | 6.793,61 | **0,00** ✅ |
-| **Inter CMPORT** | 49.048,05 | **28.458,57** | 27.592,10 | ~866 (QUISI/Convênio/Armarinhos — Lote 3) |
-| **Inter TEC** | 70.667,80 | **52.030,71** | 47.178,92 | ~4.852 (folha: mov 2109 André R$4.542 + mov 1744 DAS R$259 — **Fase D2**) |
+### Estado final — saídas sistema × extrato (todas as categorias: fornecedor + folha + despesa)
 
-Diferença que ainda aparece no dashboard = transferências (Passo 3) + folha (D2), não saídas.
+| Conta | Sistema (antes) | Sistema (agora) | Extrato bruto | Extrato real¹ | Δ real |
+|---|---|---|---|---|---|
+| **Itaú CMPORT** | 10.162,95 | **6.793,61** | 6.793,61 | 6.793,61 | **0,00** ✅ |
+| **Inter CMPORT** | 49.048,05 | **26.565,99** | 27.592,10 | 26.126,76 | **+439,23** ⚠️ |
+| **Inter TEC** | 70.667,80 | **51.980,71** | 47.178,92 | 47.178,92 | **+4.801,79** 🔴 |
+
+¹ Extrato real Inter CMPORT = 27.592,10 − 826,97 (QUISI 11/08: −826,97 estornado no mesmo dia por
+  +826,97 "Devolução", refeito 12/08 = mov 1251) − 638,37 (CM PORT 31/08: é a transferência
+  CMPORT→Bradesco, mov ENTRADA 2078 — o parser do extrato classificou como SAÍDA).
+
+### O que resta
+
+- **Itaú: 100% conciliado.**
+- **Inter CMPORT: só mov `1265` "Conta de Luz" R$ 439,23 (19/08)** — não está no extrato; valor idêntico à
+  transferência CMPORT→TEC. **Flag pra cliente:** é conta de luz mesmo, ou 3ª cópia da transferência?
+- **Inter TEC: mov `2109` (salário André R$ 4.542,55) + mov `1744` (DAS R$ 259,24)** = R$ 4.801,79 exato.
+  Folha — **Fase D2** (conferir se foi pago de outra conta / é duplicata / não foi pago).
 
 ---
 

@@ -74,9 +74,21 @@ DUPLICADAS = [
     (2113, 2, 1282, "Atila Sistema R$1000 14/08 (dup de 1282)"),
     # LOTE 3 — folha duplicada dentro do batch 31/08
     (2097, 3, 2092, "Rescisao Pedro R$5152,32 07/08 (dup de 2092)"),
+    # LOTE 4 — dups achadas no cruzamento fino sistema x extrato (re-entrada 27-31/08
+    #          repetiu o batch limpo de 25/08). keeper = a versao que casa com o extrato.
+    (2041, 4, 1315, "Armarinhos R$543 01/08 (dup de 1315)"),
+    (2027, 4, 2046, "Cafe/Zona Azul R$13,90 21/08 (dup de 2046 Zona Azul, que casa no extrato)"),
+    (2030, 4, 2045, "Cafe R$15,69 24/08 (dup de 2045)"),
+    (1708, 4, 2043, "Posto Gasolina R$1319,99 22/08 = valor errado de 2043 R$1391,99 (extrato)"),
+    (2091, 4, 2096, "Pix Andre R$50 03/08 (o de 03/08 no extrato e transf; pagto real ao Andre = 2096 04/08)"),
 ]
 
 MOTIVO = "Passo 2b reconciliacao agosto — saida duplicada (ver RESULTADO_PASSO2B_SAIDAS_AGOSTO.md)"
+
+# (mov_id, data_nova, motivo) — pagamento real, so a data estava errada vs extrato
+CORRIGIR_DATA = [
+    (1934, "2026-08-26", "Convenio Medico = Assoc. Beneficencia no extrato (26/08, nao 20/08)"),
+]
 
 
 def q(ssh, sql):
@@ -114,16 +126,17 @@ def main():
     print("=" * 100)
     print(f"LIMPAR SAÍDAS DUPLICADAS — {'APLICAR' if APLICAR else 'DRY-RUN'}  ({len(DUPLICADAS)} movs)")
     print("=" * 100)
-    ok, problemas = [], []
+    ok, problemas, ja_feito = [], [], []
     for mov_id, lote, keeper, desc in DUPLICADAS:
         e = estado.get(str(mov_id))
         k = keep_estado.get(str(keeper))
         p = parc.get(str(mov_id))
         prob = []
+        if e and e[5] not in ("", "NULL", None):
+            ja_feito.append(mov_id)
+            continue
         if not e:
             prob.append("mov NÃO existe")
-        elif e[5] not in ("", "NULL", None):
-            prob.append("mov JÁ deletada")
         elif e[3] != "SAIDA":
             prob.append(f"mov tipo={e[3]} (esperado SAIDA)")
         if not k:
@@ -141,7 +154,7 @@ def main():
         print(f"  L{lote} mov {mov_id:>5}  R$ {float(val):>9,.2f} {dat}  parc={p[0] if p else '-'} desp={p[1] if p else '-'}  keep={keeper}  [{marca}]  {desc}")
         (problemas if prob else ok).append(mov_id)
 
-    print(f"\n  {len(ok)} prontas · {len(problemas)} com problema: {problemas}")
+    print(f"\n  {len(ok)} prontas · {len(ja_feito)} já feitas ({ja_feito}) · {len(problemas)} com problema: {problemas}")
 
     if not APLICAR:
         print("\n(dry-run — nada aplicado. Rode com --aplicar)")
@@ -154,7 +167,10 @@ def main():
 
     print("\nAPLICANDO (registrar_exclusao + soft-delete despesa + mov)...")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ja_set = set(ja_feito)
     for mov_id, lote, keeper, desc in DUPLICADAS:
+        if mov_id in ja_set:
+            continue
         e = estado[str(mov_id)]
         p = parc.get(str(mov_id))
         snap = f'{{"mov_id": {mov_id}, "valor": "{e[1]}", "data": "{e[2]}", "banco_id": "{e[4]}", "keeper": {keeper}, "lote": {lote}, "desc": "{esc(desc)}"}}'
@@ -166,6 +182,12 @@ def main():
             q(ssh, f"INSERT INTO registros_exclusoes (tipo_registro, registro_id, dados_completos, motivo_exclusao, usuario_exclusao, data_exclusao) VALUES ('despesa', {despesa_id}, '{esc(snap)}', '{esc(MOTIVO)}', 'claude-passo2b', '{now}');")
             q(ssh, f"UPDATE despesas SET deletado_em = '{now}', ativo = 0 WHERE id = {despesa_id} AND deletado_em IS NULL;")
         print(f"  mov {mov_id} + despesa {p[1] if p else '-'} soft-deletados")
+
+    for mov_id, data_nova, motivo in CORRIGIR_DATA:
+        r = q(ssh, f"SELECT data, deletado_em FROM fin_movimentacoes WHERE id = {mov_id};")
+        if r and r[0][1] in ("", "NULL", None):
+            q(ssh, f"UPDATE fin_movimentacoes SET data = '{data_nova}' WHERE id = {mov_id};")
+            print(f"  mov {mov_id}: data {r[0][0]} -> {data_nova}  ({motivo})")
 
     # confere totais depois
     print("\nDEPOIS — saídas fin_movimentacoes por banco ago/2026:")
