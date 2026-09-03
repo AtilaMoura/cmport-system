@@ -42,8 +42,13 @@ export default function Sidebar() {
       label: 'FINANCEIRO',
       items: [
         { name: 'Fluxo Financeiro', icon: '💰', href: '/fluxo-financeiro', roles: ['DEV', 'ADMIN', 'USUARIO'] },
-        { name: 'Funcionários',     icon: '🧑‍💼', href: '/fluxo-financeiro/funcionarios', roles: ['DEV', 'ADMIN', 'USUARIO'] },
         { name: 'Recibos',          icon: '🧾', href: '/recibos',          roles: ['DEV', 'ADMIN', 'USUARIO'] },
+      ],
+    },
+    {
+      label: 'PESSOAL',
+      items: [
+        { name: 'Funcionários', icon: '🧑‍💼', href: '/funcionarios', roles: ['DEV', 'ADMIN', 'USUARIO'] },
       ],
     },
     {

@@ -1,443 +1,473 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { fmtValor } from '@/lib/fluxoFinanceiro';
-import { DespesasFuncionario } from '@/components/fluxo-financeiro/DespesasFuncionario';
+import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
+import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
+import { fmtValor, fmtData, FORMAS_PAGAMENTO, FORMA_LABEL } from '@/lib/fluxoFinanceiro';
 
-// CNPJ (só dígitos) das duas empresas que pagam a folha
 const EMPRESAS = [
   { cnpj: '22761557000188', label: 'CMPORT' },
   { cnpj: '65756913000188', label: 'TEC' },
 ];
 const empresaLabel = (cnpj: string) => EMPRESAS.find(e => e.cnpj === cnpj)?.label ?? cnpj;
 
-const ADIANTAMENTO_OPCOES = [
-  { v: 'NENHUM', l: 'Não tem' },
-  { v: 'FIXO', l: 'Valor fixo' },
-  { v: 'VARIAVEL', l: 'Valor varia' },
-];
+interface Parcela {
+  id: number;
+  numero_parcela: number;
+  total_parcelas: number;
+  valor: number | string;
+  data_vencimento: string;
+  status: string;
+  data_pagamento: string | null;
+  banco_id: number | null;
+}
 
-interface Variaveis {
-  salario_mensal: number | string;
-  dia_pagamento_salario: number | null;
-  adiantamento_tipo: string;
-  adiantamento_valor: number | string;
-  dia_pagamento_adiantamento: number | null;
-  vale_transporte: number | string;
-  vale_refeicao: number | string;
-  tem_plantao: boolean;
-  plantao_valor: number | string;
-  tem_hora_extra: boolean;
-  hora_extra_valor: number | string;
-  encargos_percentual: number | string;
+interface Despesa {
+  id: number;
+  descricao: string;
+  categoria_id: number | null;
+  funcionario_id: number | null;
+  cnpj: string;
+  tipo_pagamento: string;
+  parcelas: Parcela[];
 }
 
 interface Funcionario {
   id: number;
   nome: string;
   empresa_padrao_cnpj: string;
-  cargo: string | null;
-  data_admissao: string | null;
-  data_demissao: string | null;
   ativo: boolean;
-  observacao: string | null;
-  variaveis: Variaveis | null;
 }
 
-const varVazia = (): Variaveis => ({
-  salario_mensal: '', dia_pagamento_salario: 11,
-  adiantamento_tipo: 'NENHUM', adiantamento_valor: '', dia_pagamento_adiantamento: 21,
-  vale_transporte: '', vale_refeicao: '',
-  tem_plantao: false, plantao_valor: '', tem_hora_extra: false, hora_extra_valor: '',
-  encargos_percentual: '',
-});
+interface Categoria { id: number; nome: string; }
+interface Banco { id: number; nome: string; ativo: boolean; }
 
-type FormState = {
-  nome: string; empresa_padrao_cnpj: string; cargo: string;
-  data_admissao: string; ativo: boolean; data_demissao: string;
-  observacao: string; variaveis: Variaveis;
+type LinhaParcela = { despesa: Despesa; parcela: Parcela };
+
+// agrupa a folha do mês por funcionário
+type GrupoFuncionario = {
+  funcionario: Funcionario | null;
+  funcionarioId: number;
+  linhas: LinhaParcela[];
+  total: number;
+  pago: number;
+  pendente: number;
 };
 
-const formVazio = (): FormState => ({
-  nome: '', empresa_padrao_cnpj: '22761557000188', cargo: '',
-  data_admissao: '', ativo: true, data_demissao: '', observacao: '',
-  variaveis: varVazia(),
-});
+function FolhaFuncionariosContent() {
+  const { ano, mes, cnpjFiltro, setAno, setMes, setCnpjFiltro } = useFiltrosFluxo();
+  const searchParams = useSearchParams();
+  const funcFiltro = Number(searchParams.get('func')) || null;
 
-export default function FuncionariosPage() {
-  const [lista, setLista] = useState<Funcionario[]>([]);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [despesas, setDespesas] = useState<Despesa[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [bancos, setBancos] = useState<Banco[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busca, setBusca] = useState('');
-  const [mostrarInativos, setMostrarInativos] = useState(false);
-  const [modalAberto, setModalAberto] = useState(false);
-  const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [form, setForm] = useState<FormState>(formVazio());
-  const [salvando, setSalvando] = useState(false);
-  const [removendo, setRemovendo] = useState<number | null>(null);
-  const [verDespesas, setVerDespesas] = useState<Funcionario | null>(null);
+  const [soPendentes, setSoPendentes] = useState(false);
+
+  // pagamento inline
+  const [pagandoId, setPagandoId] = useState<number | null>(null);
+  const [pagValor, setPagValor] = useState('');
+  const [pagData, setPagData] = useState('');
+  const [pagBanco, setPagBanco] = useState<number | ''>('');
+  const [pagForma, setPagForma] = useState('PIX');
+  const [pagLoading, setPagLoading] = useState(false);
+
+  // lançamento avulso
+  const [avulsoAberto, setAvulsoAberto] = useState(false);
+  const [avFuncionario, setAvFuncionario] = useState<number | ''>('');
+  const [avCategoria, setAvCategoria] = useState<number | ''>('');
+  const [avDescricao, setAvDescricao] = useState('');
+  const [avValor, setAvValor] = useState('');
+  const [avData, setAvData] = useState(new Date().toISOString().slice(0, 10));
+  const [avLoading, setAvLoading] = useState(false);
+
+  const num = (v: string) => {
+    const n = parseFloat(v.replace(',', '.'));
+    return isNaN(n) ? 0 : n;
+  };
 
   const carregar = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get('/funcionarios');
-      setLista(r.data);
+      const [rFunc, rDesp] = await Promise.all([
+        api.get('/funcionarios'),
+        api.get('/despesas', { params: { ano, mes, origem: 'FUNCIONARIO' } }),
+      ]);
+      setFuncionarios(rFunc.data);
+      setDespesas(rDesp.data);
     } catch {
-      setLista([]);
+      setFuncionarios([]);
+      setDespesas([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [ano, mes]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  const abrirNovo = () => {
-    setEditandoId(null);
-    setForm(formVazio());
-    setModalAberto(true);
+  useEffect(() => {
+    api.get('/categorias-financeiras', { params: { grupo: 'FUNCIONARIO', ativo: true } })
+      .then(({ data }) => setCategorias(data)).catch(() => {});
+    api.get('/configuracoes/bancos')
+      .then(({ data }) => setBancos(data.filter((b: Banco) => b.ativo))).catch(() => {});
+  }, []);
+
+  const bancoNome = (id: number | null) => bancos.find(b => b.id === id)?.nome ?? '';
+
+  // ── monta os grupos por funcionário (só parcelas com vencimento no mês selecionado) ──
+  const grupos = useMemo<GrupoFuncionario[]>(() => {
+    const alvo = `${ano}-${String(mes).padStart(2, '0')}`;
+    const porFunc = new Map<number, LinhaParcela[]>();
+
+    for (const d of despesas) {
+      if (d.funcionario_id == null) continue;
+      if (cnpjFiltro && d.cnpj !== cnpjFiltro) continue;
+      if (funcFiltro && d.funcionario_id !== funcFiltro) continue;
+      for (const p of d.parcelas) {
+        if (p.data_vencimento.slice(0, 7) !== alvo) continue;
+        if (soPendentes && p.status === 'PAGO') continue;
+        if (!porFunc.has(d.funcionario_id)) porFunc.set(d.funcionario_id, []);
+        porFunc.get(d.funcionario_id)!.push({ despesa: d, parcela: p });
+      }
+    }
+
+    const lista: GrupoFuncionario[] = [];
+    for (const [fid, linhas] of porFunc.entries()) {
+      linhas.sort((a, b) => a.parcela.data_vencimento.localeCompare(b.parcela.data_vencimento));
+      let pago = 0, pendente = 0;
+      for (const l of linhas) {
+        const v = Number(l.parcela.valor);
+        if (l.parcela.status === 'PAGO') pago += v; else pendente += v;
+      }
+      lista.push({
+        funcionario: funcionarios.find(f => f.id === fid) ?? null,
+        funcionarioId: fid,
+        linhas,
+        total: pago + pendente,
+        pago,
+        pendente,
+      });
+    }
+    lista.sort((a, b) => (a.funcionario?.nome ?? '').localeCompare(b.funcionario?.nome ?? ''));
+    return lista;
+  }, [despesas, funcionarios, ano, mes, cnpjFiltro, funcFiltro, soPendentes]);
+
+  const totalGeral = grupos.reduce((s, g) => s + g.total, 0);
+  const pagoGeral = grupos.reduce((s, g) => s + g.pago, 0);
+  const pendenteGeral = grupos.reduce((s, g) => s + g.pendente, 0);
+  const totalCmport = grupos.reduce((s, g) => g.funcionario?.empresa_padrao_cnpj === EMPRESAS[0].cnpj ? s + g.total : s, 0);
+  const totalTec = grupos.reduce((s, g) => g.funcionario?.empresa_padrao_cnpj === EMPRESAS[1].cnpj ? s + g.total : s, 0);
+
+  const abrirPagamento = (l: LinhaParcela) => {
+    setPagandoId(l.parcela.id);
+    setPagValor(String(l.parcela.valor ?? ''));
+    setPagData(new Date().toISOString().slice(0, 10));
+    setPagBanco(l.parcela.banco_id ?? '');
+    setPagForma('PIX');
   };
 
-  const abrirEdicao = (f: Funcionario) => {
-    setEditandoId(f.id);
-    setForm({
-      nome: f.nome,
-      empresa_padrao_cnpj: f.empresa_padrao_cnpj,
-      cargo: f.cargo ?? '',
-      data_admissao: f.data_admissao ?? '',
-      ativo: f.ativo,
-      data_demissao: f.data_demissao ?? '',
-      observacao: f.observacao ?? '',
-      variaveis: f.variaveis
-        ? {
-            salario_mensal: f.variaveis.salario_mensal ?? '',
-            dia_pagamento_salario: f.variaveis.dia_pagamento_salario ?? 11,
-            adiantamento_tipo: f.variaveis.adiantamento_tipo ?? 'NENHUM',
-            adiantamento_valor: f.variaveis.adiantamento_valor ?? '',
-            dia_pagamento_adiantamento: f.variaveis.dia_pagamento_adiantamento ?? 21,
-            vale_transporte: f.variaveis.vale_transporte ?? '',
-            vale_refeicao: f.variaveis.vale_refeicao ?? '',
-            tem_plantao: !!f.variaveis.tem_plantao,
-            plantao_valor: f.variaveis.plantao_valor ?? '',
-            tem_hora_extra: !!f.variaveis.tem_hora_extra,
-            hora_extra_valor: f.variaveis.hora_extra_valor ?? '',
-            encargos_percentual: f.variaveis.encargos_percentual ?? '',
-          }
-        : varVazia(),
-    });
-    setModalAberto(true);
-  };
-
-  const setV = (patch: Partial<Variaveis>) =>
-    setForm(f => ({ ...f, variaveis: { ...f.variaveis, ...patch } }));
-
-  const num = (v: number | string) => {
-    const n = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v;
-    return isNaN(n) ? 0 : n;
-  };
-
-  const salvar = async () => {
-    if (!form.nome.trim()) { alert('Informe o nome.'); return; }
-    setSalvando(true);
+  const confirmarPagamento = async (parcelaId: number) => {
+    if (!pagBanco) { alert('Escolha o banco.'); return; }
+    setPagLoading(true);
     try {
-      const payload = {
-        nome: form.nome.trim(),
-        empresa_padrao_cnpj: form.empresa_padrao_cnpj,
-        cargo: form.cargo.trim() || null,
-        data_admissao: form.data_admissao || null,
-        data_demissao: form.ativo ? null : (form.data_demissao || null),
-        ativo: form.ativo,
-        observacao: form.observacao.trim() || null,
-        variaveis: {
-          salario_mensal: num(form.variaveis.salario_mensal),
-          dia_pagamento_salario: form.variaveis.dia_pagamento_salario || null,
-          adiantamento_tipo: form.variaveis.adiantamento_tipo,
-          adiantamento_valor: form.variaveis.adiantamento_tipo === 'FIXO' ? num(form.variaveis.adiantamento_valor) : 0,
-          dia_pagamento_adiantamento: form.variaveis.adiantamento_tipo !== 'NENHUM' ? (form.variaveis.dia_pagamento_adiantamento || null) : null,
-          vale_transporte: num(form.variaveis.vale_transporte),
-          vale_refeicao: num(form.variaveis.vale_refeicao),
-          tem_plantao: form.variaveis.tem_plantao,
-          plantao_valor: form.variaveis.tem_plantao ? num(form.variaveis.plantao_valor) : 0,
-          tem_hora_extra: form.variaveis.tem_hora_extra,
-          hora_extra_valor: form.variaveis.tem_hora_extra ? num(form.variaveis.hora_extra_valor) : 0,
-          encargos_percentual: num(form.variaveis.encargos_percentual),
-        },
-      };
-      if (editandoId) await api.put(`/funcionarios/${editandoId}`, payload);
-      else await api.post('/funcionarios', payload);
-      setModalAberto(false);
+      await api.patch(`/despesas/parcelas/${parcelaId}/pagar`, {
+        data_pagamento: pagData,
+        banco_id: Number(pagBanco),
+        forma_pagamento: pagForma,
+        valor: num(pagValor),
+      });
+      setPagandoId(null);
       await carregar();
     } catch {
-      alert('Erro ao salvar o funcionário.');
+      alert('Erro ao registrar o pagamento.');
     } finally {
-      setSalvando(false);
+      setPagLoading(false);
     }
   };
 
-  const remover = async (f: Funcionario) => {
-    if (!confirm(`Remover "${f.nome}" do cadastro? (não apaga o histórico de despesas)`)) return;
-    setRemovendo(f.id);
+  const abrirAvulso = () => {
+    setAvFuncionario(funcFiltro ?? '');
+    setAvCategoria('');
+    setAvDescricao('');
+    setAvValor('');
+    setAvData(new Date().toISOString().slice(0, 10));
+    setAvulsoAberto(true);
+  };
+
+  const criarAvulso = async () => {
+    if (!avFuncionario) { alert('Escolha o funcionário.'); return; }
+    if (!avCategoria) { alert('Escolha o tipo (categoria).'); return; }
+    if (!avValor || num(avValor) <= 0) { alert('Informe o valor.'); return; }
+    setAvLoading(true);
     try {
-      await api.delete(`/funcionarios/${f.id}`);
+      const func = funcionarios.find(f => f.id === avFuncionario);
+      const cat = categorias.find(c => c.id === avCategoria);
+      await api.post('/despesas', {
+        descricao: avDescricao.trim() || `${cat?.nome ?? 'Lançamento'} — ${func?.nome ?? ''}`.trim(),
+        categoria_id: Number(avCategoria),
+        funcionario_id: Number(avFuncionario),
+        cnpj: func?.empresa_padrao_cnpj ?? EMPRESAS[0].cnpj,
+        tipo_pagamento: 'UNICO',
+        valor_total: num(avValor),
+        data_primeira_parcela: avData,
+      });
+      setAvulsoAberto(false);
       await carregar();
     } catch {
-      alert('Erro ao remover.');
+      alert('Erro ao criar o lançamento.');
     } finally {
-      setRemovendo(null);
+      setAvLoading(false);
     }
   };
 
-  const q = busca.trim().toLowerCase();
-  const filtrados = lista
-    .filter(f => mostrarInativos || f.ativo)
-    .filter(f => !q || f.nome.toLowerCase().includes(q) || (f.cargo ?? '').toLowerCase().includes(q));
-
-  const ativos = lista.filter(f => f.ativo);
-  const somaSalario = ativos.reduce((s, f) => s + Number(f.variaveis?.salario_mensal ?? 0), 0);
+  const funcAlvo = funcFiltro ? funcionarios.find(f => f.id === funcFiltro) : null;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="px-4 sm:px-6 lg:px-8 py-4 lg:py-6 flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Funcionários</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Cadastro, salário e variáveis da folha</p>
-          </div>
-          <button onClick={abrirNovo}
-            className="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-sm">
-            + Novo funcionário
-          </button>
+        <div className="px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
+          <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Funcionários — Folha do Mês</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Salário, adiantamento, vales e lançamentos avulsos — registre o pagamento com o valor real
+          </p>
         </div>
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-5">
-        <div className="grid grid-cols-3 gap-3">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <FiltrosFluxo
+          ano={ano} mes={mes} cnpjFiltro={cnpjFiltro}
+          onAnoChange={setAno} onMesChange={setMes} onCnpjChange={setCnpjFiltro}
+          mostrarFiltroCnpj
+          acoesExtra={
+            <button onClick={abrirAvulso}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors whitespace-nowrap">
+              + Lançamento avulso
+            </button>
+          }
+        />
+
+        {funcFiltro && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-slate-500">Filtrando por</span>
+            <span className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-200">
+              {funcAlvo?.nome ?? `funcionário #${funcFiltro}`}
+            </span>
+            <Link href={`/fluxo-financeiro/funcionarios?ano=${ano}&mes=${mes}`}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">
+              ver todos
+            </Link>
+          </div>
+        )}
+
+        {/* Totais */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Total</div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white">{lista.length}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Folha do mês</div>
+            <div className="text-xl font-black text-slate-900 dark:text-white">{fmtValor(totalGeral)}</div>
+          </div>
+          <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-2xl p-4">
+            <div className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wide mb-1">Pago</div>
+            <div className="text-xl font-black text-green-800 dark:text-green-300">{fmtValor(pagoGeral)}</div>
+          </div>
+          <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4">
+            <div className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">Pendente</div>
+            <div className="text-xl font-black text-amber-800 dark:text-amber-300">{fmtValor(pendenteGeral)}</div>
           </div>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Ativos</div>
-            <div className="text-2xl font-black text-emerald-700 dark:text-emerald-400">{ativos.length}</div>
-          </div>
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Salários / mês</div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white">{fmtValor(somaSalario)}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Por empresa</div>
+            <div className="text-sm font-bold text-slate-700 dark:text-slate-200">CMPORT {fmtValor(totalCmport)}</div>
+            <div className="text-sm font-bold text-slate-700 dark:text-slate-200">TEC {fmtValor(totalTec)}</div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-wrap gap-3 items-center">
-          <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
-            placeholder="Buscar por nome ou cargo..."
-            className="flex-1 min-w-48 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
-          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <input type="checkbox" checked={mostrarInativos} onChange={e => setMostrarInativos(e.target.checked)} />
-            Mostrar desligados
-          </label>
-        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+          <input type="checkbox" checked={soPendentes} onChange={e => setSoPendentes(e.target.checked)} />
+          Só pendentes
+        </label>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-          {loading ? (
-            <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
-          ) : filtrados.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">Nenhum funcionário.</div>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filtrados.map(f => (
-                <div key={f.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <button onClick={() => abrirEdicao(f)} className="flex-1 min-w-0 text-left">
+        {loading ? (
+          <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
+        ) : grupos.length === 0 ? (
+          <div className="text-center py-12 text-slate-500 text-sm">
+            Nenhum lançamento de folha {soPendentes ? 'pendente ' : ''}nesse mês.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {grupos.map(g => (
+              <div key={g.funcionarioId} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-3 p-4 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black text-sm text-slate-900 dark:text-white">{f.nome}</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{empresaLabel(f.empresa_padrao_cnpj)}</span>
-                      {f.ativo
-                        ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">Ativo</span>
-                        : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400">Desligado</span>}
+                      <span className="font-black text-sm text-slate-900 dark:text-white">
+                        {g.funcionario?.nome ?? `Funcionário #${g.funcionarioId}`}
+                      </span>
+                      {g.funcionario && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          {empresaLabel(g.funcionario.empresa_padrao_cnpj)}
+                        </span>
+                      )}
+                      {g.funcionario && !g.funcionario.ativo && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400">Desligado</span>
+                      )}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      {f.cargo || 'sem cargo'}
-                      {f.variaveis?.salario_mensal ? ` · ${fmtValor(Number(f.variaveis.salario_mensal))}` : ''}
+                      {g.linhas.length} lançamento{g.linhas.length > 1 ? 's' : ''} ·
+                      {g.pendente > 0 ? ` pendente ${fmtValor(g.pendente)}` : ' tudo pago'}
                     </div>
-                  </button>
-                  <button onClick={() => setVerDespesas(f)}
-                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors">
-                    Despesas
-                  </button>
-                  <button onClick={() => remover(f)} disabled={removendo === f.id}
-                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50">
-                    {removendo === f.id ? '...' : 'Remover'}
-                  </button>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-black text-sm text-slate-900 dark:text-white">{fmtValor(g.total)}</div>
+                    <div className="text-[10px] font-bold text-green-600 dark:text-green-400">{fmtValor(g.pago)} pago</div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {g.linhas.map(l => {
+                    const pago = l.parcela.status === 'PAGO';
+                    const pagando = pagandoId === l.parcela.id;
+                    return (
+                      <div key={l.parcela.id} className="p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                              {l.despesa.descricao.split(' — ')[0]}
+                              {l.parcela.total_parcelas > 1 && ` (${l.parcela.numero_parcela}/${l.parcela.total_parcelas})`}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              venc {fmtData(l.parcela.data_vencimento)}
+                              {pago && l.parcela.data_pagamento && ` · pago ${fmtData(l.parcela.data_pagamento)} · ${bancoNome(l.parcela.banco_id)}`}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-black text-sm text-slate-900 dark:text-white">{fmtValor(Number(l.parcela.valor))}</div>
+                            {pago
+                              ? <span className="text-[10px] font-bold text-green-600 dark:text-green-400">PAGO</span>
+                              : !pagando && (
+                                <button onClick={() => abrirPagamento(l)}
+                                  className="text-[10px] font-bold text-emerald-600 hover:underline">
+                                  registrar pagamento
+                                </button>
+                              )}
+                          </div>
+                        </div>
+
+                        {pagando && (
+                          <div className="mt-3 grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950 rounded-lg p-3">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Valor real (R$)</label>
+                              <input type="number" step="0.01" min="0" value={pagValor} onChange={e => setPagValor(e.target.value)}
+                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data</label>
+                              <input type="date" value={pagData} onChange={e => setPagData(e.target.value)}
+                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Banco</label>
+                              <select value={pagBanco} onChange={e => setPagBanco(e.target.value ? Number(e.target.value) : '')}
+                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
+                                <option value="">—</option>
+                                {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Forma</label>
+                              <select value={pagForma} onChange={e => setPagForma(e.target.value)}
+                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
+                                {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                              </select>
+                            </div>
+                            <div className="col-span-2 flex gap-2 justify-end mt-1">
+                              <button onClick={() => setPagandoId(null)} className="px-2 py-1 text-[11px] font-bold text-slate-500">Cancelar</button>
+                              <button onClick={() => confirmarPagamento(l.parcela.id)} disabled={pagLoading}
+                                className="px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-md hover:bg-emerald-700 disabled:opacity-50">
+                                {pagLoading ? '...' : 'Confirmar'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {modalAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setModalAberto(false)}>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-6 my-8" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-slate-900 dark:text-white mb-4">
-              {editandoId ? 'Editar funcionário' : 'Novo funcionário'}
-            </h2>
+      {/* ── Modal Lançamento avulso ── */}
+      {avulsoAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setAvulsoAberto(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white mb-1">+ Lançamento avulso</h2>
+            <p className="text-xs text-slate-500 mb-5">Férias, 13º, rescisão, PRL, adiantamento extra, reembolso…</p>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome</label>
-                  <input type="text" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Empresa que paga</label>
-                  <select value={form.empresa_padrao_cnpj} onChange={e => setForm(f => ({ ...f, empresa_padrao_cnpj: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm">
-                    {EMPRESAS.map(e => <option key={e.cnpj} value={e.cnpj}>{e.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Cargo</label>
-                  <input type="text" value={form.cargo} onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Admissão</label>
-                  <input type="date" value={form.data_admissao} onChange={e => setForm(f => ({ ...f, data_admissao: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Situação</label>
-                  <select value={form.ativo ? 'ATIVO' : 'DESLIGADO'}
-                    onChange={e => setForm(f => ({ ...f, ativo: e.target.value === 'ATIVO' }))}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm">
-                    <option value="ATIVO">Ativo</option>
-                    <option value="DESLIGADO">Desligado</option>
-                  </select>
-                </div>
-                {!form.ativo && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Data do desligamento</label>
-                    <input type="date" value={form.data_demissao} onChange={e => setForm(f => ({ ...f, data_demissao: e.target.value }))}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
-                <div className="text-xs font-bold text-slate-500 uppercase mb-2">Variáveis da folha</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Salário mensal (R$)</label>
-                    <input type="number" step="0.01" min="0" value={form.variaveis.salario_mensal}
-                      onChange={e => setV({ salario_mensal: e.target.value })}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Dia do pagamento</label>
-                    <input type="number" step="1" min="1" max="31" value={form.variaveis.dia_pagamento_salario ?? ''}
-                      onChange={e => setV({ dia_pagamento_salario: e.target.value ? Number(e.target.value) : null })}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Adiantamento</label>
-                    <select value={form.variaveis.adiantamento_tipo} onChange={e => setV({ adiantamento_tipo: e.target.value })}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm">
-                      {ADIANTAMENTO_OPCOES.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-                    </select>
-                  </div>
-                  {form.variaveis.adiantamento_tipo === 'FIXO' && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Valor do adiantamento (R$)</label>
-                      <input type="number" step="0.01" min="0" value={form.variaveis.adiantamento_valor}
-                        onChange={e => setV({ adiantamento_valor: e.target.value })}
-                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                    </div>
-                  )}
-                  {form.variaveis.adiantamento_tipo !== 'NENHUM' && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Dia do adiantamento</label>
-                      <input type="number" step="1" min="1" max="31" value={form.variaveis.dia_pagamento_adiantamento ?? ''}
-                        onChange={e => setV({ dia_pagamento_adiantamento: e.target.value ? Number(e.target.value) : null })}
-                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Vale transporte / mês (R$)</label>
-                    <input type="number" step="0.01" min="0" value={form.variaveis.vale_transporte}
-                      onChange={e => setV({ vale_transporte: e.target.value })}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Vale refeição / mês (R$)</label>
-                    <input type="number" step="0.01" min="0" value={form.variaveis.vale_refeicao}
-                      onChange={e => setV({ vale_refeicao: e.target.value })}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">% de encargos (opcional)</label>
-                    <input type="number" step="0.1" min="0" value={form.variaveis.encargos_percentual}
-                      onChange={e => setV({ encargos_percentual: e.target.value })}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                  </div>
-                  <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                    <input type="checkbox" checked={form.variaveis.tem_plantao} onChange={e => setV({ tem_plantao: e.target.checked })} />
-                    Recebe plantão
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                    <input type="checkbox" checked={form.variaveis.tem_hora_extra} onChange={e => setV({ tem_hora_extra: e.target.checked })} />
-                    Recebe hora extra
-                  </label>
-                  {form.variaveis.tem_plantao && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Plantão — valor padrão (R$)</label>
-                      <input type="number" step="0.01" min="0" value={form.variaveis.plantao_valor}
-                        onChange={e => setV({ plantao_valor: e.target.value })}
-                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                    </div>
-                  )}
-                  {form.variaveis.tem_hora_extra && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Hora extra — valor padrão (R$)</label>
-                      <input type="number" step="0.01" min="0" value={form.variaveis.hora_extra_valor}
-                        onChange={e => setV({ hora_extra_valor: e.target.value })}
-                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
-                    </div>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">
-                  Salário, adiantamento, vales, plantão e hora extra geram uma pendência todo mês
-                  com esse valor de sugestão — dá pra ajustar o valor real na hora de marcar como pago.
-                </p>
-              </div>
-
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Observações</label>
-                <input type="text" value={form.observacao} onChange={e => setForm(f => ({ ...f, observacao: e.target.value }))}
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Funcionário</label>
+                <select value={avFuncionario} onChange={e => setAvFuncionario(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm">
+                  <option value="">— escolher —</option>
+                  {funcionarios.filter(f => f.ativo || f.id === avFuncionario).map(f => (
+                    <option key={f.id} value={f.id}>{f.nome} ({empresaLabel(f.empresa_padrao_cnpj)})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Tipo</label>
+                  <select value={avCategoria} onChange={e => setAvCategoria(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm">
+                    <option value="">— escolher —</option>
+                    {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Valor (R$)</label>
+                  <input type="number" step="0.01" min="0" value={avValor} onChange={e => setAvValor(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Data</label>
+                  <input type="date" value={avData} onChange={e => setAvData(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Descrição (opcional)</label>
+                  <input type="text" value={avDescricao} onChange={e => setAvDescricao(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                </div>
               </div>
             </div>
 
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setModalAberto(false)}
+              <button onClick={() => setAvulsoAberto(false)}
                 className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm">
                 Cancelar
               </button>
-              <button onClick={salvar} disabled={salvando}
+              <button onClick={criarAvulso} disabled={avLoading}
                 className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors disabled:opacity-50">
-                {salvando ? 'Salvando...' : 'Salvar'}
+                {avLoading ? 'Salvando...' : 'Lançar'}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {verDespesas && (
-        <DespesasFuncionario
-          funcionarioId={verDespesas.id}
-          funcionarioNome={verDespesas.nome}
-          empresaPadraoCnpj={verDespesas.empresa_padrao_cnpj}
-          onClose={() => setVerDespesas(null)}
-          onMudou={carregar}
-        />
-      )}
     </div>
+  );
+}
+
+export default function FolhaFuncionariosPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-400">Carregando...</div>}>
+      <FolhaFuncionariosContent />
+    </Suspense>
   );
 }

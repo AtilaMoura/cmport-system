@@ -12,6 +12,7 @@ const SUBPAGINAS = [
   { label: 'Transferências',        href: '/fluxo-financeiro/transferencias' },
   { label: 'Despesas',              href: '/fluxo-financeiro/despesas' },
   { label: 'Fornecedores',          href: '/fluxo-financeiro/fornecedores' },
+  { label: 'Funcionários',          href: '/fluxo-financeiro/funcionarios' },
 ];
 
 interface Props {
