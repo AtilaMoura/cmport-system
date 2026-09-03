@@ -100,8 +100,11 @@ class _Prod:
         return [ln.split("\t") for ln in self._run(sql).splitlines() if ln.strip()]
 
     def exec(self, sql):
-        # devolve LAST_INSERT_ID() se o INSERT gerou id
-        out = self._run(sql + "\nSELECT LAST_INSERT_ID();")
+        # devolve LAST_INSERT_ID() se o INSERT gerou id.
+        # precisa do ';' separando o statement do caller do SELECT final,
+        # senão o cliente mysql --batch junta os dois e dá erro de sintaxe.
+        sql = sql.rstrip().rstrip(";")
+        out = self._run(sql + ";\nSELECT LAST_INSERT_ID();")
         linhas = [ln for ln in out.splitlines() if ln.strip()]
         try:
             return int(linhas[-1])
