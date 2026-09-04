@@ -41,12 +41,15 @@ function formatDate(dt: string | null) {
   return new Date(dt).toLocaleDateString('pt-BR')
 }
 
+// Enum real do campo taskStatus (GET /tasks/{id} do Auvo):
+// 1=Opened 2=InDisplacement 3=CheckedIn 4=CheckedOut 5=Finished 6=Paused
 function statusColor(os: OrdemServico) {
   const s = os.task_status
-  if (s === 5) return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300'
-  if (s === 7) return 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300'
-  if (os.finished || s === 1 || s === 2 || s === 3)
+  if (os.finished || s === 5)
     return 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300'
+  if (s === 6) return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300'
+  if (s === 2 || s === 3 || s === 4)
+    return 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300'
   return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
 }
 

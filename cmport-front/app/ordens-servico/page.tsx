@@ -30,14 +30,16 @@ interface ListResponse {
   page_size: number
 }
 
+// Enum real do campo taskStatus (GET /tasks/{id} do Auvo):
+// 1=Opened 2=InDisplacement 3=CheckedIn 4=CheckedOut 5=Finished 6=Paused
 function statusBadge(os: OrdemServico) {
   const s = os.task_status
-  if (s === 5)
-    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300">Com Pendência</span>
-  if (s === 7)
-    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">Em Execução</span>
-  if (os.finished || s === 1 || s === 2 || s === 3)
+  if (os.finished || s === 5)
     return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300">Finalizada</span>
+  if (s === 6)
+    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300">Pausada</span>
+  if (s === 2 || s === 3 || s === 4)
+    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">Em Execução</span>
   return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">{os.task_status_descricao ?? '—'}</span>
 }
 
@@ -191,12 +193,12 @@ export default function OrdensServicoPage() {
             className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
           >
             <option value="">Todos</option>
-            <option value="0">Não Finalizada</option>
-            <option value="1">Finalizada (Auto)</option>
-            <option value="2">Finalizada (Manual)</option>
-            <option value="3">Finalizada</option>
-            <option value="5">Com Pendência</option>
-            <option value="7">Em Execução</option>
+            <option value="1">Aberta</option>
+            <option value="2">Em Deslocamento</option>
+            <option value="3">Check-in Feito</option>
+            <option value="4">Check-out Feito</option>
+            <option value="5">Finalizada</option>
+            <option value="6">Pausada</option>
           </select>
         </div>
         <div className="flex flex-col gap-1 flex-1 min-w-48">

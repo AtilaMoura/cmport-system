@@ -3,15 +3,16 @@ from typing import Optional, List
 from datetime import datetime
 
 
+# Enum do campo "taskStatus" retornado por OS individual (GET /tasks/{id}).
+# NÃO confundir com o enum de filtro de busca (paramFilter.status), que usa os
+# mesmos números pra outra coisa (0=NotFinished...5=WithPendency...7=InExecution).
 AUVO_STATUS_DESCRICAO = {
-    0: "Não Finalizada",
-    1: "Finalizada (Auto)",
-    2: "Finalizada (Manual)",
-    3: "Finalizada",
-    4: "Todas",
-    5: "Com Pendência",
-    6: "Iniciada ou Finalizada",
-    7: "Em Execução",
+    1: "Aberta",
+    2: "Em Deslocamento",
+    3: "Check-in Feito",
+    4: "Check-out Feito",
+    5: "Finalizada",
+    6: "Pausada",
 }
 
 
