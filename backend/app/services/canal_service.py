@@ -8,6 +8,7 @@ Regras principais:
 - Nada é apagado de verdade: item -> deletado_em, anexo -> removido, comentário -> deletado_em.
 - Anexos ficam no MinIO já existente (bucket STORAGE_BUCKET, prefixo `canal/`).
 """
+import re
 import uuid
 from datetime import datetime
 from typing import List, Optional, Tuple
@@ -305,8 +306,13 @@ class CanalService:
         if not conteudo:
             raise HTTPException(400, "Arquivo vazio.")
 
-        seguro = (nome_arquivo or "arquivo").replace("/", "_").replace("\\", "_")[:200]
-        object_key = f"{_PREFIXO_KEY}{item_id}/{uuid.uuid4().hex}_{seguro}"
+        # nome pra exibir: só tira separador de path, mantém acento/espaço
+        nome_exibir = (nome_arquivo or "arquivo").replace("/", "_").replace("\\", "_")[:200]
+        # chave no storage: só ASCII seguro (sem espaço/acento) pra não depender do cliente S3
+        base, _, ext = nome_exibir.rpartition(".")
+        slug = re.sub(r"[^A-Za-z0-9._-]+", "_", (base or nome_exibir)).strip("_")[:80] or "arquivo"
+        sufixo = f".{re.sub(r'[^A-Za-z0-9]+', '', ext)[:10]}" if base and ext else ""
+        object_key = f"{_PREFIXO_KEY}{item_id}/{uuid.uuid4().hex}_{slug}{sufixo}"
         storage.upload(
             settings.STORAGE_BUCKET, object_key, conteudo,
             content_type=content_type or "application/octet-stream",
@@ -314,7 +320,7 @@ class CanalService:
         anexo = CanalAnexo(
             item_id=item_id,
             comentario_id=comentario_id,
-            nome_arquivo=seguro,
+            nome_arquivo=nome_exibir,
             object_key=object_key,
             content_type=content_type,
             tamanho=len(conteudo),
