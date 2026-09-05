@@ -45,6 +45,7 @@ import app.models.duplicata_dispensada_model  # pares de nota marcados como "nã
 import app.models.banco_model                 # contas bancárias (Itaú/Inter/Bradesco/BTG)
 import app.models.despesa_model              # financeiro — despesa geral (unico/parcelado)
 import app.models.funcionario_model          # financeiro — funcionarios + variaveis (folha)
+import app.models.canal_model                 # Demandas Dev — canal Atila <-> CMPort
 
 # Importar todos os routers
 from app.routers.auth_router import router as auth_router
@@ -73,6 +74,7 @@ from app.routers.cliente_router import router as clientes_router
 from app.routers.recibo_router import router as recibos_router
 from app.routers.declaracao_fiscal_router import router as declaracoes_router
 from app.routers.funcionario_router import router as funcionario_router
+from app.routers.canal_router import router as canal_router
 
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
@@ -741,6 +743,7 @@ app.include_router(clientes_router,     prefix="/api/v1/clientes",              
 app.include_router(recibos_router,      prefix="/api/v1/recibos",                 tags=["Recibos"],            dependencies=_auth)
 app.include_router(declaracoes_router,  prefix="/api/v1/servicos",                tags=["Declarações Fiscais"], dependencies=_auth)
 app.include_router(funcionario_router,  prefix="/api/v1/funcionarios",            tags=["Financeiro"],         dependencies=_auth)
+app.include_router(canal_router,        prefix="/api/v1/canal",                   tags=["Demandas Dev"],       dependencies=_auth)
 
 
 @app.get("/", tags=["Root"])
