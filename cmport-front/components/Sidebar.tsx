@@ -52,6 +52,12 @@ export default function Sidebar() {
       ],
     },
     {
+      label: 'CMPORT',
+      items: [
+        { name: 'Demandas Dev', icon: '💬', href: '/demandas-dev', roles: ['DEV', 'ADMIN', 'USUARIO'] },
+      ],
+    },
+    {
       label: 'SISTEMA',
       items: [
         { name: 'Configurações', icon: '⚙️', href: '/configuracoes', roles: ['DEV', 'ADMIN'] },
