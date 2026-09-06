@@ -169,3 +169,10 @@
   background: rgba(30, 41, 59, 0.3);
   border: 1px solid rgba(148, 163, 184, 0.1);
 }
+/* Markdown leve do formulário de pendência (Demandas Dev) */
+.prose-canal h2 { font-size: 1rem; font-weight: 800; margin: .5rem 0 .25rem; }
+.prose-canal h3 { font-size: .95rem; font-weight: 700; margin: .5rem 0 .25rem; }
+.prose-canal h4 { font-size: .9rem; font-weight: 700; margin: .4rem 0 .2rem; }
+.prose-canal p { margin: .25rem 0; }
+.prose-canal ul { list-style: disc; padding-left: 1.25rem; margin: .25rem 0; }
+.prose-canal code { background: rgba(120,120,140,.15); padding: 0 .25rem; border-radius: .25rem; font-size: .85em; }

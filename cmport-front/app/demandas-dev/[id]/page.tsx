@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import FormularioBloco from '@/components/demandas/FormularioBloco';
 import {
   Autor, AUTORES, Prioridade, StatusItem, Item, Anexo,
   STATUS_LABEL, STATUS_CLASSE, STATUS_ESCOLHIVEIS, PRIORIDADE_LABEL, PRIORIDADE_CLASSE,
@@ -240,6 +241,16 @@ export default function DemandaDetalhePage() {
             <div className="text-xs font-bold text-slate-500 uppercase mb-1">Descartada</div>
             <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{item.motivo_descarte}</p>
           </div>
+        )}
+
+        {/* Formulário de pendência (só em demanda) */}
+        {item.tipo === 'DEMANDA' && (
+          <FormularioBloco
+            itemId={item.id}
+            formulario={item.formularios[0] ?? null}
+            autor={autor}
+            onMudou={() => carregar()}
+          />
         )}
 
         {/* Ações */}

@@ -106,6 +106,7 @@ export interface Item {
   atualizado_em: string | null;
   anexos: Anexo[];
   comentarios: Comentario[];
+  formularios: Formulario[];
 }
 
 export interface ItemLista {
@@ -157,6 +158,92 @@ export interface Relatorio {
   total_resolvidas: number;
   total_descartadas: number;
   itens: RelatorioItem[];
+}
+
+// ── Formulário de pendência ──────────────────────────────────────────────────
+
+export type TipoPergunta =
+  | 'texto_curto' | 'texto_longo' | 'numero' | 'valor' | 'data'
+  | 'sim_nao' | 'escolha_unica' | 'escolha_multipla';
+
+export type FormStatus = 'RASCUNHO' | 'ENVIADO' | 'EM_PREENCHIMENTO' | 'RESPONDIDO';
+
+export const TIPO_PERGUNTA_LABEL: Record<TipoPergunta, string> = {
+  texto_curto: 'Texto curto',
+  texto_longo: 'Texto longo',
+  numero: 'Número',
+  valor: 'Valor (R$)',
+  data: 'Data',
+  sim_nao: 'Sim / Não',
+  escolha_unica: 'Escolha única',
+  escolha_multipla: 'Escolha múltipla',
+};
+
+export const FORM_STATUS_LABEL: Record<FormStatus, string> = {
+  RASCUNHO: 'Rascunho',
+  ENVIADO: 'Aguardando resposta',
+  EM_PREENCHIMENTO: 'Em preenchimento',
+  RESPONDIDO: 'Respondido',
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type RespostaValor = any;
+
+export interface Pergunta {
+  id: string;
+  enunciado: string;
+  tipo: TipoPergunta;
+  obrigatoria: boolean;
+  ajuda: string | null;
+  opcoes: string[];
+  sugestao: RespostaValor;
+}
+
+export interface Formulario {
+  id: number;
+  item_id: number;
+  titulo: string;
+  contexto: string | null;
+  perguntas: Pergunta[];
+  respostas: Record<string, RespostaValor>;
+  status: FormStatus;
+  preenchido_por: Autor | null;
+  respondido_em: string | null;
+  criado_em: string | null;
+  atualizado_em: string | null;
+}
+
+export function perguntaVazia(id: string): Pergunta {
+  return { id, enunciado: '', tipo: 'texto_curto', obrigatoria: false, ajuda: null, opcoes: [], sugestao: null };
+}
+
+// Markdown mínimo → HTML seguro (só as marcas que a gente usa nos contextos).
+// Escapa tudo primeiro; nunca injeta HTML do usuário direto.
+export function markdownLeve(src: string): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const linhas = esc(src).split('\n');
+  const out: string[] = [];
+  let emLista = false;
+  const inline = (t: string) =>
+    t
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`(.+?)`/g, '<code>$1</code>');
+  for (const l of linhas) {
+    const t = l.trim();
+    if (/^-\s+/.test(t)) {
+      if (!emLista) { out.push('<ul>'); emLista = true; }
+      out.push(`<li>${inline(t.replace(/^-\s+/, ''))}</li>`);
+      continue;
+    }
+    if (emLista) { out.push('</ul>'); emLista = false; }
+    if (/^###\s+/.test(t)) out.push(`<h4>${inline(t.replace(/^###\s+/, ''))}</h4>`);
+    else if (/^##\s+/.test(t)) out.push(`<h3>${inline(t.replace(/^##\s+/, ''))}</h3>`);
+    else if (/^#\s+/.test(t)) out.push(`<h2>${inline(t.replace(/^#\s+/, ''))}</h2>`);
+    else if (t === '') out.push('');
+    else out.push(`<p>${inline(t)}</p>`);
+  }
+  if (emLista) out.push('</ul>');
+  return out.join('\n');
 }
 
 // ── "Estou como" — persiste no localStorage ──────────────────────────────────
