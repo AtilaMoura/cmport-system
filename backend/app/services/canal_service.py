@@ -27,7 +27,7 @@ from app.schemas.canal_schema import (
     ItemCreate, ItemUpdate, MudarStatusRequest, ResolverRequest, DescartarRequest,
     PromoverRequest, ArquivarRequest, ComentarioCreate,
     ItemResponse, ItemListItem, ItemListResponse, AnexoResponse, ComentarioResponse,
-    ResumoResponse,
+    ResumoResponse, RelatorioItem, RelatorioResponse,
 )
 
 _PREFIXO_KEY = "canal/"
@@ -354,3 +354,106 @@ class CanalService:
     @staticmethod
     def resumo(db: Session) -> ResumoResponse:
         return ResumoResponse(**CanalRepository.contadores(db))
+
+    # ── Relatório (changelog) ────────────────────────────────────────────────
+
+    @staticmethod
+    def relatorio(
+        db: Session,
+        data_inicio: Optional[str] = None,
+        data_fim: Optional[str] = None,
+        incluir_descartadas: bool = False,
+    ) -> RelatorioResponse:
+        itens = CanalRepository.listar_resolvidas(db, data_inicio, data_fim, incluir_descartadas)
+        return RelatorioResponse(
+            periodo_inicio=data_inicio,
+            periodo_fim=data_fim,
+            total_resolvidas=sum(1 for i in itens if i.status == CanalStatus.RESOLVIDA),
+            total_descartadas=sum(1 for i in itens if i.status == CanalStatus.DESCARTADA),
+            itens=[
+                RelatorioItem(
+                    codigo=i.codigo, tipo=i.tipo.value, titulo=i.titulo,
+                    descricao=i.descricao, autor=i.autor.value, status=i.status.value,
+                    prioridade=i.prioridade.value, data_abertura=i.data_abertura,
+                    data_resolucao=i.data_resolucao, resolucao_texto=i.resolucao_texto,
+                    commit_ref=i.commit_ref, motivo_descarte=i.motivo_descarte,
+                )
+                for i in itens
+            ],
+        )
+
+    @staticmethod
+    def relatorio_pdf(
+        db: Session,
+        data_inicio: Optional[str] = None,
+        data_fim: Optional[str] = None,
+        incluir_descartadas: bool = False,
+    ) -> bytes:
+        import io
+        import fitz  # pymupdf — já é dependência
+
+        rel = CanalService.relatorio(db, data_inicio, data_fim, incluir_descartadas)
+
+        def esc(s: Optional[str]) -> str:
+            return (
+                (s or "")
+                .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\n", "<br/>")
+            )
+
+        periodo = "todo o histórico"
+        if data_inicio or data_fim:
+            periodo = f"{data_inicio or '...'} a {data_fim or '...'}"
+        gerado = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+        linhas = []
+        for i in rel.itens:
+            dt = i.data_resolucao.strftime("%d/%m/%Y") if i.data_resolucao else "—"
+            tag = "RESOLVIDA" if i.status == "RESOLVIDA" else "DESCARTADA"
+            corpo = esc(i.resolucao_texto) if i.status == "RESOLVIDA" else esc(i.motivo_descarte)
+            commit = f'<div class="commit">commit: {esc(i.commit_ref)}</div>' if i.commit_ref else ""
+            linhas.append(f"""
+              <div class="item">
+                <div class="cab"><span class="cod">{esc(i.codigo)}</span>
+                  <span class="tag {tag.lower()}">{tag}</span>
+                  <span class="data">{dt}</span></div>
+                <div class="tit">{esc(i.titulo) or '(sem título)'}</div>
+                <div class="corpo">{corpo or '<i>sem detalhe</i>'}</div>
+                {commit}
+              </div>""")
+
+        html = f"""
+        <html><head><style>
+          body {{ font-family: sans-serif; color: #1e293b; font-size: 11px; }}
+          h1 {{ font-size: 18px; margin: 0 0 2px 0; }}
+          .sub {{ color: #64748b; font-size: 10px; margin-bottom: 4px; }}
+          .stats {{ margin: 10px 0 16px 0; font-size: 11px; font-weight: bold; }}
+          .item {{ border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }}
+          .cab {{ font-size: 10px; margin-bottom: 3px; }}
+          .cod {{ font-family: monospace; font-weight: bold; color: #64748b; }}
+          .tag {{ font-size: 8px; font-weight: bold; padding: 1px 5px; border-radius: 8px; margin-left: 6px; }}
+          .tag.resolvida {{ background: #d1fae5; color: #065f46; }}
+          .tag.descartada {{ background: #e2e8f0; color: #475569; }}
+          .data {{ color: #94a3b8; margin-left: 6px; }}
+          .tit {{ font-weight: bold; font-size: 12px; margin-bottom: 3px; }}
+          .corpo {{ font-size: 11px; }}
+          .commit {{ font-family: monospace; font-size: 9px; color: #64748b; margin-top: 3px; }}
+        </style></head><body>
+          <h1>Relatório de Demandas — CMPort</h1>
+          <div class="sub">Período: {periodo} &nbsp;·&nbsp; gerado em {gerado}</div>
+          <div class="stats">{rel.total_resolvidas} resolvida(s){f' · {rel.total_descartadas} descartada(s)' if incluir_descartadas else ''}</div>
+          {''.join(linhas) or '<p>Nenhuma demanda resolvida no período.</p>'}
+        </body></html>"""
+
+        story = fitz.Story(html=html)
+        buf = io.BytesIO()
+        writer = fitz.DocumentWriter(buf)
+        more = 1
+        rect = fitz.Rect(40, 40, 555, 800)
+        while more:
+            dev = writer.begin_page(fitz.paper_rect("a4"))
+            more, _ = story.place(rect)
+            story.draw(dev)
+            writer.end_page()
+        writer.close()
+        return buf.getvalue()

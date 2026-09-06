@@ -156,3 +156,26 @@ class ResumoResponse(BaseModel):
     demandas_abertas: int         # DEMANDA não resolvida/descartada/arquivada
     aguardando_atila: int
     aguardando_cmport: int
+
+
+class RelatorioItem(BaseModel):
+    codigo: Optional[str] = None
+    tipo: TipoLiteral
+    titulo: Optional[str] = None
+    descricao: Optional[str] = None
+    autor: AutorLiteral
+    status: StatusLiteral
+    prioridade: PrioridadeLiteral
+    data_abertura: datetime
+    data_resolucao: Optional[datetime] = None
+    resolucao_texto: Optional[str] = None
+    commit_ref: Optional[str] = None
+    motivo_descarte: Optional[str] = None
+
+
+class RelatorioResponse(BaseModel):
+    periodo_inicio: Optional[str] = None
+    periodo_fim: Optional[str] = None
+    total_resolvidas: int
+    total_descartadas: int
+    itens: List[RelatorioItem]

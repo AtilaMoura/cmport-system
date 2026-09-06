@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from './ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
+import { getAutorAtual, ladoDoAutor } from '@/lib/demandas';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -13,6 +15,24 @@ export default function Sidebar() {
   const { user, logout } = useAuth();
 
   const isDev = user?.role === 'DEV';
+
+  // Badge de novidades no item "Demandas Dev" — conta do lado de quem eu escolhi ser
+  const [novidadesCanal, setNovidadesCanal] = useState(0);
+  const carregarResumo = useCallback(async () => {
+    try {
+      const r = await api.get('/canal/resumo');
+      const lado = ladoDoAutor(getAutorAtual());
+      setNovidadesCanal(lado === 'ATILA' ? r.data.novidades_atila : r.data.novidades_cmport);
+    } catch {
+      /* silencioso — não quebra o menu */
+    }
+  }, []);
+  useEffect(() => {
+    if (!user) return;
+    const inicial = setTimeout(carregarResumo, 0);
+    const t = setInterval(carregarResumo, 45000);
+    return () => { clearTimeout(inicial); clearInterval(t); };
+  }, [user, carregarResumo, pathname]);
 
   type MenuItem = { name: string; icon: string; href: string; roles: string[] };
   type MenuGroup = { label: string; items: MenuItem[] };
@@ -175,6 +195,11 @@ export default function Sidebar() {
                           {item.icon}
                         </span>
                         <span className="truncate">{item.name}</span>
+                        {item.href === '/demandas-dev' && novidadesCanal > 0 && (
+                          <span className="ml-auto shrink-0 min-w-5 h-5 px-1.5 flex items-center justify-center rounded-full bg-violet-600 text-white text-[11px] font-bold">
+                            {novidadesCanal > 99 ? '99+' : novidadesCanal}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}

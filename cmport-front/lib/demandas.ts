@@ -136,6 +136,29 @@ export interface Resumo {
   aguardando_cmport: number;
 }
 
+export interface RelatorioItem {
+  codigo: string | null;
+  tipo: TipoItem;
+  titulo: string | null;
+  descricao: string | null;
+  autor: Autor;
+  status: StatusItem;
+  prioridade: Prioridade;
+  data_abertura: string;
+  data_resolucao: string | null;
+  resolucao_texto: string | null;
+  commit_ref: string | null;
+  motivo_descarte: string | null;
+}
+
+export interface Relatorio {
+  periodo_inicio: string | null;
+  periodo_fim: string | null;
+  total_resolvidas: number;
+  total_descartadas: number;
+  itens: RelatorioItem[];
+}
+
 // ── "Estou como" — persiste no localStorage ──────────────────────────────────
 
 const CHAVE_AUTOR = 'demandas_dev_autor';

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import {
   Autor, AUTORES, TipoItem, Prioridade, ItemLista, Resumo,
@@ -30,6 +31,7 @@ export default function DemandasDevPage() {
   const [loading, setLoading] = useState(true);
 
   const [modalAberto, setModalAberto] = useState<null | TipoItem>(null);
+  const [soNovidades, setSoNovidades] = useState(false);
 
   useEffect(() => { setAutor(getAutorAtual()); }, []);
 
@@ -68,6 +70,8 @@ export default function DemandasDevPage() {
 
   const contadorNovidades = meuLado === 'ATILA' ? resumo?.novidades_atila : resumo?.novidades_cmport;
 
+  const itensVisiveis = soNovidades ? itens.filter(temNovidade) : itens;
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
@@ -91,6 +95,10 @@ export default function DemandasDevPage() {
                 </button>
               ))}
             </div>
+            <Link href="/demandas-dev/relatorio"
+              className="px-3 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              📄 Relatório
+            </Link>
             <button onClick={() => setModalAberto('NOTA')}
               className="px-3 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
               + Nota / documento
@@ -138,17 +146,24 @@ export default function DemandasDevPage() {
             <option value="">Todos os autores</option>
             {AUTORES.map(a => <option key={a} value={a}>{a.charAt(0) + a.slice(1).toLowerCase()}</option>)}
           </select>
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+            <input type="checkbox" checked={soNovidades} onChange={e => setSoNovidades(e.target.checked)}
+              className="w-4 h-4 rounded accent-violet-600" />
+            só novidades
+          </label>
         </div>
 
         {/* Lista */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
           {loading ? (
             <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
-          ) : itens.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 text-sm">Nada aqui ainda.</div>
+          ) : itensVisiveis.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 text-sm">
+              {soNovidades && itens.length > 0 ? 'Nenhuma novidade — você está em dia.' : 'Nada aqui ainda.'}
+            </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {itens.map(i => (
+              {itensVisiveis.map(i => (
                 <button key={i.id} onClick={() => router.push(`/demandas-dev/${i.id}`)}
                   className="w-full flex items-start gap-3 p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <div className="pt-1 shrink-0 w-2">

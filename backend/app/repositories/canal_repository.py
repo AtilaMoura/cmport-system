@@ -130,6 +130,31 @@ class CanalRepository:
             .first()
         )
 
+    # ── Relatório (changelog do que foi resolvido) ───────────────────────────
+
+    @staticmethod
+    def listar_resolvidas(
+        db: Session,
+        data_inicio: Optional[str] = None,
+        data_fim: Optional[str] = None,
+        incluir_descartadas: bool = False,
+    ) -> List[CanalItem]:
+        alvos = [CanalStatus.RESOLVIDA]
+        if incluir_descartadas:
+            alvos.append(CanalStatus.DESCARTADA)
+        q = (
+            db.query(CanalItem)
+            .filter(
+                CanalItem.deletado_em.is_(None),
+                CanalItem.status.in_(alvos),
+            )
+        )
+        if data_inicio:
+            q = q.filter(CanalItem.data_resolucao >= f"{data_inicio} 00:00:00")
+        if data_fim:
+            q = q.filter(CanalItem.data_resolucao <= f"{data_fim} 23:59:59")
+        return q.order_by(CanalItem.data_resolucao.desc()).all()
+
     # ── Resumo (badge) ───────────────────────────────────────────────────────
 
     @staticmethod

@@ -15,7 +15,7 @@ from app.core.storage_client import StorageClient
 from app.schemas.canal_schema import (
     ItemCreate, ItemUpdate, MudarStatusRequest, ResolverRequest, DescartarRequest,
     PromoverRequest, ArquivarRequest, VistoRequest, ComentarioCreate,
-    ItemResponse, ItemListResponse, AnexoResponse, ResumoResponse,
+    ItemResponse, ItemListResponse, AnexoResponse, ResumoResponse, RelatorioResponse,
 )
 from app.services.canal_service import CanalService
 
@@ -52,6 +52,34 @@ def listar(
 @router.get("/resumo", response_model=ResumoResponse)
 def resumo(db: Session = Depends(get_db)):
     return CanalService.resumo(db)
+
+
+@router.get("/relatorio", response_model=RelatorioResponse)
+def relatorio(
+    data_inicio: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    data_fim: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    incluir_descartadas: bool = False,
+    db: Session = Depends(get_db),
+):
+    return CanalService.relatorio(db, data_inicio, data_fim, incluir_descartadas)
+
+
+@router.get("/relatorio.pdf")
+def relatorio_pdf(
+    data_inicio: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    data_fim: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    incluir_descartadas: bool = False,
+    db: Session = Depends(get_db),
+):
+    pdf = CanalService.relatorio_pdf(db, data_inicio, data_fim, incluir_descartadas)
+    nome = "relatorio-demandas"
+    if data_inicio or data_fim:
+        nome += f"-{data_inicio or 'inicio'}_a_{data_fim or 'fim'}"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{nome}.pdf"'},
+    )
 
 
 # ── Anexos (rotas fixas antes de /{item_id}) ─────────────────────────────────
