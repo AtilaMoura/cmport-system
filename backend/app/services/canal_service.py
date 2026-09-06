@@ -19,8 +19,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.storage_client import StorageClient
 from app.models.canal_model import (
-    CanalItem, CanalComentario, CanalAnexo,
-    CanalAutor, CanalTipo, CanalStatus, CanalPrioridade, LADO_POR_AUTOR,
+    CanalItem, CanalComentario, CanalAnexo, CanalFormulario,
+    CanalAutor, CanalTipo, CanalStatus, CanalPrioridade, CanalFormularioStatus,
+    LADO_POR_AUTOR,
 )
 from app.repositories.canal_repository import CanalRepository
 from app.schemas.canal_schema import (
@@ -28,6 +29,8 @@ from app.schemas.canal_schema import (
     PromoverRequest, ArquivarRequest, ComentarioCreate,
     ItemResponse, ItemListItem, ItemListResponse, AnexoResponse, ComentarioResponse,
     ResumoResponse, RelatorioItem, RelatorioResponse,
+    FormularioCreate, FormularioUpdate, ResponderFormularioRequest, FormularioResponse,
+    Pergunta,
 )
 
 _PREFIXO_KEY = "canal/"
@@ -55,6 +58,16 @@ def _anexos_ativos(item_ou_comentario) -> List[CanalAnexo]:
     return [a for a in item_ou_comentario.anexos if not a.removido]
 
 
+def _resposta_vazia(v) -> bool:
+    if v is None:
+        return True
+    if isinstance(v, str):
+        return v.strip() == ""
+    if isinstance(v, (list, dict)):
+        return len(v) == 0
+    return False
+
+
 class CanalService:
 
     # ── Serialização ─────────────────────────────────────────────────────────
@@ -66,6 +79,18 @@ class CanalService:
             nome_arquivo=a.nome_arquivo, content_type=a.content_type,
             tamanho=a.tamanho, enviado_por=a.enviado_por.value,
             enviado_em=a.enviado_em,
+        )
+
+    @staticmethod
+    def _form_resp(f: CanalFormulario) -> FormularioResponse:
+        return FormularioResponse(
+            id=f.id, item_id=f.item_id, titulo=f.titulo, contexto=f.contexto,
+            perguntas=[Pergunta(**p) for p in (f.perguntas_json or [])],
+            respostas=f.respostas_json or {},
+            status=f.status.value,
+            preenchido_por=f.preenchido_por.value if f.preenchido_por else None,
+            respondido_em=f.respondido_em,
+            criado_em=f.criado_em, atualizado_em=f.atualizado_em,
         )
 
     @staticmethod
@@ -82,6 +107,10 @@ class CanalService:
             CanalService._anexo_resp(a)
             for a in item.anexos if not a.removido and a.comentario_id is None
         ]
+        formularios = [
+            CanalService._form_resp(f)
+            for f in item.formularios if f.deletado_em is None
+        ]
         return ItemResponse(
             id=item.id, codigo=item.codigo, tipo=item.tipo.value,
             titulo=item.titulo, descricao=item.descricao, autor=item.autor.value,
@@ -92,7 +121,7 @@ class CanalService:
             visto_atila=item.visto_atila, visto_cmport=item.visto_cmport,
             arquivado=item.arquivado, criado_em=item.criado_em,
             atualizado_em=item.atualizado_em,
-            anexos=anexos_item, comentarios=comentarios,
+            anexos=anexos_item, comentarios=comentarios, formularios=formularios,
         )
 
     @staticmethod
@@ -457,3 +486,119 @@ class CanalService:
             writer.end_page()
         writer.close()
         return buf.getvalue()
+
+    # ── Formulários de pendência ─────────────────────────────────────────────
+
+    @staticmethod
+    def _get_form(db: Session, form_id: int) -> CanalFormulario:
+        form = CanalRepository.get_formulario(db, form_id)
+        if not form:
+            raise HTTPException(404, "Formulário não encontrado.")
+        return form
+
+    @staticmethod
+    def _valida_perguntas(perguntas: list) -> list:
+        ids = set()
+        for p in perguntas:
+            if not p.id or not p.enunciado.strip():
+                raise HTTPException(400, "Toda pergunta precisa de id e enunciado.")
+            if p.id in ids:
+                raise HTTPException(400, f"id de pergunta repetido: {p.id}")
+            ids.add(p.id)
+            if p.tipo in ("escolha_unica", "escolha_multipla") and not p.opcoes:
+                raise HTTPException(400, f"Pergunta '{p.enunciado}' é de escolha e não tem opções.")
+        return [p.model_dump() for p in perguntas]
+
+    @staticmethod
+    def criar_formulario(db: Session, item_id: int, req: FormularioCreate) -> ItemResponse:
+        item = CanalRepository.get_by_id(db, item_id)
+        if not item:
+            raise HTTPException(404, "Demanda não encontrada.")
+        if item.tipo != CanalTipo.DEMANDA:
+            raise HTTPException(400, "Formulário só entra em demanda (promova a nota antes).")
+        if not (req.titulo or "").strip():
+            raise HTTPException(400, "Dê um título ao formulário.")
+        form = CanalFormulario(
+            item_id=item_id,
+            titulo=req.titulo.strip(),
+            contexto=(req.contexto or "").strip() or None,
+            perguntas_json=CanalService._valida_perguntas(req.perguntas),
+            respostas_json={},
+            status=CanalFormularioStatus.RASCUNHO,
+        )
+        CanalRepository.add_formulario(db, form)
+        return CanalService.obter(db, item_id)
+
+    @staticmethod
+    def obter_formulario(db: Session, form_id: int) -> FormularioResponse:
+        return CanalService._form_resp(CanalService._get_form(db, form_id))
+
+    @staticmethod
+    def editar_formulario(db: Session, form_id: int, req: FormularioUpdate) -> FormularioResponse:
+        form = CanalService._get_form(db, form_id)
+        if form.status == CanalFormularioStatus.RESPONDIDO:
+            raise HTTPException(400, "Formulário já respondido — não dá pra editar.")
+        if req.titulo is not None:
+            form.titulo = (req.titulo or "").strip() or form.titulo
+        if req.contexto is not None:
+            form.contexto = (req.contexto or "").strip() or None
+        if req.perguntas is not None:
+            form.perguntas_json = CanalService._valida_perguntas(req.perguntas)
+            # limpa respostas de perguntas que sumiram
+            ids = {p["id"] for p in form.perguntas_json}
+            form.respostas_json = {k: v for k, v in (form.respostas_json or {}).items() if k in ids}
+        return CanalService._form_resp(CanalRepository.save_formulario(db, form))
+
+    @staticmethod
+    def enviar_formulario(db: Session, form_id: int, autor: str) -> FormularioResponse:
+        form = CanalService._get_form(db, form_id)
+        if form.status == CanalFormularioStatus.RESPONDIDO:
+            raise HTTPException(400, "Formulário já foi respondido.")
+        if not form.perguntas_json:
+            raise HTTPException(400, "Formulário sem perguntas.")
+        form.status = CanalFormularioStatus.ENVIADO
+        item = CanalRepository.get_by_id(db, form.item_id)
+        if item:
+            if item.status not in (CanalStatus.RESOLVIDA, CanalStatus.DESCARTADA):
+                item.status = CanalStatus.AGUARDANDO_CMPORT
+            _tocar_visto(item, autor)  # Atila enviou → novidade pro lado CMPort
+            CanalRepository.save(db, item)
+        return CanalService._form_resp(CanalRepository.save_formulario(db, form))
+
+    @staticmethod
+    def responder_formulario(db: Session, form_id: int, req: ResponderFormularioRequest) -> FormularioResponse:
+        form = CanalService._get_form(db, form_id)
+        if form.status == CanalFormularioStatus.RASCUNHO:
+            raise HTTPException(400, "Formulário ainda não foi enviado pra resposta.")
+
+        perguntas = {p["id"]: p for p in (form.perguntas_json or [])}
+        # só aceita respostas de perguntas que existem
+        respostas = {k: v for k, v in (req.respostas or {}).items() if k in perguntas}
+        form.respostas_json = respostas
+        form.preenchido_por = CanalAutor(req.autor)
+
+        if req.finalizar:
+            faltando = [
+                p["enunciado"] for pid, p in perguntas.items()
+                if p.get("obrigatoria") and _resposta_vazia(respostas.get(pid))
+            ]
+            if faltando:
+                raise HTTPException(400, "Faltam respostas obrigatórias: " + "; ".join(faltando[:5]))
+            form.status = CanalFormularioStatus.RESPONDIDO
+            form.respondido_em = datetime.utcnow()
+        else:
+            form.status = CanalFormularioStatus.EM_PREENCHIMENTO
+
+        item = CanalRepository.get_by_id(db, form.item_id)
+        if item:
+            if req.finalizar and item.status not in (CanalStatus.RESOLVIDA, CanalStatus.DESCARTADA):
+                item.status = CanalStatus.AGUARDANDO_ATILA
+            _tocar_visto(item, req.autor)  # cliente respondeu → novidade pro Atila
+            CanalRepository.save(db, item)
+        return CanalService._form_resp(CanalRepository.save_formulario(db, form))
+
+    @staticmethod
+    def deletar_formulario(db: Session, form_id: int) -> None:
+        form = CanalService._get_form(db, form_id)
+        form.deletado_em = datetime.utcnow()
+        CanalRepository.save_formulario(db, form)

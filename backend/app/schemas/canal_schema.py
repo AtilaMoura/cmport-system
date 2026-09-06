@@ -2,7 +2,7 @@
 canal_schema.py — Pydantic request/response do módulo Demandas (canal Atila ↔ CMPort).
 """
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -119,6 +119,7 @@ class ItemResponse(BaseModel):
     atualizado_em: Optional[datetime] = None
     anexos: List[AnexoResponse] = []
     comentarios: List[ComentarioResponse] = []
+    formularios: List["FormularioResponse"] = []
 
     model_config = {"from_attributes": True}
 
@@ -179,3 +180,58 @@ class RelatorioResponse(BaseModel):
     total_resolvidas: int
     total_descartadas: int
     itens: List[RelatorioItem]
+
+
+# ── Formulário de pendência ──────────────────────────────────────────────────
+
+TipoPergunta = Literal[
+    "texto_curto", "texto_longo", "numero", "valor", "data",
+    "sim_nao", "escolha_unica", "escolha_multipla",
+]
+FormStatusLiteral = Literal["RASCUNHO", "ENVIADO", "EM_PREENCHIMENTO", "RESPONDIDO"]
+
+
+class Pergunta(BaseModel):
+    id: str                              # id estável (p1, p2, ...) — gerado no front
+    enunciado: str
+    tipo: TipoPergunta = "texto_curto"
+    obrigatoria: bool = False
+    ajuda: Optional[str] = None
+    opcoes: List[str] = []               # só escolha_unica / escolha_multipla
+    sugestao: Optional[Any] = None       # resposta pré-preenchida (o "default")
+
+
+class FormularioCreate(BaseModel):
+    titulo: str
+    contexto: Optional[str] = None
+    perguntas: List[Pergunta] = []
+
+
+class FormularioUpdate(BaseModel):
+    titulo: Optional[str] = None
+    contexto: Optional[str] = None
+    perguntas: Optional[List[Pergunta]] = None
+
+
+class ResponderFormularioRequest(BaseModel):
+    autor: AutorLiteral
+    respostas: Dict[str, Any]            # pergunta_id -> valor
+    finalizar: bool = False             # false = salva parcial; true = valida obrigatórias e encerra
+
+
+class FormularioResponse(BaseModel):
+    id: int
+    item_id: int
+    titulo: str
+    contexto: Optional[str] = None
+    perguntas: List[Pergunta] = []
+    respostas: Dict[str, Any] = {}
+    status: FormStatusLiteral
+    preenchido_por: Optional[AutorLiteral] = None
+    respondido_em: Optional[datetime] = None
+    criado_em: Optional[datetime] = None
+    atualizado_em: Optional[datetime] = None
+
+
+# ItemResponse referencia FormularioResponse por forward ref (definido depois)
+ItemResponse.model_rebuild()

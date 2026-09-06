@@ -16,7 +16,9 @@ from app.schemas.canal_schema import (
     ItemCreate, ItemUpdate, MudarStatusRequest, ResolverRequest, DescartarRequest,
     PromoverRequest, ArquivarRequest, VistoRequest, ComentarioCreate,
     ItemResponse, ItemListResponse, AnexoResponse, ResumoResponse, RelatorioResponse,
+    FormularioCreate, FormularioUpdate, ResponderFormularioRequest, FormularioResponse,
 )
+from pydantic import BaseModel
 from app.services.canal_service import CanalService
 
 router = APIRouter()
@@ -103,6 +105,37 @@ def remover_anexo(anexo_id: int, db: Session = Depends(get_db)):
     CanalService.remover_anexo(db, anexo_id)
 
 
+# ── Formulários (rotas fixas antes de /{item_id}) ────────────────────────────
+
+class _AutorBody(BaseModel):
+    autor: str
+
+
+@router.get("/formularios/{form_id}", response_model=FormularioResponse)
+def obter_formulario(form_id: int, db: Session = Depends(get_db)):
+    return CanalService.obter_formulario(db, form_id)
+
+
+@router.patch("/formularios/{form_id}", response_model=FormularioResponse)
+def editar_formulario(form_id: int, req: FormularioUpdate, db: Session = Depends(get_db)):
+    return CanalService.editar_formulario(db, form_id, req)
+
+
+@router.delete("/formularios/{form_id}", status_code=204)
+def deletar_formulario(form_id: int, db: Session = Depends(get_db)):
+    CanalService.deletar_formulario(db, form_id)
+
+
+@router.post("/formularios/{form_id}/enviar", response_model=FormularioResponse)
+def enviar_formulario(form_id: int, req: _AutorBody, db: Session = Depends(get_db)):
+    return CanalService.enviar_formulario(db, form_id, req.autor)
+
+
+@router.post("/formularios/{form_id}/responder", response_model=FormularioResponse)
+def responder_formulario(form_id: int, req: ResponderFormularioRequest, db: Session = Depends(get_db)):
+    return CanalService.responder_formulario(db, form_id, req)
+
+
 # ── Item ─────────────────────────────────────────────────────────────────────
 
 @router.post("", response_model=ItemResponse, status_code=201)
@@ -159,6 +192,11 @@ def marcar_visto(item_id: int, req: VistoRequest, db: Session = Depends(get_db))
 @router.post("/{item_id}/comentarios", response_model=ItemResponse, status_code=201)
 def comentar(item_id: int, req: ComentarioCreate, db: Session = Depends(get_db)):
     return CanalService.comentar(db, item_id, req)
+
+
+@router.post("/{item_id}/formularios", response_model=ItemResponse, status_code=201)
+def criar_formulario(item_id: int, req: FormularioCreate, db: Session = Depends(get_db)):
+    return CanalService.criar_formulario(db, item_id, req)
 
 
 @router.post("/{item_id}/anexos", response_model=AnexoResponse, status_code=201)

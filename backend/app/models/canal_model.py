@@ -3,16 +3,17 @@ canal_model.py — Canal de comunicação entre a CMPort (Fabiana/Almira) e o
 desenvolvedor (Atila): demandas de dev/ajuste, notas rápidas e troca de
 documentos, tudo dentro do login que já existe.
 
-3 tabelas:
+4 tabelas:
 - canal_itens        → a demanda (rastreada) ou nota (recado rápido)
 - canal_comentarios  → thread de mensagens/reações de um item
 - canal_anexos       → arquivos (guardados no MinIO, prefixo `canal/`)
+- canal_formularios  → formulário de pendência preso a uma demanda (perguntas/respostas em JSON)
 """
 import enum
 
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Text, DateTime, ForeignKey,
-    Boolean, Enum as SQLEnum,
+    Boolean, Enum as SQLEnum, JSON,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -54,6 +55,13 @@ class CanalPrioridade(str, enum.Enum):
     NORMAL = "NORMAL"
     ALTA = "ALTA"
     URGENTE = "URGENTE"
+
+
+class CanalFormularioStatus(str, enum.Enum):
+    RASCUNHO = "RASCUNHO"                 # Atila montando, cliente ainda não vê
+    ENVIADO = "ENVIADO"                   # liberado pra cliente responder
+    EM_PREENCHIMENTO = "EM_PREENCHIMENTO" # cliente salvou parcial
+    RESPONDIDO = "RESPONDIDO"             # cliente finalizou
 
 
 class CanalItem(Base):
@@ -99,6 +107,12 @@ class CanalItem(Base):
         cascade="all, delete-orphan",
         order_by="CanalAnexo.enviado_em",
     )
+    formularios = relationship(
+        "CanalFormulario",
+        back_populates="item",
+        cascade="all, delete-orphan",
+        order_by="CanalFormulario.criado_em",
+    )
 
 
 class CanalComentario(Base):
@@ -136,3 +150,28 @@ class CanalAnexo(Base):
 
     item = relationship("CanalItem", back_populates="anexos")
     comentario = relationship("CanalComentario", back_populates="anexos")
+
+
+class CanalFormulario(Base):
+    """Formulário de pendência preso a uma demanda: um bloco de contexto + uma
+    lista de perguntas tipadas que a CMPort responde dentro do sistema."""
+    __tablename__ = "canal_formularios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("canal_itens.id", ondelete="CASCADE"), nullable=False, index=True)
+    titulo = Column(String(200), nullable=False)
+    contexto = Column(Text, nullable=True)            # markdown leve (renderizado seguro no front)
+    # perguntas: [{id, enunciado, tipo, obrigatoria, ajuda, opcoes[], sugestao}]
+    perguntas_json = Column(JSON, nullable=False, default=list)
+    # respostas: {pergunta_id: valor}
+    respostas_json = Column(JSON, nullable=False, default=dict)
+
+    status = Column(SQLEnum(CanalFormularioStatus), nullable=False, default=CanalFormularioStatus.RASCUNHO)
+    preenchido_por = Column(SQLEnum(CanalAutor), nullable=True)   # quem está/esteve respondendo
+    respondido_em = Column(DateTime, nullable=True)              # quando finalizou
+
+    criado_em = Column(DateTime, server_default=func.now())
+    atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    deletado_em = Column(DateTime, nullable=True)
+
+    item = relationship("CanalItem", back_populates="formularios")

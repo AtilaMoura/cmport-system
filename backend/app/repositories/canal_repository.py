@@ -7,7 +7,7 @@ from sqlalchemy import func as sa_func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.canal_model import (
-    CanalItem, CanalComentario, CanalAnexo, CanalTipo, CanalStatus,
+    CanalItem, CanalComentario, CanalAnexo, CanalFormulario, CanalTipo, CanalStatus,
 )
 
 # Status que contam como "encerrado"
@@ -63,6 +63,7 @@ class CanalRepository:
             .options(
                 joinedload(CanalItem.anexos),
                 joinedload(CanalItem.comentarios).joinedload(CanalComentario.anexos),
+                joinedload(CanalItem.formularios),
             )
             .filter(CanalItem.id == item_id, CanalItem.deletado_em.is_(None))
             .first()
@@ -154,6 +155,29 @@ class CanalRepository:
         if data_fim:
             q = q.filter(CanalItem.data_resolucao <= f"{data_fim} 23:59:59")
         return q.order_by(CanalItem.data_resolucao.desc()).all()
+
+    # ── Formulários ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def add_formulario(db: Session, form: CanalFormulario) -> CanalFormulario:
+        db.add(form)
+        db.commit()
+        db.refresh(form)
+        return form
+
+    @staticmethod
+    def get_formulario(db: Session, form_id: int) -> Optional[CanalFormulario]:
+        return (
+            db.query(CanalFormulario)
+            .filter(CanalFormulario.id == form_id, CanalFormulario.deletado_em.is_(None))
+            .first()
+        )
+
+    @staticmethod
+    def save_formulario(db: Session, form: CanalFormulario) -> CanalFormulario:
+        db.commit()
+        db.refresh(form)
+        return form
 
     # ── Resumo (badge) ───────────────────────────────────────────────────────
 
