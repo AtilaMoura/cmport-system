@@ -92,6 +92,14 @@ def main():
         linhas.append("SET @desp_id = LAST_INSERT_ID();")
         for p in r["parcelas"]:
             forma = resolver_forma_pagamento(r["nome"])
+            if p["status"] != "PAGO":
+                # parcela agendada (vencimento futuro, sem pagamento) -- sem movimentacao
+                linhas.append(
+                    f"INSERT INTO despesa_parcelas (despesa_id, numero_parcela, total_parcelas, valor, "
+                    f"data_vencimento, status) VALUES "
+                    f"(@desp_id, {p['numero_parcela']}, 0, {p['valor']}, {s(p['data_vencimento'])}, 'PENDENTE');"
+                )
+                continue
             linhas.append(
                 f"INSERT INTO fin_movimentacoes (data, descricao, valor, tipo, categoria_id, origem, "
                 f"status, observacao, banco_id, forma_pagamento) VALUES "
@@ -156,13 +164,29 @@ def main():
         banco_id = BANCO_MAP[cnpj_label]
         descricao = t["descricao_normalizada"] or t["descricao"]
         valor = round(abs(t["valor"]), 2)
-        from migrar_despesa_geral_v2 import data_valida, resolver_categoria_unico
+        from migrar_despesa_geral_v2 import data_valida, resolver_categoria_unico, resolver_status_pagto
         data_vencimento = data_valida(t["vencto"], t["pagto"])
-        data_pagamento = t["pagto"] or data_vencimento
+        status_u, data_pagamento = resolver_status_pagto(data_vencimento, t["pagto"])
         forma_pagamento = resolver_forma_pagamento(descricao)
         categoria_id_local, obs_extra = resolver_categoria_unico(t["subcategoria"], descricao)
         categoria_id = cat(categoria_id_local)
         observacao = "Migração histórica (Fase 6 V2)" + (f" — {obs_extra}" if obs_extra else "")
+
+        linhas.append(
+            f"INSERT INTO despesas (descricao, categoria_id, cnpj, tipo_pagamento, valor_total, "
+            f"total_parcelas, observacao, ativo) VALUES "
+            f"({s(descricao)}, {categoria_id}, {s(cnpj)}, 'UNICO', {valor}, 1, {s(observacao)}, 1);"
+        )
+        linhas.append("SET @desp_id = LAST_INSERT_ID();")
+
+        if status_u != "PAGO":
+            # lancamento agendado (vencimento futuro, sem pagamento) -- sem movimentacao
+            linhas.append(
+                f"INSERT INTO despesa_parcelas (despesa_id, numero_parcela, total_parcelas, valor, "
+                f"data_vencimento, status) VALUES "
+                f"(@desp_id, 1, 1, {valor}, {s(data_vencimento)}, 'PENDENTE');"
+            )
+            continue
 
         linhas.append(
             f"INSERT INTO fin_movimentacoes (data, descricao, valor, tipo, categoria_id, origem, "
@@ -171,12 +195,6 @@ def main():
             f"'MANUAL', 'VALIDADO', {s(observacao)}, {banco_id}, {s(forma_pagamento)});"
         )
         linhas.append("SET @mov_id = LAST_INSERT_ID();")
-        linhas.append(
-            f"INSERT INTO despesas (descricao, categoria_id, cnpj, tipo_pagamento, valor_total, "
-            f"total_parcelas, observacao, ativo) VALUES "
-            f"({s(descricao)}, {categoria_id}, {s(cnpj)}, 'UNICO', {valor}, 1, {s(observacao)}, 1);"
-        )
-        linhas.append("SET @desp_id = LAST_INSERT_ID();")
         linhas.append(
             f"INSERT INTO despesa_parcelas (despesa_id, numero_parcela, total_parcelas, valor, "
             f"data_vencimento, status, data_pagamento, banco_id, forma_pagamento, movimentacao_id) VALUES "
@@ -195,9 +213,11 @@ def main():
     print(f"RECORRENTE: {len(recorrentes)} despesas")
     print(f"PARCELADO: {len(parcelados)} despesas")
     print(f"UNICO: {len(unicos)} lancamentos")
+    from migrar_despesa_geral_v2 import data_valida as _dv, resolver_status_pagto as _rsp
     total = (sum(sum(x["valor"] for x in r["parcelas"] if x["status"] == "PAGO") for r in recorrentes)
              + sum(sum(x["valor"] for x in p["parcelas"] if x["status"] == "PAGO") for p in parcelados)
-             + sum(abs(t["valor"]) for t in unicos))
+             + sum(abs(t["valor"]) for t in unicos
+                   if _rsp(_dv(t["vencto"], t["pagto"]), t["pagto"])[0] == "PAGO"))
     print(f"Total PAGO: R$ {total:,.2f}".replace(",", "_").replace(".", ",").replace("_", "."))
 
 

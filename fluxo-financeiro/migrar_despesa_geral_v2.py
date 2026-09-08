@@ -112,6 +112,27 @@ def add_meses(d: date, n: int) -> date:
     return date(ano, mes, dia)
 
 
+def resolver_status_pagto(data_vencimento: str, pagto: str, hoje: date = None):
+    """Define (status, data_pagamento) de uma parcela vinda da planilha.
+
+    - tem data de pagamento real na planilha  -> PAGO nessa data
+    - sem pagamento, mas o vencimento ja passou -> PAGO (historico: a planilha
+      so' lista o que ja aconteceu, entao assume-se que foi pago no vencimento)
+    - sem pagamento e vencimento no futuro -> PENDENTE (lancamento agendado,
+      ainda nao pago -- NAO inventar movimentacao nem data de pagamento)
+
+    Sem esse ultimo caso, linhas futuras da planilha (mensalidades do mes
+    corrente, impostos com vencimento a frente) entravam como "pagas" com data
+    de pagamento no futuro. Bug investigado em 08/09/2026.
+    """
+    hoje = hoje or date.today()
+    if pagto:
+        return "PAGO", pagto
+    if date.fromisoformat(data_vencimento) <= hoje:
+        return "PAGO", data_vencimento
+    return "PENDENTE", None
+
+
 # ── RECORRENTE: (nome, cnpj, prefixo_normalizado, categoria_id) ──
 RECORRENTE_GRUPOS = [
     ("Aluguel Andre/Fabiana", "CMPORT", "aluguel andre/fabiana", 43),
@@ -166,11 +187,13 @@ def montar_parcelado(nome, cnpj_label, categoria_id, itens, total_parcelas):
 
     parcelas = []
     for i, item in enumerate(itens, start=1):
+        vencto = data_valida(item["vencto"], item["pagto"])
+        status, data_pag = resolver_status_pagto(vencto, item["pagto"])
         parcelas.append({
             "numero_parcela": i, "valor": round(abs(item["valor"]), 2),
-            "data_vencimento": data_valida(item["vencto"], item["pagto"]),
-            "data_pagamento": item["pagto"] or item["vencto"],
-            "status": "PAGO", "linha_planilha": item["linha_planilha"],
+            "data_vencimento": vencto,
+            "data_pagamento": data_pag,
+            "status": status, "linha_planilha": item["linha_planilha"],
         })
 
     faltam = total_parcelas - len(itens)
@@ -196,11 +219,12 @@ def montar_recorrente(nome, cnpj_label, categoria_id, itens):
     parcelas = []
     for i, item in enumerate(itens, start=1):
         vencto_corrigido = data_valida(item["vencto"], item["pagto"])
+        status, data_pag = resolver_status_pagto(vencto_corrigido, item["pagto"])
         parcelas.append({
             "numero_parcela": i, "valor": round(abs(item["valor"]), 2),
             "data_vencimento": vencto_corrigido,
-            "data_pagamento": item["pagto"] or item["vencto"],
-            "status": "PAGO", "linha_planilha": item["linha_planilha"],
+            "data_pagamento": data_pag,
+            "status": status, "linha_planilha": item["linha_planilha"],
         })
     ultimo_dia = min(date.fromisoformat(parcelas[-1]["data_vencimento"]).day, 28)
     valor_atual = parcelas[-1]["valor"]
@@ -334,9 +358,11 @@ def main():
         print(f"  [{p['cnpj_label']}] {p['nome']}: {p['encontradas']}/{p['total_parcelas']} pagas" + (f", {faltam} pendente(s)" if faltam else ""))
     print(f"\nUNICO: {len(unicos)} lancamentos (igual V1)")
 
+    unicos_pagos = [t for t in unicos
+                    if resolver_status_pagto(data_valida(t["vencto"], t["pagto"]), t["pagto"])[0] == "PAGO"]
     total_geral = (sum(sum(x["valor"] for x in r["parcelas"] if x["status"] == "PAGO") for r in recorrentes)
                    + sum(sum(x["valor"] for x in p["parcelas"] if x["status"] == "PAGO") for p in parcelados)
-                   + sum(abs(t["valor"]) for t in unicos))
+                   + sum(abs(t["valor"]) for t in unicos_pagos))
     print(f"\nTotal PAGO (recorrente+parcelado+unico): R$ {total_geral:,.2f}".replace(",", "_").replace(".", ",").replace("_", "."))
     print(f"Total do JSON (referencia): R$ {abs(data['total_valor']):,.2f}".replace(",", "_").replace(".", ",").replace("_", "."))
 
@@ -373,8 +399,17 @@ def main():
         )
         despesa_id = cur.lastrowid
         for p in r["parcelas"]:
-            id_externo = f"MIGRACAO-DESPESA-GERAL-REC-{r['cnpj_label']}-{p['linha_planilha']}"
             forma = resolver_forma_pagamento(r["nome"])
+            if p["status"] != "PAGO":
+                # parcela agendada (vencimento futuro, sem pagamento) -- nao cria movimentacao
+                cur.execute(
+                    """INSERT INTO despesa_parcelas (despesa_id, numero_parcela, total_parcelas, valor,
+                        data_vencimento, status)
+                       VALUES (%s,%s,0,%s,%s,'PENDENTE')""",
+                    (despesa_id, p["numero_parcela"], p["valor"], p["data_vencimento"]),
+                )
+                continue
+            id_externo = f"MIGRACAO-DESPESA-GERAL-REC-{r['cnpj_label']}-{p['linha_planilha']}"
             mov_id = inserir_movimentacao(r["nome"], p["valor"], p["data_pagamento"], r["categoria_id"],
                                            banco_id, forma, id_externo,
                                            "Migração histórica (Fase 6 V2, recorrente)")
@@ -434,7 +469,7 @@ def main():
         descricao = t["descricao_normalizada"] or t["descricao"]
         valor = round(abs(t["valor"]), 2)
         data_vencimento = data_valida(t["vencto"], t["pagto"])
-        data_pagamento = t["pagto"] or data_vencimento
+        status_u, data_pagamento = resolver_status_pagto(data_vencimento, t["pagto"])
         linha = t["linha_planilha"]
         id_externo = f"MIGRACAO-DESPESA-GERAL-{cnpj_label}-{linha}"
         forma_pagamento = resolver_forma_pagamento(descricao)
@@ -443,8 +478,6 @@ def main():
         resumo_valor_categoria[categoria_id] += valor
 
         observacao = "Migração histórica (Fase 6 V2)" + (f" — {obs_extra}" if obs_extra else "")
-        mov_id = inserir_movimentacao(descricao, valor, data_pagamento, categoria_id, banco_id, forma_pagamento,
-                                       id_externo, observacao)
         cur.execute(
             """INSERT INTO despesas (descricao, categoria_id, cnpj, tipo_pagamento, valor_total,
                 total_parcelas, observacao, ativo)
@@ -452,6 +485,19 @@ def main():
             (descricao, categoria_id, cnpj, valor, observacao),
         )
         despesa_id = cur.lastrowid
+
+        if status_u != "PAGO":
+            # lancamento agendado (vencimento futuro, sem pagamento) -- nao cria movimentacao
+            cur.execute(
+                """INSERT INTO despesa_parcelas (despesa_id, numero_parcela, total_parcelas, valor,
+                    data_vencimento, status)
+                   VALUES (%s,1,1,%s,%s,'PENDENTE')""",
+                (despesa_id, valor, data_vencimento),
+            )
+            continue
+
+        mov_id = inserir_movimentacao(descricao, valor, data_pagamento, categoria_id, banco_id, forma_pagamento,
+                                       id_externo, observacao)
         cur.execute(
             """INSERT INTO despesa_parcelas (despesa_id, numero_parcela, total_parcelas, valor,
                 data_vencimento, status, data_pagamento, banco_id, forma_pagamento, movimentacao_id)
