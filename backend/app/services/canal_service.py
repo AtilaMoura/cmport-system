@@ -293,7 +293,11 @@ class CanalService:
         item = CanalRepository.get_by_id(db, item_id)
         if not item:
             raise HTTPException(404, "Item não encontrado.")
-        item.deletado_em = datetime.utcnow()
+        agora = datetime.utcnow()
+        item.deletado_em = agora
+        for f in item.formularios:            # arrasta os formulários junto
+            if f.deletado_em is None:
+                f.deletado_em = agora
         CanalRepository.save(db, item)
 
     # ── Comentários ──────────────────────────────────────────────────────────

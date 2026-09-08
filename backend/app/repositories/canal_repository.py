@@ -169,7 +169,12 @@ class CanalRepository:
     def get_formulario(db: Session, form_id: int) -> Optional[CanalFormulario]:
         return (
             db.query(CanalFormulario)
-            .filter(CanalFormulario.id == form_id, CanalFormulario.deletado_em.is_(None))
+            .join(CanalItem, CanalItem.id == CanalFormulario.item_id)
+            .filter(
+                CanalFormulario.id == form_id,
+                CanalFormulario.deletado_em.is_(None),
+                CanalItem.deletado_em.is_(None),   # demanda-pai não pode estar excluída
+            )
             .first()
         )
 
