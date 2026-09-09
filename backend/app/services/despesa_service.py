@@ -159,6 +159,65 @@ class DespesaService:
         return DespesaResponse.model_validate(despesa)
 
     @staticmethod
+    def estornar_pagamento(db: Session, parcela_id: int) -> DespesaResponse:
+        """Desfaz um pagamento registrado por engano: apaga (soft-delete) a
+        movimentacao SAIDA gerada no `marcar_pago` e devolve a parcela pra PENDENTE.
+        So estorna pagamento MANUAL -- se a movimentacao veio conciliada do banco,
+        bloqueia (o certo e' desfazer pela tela de conciliacao)."""
+        from app.routers.auditoria_router import registrar_exclusao
+
+        parcela = DespesaRepository.get_parcela_by_id(db, parcela_id)
+        if not parcela:
+            raise Exception("Parcela nao encontrada.")
+        if parcela.status != StatusParcelaDespesa.PAGO:
+            raise Exception("Essa parcela nao esta paga.")
+
+        movimentacao = None
+        if parcela.movimentacao_id:
+            movimentacao = (
+                db.query(MovimentacaoFinanceira)
+                .filter(MovimentacaoFinanceira.id == parcela.movimentacao_id)
+                .first()
+            )
+        if movimentacao is not None and movimentacao.origem == "BANCO":
+            raise Exception(
+                "O pagamento esta conciliado com o extrato do banco. "
+                "Desfaca pela tela de conciliacao antes de estornar aqui."
+            )
+
+        # snapshot do estado atual da parcela paga, pra auditoria
+        registrar_exclusao(db, "despesa_parcela_pagamento", parcela_id, {
+            "parcela_id": parcela.id,
+            "despesa_id": parcela.despesa_id,
+            "valor": str(parcela.valor),
+            "data_pagamento": str(parcela.data_pagamento),
+            "banco_id": parcela.banco_id,
+            "forma_pagamento": parcela.forma_pagamento,
+            "movimentacao_id": parcela.movimentacao_id,
+        }, motivo="Estorno de pagamento")
+
+        if movimentacao is not None and movimentacao.deletado_em is None:
+            registrar_exclusao(db, "fin_movimentacao", movimentacao.id, {
+                "id": movimentacao.id, "data": str(movimentacao.data),
+                "descricao": movimentacao.descricao, "valor": str(movimentacao.valor),
+                "tipo": movimentacao.tipo, "origem": movimentacao.origem,
+            }, motivo="Estorno de pagamento de folha/despesa")
+            movimentacao.deletado_em = datetime.utcnow()
+            db.commit()
+
+        DespesaRepository.update(db, parcela, {
+            "status": StatusParcelaDespesa.PENDENTE,
+            "data_pagamento": None,
+            "banco_id": None,
+            "forma_pagamento": None,
+            "movimentacao_id": None,
+        })
+
+        despesa = parcela.despesa
+        db.refresh(despesa)
+        return DespesaResponse.model_validate(despesa)
+
+    @staticmethod
     def editar_parcela(db: Session, parcela_id: int, req: EditarParcelaRequest) -> DespesaResponse:
         parcela = DespesaRepository.get_parcela_by_id(db, parcela_id)
         if not parcela:

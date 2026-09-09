@@ -73,6 +73,14 @@ def editar_parcela(parcela_id: int, req: EditarParcelaRequest, db: Session = Dep
         raise HTTPException(400, str(e))
 
 
+@router.patch("/parcelas/{parcela_id}/estornar", response_model=DespesaResponse)
+def estornar_pagamento(parcela_id: int, db: Session = Depends(get_db)):
+    try:
+        return DespesaService.estornar_pagamento(db, parcela_id)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
 @router.delete("/{id}", status_code=204)
 def deletar(id: int, db: Session = Depends(get_db)):
     try:
