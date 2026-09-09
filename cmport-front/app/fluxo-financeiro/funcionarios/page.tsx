@@ -77,6 +77,14 @@ function FolhaFuncionariosContent() {
   const [pagForma, setPagForma] = useState('PIX');
   const [pagLoading, setPagLoading] = useState(false);
 
+  // edição de um lançamento pendente (valor + vencimento)
+  const [editandoParcelaId, setEditandoParcelaId] = useState<number | null>(null);
+  const [edValor, setEdValor] = useState('');
+  const [edData, setEdData] = useState('');
+  const [edLoading, setEdLoading] = useState(false);
+  // exclusão / estorno — id da parcela em processamento
+  const [acaoLoadingId, setAcaoLoadingId] = useState<number | null>(null);
+
   // lançamento avulso
   const [avulsoAberto, setAvulsoAberto] = useState(false);
   const [avFuncionario, setAvFuncionario] = useState<number | ''>('');
@@ -190,6 +198,69 @@ function FolhaFuncionariosContent() {
     }
   };
 
+  const abrirEdicaoParcela = (l: LinhaParcela) => {
+    setPagandoId(null);
+    setEditandoParcelaId(l.parcela.id);
+    setEdValor(String(l.parcela.valor ?? ''));
+    setEdData(l.parcela.data_vencimento);
+  };
+
+  const salvarEdicaoParcela = async (parcelaId: number) => {
+    if (!edValor || num(edValor) <= 0 || !edData) { alert('Preencha valor e vencimento.'); return; }
+    setEdLoading(true);
+    try {
+      await api.put(`/despesas/parcelas/${parcelaId}`, { valor: num(edValor), data_vencimento: edData });
+      setEditandoParcelaId(null);
+      await carregar();
+    } catch {
+      alert('Erro ao editar o lançamento. (Só dá pra editar enquanto está pendente.)');
+    } finally {
+      setEdLoading(false);
+    }
+  };
+
+  const excluirLancamento = async (l: LinhaParcela) => {
+    const d = l.despesa;
+    const titulo = d.descricao.split(' — ')[0];
+    // recorrentes (salário, vales, adiantamento, plantão…) vêm do cadastro do funcionário —
+    // apagar aqui não resolve porque o sistema regenera enquanto a variável estiver preenchida
+    if (d.tipo_pagamento === 'RECORRENTE') {
+      alert(
+        `"${titulo}" vem do cadastro do funcionário (variável da folha).\n\n` +
+        'Para tirar de todos os meses, zere esse valor no cadastro do funcionário.\n' +
+        'Para ajustar só esse mês, use "editar".'
+      );
+      return;
+    }
+    const qtd = d.parcelas.length;
+    const msg = qtd > 1
+      ? `Excluir "${titulo}" e as ${qtd} parcelas dele? Só a auditoria de exclusões desfaz.`
+      : `Excluir "${titulo}"? Só a auditoria de exclusões desfaz.`;
+    if (!confirm(msg)) return;
+    setAcaoLoadingId(l.parcela.id);
+    try {
+      await api.delete(`/despesas/${d.id}`);
+      await carregar();
+    } catch {
+      alert('Erro ao excluir o lançamento.');
+    } finally {
+      setAcaoLoadingId(null);
+    }
+  };
+
+  const estornarPagamento = async (l: LinhaParcela) => {
+    if (!confirm('Desfazer o pagamento? O lançamento volta pra pendente e a saída sai do fluxo de caixa.')) return;
+    setAcaoLoadingId(l.parcela.id);
+    try {
+      await api.patch(`/despesas/parcelas/${l.parcela.id}/estornar`);
+      await carregar();
+    } catch {
+      alert('Erro ao estornar o pagamento.');
+    } finally {
+      setAcaoLoadingId(null);
+    }
+  };
+
   const abrirAvulso = () => {
     setAvFuncionario(funcFiltro ?? '');
     setAvCategoria('');
@@ -250,6 +321,11 @@ function FolhaFuncionariosContent() {
             </button>
           }
         />
+
+        <p className="text-xs text-slate-500">
+          Salário, adiantamento, vales, plantão e hora extra vêm do <Link href="/funcionarios" className="font-bold text-blue-600 dark:text-blue-400 hover:underline">cadastro do funcionário</Link>.
+          Use o <span className="font-bold">lançamento avulso</span> só pra um extra pontual (férias, 13º, rescisão, PRL, reembolso).
+        </p>
 
         {funcFiltro && (
           <div className="flex items-center gap-2 text-sm">
@@ -330,6 +406,9 @@ function FolhaFuncionariosContent() {
                   {g.linhas.map(l => {
                     const pago = l.parcela.status === 'PAGO';
                     const pagando = pagandoId === l.parcela.id;
+                    const editando = editandoParcelaId === l.parcela.id;
+                    const processando = acaoLoadingId === l.parcela.id;
+                    const recorrente = l.despesa.tipo_pagamento === 'RECORRENTE';
                     return (
                       <div key={l.parcela.id} className="p-3">
                         <div className="flex items-center gap-3">
@@ -345,16 +424,59 @@ function FolhaFuncionariosContent() {
                           </div>
                           <div className="text-right shrink-0">
                             <div className="font-black text-sm text-slate-900 dark:text-white">{fmtValor(Number(l.parcela.valor))}</div>
-                            {pago
-                              ? <span className="text-[10px] font-bold text-green-600 dark:text-green-400">PAGO</span>
-                              : !pagando && (
+                            {pago ? (
+                              <div className="flex items-center gap-2 justify-end">
+                                <span className="text-[10px] font-bold text-green-600 dark:text-green-400">PAGO</span>
+                                <button onClick={() => estornarPagamento(l)} disabled={processando}
+                                  className="text-[10px] font-bold text-slate-400 hover:text-red-600 hover:underline disabled:opacity-50">
+                                  {processando ? '...' : 'estornar'}
+                                </button>
+                              </div>
+                            ) : !pagando && !editando && (
+                              <div className="flex items-center gap-2 justify-end">
+                                <button onClick={() => abrirEdicaoParcela(l)}
+                                  className="text-[10px] font-bold text-slate-400 hover:text-emerald-600 hover:underline">
+                                  editar
+                                </button>
+                                <button onClick={() => excluirLancamento(l)} disabled={processando}
+                                  className="text-[10px] font-bold text-slate-400 hover:text-red-600 hover:underline disabled:opacity-50">
+                                  {processando ? '...' : 'excluir'}
+                                </button>
                                 <button onClick={() => abrirPagamento(l)}
                                   className="text-[10px] font-bold text-emerald-600 hover:underline">
                                   registrar pagamento
                                 </button>
-                              )}
+                              </div>
+                            )}
                           </div>
                         </div>
+
+                        {editando && (
+                          <div className="mt-3 grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950 rounded-lg p-3">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Valor (R$)</label>
+                              <input type="number" step="0.01" min="0" value={edValor} onChange={e => setEdValor(e.target.value)}
+                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Vencimento</label>
+                              <input type="date" value={edData} onChange={e => setEdData(e.target.value)}
+                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+                            </div>
+                            {recorrente && (
+                              <p className="col-span-2 text-[10px] text-slate-400">
+                                Recorrente: isso muda só a parcela deste mês. O valor mensal padrão fica no cadastro do funcionário.
+                              </p>
+                            )}
+                            <div className="col-span-2 flex gap-2 justify-end mt-1">
+                              <button onClick={() => setEditandoParcelaId(null)} className="px-2 py-1 text-[11px] font-bold text-slate-500">Cancelar</button>
+                              <button onClick={() => salvarEdicaoParcela(l.parcela.id)} disabled={edLoading}
+                                className="px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-md hover:bg-emerald-700 disabled:opacity-50">
+                                {edLoading ? '...' : 'Salvar'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         {pagando && (
                           <div className="mt-3 grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950 rounded-lg p-3">
