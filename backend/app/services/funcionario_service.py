@@ -84,23 +84,22 @@ class FuncionarioService:
         # funcionario removido -> desativa as despesas recorrentes dele (nao apaga histórico)
         FuncionarioService.sincronizar_recorrentes(db, id)
 
-    # ── Motor de geração (Fase B) ────────────────────────────────────────────
-    # Cada COMPONENTE das variáveis do funcionário vira uma Despesa RECORRENTE
-    # identificada por (funcionario_id, categoria_id). O valor da variável é só
-    # a SUGESTÃO — a parcela mensal é editável no pagamento (salário varia, VR
-    # varia por dias trabalhados, adiantamento/plantão/HE variam). O scheduler
-    # existente (_gerar_despesas_recorrentes_auto) gera as parcelas mensais.
+    # ── Motor de geração (Fase B / F8) ───────────────────────────────────────
+    # A folha do funcionário vira DUAS Despesas RECORRENTE (uma parcela/mês cada):
+    #   1. "Salário líquido" — o Pix único que sai pro funcionário no dia do
+    #      pagamento (competência = mês anterior ao vencimento). Concilia 1:1 com
+    #      o extrato. É salário + VR + VA + VT + plantão + hora extra − INSS − IRRF
+    #      − contrib. − 6% VT − empréstimo − adiantamento. Os componentes que o
+    #      compõem NÃO viram parcela própria (só entram no cálculo/observação).
+    #   2. "Adiantamento" — saída separada, paga ~dia 20, competência = mês do
+    #      vencimento (é abatida do líquido do mês seguinte).
+    # O valor gerado é SUGESTÃO — a parcela é editável no pagamento (plantão, HE,
+    # VR por dias trabalhados variam). Guias patronais (GPS/FGTS/DARF) são
+    # lançamento avulso no bloco "Encargos da folha", nunca aqui.
     _COMPONENTES = [
         # (categoria_nome, attr_valor, attr_dia, prefixo, gatilho)
-        #   gatilho: "salario"=só se salario>0 | "adiantamento"=se tipo!=NENHUM |
-        #            "valor"=se valor>0 | "flag:<attr_bool>"=se a flag é True
-        ("Salario (folha mensal)",     "salario_mensal",    "dia_pagamento_salario",      "Salário",         "salario"),
-        ("Adiantamento de salario",    "adiantamento_valor","dia_pagamento_adiantamento", "Adiantamento",    "adiantamento"),
-        ("Vale transporte",            "vale_transporte",   "dia_pagamento_salario",      "Vale transporte",  "valor"),
-        ("Vale refeicao (VR)",         "vale_refeicao",     "dia_pagamento_salario",      "Vale refeição",    "valor"),
-        ("Vale alimentacao (VA)",      "vale_alimentacao",  "dia_pagamento_salario",      "Vale alimentação", "valor"),
-        ("Plantao",                    "plantao_valor",     "dia_pagamento_salario",      "Plantão",         "flag:tem_plantao"),
-        ("Hora extra",                 "hora_extra_valor",  "dia_pagamento_salario",      "Hora extra",      "flag:tem_hora_extra"),
+        ("Salario (folha mensal)",  "salario_mensal",    "dia_pagamento_salario",      "Salário líquido", "salario"),
+        ("Adiantamento de salario", "adiantamento_valor","dia_pagamento_adiantamento", "Adiantamento",    "adiantamento"),
     ]
 
     @staticmethod
@@ -129,32 +128,45 @@ class FuncionarioService:
         ativo = bool(func.ativo) and func.deletado_em is None
         if ativo and v is not None:
             salario = float(getattr(v, "salario_mensal", 0) or 0)
-            # descontos da folha (memória de cálculo do líquido — não viram lançamento próprio)
+            # proventos que entram no líquido (além do salário base)
+            p_vr = float(getattr(v, "vale_refeicao", 0) or 0)
+            p_va = float(getattr(v, "vale_alimentacao", 0) or 0)
+            p_vt = float(getattr(v, "vale_transporte", 0) or 0)
+            p_plantao = float(getattr(v, "plantao_valor", 0) or 0) if getattr(v, "tem_plantao", False) else 0.0
+            p_he = float(getattr(v, "hora_extra_valor", 0) or 0) if getattr(v, "tem_hora_extra", False) else 0.0
+            # descontos
             d_inss = float(getattr(v, "desconto_inss", 0) or 0)
             d_irrf = float(getattr(v, "desconto_irrf", 0) or 0)
             d_contrib = float(getattr(v, "desconto_contrib_assistencial", 0) or 0)
+            # co-participação do VT: % sobre o salário base (padrão 6% quando há VT)
             vt_pct = float(getattr(v, "vt_desconto_percentual", 0) or 0)
-            d_vt = round(salario * vt_pct / 100.0, 2) if vt_pct > 0 else 0.0
+            if p_vt > 0 and vt_pct <= 0:
+                vt_pct = 6.0
+            d_vt = round(salario * vt_pct / 100.0, 2) if (p_vt > 0 and vt_pct > 0) else 0.0
             d_emprest = float(getattr(v, "emprestimo_parcela", 0) or 0)
             adiant_fixo = float(getattr(v, "adiantamento_valor", 0) or 0) \
                 if getattr(v, "adiantamento_tipo", "NENHUM") == "FIXO" else 0.0
             liquido_sugerido = max(
-                round(salario - d_inss - d_irrf - d_contrib - d_vt - d_emprest - adiant_fixo, 2),
+                round(salario + p_vr + p_va + p_vt + p_plantao + p_he
+                      - d_inss - d_irrf - d_contrib - d_vt - d_emprest - adiant_fixo, 2),
                 0.0,
             )
             # texto legível só com as linhas que têm valor (formata cada número em pt-BR
-            # individualmente — não dá pra fazer replace global de "." e "," no texto todo,
-            # senão a pontuação da frase e o "contrib." também viram vírgula)
+            # individualmente — replace global de "." e "," estragaria a pontuação da frase)
             def _brl(n: float) -> str:
                 return f"{n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             _partes = [f"salário {_brl(salario)}"]
+            for _rot, _v in [("VR", p_vr), ("VA", p_va), ("VT", p_vt),
+                             ("plantão", p_plantao), ("hora extra", p_he)]:
+                if _v > 0:
+                    _partes.append(f"+ {_rot} {_brl(_v)}")
             for _rot, _v in [("INSS", d_inss), ("IRRF", d_irrf), ("contrib.", d_contrib),
                              (f"VT {vt_pct:g}%", d_vt), ("empréstimo", d_emprest),
                              ("adiantamento", adiant_fixo)]:
                 if _v > 0:
                     _partes.append(f"− {_rot} {_brl(_v)}")
             memoria_salario = (
-                "Sugestão = " + " ".join(_partes) + f" = {_brl(liquido_sugerido)}. "
+                "Líquido = " + " ".join(_partes) + f" = {_brl(liquido_sugerido)}. "
                 "Ajuste com a folha real ao marcar como pago."
             )
 
@@ -261,10 +273,25 @@ class FuncionarioService:
                     _p.mes_competencia = base - relativedelta(months=_offset)
                 db.commit()
 
-        # componente que saiu do estado desejado -> desativa a despesa (mantém histórico)
+        # componente que saiu do estado desejado (ex.: VR/VA/plantão/HE após o F8,
+        # que passaram a compor o "Salário líquido") -> desativa a despesa e remove
+        # as parcelas PENDENTE (as PAGO ficam pro histórico).
+        from app.routers.auditoria_router import registrar_exclusao
         for cat_id, d in existentes.items():
             if cat_id not in cat_ids_desejados and d.ativo:
                 d.ativo = False
+                pendentes = db.query(DespesaParcela).filter(
+                    DespesaParcela.despesa_id == d.id,
+                    DespesaParcela.status == StatusParcelaDespesa.PENDENTE,
+                ).all()
+                if pendentes:
+                    registrar_exclusao(db, "despesa_parcelas_componente_folha", d.id, {
+                        "despesa_id": d.id, "descricao": d.descricao,
+                        "categoria_id": cat_id, "parcelas_removidas": len(pendentes),
+                        "ids": [p.id for p in pendentes],
+                    }, motivo="Componente da folha absorvido pelo Salário líquido (F8)")
+                    for p in pendentes:
+                        db.delete(p)
                 db.commit()
                 desativadas += 1
 
