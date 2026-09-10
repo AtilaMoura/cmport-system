@@ -6,13 +6,14 @@ import { api } from '@/lib/api';
 import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
 import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
 import { DashboardPorBanco } from '@/components/fluxo-financeiro/DashboardPorBanco';
+import { FechamentoPorCnpj } from '@/components/fluxo-financeiro/FechamentoPorCnpj';
 import { ExportarFluxoBtn } from '@/components/fluxo-financeiro/ExportarFluxoBtn';
 import {
   fmtValor, type FluxoFinanceiroResponse, type AlertaDuplicata, type DashboardFinanceiro,
 } from '@/lib/fluxoFinanceiro';
 
 function FluxoFinanceiroContent() {
-  const { ano, mes, setAno, setMes } = useFiltrosFluxo();
+  const { ano, mes, cnpjFiltro, setAno, setMes, setCnpjFiltro } = useFiltrosFluxo();
   const [dadosServicos, setDadosServicos] = useState<FluxoFinanceiroResponse | null>(null);
   const [alertas, setAlertas] = useState<AlertaDuplicata[]>([]);
   const [dashboard, setDashboard] = useState<DashboardFinanceiro | null>(null);
@@ -100,7 +101,8 @@ function FluxoFinanceiroContent() {
       </div>
 
       <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        <FiltrosFluxo ano={ano} mes={mes} onAnoChange={setAno} onMesChange={setMes}
+        <FiltrosFluxo ano={ano} mes={mes} cnpjFiltro={cnpjFiltro}
+          onAnoChange={setAno} onMesChange={setMes} onCnpjChange={setCnpjFiltro} mostrarFiltroCnpj
           acoesExtra={<ExportarFluxoBtn ano={ano} mes={mes} />} />
 
         {alertas.length > 0 && (
@@ -132,6 +134,11 @@ function FluxoFinanceiroContent() {
                 <div className="text-xs font-bold text-slate-300 uppercase tracking-wide mb-1">Saldo do Mês</div>
                 <div className="text-2xl font-black text-white">{fmtValor(saldoMes)}</div>
               </div>
+            </div>
+
+            {/* Fechamento por CNPJ — entradas/saídas separadas + conferência com extrato */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+              <FechamentoPorCnpj ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} />
             </div>
 
             {/* Cards de navegação por seção */}

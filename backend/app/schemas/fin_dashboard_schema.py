@@ -44,3 +44,52 @@ class DashboardPorBancoResponse(BaseModel):
     mes:          int
     bancos:       List[DashboardBancoLinha]                # contas ativas + "Sem banco identificado" (se houver)
     consolidado:  DashboardBancoLinha
+
+
+# ── Dashboard "por CNPJ" (Fechamento do Fluxo separado por empresa) ───────────
+
+class EntradasCnpjBreakdown(BaseModel):
+    manutencao:       Decimal = Decimal(0)
+    assistencia:      Decimal = Decimal(0)
+    produto:          Decimal = Decimal(0)
+    recibos:          Decimal = Decimal(0)
+    transf_recebidas: Decimal = Decimal(0)   # transferência interna que caiu em conta desse CNPJ
+
+
+class SaidasCnpjBreakdown(BaseModel):
+    despesa:          Decimal = Decimal(0)
+    fornecedor:       Decimal = Decimal(0)
+    funcionario:      Decimal = Decimal(0)
+    tarifa:           Decimal = Decimal(0)
+    transf_enviadas:  Decimal = Decimal(0)   # transferência interna que saiu de conta desse CNPJ
+
+
+class DashboardCnpjLinha(BaseModel):
+    cnpj:            Optional[str] = None      # None = bloco "Sem CNPJ" / "Consolidado"
+    razao_social:    str
+    empresa:         Optional[str] = None      # "CMPORT" | "TEC" | None
+
+    entradas:        EntradasCnpjBreakdown = EntradasCnpjBreakdown()
+    entradas_total:  Decimal = Decimal(0)      # soma do breakdown de entradas
+    saidas:          SaidasCnpjBreakdown = SaidasCnpjBreakdown()
+    saidas_total:    Decimal = Decimal(0)      # soma do breakdown de saídas
+    rendimento:      Decimal = Decimal(0)
+    saldo_movimento: Decimal = Decimal(0)      # entradas_total + rendimento - saidas_total (fluxo do mês)
+
+    # Conferência com o extrato (soma das contas desse CNPJ, do dashboard "por banco").
+    # Só é conclusiva quando TODAS as contas do CNPJ têm saldo inicial E saldo do extrato.
+    saldo_inicial:        Optional[Decimal] = None
+    saldo_calculado:      Optional[Decimal] = None
+    saldo_extrato:        Optional[Decimal] = None
+    diferenca:            Optional[Decimal] = None   # saldo_calculado - saldo_extrato
+    bate:                 Optional[bool]    = None   # |diferenca| < 0,02
+    conferencia_completa: bool = False               # True só quando deu pra fechar a conta
+    contas_sem_saldo:     List[str] = []             # contas sem saldo inicial e/ou extrato
+
+
+class DashboardPorCnpjResponse(BaseModel):
+    ano:          int
+    mes:          int
+    empresas:     List[DashboardCnpjLinha]              # uma por CNPJ configurado (ordem das configs)
+    sem_cnpj:     Optional[DashboardCnpjLinha] = None   # entradas/saídas sem banco → sem CNPJ
+    consolidado:  DashboardCnpjLinha                    # soma de empresas + sem_cnpj

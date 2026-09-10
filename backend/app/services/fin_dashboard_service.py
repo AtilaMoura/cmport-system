@@ -25,6 +25,8 @@ from app.repositories.fin_extrato_saldo_repository import FinExtratoSaldoReposit
 from app.schemas.fin_dashboard_schema import (
     DashboardBancoLinha, DashboardPorBancoResponse,
     EntradasBreakdown, SaidasBreakdown,
+    DashboardCnpjLinha, DashboardPorCnpjResponse,
+    EntradasCnpjBreakdown, SaidasCnpjBreakdown,
 )
 
 Z = Decimal("0.00")
@@ -268,3 +270,186 @@ class FinDashboardService:
         )
 
         return DashboardPorBancoResponse(ano=ano, mes=mes, bancos=linhas, consolidado=consolidado)
+
+    # ── Dashboard "por CNPJ" (Fechamento do Fluxo separado por empresa) ───────
+    @staticmethod
+    def por_cnpj(db: Session, ano: int, mes: int) -> DashboardPorCnpjResponse:
+        """Fluxo do mês separado por CNPJ (CMPORT / TEC) + consolidado. NÃO faz
+        query nova: compõe `FluxoFinanceiroService.fluxo_mensal` (entradas de
+        serviço já separadas por CNPJ e tipo) com `FinDashboardService.por_banco`
+        (saídas, transferências e conferência de saldo por conta, cada linha já
+        rotulada com a empresa dona da conta).
+        """
+        from app.services.fluxo_financeiro_service import FluxoFinanceiroService
+        from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+
+        fluxo = FluxoFinanceiroService.fluxo_mensal(db, ano, mes)
+        banco = FinDashboardService.por_banco(db, ano, mes)
+
+        # entradas de serviço por CNPJ (só dígitos) — do fluxo-mensal
+        ent_por_cnpj = {_so_digitos(c.cnpj): c for c in fluxo.cnpjs}
+
+        # agrupa as linhas do "por banco" pela empresa dona da conta
+        grupo: dict[Optional[str], list[DashboardBancoLinha]] = {}
+        for l in banco.bancos:
+            grupo.setdefault(l.empresa, []).append(l)
+
+        def _soma(vals):
+            return _r2(sum((_d(v) for v in vals if v is not None), Z))
+
+        def _monta_empresa(cnpj_digitos: str, razao: str, empresa: Optional[str]) -> DashboardCnpjLinha:
+            ent = ent_por_cnpj.get(cnpj_digitos)
+            linhas_emp = grupo.get(empresa, []) if empresa else []
+            contas = [l for l in linhas_emp if l.banco_id is not None]
+
+            entradas = EntradasCnpjBreakdown(
+                manutencao=_d(ent.total_manutencao) if ent else Z,
+                assistencia=_d(ent.total_assistencia) if ent else Z,
+                produto=_d(ent.total_produto) if ent else Z,
+                recibos=_d(ent.total_recibos) if ent else Z,
+                transf_recebidas=_soma(l.transf_recebidas for l in contas),
+            )
+            entradas_total = _r2(
+                entradas.manutencao + entradas.assistencia + entradas.produto
+                + entradas.recibos + entradas.transf_recebidas
+            )
+            saidas = SaidasCnpjBreakdown(
+                despesa=_soma(l.saidas.despesa for l in contas),
+                fornecedor=_soma(l.saidas.fornecedor for l in contas),
+                funcionario=_soma(l.saidas.funcionario for l in contas),
+                tarifa=_soma(l.saidas.tarifa for l in contas),
+                transf_enviadas=_soma(l.transf_enviadas for l in contas),
+            )
+            saidas_total = _r2(
+                saidas.despesa + saidas.fornecedor + saidas.funcionario
+                + saidas.tarifa + saidas.transf_enviadas
+            )
+            rendimento = _soma(l.rendimento for l in contas)
+            saldo_mov = _r2(entradas_total + rendimento - saidas_total)
+
+            # conferência: só fecha quando TODA conta da empresa tem os dois saldos
+            completa = bool(contas) and all(
+                l.saldo_inicial is not None and l.saldo_extrato is not None for l in contas
+            )
+            saldo_ini = _soma(l.saldo_inicial for l in contas) if any(l.saldo_inicial is not None for l in contas) else None
+            saldo_calc = _soma(l.saldo_calculado for l in contas) if any(l.saldo_calculado is not None for l in contas) else None
+            saldo_ext = _soma(l.saldo_extrato for l in contas) if any(l.saldo_extrato is not None for l in contas) else None
+            if completa and saldo_calc is not None and saldo_ext is not None:
+                dif = _r2(saldo_calc - saldo_ext)
+                bate = abs(dif) < TOLERANCIA
+            else:
+                dif = None
+                bate = None
+            sem_saldo = [
+                l.banco_nome for l in contas
+                if l.saldo_inicial is None or l.saldo_extrato is None
+            ]
+
+            return DashboardCnpjLinha(
+                cnpj=cnpj_digitos or None,
+                razao_social=razao,
+                empresa=empresa,
+                entradas=entradas,
+                entradas_total=entradas_total,
+                saidas=saidas,
+                saidas_total=saidas_total,
+                rendimento=rendimento,
+                saldo_movimento=saldo_mov,
+                saldo_inicial=saldo_ini,
+                saldo_calculado=saldo_calc,
+                saldo_extrato=saldo_ext,
+                diferenca=dif,
+                bate=bate,
+                conferencia_completa=completa,
+                contas_sem_saldo=sem_saldo,
+            )
+
+        empresas: list[DashboardCnpjLinha] = []
+        for cfg in ConfiguracaoInterRepository.get_all(db):
+            digitos = _so_digitos(cfg.cnpj)
+            empresas.append(_monta_empresa(
+                digitos, cfg.razao_social or cfg.cnpj, EMPRESA_POR_CNPJ.get(digitos),
+            ))
+
+        # ── Sem CNPJ: só as SAÍDAS / transferências das contas sem empresa
+        #    (as entradas já foram atribuídas a um CNPJ no fluxo-mensal) ────────
+        sem_linhas = [l for l in grupo.get(None, [])]
+        sem_cnpj = None
+        if sem_linhas:
+            s_saidas = SaidasCnpjBreakdown(
+                despesa=_soma(l.saidas.despesa for l in sem_linhas),
+                fornecedor=_soma(l.saidas.fornecedor for l in sem_linhas),
+                funcionario=_soma(l.saidas.funcionario for l in sem_linhas),
+                tarifa=_soma(l.saidas.tarifa for l in sem_linhas),
+                transf_enviadas=_soma(l.transf_enviadas for l in sem_linhas),
+            )
+            s_saidas_total = _r2(
+                s_saidas.despesa + s_saidas.fornecedor + s_saidas.funcionario
+                + s_saidas.tarifa + s_saidas.transf_enviadas
+            )
+            s_entradas = EntradasCnpjBreakdown(
+                transf_recebidas=_soma(l.transf_recebidas for l in sem_linhas),
+            )
+            s_entradas_total = _r2(s_entradas.transf_recebidas)
+            s_rend = _soma(l.rendimento for l in sem_linhas)
+            if any(v != Z for v in (
+                s_saidas_total, s_entradas_total, s_rend,
+            )):
+                sem_cnpj = DashboardCnpjLinha(
+                    cnpj=None,
+                    razao_social="Sem CNPJ / sem banco identificado",
+                    empresa=None,
+                    entradas=s_entradas,
+                    entradas_total=s_entradas_total,
+                    saidas=s_saidas,
+                    saidas_total=s_saidas_total,
+                    rendimento=s_rend,
+                    saldo_movimento=_r2(s_entradas_total + s_rend - s_saidas_total),
+                    conferencia_completa=False,
+                )
+
+        # ── Consolidado ────────────────────────────────────────────────────
+        partes = list(empresas) + ([sem_cnpj] if sem_cnpj else [])
+        cons_entradas = EntradasCnpjBreakdown(
+            manutencao=_r2(sum((p.entradas.manutencao for p in partes), Z)),
+            assistencia=_r2(sum((p.entradas.assistencia for p in partes), Z)),
+            produto=_r2(sum((p.entradas.produto for p in partes), Z)),
+            recibos=_r2(sum((p.entradas.recibos for p in partes), Z)),
+            transf_recebidas=_r2(sum((p.entradas.transf_recebidas for p in partes), Z)),
+        )
+        cons_saidas = SaidasCnpjBreakdown(
+            despesa=_r2(sum((p.saidas.despesa for p in partes), Z)),
+            fornecedor=_r2(sum((p.saidas.fornecedor for p in partes), Z)),
+            funcionario=_r2(sum((p.saidas.funcionario for p in partes), Z)),
+            tarifa=_r2(sum((p.saidas.tarifa for p in partes), Z)),
+            transf_enviadas=_r2(sum((p.saidas.transf_enviadas for p in partes), Z)),
+        )
+        cons_entradas_total = _r2(sum((p.entradas_total for p in partes), Z))
+        cons_saidas_total = _r2(sum((p.saidas_total for p in partes), Z))
+        cons_rend = _r2(sum((p.rendimento for p in partes), Z))
+        bc = banco.consolidado  # conferência consolidada = a mesma do "por banco"
+        consolidado = DashboardCnpjLinha(
+            cnpj=None,
+            razao_social="Consolidado",
+            empresa=None,
+            entradas=cons_entradas,
+            entradas_total=cons_entradas_total,
+            saidas=cons_saidas,
+            saidas_total=cons_saidas_total,
+            rendimento=cons_rend,
+            saldo_movimento=_r2(cons_entradas_total + cons_rend - cons_saidas_total),
+            saldo_inicial=bc.saldo_inicial,
+            saldo_calculado=bc.saldo_calculado,
+            saldo_extrato=bc.saldo_extrato,
+            diferenca=bc.diferenca,
+            bate=bc.bate,
+            conferencia_completa=bc.diferenca is not None,
+            contas_sem_saldo=[
+                l.banco_nome for l in banco.bancos
+                if l.banco_id is not None and (l.saldo_inicial is None or l.saldo_extrato is None)
+            ],
+        )
+
+        return DashboardPorCnpjResponse(
+            ano=ano, mes=mes, empresas=empresas, sem_cnpj=sem_cnpj, consolidado=consolidado,
+        )

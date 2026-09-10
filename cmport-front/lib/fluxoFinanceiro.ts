@@ -231,6 +231,70 @@ export interface DashboardPorBancoResponse {
   bancos: DashboardBancoLinha[];
   consolidado: DashboardBancoLinha;
 }
+
+// ── Dashboard "por CNPJ" / Fechamento do Fluxo separado por empresa ─────────
+export interface EntradasCnpjBreakdown {
+  manutencao: number; assistencia: number; produto: number; recibos: number; transf_recebidas: number;
+}
+export interface SaidasCnpjBreakdown {
+  despesa: number; fornecedor: number; funcionario: number; tarifa: number; transf_enviadas: number;
+}
+export interface DashboardCnpjLinha {
+  cnpj: string | null;
+  razao_social: string;
+  empresa: 'CMPORT' | 'TEC' | null;
+  entradas: EntradasCnpjBreakdown;
+  entradas_total: number;
+  saidas: SaidasCnpjBreakdown;
+  saidas_total: number;
+  rendimento: number;
+  saldo_movimento: number;
+  saldo_inicial: number | null;
+  saldo_calculado: number | null;
+  saldo_extrato: number | null;
+  diferenca: number | null;
+  bate: boolean | null;
+  conferencia_completa: boolean;
+  contas_sem_saldo: string[];
+}
+export interface DashboardPorCnpjResponse {
+  ano: number;
+  mes: number;
+  empresas: DashboardCnpjLinha[];
+  sem_cnpj: DashboardCnpjLinha | null;
+  consolidado: DashboardCnpjLinha;
+}
+
+// Backend serializa Decimal como string — normaliza toda a resposta pra number.
+export function normalizarPorCnpj(raw: DashboardPorCnpjResponse): DashboardPorCnpjResponse {
+  const nEnt = (e: EntradasCnpjBreakdown): EntradasCnpjBreakdown => ({
+    manutencao: Number(e.manutencao), assistencia: Number(e.assistencia), produto: Number(e.produto),
+    recibos: Number(e.recibos), transf_recebidas: Number(e.transf_recebidas),
+  });
+  const nSai = (s: SaidasCnpjBreakdown): SaidasCnpjBreakdown => ({
+    despesa: Number(s.despesa), fornecedor: Number(s.fornecedor), funcionario: Number(s.funcionario),
+    tarifa: Number(s.tarifa), transf_enviadas: Number(s.transf_enviadas),
+  });
+  const nLinha = (l: DashboardCnpjLinha): DashboardCnpjLinha => ({
+    ...l,
+    entradas: nEnt(l.entradas),
+    saidas: nSai(l.saidas),
+    entradas_total: Number(l.entradas_total),
+    saidas_total: Number(l.saidas_total),
+    rendimento: Number(l.rendimento),
+    saldo_movimento: Number(l.saldo_movimento),
+    saldo_inicial: l.saldo_inicial === null ? null : Number(l.saldo_inicial),
+    saldo_calculado: l.saldo_calculado === null ? null : Number(l.saldo_calculado),
+    saldo_extrato: l.saldo_extrato === null ? null : Number(l.saldo_extrato),
+    diferenca: l.diferenca === null ? null : Number(l.diferenca),
+  });
+  return {
+    ...raw,
+    empresas: raw.empresas.map(nLinha),
+    sem_cnpj: raw.sem_cnpj ? nLinha(raw.sem_cnpj) : null,
+    consolidado: nLinha(raw.consolidado),
+  };
+}
 export interface SaldoInicialBancoLinha {
   banco_id: number;
   banco_nome: string;

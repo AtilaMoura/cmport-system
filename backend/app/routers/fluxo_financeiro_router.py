@@ -15,7 +15,7 @@ from app.schemas.fluxo_financeiro_schema import (
     AlertaNotaSemServico, DispensarNotaSemServicoRequest,
     AlertaParcelaFaltando, DispensarParcelaFaltandoRequest,
 )
-from app.schemas.fin_dashboard_schema import DashboardPorBancoResponse
+from app.schemas.fin_dashboard_schema import DashboardPorBancoResponse, DashboardPorCnpjResponse
 from app.schemas.fin_saldo_inicial_schema import (
     SaldoInicialUpsert, SaldoInicialResponse, SaldoInicialPorBancoResponse,
 )
@@ -137,6 +137,18 @@ def dashboard_por_banco(
     (boleto/recibo/avulso) → transferências → saídas (fornecedor/despesa/
     funcionário/tarifa) → saldo calculado × saldo do extrato × diferença."""
     return FinDashboardService.por_banco(db, ano=ano, mes=mes)
+
+
+@router.get("/dashboard/por-cnpj", response_model=DashboardPorCnpjResponse)
+def dashboard_por_cnpj(
+    ano: int = Query(..., ge=2020, le=2100),
+    mes: int = Query(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+):
+    """Fluxo do mês separado por CNPJ (CMPORT / TEC) + consolidado: entradas e
+    saídas com breakdown, totais juntos e separados, e conferência com o extrato
+    (aponta a diferença quando o saldo final não bate)."""
+    return FinDashboardService.por_cnpj(db, ano=ano, mes=mes)
 
 
 @router.get("/saldo-inicial-banco/{ano}/{mes}", response_model=SaldoInicialPorBancoResponse)
