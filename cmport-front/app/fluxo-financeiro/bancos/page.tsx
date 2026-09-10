@@ -6,7 +6,7 @@ import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
 import { DashboardPorBanco } from '@/components/fluxo-financeiro/DashboardPorBanco';
 
 function BancosContent() {
-  const { ano, mes, setAno, setMes } = useFiltrosFluxo();
+  const { ano, mes, cnpjFiltro, setAno, setMes, setCnpjFiltro } = useFiltrosFluxo();
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
@@ -16,8 +16,9 @@ function BancosContent() {
         </div>
       </div>
       <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        <FiltrosFluxo ano={ano} mes={mes} onAnoChange={setAno} onMesChange={setMes} />
-        <DashboardPorBanco ano={ano} mes={mes} />
+        <FiltrosFluxo ano={ano} mes={mes} cnpjFiltro={cnpjFiltro}
+          onAnoChange={setAno} onMesChange={setMes} onCnpjChange={setCnpjFiltro} mostrarFiltroCnpj />
+        <DashboardPorBanco ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} />
       </div>
     </div>
   );

@@ -21,7 +21,7 @@ interface CategoriaOpcao {
 const NOVA_VAZIA = { data: '', descricao: '', valor: '', categoria_id: '', banco_origem_id: '', banco_id: '' };
 
 function TransferenciasContent() {
-  const { ano, mes, setAno, setMes } = useFiltrosFluxo();
+  const { ano, mes, cnpjFiltro, setAno, setMes, setCnpjFiltro } = useFiltrosFluxo();
   const [movs, setMovs] = useState<Movimentacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [bancos, setBancos] = useState<BancoOpcao[]>([]);
@@ -100,7 +100,9 @@ function TransferenciasContent() {
       </div>
 
       <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        <FiltrosFluxo ano={ano} mes={mes} onAnoChange={setAno} onMesChange={setMes} acoesExtra={
+        <FiltrosFluxo ano={ano} mes={mes} cnpjFiltro={cnpjFiltro}
+          onAnoChange={setAno} onMesChange={setMes} onCnpjChange={setCnpjFiltro} mostrarFiltroCnpj
+          acoesExtra={
           <button onClick={abrirNova}
             className="px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all whitespace-nowrap">
             + Nova Transferência
@@ -109,7 +111,8 @@ function TransferenciasContent() {
         {loading ? (
           <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
         ) : (
-          <DetalheMovimentacoes movs={movs} cor="text-teal-700 dark:text-teal-400" mostrarBancoOrigem onAtualizado={carregar} />
+          <DetalheMovimentacoes movs={movs} cor="text-teal-700 dark:text-teal-400" mostrarBancoOrigem
+            cnpjFiltro={cnpjFiltro} onAtualizado={carregar} />
         )}
       </div>
 

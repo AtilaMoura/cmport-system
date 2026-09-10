@@ -160,7 +160,7 @@ function FluxoFinanceiroContent() {
 
             {/* Conciliação por banco — saldo inicial → entradas → saídas → saldo calculado × extrato */}
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-              <DashboardPorBanco ano={ano} mes={mes} />
+              <DashboardPorBanco ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} />
             </div>
           </>
         )}

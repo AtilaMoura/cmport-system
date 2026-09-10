@@ -37,13 +37,20 @@ interface Props {
   mostrarFornecedor?: boolean;
   onAtualizado?: () => void;
   breakdownExtra?: ReactNode;
+  cnpjFiltro?: string;   // filtro de CNPJ vindo da URL — seed do filtro "De onde saiu"
 }
 
-export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFornecedor, onAtualizado, breakdownExtra }: Props) {
+export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFornecedor, onAtualizado, breakdownExtra, cnpjFiltro }: Props) {
   const [busca, setBusca] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('');
   const [bancoIdFiltro, setBancoIdFiltro] = useState<number | ''>('');  // conta específica (origem OU destino)
   const [empresaFiltro, setEmpresaFiltro] = useState('');   // '' | 'CMPORT' | 'TEC'
+
+  // quando a página passa um CNPJ (filtro compartilhado da URL), seed o filtro local "De onde saiu"
+  useEffect(() => {
+    if (cnpjFiltro === undefined) return;
+    setEmpresaFiltro(EMPRESA_POR_CNPJ[cnpjFiltro.replace(/\D/g, '')] ?? '');
+  }, [cnpjFiltro]);
   const [bancos, setBancos] = useState<BancoOpcao[]>([]);
   const [fornecedores, setFornecedores] = useState<FornecedorOpcao[]>([]);
   const [modalMov, setModalMov] = useState<Movimentacao | null>(null);
