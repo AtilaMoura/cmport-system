@@ -63,6 +63,15 @@ class FuncionarioVariaveis(Base):
     # so projecao — o encargo real e pago como guia da folha inteira (bucket, sem funcionario_id)
     encargos_percentual = Column(Numeric(5, 2, asdecimal=False), default=0, nullable=False)
 
+    # Descontos da folha — memória de cálculo do líquido sugerido do salário.
+    # NÃO viram lançamento próprio; só reduzem o valor sugerido do componente "Salário".
+    desconto_inss = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)
+    desconto_irrf = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)
+    desconto_contrib_assistencial = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)
+    vt_desconto_percentual = Column(Numeric(5, 2, asdecimal=False), default=0, nullable=False)  # ex.: 6 = 6% sobre o salário base
+    emprestimo_parcela = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)     # parcela mensal descontada em folha
+    emprestimo_saldo = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)       # informativo
+
     criado_em = Column(DateTime, server_default=func.now())
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

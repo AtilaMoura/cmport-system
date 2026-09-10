@@ -1,8 +1,9 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import extract, and_
+from sqlalchemy import extract, and_, or_
 
 from app.models.despesa_model import Despesa, DespesaParcela, TipoPagamentoDespesa
+from app.models.fin_categoria_model import CategoriaFinanceira
 
 
 class DespesaRepository:
@@ -19,9 +20,21 @@ class DespesaRepository:
         if origem == "FORNECEDOR":
             q = q.filter(Despesa.fornecedor_id.isnot(None))
         elif origem == "FUNCIONARIO":
-            q = q.filter(Despesa.funcionario_id.isnot(None))
+            # folha = despesa ligada a um funcionário OU guia da folha inteira
+            # (categoria do grupo FUNCIONARIO, sem funcionario_id — ex.: GPS/FGTS/DARF)
+            cat_func = db.query(CategoriaFinanceira.id).filter(CategoriaFinanceira.grupo == "FUNCIONARIO")
+            q = q.filter(or_(
+                Despesa.funcionario_id.isnot(None),
+                Despesa.categoria_id.in_(cat_func),
+            ))
         elif origem == "GERAL":
-            q = q.filter(Despesa.fornecedor_id.is_(None), Despesa.funcionario_id.is_(None))
+            # Despesa Geral nunca mostra item de folha — guia da folha mora só na aba Funcionários
+            cat_func = db.query(CategoriaFinanceira.id).filter(CategoriaFinanceira.grupo == "FUNCIONARIO")
+            q = q.filter(
+                Despesa.fornecedor_id.is_(None),
+                Despesa.funcionario_id.is_(None),
+                or_(Despesa.categoria_id.is_(None), Despesa.categoria_id.notin_(cat_func)),
+            )
         condicoes_parcela = []
         if mes:
             condicoes_parcela.append(extract("month", DespesaParcela.data_vencimento) == mes)

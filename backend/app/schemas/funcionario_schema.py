@@ -17,6 +17,12 @@ class FuncionarioVariaveisIn(BaseModel):
     tem_hora_extra: bool = False
     hora_extra_valor: Decimal = Decimal("0")
     encargos_percentual: Decimal = Decimal("0")
+    desconto_inss: Decimal = Decimal("0")
+    desconto_irrf: Decimal = Decimal("0")
+    desconto_contrib_assistencial: Decimal = Decimal("0")
+    vt_desconto_percentual: Decimal = Decimal("0")
+    emprestimo_parcela: Decimal = Decimal("0")
+    emprestimo_saldo: Decimal = Decimal("0")
 
 
 class FuncionarioVariaveisResponse(FuncionarioVariaveisIn):

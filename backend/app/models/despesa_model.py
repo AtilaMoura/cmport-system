@@ -66,6 +66,9 @@ class DespesaParcela(Base):
     banco_id = Column(Integer, ForeignKey("bancos.id", ondelete="SET NULL"), nullable=True)
     forma_pagamento = Column(String(20), nullable=True)
     movimentacao_id = Column(Integer, ForeignKey("fin_movimentacoes.id", ondelete="SET NULL"), nullable=True)
+    # Mês de referência da folha (competência). Ex.: salário pago em set/2026 tem competência ago/2026.
+    # Só o dia 1 do mês importa. Preenchido pelo motor da folha; editável.
+    mes_competencia = Column(Date, nullable=True)
     criado_em = Column(DateTime, server_default=func.now())
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

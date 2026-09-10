@@ -1,6 +1,7 @@
 from datetime import datetime, date
 from typing import List
 
+from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
 
 from app.models.funcionario_model import Funcionario
@@ -123,25 +124,57 @@ class FuncionarioService:
 
         # estado desejado: os componentes que o funcionário tem, só se ele está
         # ativo e não foi soft-deletado. O valor é a sugestão (pode ser 0).
-        desejado = []  # (categoria_id, valor, dia, descricao)
+        desejado = []  # (categoria_id, valor, dia, descricao, cat_nome)
         ativo = bool(func.ativo) and func.deletado_em is None
         if ativo and v is not None:
             salario = float(getattr(v, "salario_mensal", 0) or 0)
+            # descontos da folha (memória de cálculo do líquido — não viram lançamento próprio)
+            d_inss = float(getattr(v, "desconto_inss", 0) or 0)
+            d_irrf = float(getattr(v, "desconto_irrf", 0) or 0)
+            d_contrib = float(getattr(v, "desconto_contrib_assistencial", 0) or 0)
+            vt_pct = float(getattr(v, "vt_desconto_percentual", 0) or 0)
+            d_vt = round(salario * vt_pct / 100.0, 2) if vt_pct > 0 else 0.0
+            d_emprest = float(getattr(v, "emprestimo_parcela", 0) or 0)
+            adiant_fixo = float(getattr(v, "adiantamento_valor", 0) or 0) \
+                if getattr(v, "adiantamento_tipo", "NENHUM") == "FIXO" else 0.0
+            liquido_sugerido = max(
+                round(salario - d_inss - d_irrf - d_contrib - d_vt - d_emprest - adiant_fixo, 2),
+                0.0,
+            )
+            # texto legível só com as linhas que têm valor (formata cada número em pt-BR
+            # individualmente — não dá pra fazer replace global de "." e "," no texto todo,
+            # senão a pontuação da frase e o "contrib." também viram vírgula)
+            def _brl(n: float) -> str:
+                return f"{n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            _partes = [f"salário {_brl(salario)}"]
+            for _rot, _v in [("INSS", d_inss), ("IRRF", d_irrf), ("contrib.", d_contrib),
+                             (f"VT {vt_pct:g}%", d_vt), ("empréstimo", d_emprest),
+                             ("adiantamento", adiant_fixo)]:
+                if _v > 0:
+                    _partes.append(f"− {_rot} {_brl(_v)}")
+            memoria_salario = (
+                "Sugestão = " + " ".join(_partes) + f" = {_brl(liquido_sugerido)}. "
+                "Ajuste com a folha real ao marcar como pago."
+            )
+
             for cat_nome, attr_valor, attr_dia, prefixo, gatilho in FuncionarioService._COMPONENTES:
                 cat_id = cats.get(cat_nome)
                 if not cat_id:
                     continue
-                valor = float(getattr(v, attr_valor, 0) or 0)
-                if gatilho == "salario" and salario <= 0:
-                    continue
-                if gatilho == "adiantamento" and getattr(v, "adiantamento_tipo", "NENHUM") == "NENHUM":
-                    continue
-                if gatilho == "valor" and valor <= 0:
-                    continue
-                if gatilho.startswith("flag:") and not getattr(v, gatilho.split(":", 1)[1], False):
-                    continue
+                if gatilho == "salario":
+                    if salario <= 0:
+                        continue
+                    valor = liquido_sugerido
+                else:
+                    valor = float(getattr(v, attr_valor, 0) or 0)
+                    if gatilho == "adiantamento" and getattr(v, "adiantamento_tipo", "NENHUM") == "NENHUM":
+                        continue
+                    if gatilho == "valor" and valor <= 0:
+                        continue
+                    if gatilho.startswith("flag:") and not getattr(v, gatilho.split(":", 1)[1], False):
+                        continue
                 dia = _dia_ok(getattr(v, attr_dia, None) or getattr(v, "dia_pagamento_salario", None))
-                desejado.append((cat_id, valor, dia, f"{prefixo} — {func.nome}"))
+                desejado.append((cat_id, valor, dia, f"{prefixo} — {func.nome}", cat_nome))
 
         cat_ids_desejados = {c for c, *_ in desejado}
 
@@ -156,9 +189,10 @@ class FuncionarioService:
 
         criadas = atualizadas = desativadas = 0
 
-        for cat_id, valor, dia, descricao in desejado:
+        for cat_id, valor, dia, descricao, cat_nome in desejado:
             d = existentes.get(cat_id)
             if d is None:
+                _obs = memoria_salario if cat_nome == "Salario (folha mensal)" else "Gerada automaticamente das variáveis do funcionário."
                 d = Despesa(
                     descricao=descricao,
                     categoria_id=cat_id,
@@ -169,12 +203,23 @@ class FuncionarioService:
                     total_parcelas=0,
                     dia_vencimento=dia,
                     ativo=True,
-                    observacao="Gerada automaticamente das variáveis do funcionário.",
+                    observacao=_obs,
                 )
                 db.add(d)
                 db.commit()
                 db.refresh(d)
                 DespesaService._garantir_parcelas_recorrente(db, d)
+                # competência: adiantamento = mês do próprio vencimento;
+                # salário e demais componentes = mês anterior ao vencimento
+                _offset = 0 if cat_nome == "Adiantamento de salario" else 1
+                for _p in db.query(DespesaParcela).filter(
+                    DespesaParcela.despesa_id == d.id,
+                    DespesaParcela.status == StatusParcelaDespesa.PENDENTE,
+                    DespesaParcela.mes_competencia.is_(None),
+                ).all():
+                    base = _p.data_vencimento.replace(day=1)
+                    _p.mes_competencia = base - relativedelta(months=_offset)
+                db.commit()
                 criadas += 1
             else:
                 mudou = False
@@ -190,6 +235,9 @@ class FuncionarioService:
                 if not d.ativo:
                     d.ativo = True
                     mudou = True
+                if cat_nome == "Salario (folha mensal)" and d.observacao != memoria_salario:
+                    d.observacao = memoria_salario
+                    mudou = True
                 if mudou:
                     db.commit()
                     # ajusta o valor das parcelas FUTURAS ainda PENDENTES (não mexe nas pagas)
@@ -201,6 +249,16 @@ class FuncionarioService:
                     db.commit()
                     atualizadas += 1
                 DespesaService._garantir_parcelas_recorrente(db, d)
+                # competência: preenche parcelas PENDENTE sem competência
+                _offset = 0 if cat_nome == "Adiantamento de salario" else 1
+                for _p in db.query(DespesaParcela).filter(
+                    DespesaParcela.despesa_id == d.id,
+                    DespesaParcela.status == StatusParcelaDespesa.PENDENTE,
+                    DespesaParcela.mes_competencia.is_(None),
+                ).all():
+                    base = _p.data_vencimento.replace(day=1)
+                    _p.mes_competencia = base - relativedelta(months=_offset)
+                db.commit()
 
         # componente que saiu do estado desejado -> desativa a despesa (mantém histórico)
         for cat_id, d in existentes.items():

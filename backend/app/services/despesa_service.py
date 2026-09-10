@@ -44,6 +44,7 @@ class DespesaService:
                 valor=req.valor_total,
                 data_vencimento=req.data_primeira_parcela,
                 status=StatusParcelaDespesa.PENDENTE,
+                mes_competencia=req.mes_competencia,
             ))
             despesa = DespesaRepository.create(db, despesa)
 

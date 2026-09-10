@@ -239,6 +239,14 @@ def _run_migrations():
         "ALTER TABLE fin_saldo_inicial DROP INDEX uq_saldo_inicial_ano_mes",
         "ALTER TABLE fin_saldo_inicial ADD UNIQUE INDEX uq_saldo_inicial_ano_mes_banco (ano, mes, banco_id)",
         "ALTER TABLE fin_saldo_inicial MODIFY valor DECIMAL(12,2) NOT NULL DEFAULT 0",
+        # Folha — descontos do funcionário (memória de cálculo do líquido) + mês de competência
+        "ALTER TABLE funcionario_variaveis ADD COLUMN desconto_inss DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE funcionario_variaveis ADD COLUMN desconto_irrf DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE funcionario_variaveis ADD COLUMN desconto_contrib_assistencial DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE funcionario_variaveis ADD COLUMN vt_desconto_percentual DECIMAL(5,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE funcionario_variaveis ADD COLUMN emprestimo_parcela DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE funcionario_variaveis ADD COLUMN emprestimo_saldo DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE despesa_parcelas ADD COLUMN mes_competencia DATE NULL",
     ]
     try:
         for stmt in stmts:
@@ -385,6 +393,8 @@ def _seed_categorias_funcionario():
         ("Rescisao", 13),
         ("PRL (participacao nos resultados)", 14),
         ("Passagem/reembolso pessoal", 15),
+        ("IRRF / DARF (guia recolhida)", 16),
+        ("Contribuicao assistencial (guia recolhida)", 17),
     ]
     db = SessionLocal()
     try:

@@ -22,6 +22,7 @@ class DespesaCreate(BaseModel):
     banco_previsto_id: Optional[int] = None
     tipo_pagamento: str  # UNICO | PARCELADO | RECORRENTE
     observacao: Optional[str] = None
+    mes_competencia: Optional[date] = None  # usado só no lançamento avulso (UNICO) da folha
 
     # UNICO
     valor_total: Optional[Decimal] = None
@@ -66,6 +67,7 @@ class DespesaParcelaResponse(BaseModel):
     banco_id: Optional[int] = None
     forma_pagamento: Optional[str] = None
     movimentacao_id: Optional[int] = None
+    mes_competencia: Optional[date] = None
 
     model_config = {"from_attributes": True}
 
