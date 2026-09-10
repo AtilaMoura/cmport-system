@@ -247,6 +247,9 @@ def _run_migrations():
         "ALTER TABLE funcionario_variaveis ADD COLUMN emprestimo_parcela DECIMAL(10,2) NOT NULL DEFAULT 0",
         "ALTER TABLE funcionario_variaveis ADD COLUMN emprestimo_saldo DECIMAL(10,2) NOT NULL DEFAULT 0",
         "ALTER TABLE despesa_parcelas ADD COLUMN mes_competencia DATE NULL",
+        # Folha — vale alimentação (VA) separado do vale refeição (VR): são dois benefícios
+        "ALTER TABLE funcionario_variaveis ADD COLUMN vale_alimentacao DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "UPDATE fin_categorias SET nome = 'Vale refeicao (VR)' WHERE grupo = 'FUNCIONARIO' AND nome = 'Vale refeicao/alimentacao'",
     ]
     try:
         for stmt in stmts:
@@ -387,7 +390,7 @@ def _seed_categorias_funcionario():
         ("Sindicato", 7),
         ("Convenio medico/odontologico", 8),
         ("Vale transporte", 9),
-        ("Vale refeicao/alimentacao", 10),
+        ("Vale refeicao (VR)", 10),
         ("Ferias", 11),
         ("13o salario", 12),
         ("Rescisao", 13),
@@ -395,6 +398,7 @@ def _seed_categorias_funcionario():
         ("Passagem/reembolso pessoal", 15),
         ("IRRF / DARF (guia recolhida)", 16),
         ("Contribuicao assistencial (guia recolhida)", 17),
+        ("Vale alimentacao (VA)", 18),
     ]
     db = SessionLocal()
     try:

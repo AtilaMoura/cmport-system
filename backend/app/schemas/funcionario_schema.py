@@ -12,6 +12,7 @@ class FuncionarioVariaveisIn(BaseModel):
     dia_pagamento_adiantamento: Optional[int] = None
     vale_transporte: Decimal = Decimal("0")
     vale_refeicao: Decimal = Decimal("0")
+    vale_alimentacao: Decimal = Decimal("0")
     tem_plantao: bool = False
     plantao_valor: Decimal = Decimal("0")
     tem_hora_extra: bool = False

@@ -53,7 +53,8 @@ class FuncionarioVariaveis(Base):
     dia_pagamento_adiantamento = Column(SmallInteger, nullable=True)
 
     vale_transporte = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)
-    vale_refeicao = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)
+    vale_refeicao = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)     # VR (benefício à parte)
+    vale_alimentacao = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)  # VA (aparece na folha)
 
     tem_plantao = Column(Boolean, default=False, nullable=False)
     plantao_valor = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)      # valor padrao/mes (editavel no pagamento)

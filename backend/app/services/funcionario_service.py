@@ -96,8 +96,9 @@ class FuncionarioService:
         #            "valor"=se valor>0 | "flag:<attr_bool>"=se a flag é True
         ("Salario (folha mensal)",     "salario_mensal",    "dia_pagamento_salario",      "Salário",         "salario"),
         ("Adiantamento de salario",    "adiantamento_valor","dia_pagamento_adiantamento", "Adiantamento",    "adiantamento"),
-        ("Vale transporte",            "vale_transporte",   "dia_pagamento_salario",      "Vale transporte", "valor"),
-        ("Vale refeicao/alimentacao",  "vale_refeicao",     "dia_pagamento_salario",      "Vale refeição",   "valor"),
+        ("Vale transporte",            "vale_transporte",   "dia_pagamento_salario",      "Vale transporte",  "valor"),
+        ("Vale refeicao (VR)",         "vale_refeicao",     "dia_pagamento_salario",      "Vale refeição",    "valor"),
+        ("Vale alimentacao (VA)",      "vale_alimentacao",  "dia_pagamento_salario",      "Vale alimentação", "valor"),
         ("Plantao",                    "plantao_valor",     "dia_pagamento_salario",      "Plantão",         "flag:tem_plantao"),
         ("Hora extra",                 "hora_extra_valor",  "dia_pagamento_salario",      "Hora extra",      "flag:tem_hora_extra"),
     ]
