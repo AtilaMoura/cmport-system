@@ -234,7 +234,8 @@ export interface DashboardPorBancoResponse {
 
 // ── Dashboard "por CNPJ" / Fechamento do Fluxo separado por empresa ─────────
 export interface EntradasCnpjBreakdown {
-  manutencao: number; assistencia: number; produto: number; recibos: number; transf_recebidas: number;
+  manutencao: number; assistencia: number; produto: number; recibos: number;
+  rendimento: number; transf_recebidas: number;
 }
 export interface SaidasCnpjBreakdown {
   despesa: number; fornecedor: number; funcionario: number; tarifa: number; transf_enviadas: number;
@@ -335,7 +336,7 @@ export function normalizarLancamentos(raw: LancamentosResponse): LancamentosResp
 export function normalizarPorCnpj(raw: DashboardPorCnpjResponse): DashboardPorCnpjResponse {
   const nEnt = (e: EntradasCnpjBreakdown): EntradasCnpjBreakdown => ({
     manutencao: Number(e.manutencao), assistencia: Number(e.assistencia), produto: Number(e.produto),
-    recibos: Number(e.recibos), transf_recebidas: Number(e.transf_recebidas),
+    recibos: Number(e.recibos), rendimento: Number(e.rendimento), transf_recebidas: Number(e.transf_recebidas),
   });
   const nSai = (s: SaidasCnpjBreakdown): SaidasCnpjBreakdown => ({
     despesa: Number(s.despesa), fornecedor: Number(s.fornecedor), funcionario: Number(s.funcionario),

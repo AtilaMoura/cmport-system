@@ -204,12 +204,13 @@ export function DashboardPorBanco({ ano, mes, comImportInter = true, cnpjFiltro 
 
   // subtotais por empresa (CMPORT / TEC) — some as contas de cada uma
   const porEmpresa = (() => {
-    if (!dados) return [] as { empresa: string; entradas: number; transf_rec: number; transf_env: number; saidas: number }[];
-    const acc = new Map<string, { empresa: string; entradas: number; transf_rec: number; transf_env: number; saidas: number }>();
+    if (!dados) return [] as { empresa: string; entradas: number; rendimento: number; transf_rec: number; transf_env: number; saidas: number }[];
+    const acc = new Map<string, { empresa: string; entradas: number; rendimento: number; transf_rec: number; transf_env: number; saidas: number }>();
     for (const b of dados.bancos) {
       if (!b.empresa) continue;
-      const g = acc.get(b.empresa) ?? { empresa: b.empresa, entradas: 0, transf_rec: 0, transf_env: 0, saidas: 0 };
+      const g = acc.get(b.empresa) ?? { empresa: b.empresa, entradas: 0, rendimento: 0, transf_rec: 0, transf_env: 0, saidas: 0 };
       g.entradas += b.entradas_total;
+      g.rendimento += b.rendimento;
       g.transf_rec += b.transf_recebidas;
       g.transf_env += b.transf_enviadas;
       g.saidas += b.saidas_total;
@@ -276,7 +277,7 @@ export function DashboardPorBanco({ ano, mes, comImportInter = true, cnpjFiltro 
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
                       <div className="text-[10px] font-bold text-slate-400 uppercase">Entradas</div>
-                      <div className="text-sm font-black text-green-700 dark:text-green-400">{fmtValor(g.entradas + g.transf_rec)}</div>
+                      <div className="text-sm font-black text-green-700 dark:text-green-400">{fmtValor(g.entradas + g.rendimento + g.transf_rec)}</div>
                     </div>
                     <div>
                       <div className="text-[10px] font-bold text-slate-400 uppercase">Saídas</div>
@@ -284,7 +285,7 @@ export function DashboardPorBanco({ ano, mes, comImportInter = true, cnpjFiltro 
                     </div>
                     <div>
                       <div className="text-[10px] font-bold text-slate-400 uppercase">Saldo</div>
-                      <div className="text-sm font-black text-slate-900 dark:text-white">{fmtValor(g.entradas + g.transf_rec - g.saidas - g.transf_env)}</div>
+                      <div className="text-sm font-black text-slate-900 dark:text-white">{fmtValor(g.entradas + g.rendimento + g.transf_rec - g.saidas - g.transf_env)}</div>
                     </div>
                   </div>
                 </div>

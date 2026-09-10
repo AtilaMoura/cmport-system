@@ -53,6 +53,7 @@ class EntradasCnpjBreakdown(BaseModel):
     assistencia:      Decimal = Decimal(0)
     produto:          Decimal = Decimal(0)
     recibos:          Decimal = Decimal(0)
+    rendimento:       Decimal = Decimal(0)   # rendimento de conta (entra no total pra bater com o extrato)
     transf_recebidas: Decimal = Decimal(0)   # transferência interna que caiu em conta desse CNPJ
 
 

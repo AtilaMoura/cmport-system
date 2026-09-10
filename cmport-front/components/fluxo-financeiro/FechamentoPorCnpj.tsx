@@ -79,6 +79,7 @@ function CardCnpj({ linha, destaque }: { linha: DashboardCnpjLinha; destaque?: b
         <Linha label="Assistência" valor={e.assistencia} sinal="+" />
         {e.produto > 0 && <Linha label="Produto" valor={e.produto} sinal="+" />}
         {e.recibos > 0 && <Linha label="Recibos" valor={e.recibos} sinal="+" />}
+        {e.rendimento !== 0 && <Linha label="Rendimento de conta" valor={e.rendimento} sinal="+" />}
         <Linha label="Transferência recebida (conta nossa)" valor={e.transf_recebidas} sinal="+" />
         <Linha label="Total entradas" valor={linha.entradas_total} forte />
       </div>

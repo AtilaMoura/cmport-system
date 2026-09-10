@@ -306,16 +306,18 @@ class FinDashboardService:
             linhas_emp = grupo.get(empresa, []) if empresa else []
             contas = [l for l in linhas_emp if l.banco_id is not None]
 
+            rendimento = _soma(l.rendimento for l in contas)
             entradas = EntradasCnpjBreakdown(
                 manutencao=_d(ent.total_manutencao) if ent else Z,
                 assistencia=_d(ent.total_assistencia) if ent else Z,
                 produto=_d(ent.total_produto) if ent else Z,
                 recibos=_d(ent.total_recibos) if ent else Z,
+                rendimento=rendimento,
                 transf_recebidas=_soma(l.transf_recebidas for l in contas),
             )
             entradas_total = _r2(
                 entradas.manutencao + entradas.assistencia + entradas.produto
-                + entradas.recibos + entradas.transf_recebidas
+                + entradas.recibos + entradas.rendimento + entradas.transf_recebidas
             )
             saidas = SaidasCnpjBreakdown(
                 despesa=_soma(l.saidas.despesa for l in contas),
@@ -328,8 +330,9 @@ class FinDashboardService:
                 saidas.despesa + saidas.fornecedor + saidas.funcionario
                 + saidas.tarifa + saidas.transf_enviadas
             )
-            rendimento = _soma(l.rendimento for l in contas)
-            saldo_mov = _r2(entradas_total + rendimento - saidas_total)
+            # rendimento já está dentro de entradas_total (linha visível), então
+            # o saldo do mês é simplesmente entradas - saídas e "bate na tela".
+            saldo_mov = _r2(entradas_total - saidas_total)
 
             # conferência: só fecha quando TODA conta da empresa tem os dois saldos
             completa = bool(contas) and all(
@@ -391,14 +394,13 @@ class FinDashboardService:
                 s_saidas.despesa + s_saidas.fornecedor + s_saidas.funcionario
                 + s_saidas.tarifa + s_saidas.transf_enviadas
             )
+            s_rend = _soma(l.rendimento for l in sem_linhas)
             s_entradas = EntradasCnpjBreakdown(
+                rendimento=s_rend,
                 transf_recebidas=_soma(l.transf_recebidas for l in sem_linhas),
             )
-            s_entradas_total = _r2(s_entradas.transf_recebidas)
-            s_rend = _soma(l.rendimento for l in sem_linhas)
-            if any(v != Z for v in (
-                s_saidas_total, s_entradas_total, s_rend,
-            )):
+            s_entradas_total = _r2(s_entradas.rendimento + s_entradas.transf_recebidas)
+            if any(v != Z for v in (s_saidas_total, s_entradas_total)):
                 sem_cnpj = DashboardCnpjLinha(
                     cnpj=None,
                     razao_social="Sem CNPJ / sem banco identificado",
@@ -408,7 +410,7 @@ class FinDashboardService:
                     saidas=s_saidas,
                     saidas_total=s_saidas_total,
                     rendimento=s_rend,
-                    saldo_movimento=_r2(s_entradas_total + s_rend - s_saidas_total),
+                    saldo_movimento=_r2(s_entradas_total - s_saidas_total),
                     conferencia_completa=False,
                 )
 
@@ -419,6 +421,7 @@ class FinDashboardService:
             assistencia=_r2(sum((p.entradas.assistencia for p in partes), Z)),
             produto=_r2(sum((p.entradas.produto for p in partes), Z)),
             recibos=_r2(sum((p.entradas.recibos for p in partes), Z)),
+            rendimento=_r2(sum((p.entradas.rendimento for p in partes), Z)),
             transf_recebidas=_r2(sum((p.entradas.transf_recebidas for p in partes), Z)),
         )
         cons_saidas = SaidasCnpjBreakdown(
@@ -441,7 +444,7 @@ class FinDashboardService:
             saidas=cons_saidas,
             saidas_total=cons_saidas_total,
             rendimento=cons_rend,
-            saldo_movimento=_r2(cons_entradas_total + cons_rend - cons_saidas_total),
+            saldo_movimento=_r2(cons_entradas_total - cons_saidas_total),
             saldo_inicial=bc.saldo_inicial,
             saldo_calculado=bc.saldo_calculado,
             saldo_extrato=bc.saldo_extrato,
