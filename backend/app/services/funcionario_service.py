@@ -248,6 +248,9 @@ class FuncionarioService:
                 if not d.ativo:
                     d.ativo = True
                     mudou = True
+                if d.descricao != descricao:
+                    d.descricao = descricao
+                    mudou = True
                 if cat_nome == "Salario (folha mensal)" and d.observacao != memoria_salario:
                     d.observacao = memoria_salario
                     mudou = True

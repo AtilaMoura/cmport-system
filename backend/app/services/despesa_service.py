@@ -122,6 +122,15 @@ class DespesaService:
         if req.valor is not None and float(req.valor) != float(parcela.valor):
             DespesaRepository.update(db, parcela, {"valor": req.valor})
 
+        # folha: composição real (proventos/descontos) desse mês, editada na tela
+        if req.composicao is not None:
+            DespesaRepository.update(db, parcela, {
+                "composicao_json": [
+                    {"label": c.label, "tipo": c.tipo, "valor": float(c.valor)}
+                    for c in req.composicao
+                ],
+            })
+
         descricao_mov = despesa.descricao
         if parcela.total_parcelas > 1:
             descricao_mov += f" ({parcela.numero_parcela}/{parcela.total_parcelas})"
@@ -212,6 +221,7 @@ class DespesaService:
             "banco_id": None,
             "forma_pagamento": None,
             "movimentacao_id": None,
+            "composicao_json": None,
         })
 
         despesa = parcela.despesa

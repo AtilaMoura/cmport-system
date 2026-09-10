@@ -250,6 +250,8 @@ def _run_migrations():
         # Folha — vale alimentação (VA) separado do vale refeição (VR): são dois benefícios
         "ALTER TABLE funcionario_variaveis ADD COLUMN vale_alimentacao DECIMAL(10,2) NOT NULL DEFAULT 0",
         "UPDATE fin_categorias SET nome = 'Vale refeicao (VR)' WHERE grupo = 'FUNCIONARIO' AND nome = 'Vale refeicao/alimentacao'",
+        # Folha — composição real do salário líquido no momento do pagamento (proventos/descontos editáveis)
+        "ALTER TABLE despesa_parcelas ADD COLUMN composicao_json JSON NULL",
     ]
     try:
         for stmt in stmts:

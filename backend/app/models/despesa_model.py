@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, ForeignKey, Enum as SQLEnum, Text, Boolean
+from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, ForeignKey, Enum as SQLEnum, Text, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -69,6 +69,10 @@ class DespesaParcela(Base):
     # Mês de referência da folha (competência). Ex.: salário pago em set/2026 tem competência ago/2026.
     # Só o dia 1 do mês importa. Preenchido pelo motor da folha; editável.
     mes_competencia = Column(Date, nullable=True)
+    # Composição real do salário líquido no pagamento (folha): lista de
+    # {label, tipo: "PROVENTO"|"DESCONTO", valor}. Preenchida na tela ao marcar pago;
+    # o `valor` da parcela é o líquido resultante. NULL nas parcelas comuns.
+    composicao_json = Column(JSON, nullable=True)
     criado_em = Column(DateTime, server_default=func.now())
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

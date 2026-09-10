@@ -68,6 +68,7 @@ class DespesaParcelaResponse(BaseModel):
     forma_pagamento: Optional[str] = None
     movimentacao_id: Optional[int] = None
     mes_competencia: Optional[date] = None
+    composicao_json: Optional[list] = None
 
     model_config = {"from_attributes": True}
 
@@ -92,12 +93,20 @@ class DespesaResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ComposicaoLinha(BaseModel):
+    label: str
+    tipo: str  # PROVENTO | DESCONTO
+    valor: Decimal
+
+
 class MarcarPagoRequest(BaseModel):
     data_pagamento: date
     banco_id: int
     forma_pagamento: Optional[str] = "PIX"
     # valor real pago (fechamento do mês) — se None, usa o valor atual da parcela
     valor: Optional[Decimal] = None
+    # composição do salário líquido (folha): proventos/descontos reais desse mês
+    composicao: Optional[List[ComposicaoLinha]] = None
 
 
 class EditarParcelaRequest(BaseModel):
