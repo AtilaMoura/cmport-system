@@ -23,6 +23,7 @@ interface Parcela {
   status: string;
   data_pagamento: string | null;
   banco_id: number | null;
+  mes_competencia: string | null;
 }
 
 interface Despesa {
@@ -32,6 +33,7 @@ interface Despesa {
   funcionario_id: number | null;
   cnpj: string;
   tipo_pagamento: string;
+  observacao?: string | null;
   parcelas: Parcela[];
 }
 
@@ -164,6 +166,29 @@ function FolhaFuncionariosContent() {
     lista.sort((a, b) => (a.funcionario?.nome ?? '').localeCompare(b.funcionario?.nome ?? ''));
     return lista;
   }, [despesas, funcionarios, ano, mes, cnpjFiltro, funcFiltro, soPendentes]);
+
+  // ── encargos da folha do mês: guias sem funcionário (GPS/FGTS/DARF/contribuição) ──
+  // vêm do endpoint origem=FUNCIONARIO por serem de categoria do grupo FUNCIONARIO
+  const encargos = useMemo<LinhaParcela[]>(() => {
+    if (funcFiltro) return []; // filtro por funcionário específico não mostra guia da folha inteira
+    const alvo = `${ano}-${String(mes).padStart(2, '0')}`;
+    const linhas: LinhaParcela[] = [];
+    for (const d of despesas) {
+      if (d.funcionario_id != null) continue;
+      if (cnpjFiltro && d.cnpj !== cnpjFiltro) continue;
+      for (const p of d.parcelas) {
+        if (p.data_vencimento.slice(0, 7) !== alvo) continue;
+        if (soPendentes && p.status === 'PAGO') continue;
+        linhas.push({ despesa: d, parcela: p });
+      }
+    }
+    linhas.sort((a, b) => a.parcela.data_vencimento.localeCompare(b.parcela.data_vencimento));
+    return linhas;
+  }, [despesas, ano, mes, cnpjFiltro, funcFiltro, soPendentes]);
+
+  const encargosPago = encargos.reduce((s, l) => l.parcela.status === 'PAGO' ? s + Number(l.parcela.valor) : s, 0);
+  const encargosPendente = encargos.reduce((s, l) => l.parcela.status !== 'PAGO' ? s + Number(l.parcela.valor) : s, 0);
+  const totalEncargos = encargosPago + encargosPendente;
 
   const totalGeral = grupos.reduce((s, g) => s + g.total, 0);
   const pagoGeral = grupos.reduce((s, g) => s + g.pago, 0);
@@ -298,6 +323,130 @@ function FolhaFuncionariosContent() {
 
   const funcAlvo = funcFiltro ? funcionarios.find(f => f.id === funcFiltro) : null;
 
+  // uma linha de lançamento (parcela) — usada tanto nos grupos por funcionário
+  // quanto no bloco "Encargos da folha"
+  const linhaRow = (l: LinhaParcela) => {
+    const pago = l.parcela.status === 'PAGO';
+    const pagando = pagandoId === l.parcela.id;
+    const editando = editandoParcelaId === l.parcela.id;
+    const processando = acaoLoadingId === l.parcela.id;
+    const recorrente = l.despesa.tipo_pagamento === 'RECORRENTE';
+    return (
+      <div key={l.parcela.id} className="p-3">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
+              {l.despesa.descricao.split(' — ')[0]}
+              {l.parcela.total_parcelas > 1 && ` (${l.parcela.numero_parcela}/${l.parcela.total_parcelas})`}
+            </div>
+            <div className="text-xs text-slate-500">
+              venc {fmtData(l.parcela.data_vencimento)}
+              {l.parcela.mes_competencia && ` · comp. ${new Date(l.parcela.mes_competencia + 'T00:00:00').toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' })}`}
+              {pago && l.parcela.data_pagamento && ` · pago ${fmtData(l.parcela.data_pagamento)} · ${bancoNome(l.parcela.banco_id)}`}
+            </div>
+            {l.despesa.descricao.startsWith('Salário') && l.despesa.observacao && (
+              <details className="mt-1 text-[11px] text-slate-400">
+                <summary className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300">ver cálculo</summary>
+                <div className="mt-0.5 whitespace-pre-wrap">{l.despesa.observacao}</div>
+              </details>
+            )}
+          </div>
+          <div className="text-right shrink-0">
+            <div className="font-black text-sm text-slate-900 dark:text-white">{fmtValor(Number(l.parcela.valor))}</div>
+            {pago ? (
+              <div className="flex items-center gap-2 justify-end">
+                <span className="text-[10px] font-bold text-green-600 dark:text-green-400">PAGO</span>
+                <button onClick={() => estornarPagamento(l)} disabled={processando}
+                  className="text-[10px] font-bold text-slate-400 hover:text-red-600 hover:underline disabled:opacity-50">
+                  {processando ? '...' : 'estornar'}
+                </button>
+              </div>
+            ) : !pagando && !editando && (
+              <div className="flex items-center gap-2 justify-end">
+                <button onClick={() => abrirEdicaoParcela(l)}
+                  className="text-[10px] font-bold text-slate-400 hover:text-emerald-600 hover:underline">
+                  editar
+                </button>
+                <button onClick={() => excluirLancamento(l)} disabled={processando}
+                  className="text-[10px] font-bold text-slate-400 hover:text-red-600 hover:underline disabled:opacity-50">
+                  {processando ? '...' : 'excluir'}
+                </button>
+                <button onClick={() => abrirPagamento(l)}
+                  className="text-[10px] font-bold text-emerald-600 hover:underline">
+                  registrar pagamento
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {editando && (
+          <div className="mt-3 grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950 rounded-lg p-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Valor (R$)</label>
+              <input type="number" step="0.01" min="0" value={edValor} onChange={e => setEdValor(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Vencimento</label>
+              <input type="date" value={edData} onChange={e => setEdData(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+            </div>
+            {recorrente && (
+              <p className="col-span-2 text-[10px] text-slate-400">
+                Recorrente: isso muda só a parcela deste mês. O valor mensal padrão fica no cadastro do funcionário.
+              </p>
+            )}
+            <div className="col-span-2 flex gap-2 justify-end mt-1">
+              <button onClick={() => setEditandoParcelaId(null)} className="px-2 py-1 text-[11px] font-bold text-slate-500">Cancelar</button>
+              <button onClick={() => salvarEdicaoParcela(l.parcela.id)} disabled={edLoading}
+                className="px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-md hover:bg-emerald-700 disabled:opacity-50">
+                {edLoading ? '...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {pagando && (
+          <div className="mt-3 grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950 rounded-lg p-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Valor real (R$)</label>
+              <input type="number" step="0.01" min="0" value={pagValor} onChange={e => setPagValor(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data</label>
+              <input type="date" value={pagData} onChange={e => setPagData(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Banco</label>
+              <select value={pagBanco} onChange={e => setPagBanco(e.target.value ? Number(e.target.value) : '')}
+                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
+                <option value="">—</option>
+                {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Forma</label>
+              <select value={pagForma} onChange={e => setPagForma(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
+                {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2 flex gap-2 justify-end mt-1">
+              <button onClick={() => setPagandoId(null)} className="px-2 py-1 text-[11px] font-bold text-slate-500">Cancelar</button>
+              <button onClick={() => confirmarPagamento(l.parcela.id)} disabled={pagLoading}
+                className="px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-md hover:bg-emerald-700 disabled:opacity-50">
+                {pagLoading ? '...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
@@ -344,7 +493,12 @@ function FolhaFuncionariosContent() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Folha do mês</div>
-            <div className="text-xl font-black text-slate-900 dark:text-white">{fmtValor(totalGeral)}</div>
+            <div className="text-xl font-black text-slate-900 dark:text-white">{fmtValor(totalGeral + totalEncargos)}</div>
+            {totalEncargos > 0 && (
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                salários {fmtValor(totalGeral)} · encargos {fmtValor(totalEncargos)}
+              </div>
+            )}
           </div>
           <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-2xl p-4">
             <div className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wide mb-1">Pago</div>
@@ -368,7 +522,7 @@ function FolhaFuncionariosContent() {
 
         {loading ? (
           <div className="text-center py-12 text-slate-400 animate-pulse">Carregando...</div>
-        ) : grupos.length === 0 ? (
+        ) : grupos.length === 0 && encargos.length === 0 ? (
           <div className="text-center py-12 text-slate-500 text-sm">
             Nenhum lançamento de folha {soPendentes ? 'pendente ' : ''}nesse mês.
           </div>
@@ -403,123 +557,30 @@ function FolhaFuncionariosContent() {
                 </div>
 
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {g.linhas.map(l => {
-                    const pago = l.parcela.status === 'PAGO';
-                    const pagando = pagandoId === l.parcela.id;
-                    const editando = editandoParcelaId === l.parcela.id;
-                    const processando = acaoLoadingId === l.parcela.id;
-                    const recorrente = l.despesa.tipo_pagamento === 'RECORRENTE';
-                    return (
-                      <div key={l.parcela.id} className="p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                              {l.despesa.descricao.split(' — ')[0]}
-                              {l.parcela.total_parcelas > 1 && ` (${l.parcela.numero_parcela}/${l.parcela.total_parcelas})`}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              venc {fmtData(l.parcela.data_vencimento)}
-                              {pago && l.parcela.data_pagamento && ` · pago ${fmtData(l.parcela.data_pagamento)} · ${bancoNome(l.parcela.banco_id)}`}
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div className="font-black text-sm text-slate-900 dark:text-white">{fmtValor(Number(l.parcela.valor))}</div>
-                            {pago ? (
-                              <div className="flex items-center gap-2 justify-end">
-                                <span className="text-[10px] font-bold text-green-600 dark:text-green-400">PAGO</span>
-                                <button onClick={() => estornarPagamento(l)} disabled={processando}
-                                  className="text-[10px] font-bold text-slate-400 hover:text-red-600 hover:underline disabled:opacity-50">
-                                  {processando ? '...' : 'estornar'}
-                                </button>
-                              </div>
-                            ) : !pagando && !editando && (
-                              <div className="flex items-center gap-2 justify-end">
-                                <button onClick={() => abrirEdicaoParcela(l)}
-                                  className="text-[10px] font-bold text-slate-400 hover:text-emerald-600 hover:underline">
-                                  editar
-                                </button>
-                                <button onClick={() => excluirLancamento(l)} disabled={processando}
-                                  className="text-[10px] font-bold text-slate-400 hover:text-red-600 hover:underline disabled:opacity-50">
-                                  {processando ? '...' : 'excluir'}
-                                </button>
-                                <button onClick={() => abrirPagamento(l)}
-                                  className="text-[10px] font-bold text-emerald-600 hover:underline">
-                                  registrar pagamento
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {editando && (
-                          <div className="mt-3 grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950 rounded-lg p-3">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Valor (R$)</label>
-                              <input type="number" step="0.01" min="0" value={edValor} onChange={e => setEdValor(e.target.value)}
-                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Vencimento</label>
-                              <input type="date" value={edData} onChange={e => setEdData(e.target.value)}
-                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
-                            </div>
-                            {recorrente && (
-                              <p className="col-span-2 text-[10px] text-slate-400">
-                                Recorrente: isso muda só a parcela deste mês. O valor mensal padrão fica no cadastro do funcionário.
-                              </p>
-                            )}
-                            <div className="col-span-2 flex gap-2 justify-end mt-1">
-                              <button onClick={() => setEditandoParcelaId(null)} className="px-2 py-1 text-[11px] font-bold text-slate-500">Cancelar</button>
-                              <button onClick={() => salvarEdicaoParcela(l.parcela.id)} disabled={edLoading}
-                                className="px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-md hover:bg-emerald-700 disabled:opacity-50">
-                                {edLoading ? '...' : 'Salvar'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {pagando && (
-                          <div className="mt-3 grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950 rounded-lg p-3">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Valor real (R$)</label>
-                              <input type="number" step="0.01" min="0" value={pagValor} onChange={e => setPagValor(e.target.value)}
-                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data</label>
-                              <input type="date" value={pagData} onChange={e => setPagData(e.target.value)}
-                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Banco</label>
-                              <select value={pagBanco} onChange={e => setPagBanco(e.target.value ? Number(e.target.value) : '')}
-                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
-                                <option value="">—</option>
-                                {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Forma</label>
-                              <select value={pagForma} onChange={e => setPagForma(e.target.value)}
-                                className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
-                                {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
-                              </select>
-                            </div>
-                            <div className="col-span-2 flex gap-2 justify-end mt-1">
-                              <button onClick={() => setPagandoId(null)} className="px-2 py-1 text-[11px] font-bold text-slate-500">Cancelar</button>
-                              <button onClick={() => confirmarPagamento(l.parcela.id)} disabled={pagLoading}
-                                className="px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-md hover:bg-emerald-700 disabled:opacity-50">
-                                {pagLoading ? '...' : 'Confirmar'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {g.linhas.map(linhaRow)}
                 </div>
               </div>
             ))}
+
+            {encargos.length > 0 && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-3 p-4 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-black text-sm text-slate-900 dark:text-white">Encargos da folha do mês</span>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      Guias e recolhimentos da folha inteira (GPS, FGTS, DARF, contribuição) — sem funcionário específico
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-black text-sm text-slate-900 dark:text-white">{fmtValor(totalEncargos)}</div>
+                    <div className="text-[10px] font-bold text-green-600 dark:text-green-400">{fmtValor(encargosPago)} pago</div>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {encargos.map(linhaRow)}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

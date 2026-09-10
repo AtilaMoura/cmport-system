@@ -37,6 +37,12 @@ interface Variaveis {
   tem_hora_extra: boolean;
   hora_extra_valor: number | string;
   encargos_percentual: number | string;
+  desconto_inss: number | string;
+  desconto_irrf: number | string;
+  desconto_contrib_assistencial: number | string;
+  vt_desconto_percentual: number | string;
+  emprestimo_parcela: number | string;
+  emprestimo_saldo: number | string;
 }
 
 interface Funcionario {
@@ -57,6 +63,8 @@ const varVazia = (): Variaveis => ({
   vale_transporte: '', vale_refeicao: '',
   tem_plantao: false, plantao_valor: '', tem_hora_extra: false, hora_extra_valor: '',
   encargos_percentual: '',
+  desconto_inss: '', desconto_irrf: '', desconto_contrib_assistencial: '',
+  vt_desconto_percentual: '', emprestimo_parcela: '', emprestimo_saldo: '',
 });
 
 type FormState = {
@@ -126,6 +134,12 @@ export default function FuncionariosPage() {
             tem_hora_extra: !!f.variaveis.tem_hora_extra,
             hora_extra_valor: f.variaveis.hora_extra_valor ?? '',
             encargos_percentual: f.variaveis.encargos_percentual ?? '',
+            desconto_inss: f.variaveis.desconto_inss ?? '',
+            desconto_irrf: f.variaveis.desconto_irrf ?? '',
+            desconto_contrib_assistencial: f.variaveis.desconto_contrib_assistencial ?? '',
+            vt_desconto_percentual: f.variaveis.vt_desconto_percentual ?? '',
+            emprestimo_parcela: f.variaveis.emprestimo_parcela ?? '',
+            emprestimo_saldo: f.variaveis.emprestimo_saldo ?? '',
           }
         : varVazia(),
     });
@@ -165,6 +179,12 @@ export default function FuncionariosPage() {
           tem_hora_extra: form.variaveis.tem_hora_extra,
           hora_extra_valor: form.variaveis.tem_hora_extra ? num(form.variaveis.hora_extra_valor) : 0,
           encargos_percentual: num(form.variaveis.encargos_percentual),
+          desconto_inss: num(form.variaveis.desconto_inss),
+          desconto_irrf: num(form.variaveis.desconto_irrf),
+          desconto_contrib_assistencial: num(form.variaveis.desconto_contrib_assistencial),
+          vt_desconto_percentual: num(form.variaveis.vt_desconto_percentual),
+          emprestimo_parcela: num(form.variaveis.emprestimo_parcela),
+          emprestimo_saldo: num(form.variaveis.emprestimo_saldo),
         },
       };
       if (editandoId) await api.put(`/funcionarios/${editandoId}`, payload);
@@ -416,6 +436,52 @@ export default function FuncionariosPage() {
                 <p className="text-[11px] text-slate-400 mt-2">
                   Salário, adiantamento, vales, plantão e hora extra geram uma pendência todo mês
                   com esse valor de sugestão — dá pra ajustar o valor real na hora de marcar como pago.
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                <div className="text-xs font-bold text-slate-500 uppercase mb-2">Descontos (folha)</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">INSS / mês (R$)</label>
+                    <input type="number" step="0.01" min="0" value={form.variaveis.desconto_inss}
+                      onChange={e => setV({ desconto_inss: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">IRRF / mês (R$)</label>
+                    <input type="number" step="0.01" min="0" value={form.variaveis.desconto_irrf}
+                      onChange={e => setV({ desconto_irrf: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Contribuição assistencial (R$)</label>
+                    <input type="number" step="0.01" min="0" value={form.variaveis.desconto_contrib_assistencial}
+                      onChange={e => setV({ desconto_contrib_assistencial: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Desconto VT (% do salário)</label>
+                    <input type="number" step="0.1" min="0" placeholder="6" value={form.variaveis.vt_desconto_percentual}
+                      onChange={e => setV({ vt_desconto_percentual: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Empréstimo — parcela / mês (R$)</label>
+                    <input type="number" step="0.01" min="0" value={form.variaveis.emprestimo_parcela}
+                      onChange={e => setV({ emprestimo_parcela: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Empréstimo — saldo (R$)</label>
+                    <input type="number" step="0.01" min="0" value={form.variaveis.emprestimo_saldo}
+                      onChange={e => setV({ emprestimo_saldo: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  Os descontos reduzem o valor sugerido do salário na folha do mês. O valor real você confere
+                  com a folha na hora de marcar como pago.
                 </p>
               </div>
 
