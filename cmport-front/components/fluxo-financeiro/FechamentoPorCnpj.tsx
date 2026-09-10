@@ -150,7 +150,9 @@ export function FechamentoPorCnpj({ ano, mes, cnpjFiltro }: {
     <div className="space-y-4">
       <div>
         <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Fechamento por CNPJ</h2>
-        <p className="text-xs text-slate-500">Tudo que entrou e saiu no mês, separado por empresa — e a conferência com o extrato bancário</p>
+        <p className="text-xs text-slate-500">
+          Tudo que entrou e saiu no mês, separado por empresa — <b>incluindo as transferências entre contas próprias</b> (por isso os totais são maiores que o comparativo acima) — e a conferência com o extrato bancário
+        </p>
       </div>
 
       {/* Resumo consolidado */}

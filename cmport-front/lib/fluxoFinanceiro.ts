@@ -265,6 +265,72 @@ export interface DashboardPorCnpjResponse {
   consolidado: DashboardCnpjLinha;
 }
 
+// Backend serializa Decimal como string — normaliza a resposta do "por banco".
+export function normalizarPorBanco(raw: DashboardPorBancoResponse): DashboardPorBancoResponse {
+  const nE = (e: EntradasBreakdown): EntradasBreakdown => ({
+    boleto: Number(e.boleto), recibo: Number(e.recibo), avulso: Number(e.avulso),
+  });
+  const nS = (s: SaidasBreakdown): SaidasBreakdown => ({
+    fornecedor: Number(s.fornecedor), despesa: Number(s.despesa),
+    funcionario: Number(s.funcionario), tarifa: Number(s.tarifa),
+  });
+  const nL = (l: DashboardBancoLinha): DashboardBancoLinha => ({
+    ...l,
+    entradas: nE(l.entradas), saidas: nS(l.saidas),
+    entradas_total: Number(l.entradas_total), saidas_total: Number(l.saidas_total),
+    transf_recebidas: Number(l.transf_recebidas), transf_enviadas: Number(l.transf_enviadas),
+    rendimento: Number(l.rendimento),
+    saldo_inicial: l.saldo_inicial === null ? null : Number(l.saldo_inicial),
+    saldo_calculado: l.saldo_calculado === null ? null : Number(l.saldo_calculado),
+    saldo_extrato: l.saldo_extrato === null ? null : Number(l.saldo_extrato),
+    diferenca: l.diferenca === null ? null : Number(l.diferenca),
+  });
+  return { ...raw, bancos: raw.bancos.map(nL), consolidado: nL(raw.consolidado) };
+}
+
+// ── Lançamentos do período (fluxo detalhado com filtros avançados) ─────────
+export interface LancamentoLinha {
+  data: string;
+  descricao: string;
+  valor: number;
+  tipo: 'ENTRADA' | 'SAIDA' | 'TRANSFERENCIA';
+  subtipo: string;
+  cnpj: string | null;
+  empresa: 'CMPORT' | 'TEC' | null;
+  categoria: string | null;
+  banco_nome: string | null;
+  origem: string;
+  origem_id: number;
+}
+export interface LancamentosCnpjResumo {
+  cnpj: string | null;
+  razao_social: string;
+  empresa: 'CMPORT' | 'TEC' | null;
+  entradas: number;
+  saidas: number;
+  saldo: number;
+  qtd: number;
+}
+export interface LancamentosResponse {
+  ano: number;
+  mes_inicio: number;
+  mes_fim: number;
+  linhas: LancamentoLinha[];
+  por_cnpj: LancamentosCnpjResumo[];
+  consolidado: LancamentosCnpjResumo;
+}
+export function normalizarLancamentos(raw: LancamentosResponse): LancamentosResponse {
+  const nR = (r: LancamentosCnpjResumo): LancamentosCnpjResumo => ({
+    ...r, entradas: Number(r.entradas), saidas: Number(r.saidas), saldo: Number(r.saldo),
+  });
+  return {
+    ...raw,
+    linhas: raw.linhas.map(l => ({ ...l, valor: Number(l.valor) })),
+    por_cnpj: raw.por_cnpj.map(nR),
+    consolidado: nR(raw.consolidado),
+  };
+}
+
 // Backend serializa Decimal como string — normaliza toda a resposta pra number.
 export function normalizarPorCnpj(raw: DashboardPorCnpjResponse): DashboardPorCnpjResponse {
   const nEnt = (e: EntradasCnpjBreakdown): EntradasCnpjBreakdown => ({

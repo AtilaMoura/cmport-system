@@ -93,3 +93,38 @@ class DashboardPorCnpjResponse(BaseModel):
     empresas:     List[DashboardCnpjLinha]              # uma por CNPJ configurado (ordem das configs)
     sem_cnpj:     Optional[DashboardCnpjLinha] = None   # entradas/saídas sem banco → sem CNPJ
     consolidado:  DashboardCnpjLinha                    # soma de empresas + sem_cnpj
+
+
+# ── Lançamentos do período (fluxo detalhado com filtros avançados) ────────────
+
+class LancamentoLinha(BaseModel):
+    data:        str                       # ISO YYYY-MM-DD
+    descricao:   str
+    valor:       Decimal
+    tipo:        str                       # ENTRADA | SAIDA | TRANSFERENCIA
+    subtipo:     str                       # MANUTENCAO|ASSISTENCIA|PRODUTO|RECIBO|FORNECEDOR|DESPESA|FUNCIONARIO|TARIFA|RENDIMENTO|TRANSF_ENTRADA|TRANSF_SAIDA|AVULSO
+    cnpj:        Optional[str] = None
+    empresa:     Optional[str] = None      # "CMPORT" | "TEC" | None
+    categoria:   Optional[str] = None
+    banco_nome:  Optional[str] = None
+    origem:      str                       # BOLETO | RECIBO | MOVIMENTACAO
+    origem_id:   int
+
+
+class LancamentosCnpjResumo(BaseModel):
+    cnpj:        Optional[str] = None
+    razao_social: str
+    empresa:     Optional[str] = None
+    entradas:    Decimal = Decimal(0)
+    saidas:      Decimal = Decimal(0)
+    saldo:       Decimal = Decimal(0)
+    qtd:         int = 0
+
+
+class LancamentosResponse(BaseModel):
+    ano:         int
+    mes_inicio:  int
+    mes_fim:     int
+    linhas:      List[LancamentoLinha]
+    por_cnpj:    List[LancamentosCnpjResumo]
+    consolidado: LancamentosCnpjResumo

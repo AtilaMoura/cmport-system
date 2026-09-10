@@ -7,6 +7,7 @@ entradas de cliente (boletos/recibos) NÃO ficam em fin_movimentacoes — são l
 das tabelas de origem, igual `fluxo_financeiro_service.fluxo_mensal`, mas
 agrupadas por `banco_id` em vez de por CNPJ.
 """
+from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
@@ -22,12 +23,15 @@ from app.models.fin_movimentacao_model import MovimentacaoFinanceira
 from app.models.fin_categoria_model import GrupoCategoria
 from app.repositories.fin_saldo_inicial_repository import FinSaldoInicialRepository
 from app.repositories.fin_extrato_saldo_repository import FinExtratoSaldoRepository
+from app.models.condominio_model import Condominio
 from app.schemas.fin_dashboard_schema import (
     DashboardBancoLinha, DashboardPorBancoResponse,
     EntradasBreakdown, SaidasBreakdown,
     DashboardCnpjLinha, DashboardPorCnpjResponse,
     EntradasCnpjBreakdown, SaidasCnpjBreakdown,
+    LancamentoLinha, LancamentosCnpjResumo, LancamentosResponse,
 )
+import calendar as _calendar
 
 Z = Decimal("0.00")
 CENTAVO = Decimal("0.01")
@@ -452,4 +456,228 @@ class FinDashboardService:
 
         return DashboardPorCnpjResponse(
             ano=ano, mes=mes, empresas=empresas, sem_cnpj=sem_cnpj, consolidado=consolidado,
+        )
+
+    # ── Lançamentos do período (fluxo detalhado com filtros avançados) ───────
+    @staticmethod
+    def lancamentos(
+        db: Session, ano: int, mes_inicio: int, mes_fim: int,
+        cnpj: Optional[str] = None, tipo: Optional[str] = None,
+        categoria_id: Optional[int] = None,
+        valor_min: Optional[float] = None, valor_max: Optional[float] = None,
+        busca: Optional[str] = None,
+    ) -> LancamentosResponse:
+        """Lista plana de tudo que entrou e saiu no intervalo de meses, com
+        filtros. Entradas de cliente vêm de boletos/recibos (atribuídas ao CNPJ
+        da conta que recebeu); o resto vem de fin_movimentacoes. Transferência
+        interna vira 2 linhas: TRANSF_SAIDA (CNPJ de origem) + TRANSF_ENTRADA
+        (CNPJ de destino), pra cada lado fechar certo."""
+        from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+
+        if mes_fim < mes_inicio:
+            mes_fim = mes_inicio
+        d_ini = date(ano, mes_inicio, 1)
+        d_fim = date(ano, mes_fim, _calendar.monthrange(ano, mes_fim)[1])
+
+        cnpj_alvo = _so_digitos(cnpj) if cnpj else None
+        busca_l = (busca or "").strip().lower() or None
+
+        cnpjs_cfg = {_so_digitos(c.cnpj): (c.razao_social or c.cnpj)
+                     for c in ConfiguracaoInterRepository.get_all(db)}
+        bancos = {b.id: b for b in db.query(Banco).all()}
+
+        def _empresa_e_cnpj(banco_id):
+            b = bancos.get(banco_id) if banco_id else None
+            if not b:
+                return None, None
+            dig = _so_digitos(b.cnpj_titular)
+            return (EMPRESA_POR_CNPJ.get(dig), dig if dig in cnpjs_cfg else None)
+
+        def _cat_grupo_bucket(grupo, nome_lower):
+            if grupo == GrupoCategoria.FORNECEDOR.value:
+                return "FORNECEDOR"
+            if grupo == GrupoCategoria.FUNCIONARIO.value:
+                return "FUNCIONARIO"
+            if any(t in nome_lower for t in _TERMOS_TARIFA):
+                return "TARIFA"
+            return "DESPESA"
+
+        linhas: list[LancamentoLinha] = []
+
+        # ── Entradas de cliente: boletos de serviço PAGO/BAIXADO/PARCIAL ─────
+        q_bol = (
+            db.query(Boleto, NotaFiscal, Condominio, Banco)
+            .join(NotaFiscal, Boleto.nota_fiscal_id == NotaFiscal.id)
+            .join(Condominio, NotaFiscal.condominio_id == Condominio.id)
+            .outerjoin(Banco, Boleto.banco_id == Banco.id)
+            .filter(
+                NotaFiscal.tipo.in_([TipoNota.MANUTENCAO, TipoNota.ASSISTENCIA, TipoNota.PRODUTO]),
+                NotaFiscal.status != StatusNota.CANCELADA,
+                Boleto.situacao.in_([SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO, SituacaoBoleto.PARCIAL]),
+                Boleto.data_pagamento >= d_ini, Boleto.data_pagamento <= d_fim,
+            )
+        )
+        for bol, nota, cond, banco in q_bol.all():
+            emp, dig_conta = _empresa_e_cnpj(bol.banco_id)
+            dig = dig_conta or _so_digitos(nota.cnpj_emitente)
+            emp = emp or EMPRESA_POR_CNPJ.get(dig)
+            valor = _d(bol.valor_total_recebido) if bol.situacao == SituacaoBoleto.PARCIAL else _d(bol.valor_nominal)
+            linhas.append(LancamentoLinha(
+                data=bol.data_pagamento.isoformat(),
+                descricao=f"{cond.nome} · NF {nota.numero_nota or '—'}",
+                valor=_r2(valor), tipo="ENTRADA",
+                subtipo=(nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)),
+                cnpj=dig or None, empresa=emp, categoria=None,
+                banco_nome=(banco.nome if banco else None),
+                origem="BOLETO", origem_id=bol.id,
+            ))
+
+        # ── Entradas de cliente: recibos ENTRADA PAGO sem nota vinculada ─────
+        q_rec = (
+            db.query(Recibo, Condominio, Banco)
+            .outerjoin(Condominio, Recibo.condominio_id == Condominio.id)
+            .outerjoin(ManutencaoAssistencia, ManutencaoAssistencia.recibo_id == Recibo.id)
+            .outerjoin(Banco, Recibo.banco_id == Banco.id)
+            .filter(
+                Recibo.tipo == "ENTRADA", Recibo.status == "PAGO",
+                Recibo.deletado_em.is_(None),
+                Recibo.data_pagamento >= d_ini, Recibo.data_pagamento <= d_fim,
+                (ManutencaoAssistencia.nota_fiscal_id.is_(None)) | (ManutencaoAssistencia.id.is_(None)),
+            )
+        )
+        vistos_rec: set[int] = set()
+        for rec, cond, banco in q_rec.all():
+            if rec.id in vistos_rec:
+                continue
+            vistos_rec.add(rec.id)
+            emp, dig_conta = _empresa_e_cnpj(rec.banco_id)
+            dig = dig_conta or _so_digitos(rec.cnpj_emitente)
+            emp = emp or EMPRESA_POR_CNPJ.get(dig)
+            linhas.append(LancamentoLinha(
+                data=rec.data_pagamento.isoformat(),
+                descricao=f"{(cond.nome if cond else (rec.cliente_nome_avulso or 'Avulso'))} · {rec.numero_recibo}",
+                valor=_r2(_d(rec.valor)), tipo="ENTRADA", subtipo="RECIBO",
+                cnpj=dig or None, empresa=emp, categoria=None,
+                banco_nome=(banco.nome if banco else None),
+                origem="RECIBO", origem_id=rec.id,
+            ))
+
+        # ── fin_movimentacoes do período ────────────────────────────────────
+        movs = (
+            db.query(MovimentacaoFinanceira)
+            .filter(
+                MovimentacaoFinanceira.deletado_em.is_(None),
+                MovimentacaoFinanceira.data >= d_ini,
+                MovimentacaoFinanceira.data <= d_fim,
+            )
+            .all()
+        )
+        for m in movs:
+            grupo = m.categoria.grupo if m.categoria else None
+            nome = (m.categoria.nome if m.categoria else "").lower()
+            cat_nome = m.categoria.nome if m.categoria else None
+            valor = _r2(_d(m.valor))
+            if m.tipo == "ENTRADA":
+                if m.banco_origem_id is not None:
+                    emp_o, dig_o = _empresa_e_cnpj(m.banco_origem_id)
+                    emp_d, dig_d = _empresa_e_cnpj(m.banco_id)
+                    linhas.append(LancamentoLinha(
+                        data=m.data.isoformat(), descricao=m.descricao, valor=valor,
+                        tipo="TRANSFERENCIA", subtipo="TRANSF_SAIDA",
+                        cnpj=dig_o, empresa=emp_o, categoria=cat_nome,
+                        banco_nome=(bancos[m.banco_origem_id].nome if m.banco_origem_id in bancos else None),
+                        origem="MOVIMENTACAO", origem_id=m.id,
+                    ))
+                    linhas.append(LancamentoLinha(
+                        data=m.data.isoformat(), descricao=m.descricao, valor=valor,
+                        tipo="TRANSFERENCIA", subtipo="TRANSF_ENTRADA",
+                        cnpj=dig_d, empresa=emp_d, categoria=cat_nome,
+                        banco_nome=(bancos[m.banco_id].nome if m.banco_id in bancos else None),
+                        origem="MOVIMENTACAO", origem_id=m.id,
+                    ))
+                else:
+                    emp, dig = _empresa_e_cnpj(m.banco_id)
+                    linhas.append(LancamentoLinha(
+                        data=m.data.isoformat(), descricao=m.descricao, valor=valor,
+                        tipo="ENTRADA",
+                        subtipo=("RENDIMENTO" if "rendiment" in nome else "AVULSO"),
+                        cnpj=dig, empresa=emp, categoria=cat_nome,
+                        banco_nome=(bancos[m.banco_id].nome if m.banco_id in bancos else None),
+                        origem="MOVIMENTACAO", origem_id=m.id,
+                    ))
+            else:  # SAIDA
+                emp, dig = _empresa_e_cnpj(m.banco_id)
+                linhas.append(LancamentoLinha(
+                    data=m.data.isoformat(), descricao=m.descricao, valor=valor,
+                    tipo="SAIDA", subtipo=_cat_grupo_bucket(grupo, nome),
+                    cnpj=dig, empresa=emp, categoria=cat_nome,
+                    banco_nome=(bancos[m.banco_id].nome if m.banco_id in bancos else None),
+                    origem="MOVIMENTACAO", origem_id=m.id,
+                ))
+
+        # ── filtros ─────────────────────────────────────────────────────────
+        cat_alvo_nome: Optional[str] = None
+        if categoria_id is not None:
+            from app.models.fin_categoria_model import CategoriaFinanceira
+            cat = db.query(CategoriaFinanceira).filter(CategoriaFinanceira.id == categoria_id).first()
+            cat_alvo_nome = cat.nome if cat else "\0"   # nome inexistente => nada casa
+
+        def _passa(l: LancamentoLinha) -> bool:
+            if cnpj_alvo and (l.cnpj or "") != cnpj_alvo:
+                return False
+            if tipo and l.tipo != tipo:
+                return False
+            if cat_alvo_nome is not None and (l.categoria or "") != cat_alvo_nome:
+                return False
+            v = float(l.valor)
+            if valor_min is not None and v < valor_min:
+                return False
+            if valor_max is not None and v > valor_max:
+                return False
+            if busca_l and busca_l not in l.descricao.lower():
+                return False
+            return True
+
+        linhas = [l for l in linhas if _passa(l)]
+        linhas.sort(key=lambda l: (l.data, l.descricao), reverse=True)
+
+        # ── resumo por CNPJ ─────────────────────────────────────────────────
+        ENT = {"ENTRADA"}
+        resumo: dict[Optional[str], LancamentosCnpjResumo] = {}
+
+        def _res(dig: Optional[str]) -> LancamentosCnpjResumo:
+            if dig not in resumo:
+                resumo[dig] = LancamentosCnpjResumo(
+                    cnpj=dig,
+                    razao_social=(cnpjs_cfg.get(dig) if dig else "Sem CNPJ"),
+                    empresa=EMPRESA_POR_CNPJ.get(dig or ""),
+                )
+            return resumo[dig]
+
+        for l in linhas:
+            r = _res(l.cnpj)
+            r.qtd += 1
+            if l.tipo == "ENTRADA" or l.subtipo == "TRANSF_ENTRADA":
+                r.entradas = _r2(r.entradas + l.valor)
+            else:
+                r.saidas = _r2(r.saidas + l.valor)
+        for r in resumo.values():
+            r.saldo = _r2(r.entradas - r.saidas)
+
+        ordem = list(cnpjs_cfg.keys())
+        por_cnpj = sorted(
+            resumo.values(),
+            key=lambda r: (ordem.index(r.cnpj) if r.cnpj in ordem else 99),
+        )
+        consolidado = LancamentosCnpjResumo(
+            cnpj=None, razao_social="Consolidado", empresa=None,
+            entradas=_r2(sum((r.entradas for r in por_cnpj), Z)),
+            saidas=_r2(sum((r.saidas for r in por_cnpj), Z)),
+            saldo=_r2(sum((r.saldo for r in por_cnpj), Z)),
+            qtd=sum(r.qtd for r in por_cnpj),
+        )
+
+        return LancamentosResponse(
+            ano=ano, mes_inicio=mes_inicio, mes_fim=mes_fim,
+            linhas=linhas, por_cnpj=por_cnpj, consolidado=consolidado,
         )

@@ -15,7 +15,9 @@ from app.schemas.fluxo_financeiro_schema import (
     AlertaNotaSemServico, DispensarNotaSemServicoRequest,
     AlertaParcelaFaltando, DispensarParcelaFaltandoRequest,
 )
-from app.schemas.fin_dashboard_schema import DashboardPorBancoResponse, DashboardPorCnpjResponse
+from app.schemas.fin_dashboard_schema import (
+    DashboardPorBancoResponse, DashboardPorCnpjResponse, LancamentosResponse,
+)
 from app.schemas.fin_saldo_inicial_schema import (
     SaldoInicialUpsert, SaldoInicialResponse, SaldoInicialPorBancoResponse,
 )
@@ -149,6 +151,27 @@ def dashboard_por_cnpj(
     saídas com breakdown, totais juntos e separados, e conferência com o extrato
     (aponta a diferença quando o saldo final não bate)."""
     return FinDashboardService.por_cnpj(db, ano=ano, mes=mes)
+
+
+@router.get("/lancamentos", response_model=LancamentosResponse)
+def lancamentos_periodo(
+    ano: int = Query(..., ge=2020, le=2100),
+    mes_inicio: int = Query(..., ge=1, le=12),
+    mes_fim: int = Query(..., ge=1, le=12),
+    cnpj: Optional[str] = Query(None),
+    tipo: Optional[str] = Query(None, description="ENTRADA | SAIDA | TRANSFERENCIA"),
+    categoria_id: Optional[int] = Query(None),
+    valor_min: Optional[float] = Query(None),
+    valor_max: Optional[float] = Query(None),
+    busca: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Fluxo detalhado com filtros avançados: lista plana de tudo que entrou e
+    saiu no intervalo de meses + resumo por CNPJ e consolidado."""
+    return FinDashboardService.lancamentos(
+        db, ano=ano, mes_inicio=mes_inicio, mes_fim=mes_fim, cnpj=cnpj, tipo=tipo,
+        categoria_id=categoria_id, valor_min=valor_min, valor_max=valor_max, busca=busca,
+    )
 
 
 @router.get("/saldo-inicial-banco/{ano}/{mes}", response_model=SaldoInicialPorBancoResponse)

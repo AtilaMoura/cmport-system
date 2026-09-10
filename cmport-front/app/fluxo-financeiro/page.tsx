@@ -7,6 +7,7 @@ import { useFiltrosFluxo } from '@/lib/useFiltrosFluxo';
 import { FiltrosFluxo } from '@/components/fluxo-financeiro/FiltrosFluxo';
 import { DashboardPorBanco } from '@/components/fluxo-financeiro/DashboardPorBanco';
 import { FechamentoPorCnpj } from '@/components/fluxo-financeiro/FechamentoPorCnpj';
+import { FluxoDetalhado } from '@/components/fluxo-financeiro/FluxoDetalhado';
 import { ExportarFluxoBtn } from '@/components/fluxo-financeiro/ExportarFluxoBtn';
 import {
   fmtValor, type FluxoFinanceiroResponse, type AlertaDuplicata, type DashboardFinanceiro,
@@ -140,6 +141,8 @@ function FluxoFinanceiroContent() {
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
               <FechamentoPorCnpj ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} />
             </div>
+
+            <FluxoDetalhado ano={ano} mes={mes} cnpjFiltro={cnpjFiltro} />
 
             {/* Cards de navegação por seção */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

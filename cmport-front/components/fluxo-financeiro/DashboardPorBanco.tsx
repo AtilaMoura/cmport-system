@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import {
-  fmtValor, type DashboardPorBancoResponse, type DashboardBancoLinha,
+  fmtValor, normalizarPorBanco, type DashboardPorBancoResponse, type DashboardBancoLinha,
   type ImportarInterResponse,
 } from '@/lib/fluxoFinanceiro';
 
@@ -168,7 +168,7 @@ export function DashboardPorBanco({ ano, mes, comImportInter = true, cnpjFiltro 
     setLoading(true);
     try {
       const r = await api.get('/financeiro/dashboard/por-banco', { params: { ano, mes } });
-      setDados(r.data);
+      setDados(normalizarPorBanco(r.data));
     } catch {
       setDados(null);
     } finally {
