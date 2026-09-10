@@ -14,6 +14,8 @@ const EMPRESAS = [
 ];
 const empresaLabel = (cnpj: string) => EMPRESAS.find(e => e.cnpj === cnpj)?.label ?? cnpj;
 
+type CompLinha = { label: string; tipo: 'PROVENTO' | 'DESCONTO'; valor: number | string };
+
 interface Parcela {
   id: number;
   numero_parcela: number;
@@ -24,6 +26,7 @@ interface Parcela {
   data_pagamento: string | null;
   banco_id: number | null;
   mes_competencia: string | null;
+  composicao_json: CompLinha[] | null;
 }
 
 interface Despesa {
@@ -37,11 +40,30 @@ interface Despesa {
   parcelas: Parcela[];
 }
 
+interface VariaveisFolha {
+  salario_mensal: number | string;
+  adiantamento_tipo: string;
+  adiantamento_valor: number | string;
+  vale_transporte: number | string;
+  vale_refeicao: number | string;
+  vale_alimentacao: number | string;
+  tem_plantao: boolean;
+  plantao_valor: number | string;
+  tem_hora_extra: boolean;
+  hora_extra_valor: number | string;
+  desconto_inss: number | string;
+  desconto_irrf: number | string;
+  desconto_contrib_assistencial: number | string;
+  vt_desconto_percentual: number | string;
+  emprestimo_parcela: number | string;
+}
+
 interface Funcionario {
   id: number;
   nome: string;
   empresa_padrao_cnpj: string;
   ativo: boolean;
+  variaveis?: VariaveisFolha | null;
 }
 
 interface Categoria { id: number; nome: string; }
@@ -78,6 +100,8 @@ function FolhaFuncionariosContent() {
   const [pagBanco, setPagBanco] = useState<number | ''>('');
   const [pagForma, setPagForma] = useState('PIX');
   const [pagLoading, setPagLoading] = useState(false);
+  // composição do salário líquido (proventos/descontos editáveis no pagamento)
+  const [compLinhas, setCompLinhas] = useState<{ label: string; tipo: 'PROVENTO' | 'DESCONTO'; valor: string }[]>([]);
 
   // edição de um lançamento pendente (valor + vencimento)
   const [editandoParcelaId, setEditandoParcelaId] = useState<number | null>(null);
@@ -196,24 +220,80 @@ function FolhaFuncionariosContent() {
   const totalCmport = grupos.reduce((s, g) => g.funcionario?.empresa_padrao_cnpj === EMPRESAS[0].cnpj ? s + g.total : s, 0);
   const totalTec = grupos.reduce((s, g) => g.funcionario?.empresa_padrao_cnpj === EMPRESAS[1].cnpj ? s + g.total : s, 0);
 
+  // é a linha do "Salário líquido" (a que abre a composição editável)?
+  const ehLiquido = (l: LinhaParcela) =>
+    l.despesa.funcionario_id != null && l.despesa.descricao.startsWith('Salário');
+
+  // monta os proventos/descontos iniciais a partir do cadastro do funcionário
+  const compDoCadastro = (v?: VariaveisFolha | null): { label: string; tipo: 'PROVENTO' | 'DESCONTO'; valor: string }[] => {
+    const n = (x: number | string | undefined) => Number(x) || 0;
+    const sal = n(v?.salario_mensal);
+    const prov: { label: string; tipo: 'PROVENTO'; valor: string }[] = [{ label: 'Salário base', tipo: 'PROVENTO', valor: sal ? String(sal) : '' }];
+    const addP = (label: string, val: number) => { if (val > 0) prov.push({ label, tipo: 'PROVENTO', valor: String(val) }); };
+    addP('Vale refeição', n(v?.vale_refeicao));
+    addP('Vale alimentação', n(v?.vale_alimentacao));
+    addP('Vale transporte', n(v?.vale_transporte));
+    if (v?.tem_plantao) addP('Plantão', n(v?.plantao_valor));
+    if (v?.tem_hora_extra) addP('Hora extra', n(v?.hora_extra_valor));
+    const desc: { label: string; tipo: 'DESCONTO'; valor: string }[] = [];
+    const addD = (label: string, val: number) => { if (val > 0) desc.push({ label, tipo: 'DESCONTO', valor: String(val) }); };
+    addD('INSS', n(v?.desconto_inss));
+    addD('IRRF', n(v?.desconto_irrf));
+    addD('Contribuição assistencial', n(v?.desconto_contrib_assistencial));
+    const vtPct = n(v?.vt_desconto_percentual) || (n(v?.vale_transporte) > 0 ? 6 : 0);
+    if (n(v?.vale_transporte) > 0 && vtPct > 0) addD(`VT ${vtPct}%`, Math.round(sal * vtPct) / 100);
+    addD('Empréstimo', n(v?.emprestimo_parcela));
+    if (v?.adiantamento_tipo === 'FIXO') addD('Adiantamento', n(v?.adiantamento_valor));
+    return [...prov, ...desc];
+  };
+
+  // líquido calculado ao vivo da composição em edição
+  const compLiquido = compLinhas.reduce(
+    (s, c) => c.tipo === 'PROVENTO' ? s + num(String(c.valor)) : s - num(String(c.valor)), 0);
+
+  const setCompValor = (i: number, valor: string) =>
+    setCompLinhas(cs => cs.map((c, j) => j === i ? { ...c, valor } : c));
+  const setCompLabel = (i: number, label: string) =>
+    setCompLinhas(cs => cs.map((c, j) => j === i ? { ...c, label } : c));
+  const addCompLinha = (tipo: 'PROVENTO' | 'DESCONTO') =>
+    setCompLinhas(cs => [...cs, { label: '', tipo, valor: '' }]);
+  const removeCompLinha = (i: number) =>
+    setCompLinhas(cs => cs.filter((_, j) => j !== i));
+
   const abrirPagamento = (l: LinhaParcela) => {
     setPagandoId(l.parcela.id);
-    setPagValor(String(l.parcela.valor ?? ''));
     setPagData(new Date().toISOString().slice(0, 10));
     setPagBanco(l.parcela.banco_id ?? '');
     setPagForma('PIX');
+    if (ehLiquido(l)) {
+      const jaTem = l.parcela.composicao_json && l.parcela.composicao_json.length > 0;
+      const base = jaTem
+        ? l.parcela.composicao_json!.map(c => ({ label: c.label, tipo: c.tipo, valor: String(c.valor) }))
+        : compDoCadastro(funcionarios.find(f => f.id === l.despesa.funcionario_id)?.variaveis);
+      setCompLinhas(base);
+      setPagValor('');
+    } else {
+      setCompLinhas([]);
+      setPagValor(String(l.parcela.valor ?? ''));
+    }
   };
 
-  const confirmarPagamento = async (parcelaId: number) => {
+  const confirmarPagamento = async (parcelaId: number, comComposicao: boolean) => {
     if (!pagBanco) { alert('Escolha o banco.'); return; }
     setPagLoading(true);
     try {
-      await api.patch(`/despesas/parcelas/${parcelaId}/pagar`, {
+      const body: Record<string, unknown> = {
         data_pagamento: pagData,
         banco_id: Number(pagBanco),
         forma_pagamento: pagForma,
-        valor: num(pagValor),
-      });
+        valor: comComposicao ? Math.round(compLiquido * 100) / 100 : num(pagValor),
+      };
+      if (comComposicao) {
+        body.composicao = compLinhas
+          .filter(c => c.label.trim() && num(String(c.valor)) !== 0)
+          .map(c => ({ label: c.label.trim(), tipo: c.tipo, valor: num(String(c.valor)) }));
+      }
+      await api.patch(`/despesas/parcelas/${parcelaId}/pagar`, body);
       setPagandoId(null);
       await carregar();
     } catch {
@@ -331,6 +411,8 @@ function FolhaFuncionariosContent() {
     const editando = editandoParcelaId === l.parcela.id;
     const processando = acaoLoadingId === l.parcela.id;
     const recorrente = l.despesa.tipo_pagamento === 'RECORRENTE';
+    const liquidoLinha = ehLiquido(l);
+    const comp = l.parcela.composicao_json;
     return (
       <div key={l.parcela.id} className="p-3">
         <div className="flex items-center gap-3">
@@ -344,10 +426,24 @@ function FolhaFuncionariosContent() {
               {l.parcela.mes_competencia && ` · comp. ${new Date(l.parcela.mes_competencia + 'T00:00:00').toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' })}`}
               {pago && l.parcela.data_pagamento && ` · pago ${fmtData(l.parcela.data_pagamento)} · ${bancoNome(l.parcela.banco_id)}`}
             </div>
-            {l.despesa.descricao.startsWith('Salário') && l.despesa.observacao && (
+            {liquidoLinha && (comp?.length || l.despesa.observacao) && (
               <details className="mt-1 text-[11px] text-slate-400">
                 <summary className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300">ver cálculo</summary>
-                <div className="mt-0.5 whitespace-pre-wrap">{l.despesa.observacao}</div>
+                {comp?.length ? (
+                  <div className="mt-1 space-y-0.5">
+                    {comp.map((c, i) => (
+                      <div key={i} className="flex justify-between gap-4">
+                        <span>{c.tipo === 'DESCONTO' ? '− ' : '+ '}{c.label}</span>
+                        <span>{fmtValor(Number(c.valor))}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between gap-4 font-bold text-slate-600 dark:text-slate-300 border-t border-slate-200 dark:border-slate-700 pt-0.5">
+                      <span>Líquido</span><span>{fmtValor(Number(l.parcela.valor))}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-0.5 whitespace-pre-wrap">{l.despesa.observacao}</div>
+                )}
               </details>
             )}
           </div>
@@ -407,7 +503,75 @@ function FolhaFuncionariosContent() {
           </div>
         )}
 
-        {pagando && (
+        {pagando && liquidoLinha && (
+          <div className="mt-3 bg-slate-50 dark:bg-slate-950 rounded-lg p-3 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(['PROVENTO', 'DESCONTO'] as const).map(tipo => (
+                <div key={tipo}>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">
+                    {tipo === 'PROVENTO' ? 'Proventos (+)' : 'Descontos (−)'}
+                  </div>
+                  <div className="space-y-1">
+                    {compLinhas.map((c, i) => c.tipo === tipo && (
+                      <div key={i} className="flex items-center gap-1">
+                        <input type="text" value={c.label} placeholder="descrição"
+                          onChange={e => setCompLabel(i, e.target.value)}
+                          className="flex-1 min-w-0 px-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs" />
+                        <input type="number" step="0.01" value={c.valor}
+                          onChange={e => setCompValor(i, e.target.value)}
+                          className="w-24 px-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-right" />
+                        <button onClick={() => removeCompLinha(i)}
+                          className="text-slate-400 hover:text-red-600 text-sm px-1" title="remover">×</button>
+                      </div>
+                    ))}
+                    <button onClick={() => addCompLinha(tipo)}
+                      className="text-[10px] font-bold text-emerald-600 hover:underline">
+                      + adicionar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-md px-3 py-2 border border-slate-200 dark:border-slate-800">
+              <span className="text-[11px] font-bold text-slate-500 uppercase">Líquido a pagar</span>
+              <span className="text-base font-black text-slate-900 dark:text-white">{fmtValor(compLiquido)}</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data</label>
+                <input type="date" value={pagData} onChange={e => setPagData(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Banco</label>
+                <select value={pagBanco} onChange={e => setPagBanco(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
+                  <option value="">—</option>
+                  {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Forma</label>
+                <select value={pagForma} onChange={e => setPagForma(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
+                  {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setPagandoId(null)} className="px-2 py-1 text-[11px] font-bold text-slate-500">Cancelar</button>
+              <button onClick={() => confirmarPagamento(l.parcela.id, true)} disabled={pagLoading}
+                className="px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-md hover:bg-emerald-700 disabled:opacity-50">
+                {pagLoading ? '...' : 'Confirmar pagamento'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {pagando && !liquidoLinha && (
           <div className="mt-3 grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950 rounded-lg p-3">
             <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Valor real (R$)</label>
@@ -436,7 +600,7 @@ function FolhaFuncionariosContent() {
             </div>
             <div className="col-span-2 flex gap-2 justify-end mt-1">
               <button onClick={() => setPagandoId(null)} className="px-2 py-1 text-[11px] font-bold text-slate-500">Cancelar</button>
-              <button onClick={() => confirmarPagamento(l.parcela.id)} disabled={pagLoading}
+              <button onClick={() => confirmarPagamento(l.parcela.id, false)} disabled={pagLoading}
                 className="px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-md hover:bg-emerald-700 disabled:opacity-50">
                 {pagLoading ? '...' : 'Confirmar'}
               </button>
