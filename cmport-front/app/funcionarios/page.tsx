@@ -32,6 +32,7 @@ interface Variaveis {
   dia_pagamento_adiantamento: number | null;
   vale_transporte: number | string;
   vale_refeicao: number | string;
+  vale_alimentacao: number | string;
   tem_plantao: boolean;
   plantao_valor: number | string;
   tem_hora_extra: boolean;
@@ -60,7 +61,7 @@ interface Funcionario {
 const varVazia = (): Variaveis => ({
   salario_mensal: '', dia_pagamento_salario: 11,
   adiantamento_tipo: 'NENHUM', adiantamento_valor: '', dia_pagamento_adiantamento: 21,
-  vale_transporte: '', vale_refeicao: '',
+  vale_transporte: '', vale_refeicao: '', vale_alimentacao: '',
   tem_plantao: false, plantao_valor: '', tem_hora_extra: false, hora_extra_valor: '',
   encargos_percentual: '',
   desconto_inss: '', desconto_irrf: '', desconto_contrib_assistencial: '',
@@ -129,6 +130,7 @@ export default function FuncionariosPage() {
             dia_pagamento_adiantamento: f.variaveis.dia_pagamento_adiantamento ?? 21,
             vale_transporte: f.variaveis.vale_transporte ?? '',
             vale_refeicao: f.variaveis.vale_refeicao ?? '',
+            vale_alimentacao: f.variaveis.vale_alimentacao ?? '',
             tem_plantao: !!f.variaveis.tem_plantao,
             plantao_valor: f.variaveis.plantao_valor ?? '',
             tem_hora_extra: !!f.variaveis.tem_hora_extra,
@@ -174,6 +176,7 @@ export default function FuncionariosPage() {
           dia_pagamento_adiantamento: form.variaveis.adiantamento_tipo !== 'NENHUM' ? (form.variaveis.dia_pagamento_adiantamento || null) : null,
           vale_transporte: num(form.variaveis.vale_transporte),
           vale_refeicao: num(form.variaveis.vale_refeicao),
+          vale_alimentacao: num(form.variaveis.vale_alimentacao),
           tem_plantao: form.variaveis.tem_plantao,
           plantao_valor: form.variaveis.tem_plantao ? num(form.variaveis.plantao_valor) : 0,
           tem_hora_extra: form.variaveis.tem_hora_extra,
@@ -397,7 +400,13 @@ export default function FuncionariosPage() {
                       className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Vale refeição / mês (R$)</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Vale alimentação (VA) / mês (R$)</label>
+                    <input type="number" step="0.01" min="0" value={form.variaveis.vale_alimentacao}
+                      onChange={e => setV({ vale_alimentacao: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Vale refeição (VR) / mês (R$)</label>
                     <input type="number" step="0.01" min="0" value={form.variaveis.vale_refeicao}
                       onChange={e => setV({ vale_refeicao: e.target.value })}
                       className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
