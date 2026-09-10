@@ -443,8 +443,9 @@ export default function FuncionariosPage() {
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-2">
-                  Salário, adiantamento, vales, plantão e hora extra geram uma pendência todo mês
-                  com esse valor de sugestão — dá pra ajustar o valor real na hora de marcar como pago.
+                  Salário, VR, VA, VT, plantão e hora extra somam num <span className="font-bold">Salário líquido</span> único
+                  por mês (menos INSS/IRRF/contrib./6% VT/empréstimo/adiantamento) — é o Pix que sai pro funcionário.
+                  O <span className="font-bold">adiantamento</span> é uma saída à parte. Valores são sugestão: dá pra ajustar na hora de pagar.
                 </p>
               </div>
 
