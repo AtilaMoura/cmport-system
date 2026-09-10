@@ -228,7 +228,7 @@ function FolhaFuncionariosContent() {
   const compDoCadastro = (v?: VariaveisFolha | null): { label: string; tipo: 'PROVENTO' | 'DESCONTO'; valor: string }[] => {
     const n = (x: number | string | undefined) => Number(x) || 0;
     const sal = n(v?.salario_mensal);
-    const prov: { label: string; tipo: 'PROVENTO'; valor: string }[] = [{ label: 'Salário base', tipo: 'PROVENTO', valor: sal ? String(sal) : '' }];
+    const prov: { label: string; tipo: 'PROVENTO'; valor: string }[] = [{ label: 'Salário', tipo: 'PROVENTO', valor: sal ? String(sal) : '' }];
     const addP = (label: string, val: number) => { if (val > 0) prov.push({ label, tipo: 'PROVENTO', valor: String(val) }); };
     addP('Vale refeição', n(v?.vale_refeicao));
     addP('Vale alimentação', n(v?.vale_alimentacao));
@@ -418,7 +418,7 @@ function FolhaFuncionariosContent() {
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
-              {l.despesa.descricao.split(' — ')[0]}
+              {liquidoLinha ? 'Salário líquido' : l.despesa.descricao.split(' — ')[0]}
               {l.parcela.total_parcelas > 1 && ` (${l.parcela.numero_parcela}/${l.parcela.total_parcelas})`}
             </div>
             <div className="text-xs text-slate-500">
