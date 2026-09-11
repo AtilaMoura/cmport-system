@@ -58,6 +58,22 @@ def _get_inter_client_cached(nota, db: Session, cache: dict) -> InterClient:
     return inter_client._get_default_client()
 
 
+def _banco_id_inter_por_cnpj(db: Session, cnpj_emitente: str) -> Optional[int]:
+    """Acha o banco Inter (tabela bancos) ligado à ConfiguracaoInter do CNPJ emitente
+    da nota — usado pra preencher banco_id automaticamente quando o AutoSync do Inter
+    marca um boleto como pago. Nunca sobrescreve banco_id já preenchido (o chamador
+    decide isso)."""
+    if not cnpj_emitente:
+        return None
+    from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+    from app.models.banco_model import Banco
+    config = ConfiguracaoInterRepository.get_by_cnpj(db, _limpar_cnpj(cnpj_emitente))
+    if not config:
+        return None
+    banco = db.query(Banco).filter(Banco.configuracao_inter_id == config.id, Banco.ativo.is_(True)).first()
+    return banco.id if banco else None
+
+
 def _calcular_valor_liquido(db: Session, nota, pcts_override: dict = None) -> float:
     """
     Calcula o valor líquido da nota descontando impostos com base na tabela de configuração.
@@ -967,6 +983,10 @@ class BoletoService:
                     update["valor_multa"] = float(multa)
                 if mora:
                     update["valor_juros"] = float(mora)
+                if boleto.banco_id is None and nota_boleto:
+                    banco_auto = _banco_id_inter_por_cnpj(db, nota_boleto.cnpj_emitente)
+                    if banco_auto:
+                        update["banco_id"] = banco_auto
 
                 BoletoRepository.update(db, boleto, update)
                 atualizados += 1
@@ -1053,6 +1073,11 @@ class BoletoService:
                 # Verifica se já existe localmente pelo código
                 existente = BoletoRepository.get_by_codigo(db, codigo) if codigo else None
                 if existente:
+                    if existente.banco_id is None and existente.nota_fiscal_id:
+                        nota_existente = NFRepo.get_by_id(db, existente.nota_fiscal_id)
+                        banco_auto = _banco_id_inter_por_cnpj(db, nota_existente.cnpj_emitente) if nota_existente else None
+                        if banco_auto:
+                            update_data["banco_id"] = banco_auto
                     BoletoRepository.update(db, existente, update_data)
                     atualizados += 1
                     if nova_situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO) and existente.nota_fiscal_id:
@@ -1074,11 +1099,16 @@ class BoletoService:
                         else BoletoRepository.get_by_nota_fiscal(db, nota.id)
                     )
                     if boleto_da_nota:
+                        update_nota_boleto = dict(update_data)
+                        if boleto_da_nota.banco_id is None:
+                            banco_auto = _banco_id_inter_por_cnpj(db, nota.cnpj_emitente)
+                            if banco_auto:
+                                update_nota_boleto["banco_id"] = banco_auto
                         BoletoRepository.update(db, boleto_da_nota, {
                             "codigo_solicitacao": codigo,
                             "nosso_numero": cobranca.get("nossoNumero") or boleto_da_nota.nosso_numero,
                             "seu_numero": seu_numero,
-                            **update_data,
+                            **update_nota_boleto,
                         })
                         atualizados += 1
                         if nova_situacao in (SituacaoBoleto.PAGO, SituacaoBoleto.BAIXADO) and nota.id:
@@ -1152,6 +1182,7 @@ class BoletoService:
                             "data_vencimento": data_venc_date or date.today(),
                             "numero_parcela": numero_parcela,
                             "total_parcelas": total_parcelas_sync,
+                            "banco_id": _banco_id_inter_por_cnpj(db, nota.cnpj_emitente),
                             **update_data,
                         })
                         criados += 1
