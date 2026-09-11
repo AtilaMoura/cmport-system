@@ -156,6 +156,31 @@ export default function FuncionariosPage() {
     return isNaN(n) ? 0 : n;
   };
 
+  // espelha o cálculo do líquido sugerido feito em funcionario_service.py (sincronizar_recorrentes),
+  // só pra dar feedback visual antes de salvar — o valor real que vale é o gerado no backend
+  const calcResumoFolha = (v: Variaveis) => {
+    const salario = num(v.salario_mensal);
+    const pVr = num(v.vale_refeicao);
+    const pVa = num(v.vale_alimentacao);
+    const pVt = num(v.vale_transporte);
+    const pPlantao = v.tem_plantao ? num(v.plantao_valor) : 0;
+    const pHe = v.tem_hora_extra ? num(v.hora_extra_valor) : 0;
+    const dInss = num(v.desconto_inss);
+    const dIrrf = num(v.desconto_irrf);
+    const dContrib = num(v.desconto_contrib_assistencial);
+    let vtPct = num(v.vt_desconto_percentual);
+    if (pVt > 0 && vtPct <= 0) vtPct = 6;
+    const dVt = pVt > 0 && vtPct > 0 ? Math.round(((salario * vtPct) / 100) * 100) / 100 : 0;
+    const dEmprest = num(v.emprestimo_parcela);
+    const adiantFixo = v.adiantamento_tipo === 'FIXO' ? num(v.adiantamento_valor) : 0;
+    const bruto = salario + pVr + pVa + pVt + pPlantao + pHe;
+    const liquido = Math.max(
+      Math.round((bruto - dInss - dIrrf - dContrib - dVt - dEmprest - adiantFixo) * 100) / 100,
+      0
+    );
+    return { bruto, liquido, adiantFixo };
+  };
+
   const salvar = async () => {
     if (!form.nome.trim()) { alert('Informe o nome.'); return; }
     setSalvando(true);
@@ -221,6 +246,7 @@ export default function FuncionariosPage() {
 
   const ativos = lista.filter(f => f.ativo);
   const somaSalario = ativos.reduce((s, f) => s + Number(f.variaveis?.salario_mensal ?? 0), 0);
+  const resumo = calcResumoFolha(form.variaveis);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -447,6 +473,27 @@ export default function FuncionariosPage() {
                   por mês (menos INSS/IRRF/contrib./6% VT/empréstimo/adiantamento) — é o Pix que sai pro funcionário.
                   O <span className="font-bold">adiantamento</span> é uma saída à parte. Valores são sugestão: dá pra ajustar na hora de pagar.
                 </p>
+
+                <div className="mt-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Custo bruto</div>
+                    <div className="text-sm font-black text-slate-900 dark:text-white">{fmtValor(resumo.bruto)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Salário líquido</div>
+                    <div className="text-sm font-black text-emerald-700 dark:text-emerald-400">{fmtValor(resumo.liquido)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Adiantamento</div>
+                    <div className="text-sm font-black text-slate-900 dark:text-white">
+                      {form.variaveis.adiantamento_tipo === 'FIXO'
+                        ? fmtValor(resumo.adiantFixo)
+                        : form.variaveis.adiantamento_tipo === 'VARIAVEL'
+                        ? 'varia'
+                        : '—'}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-3 border-t border-slate-200 dark:border-slate-700">

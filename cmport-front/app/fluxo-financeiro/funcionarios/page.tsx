@@ -67,7 +67,7 @@ interface Funcionario {
 }
 
 interface Categoria { id: number; nome: string; }
-interface Banco { id: number; nome: string; ativo: boolean; }
+interface Banco { id: number; nome: string; ativo: boolean; razao_social_titular?: string | null; }
 
 type LinhaParcela = { despesa: Despesa; parcela: Parcela };
 
@@ -151,7 +151,11 @@ function FolhaFuncionariosContent() {
       .then(({ data }) => setBancos(data.filter((b: Banco) => b.ativo))).catch(() => {});
   }, []);
 
-  const bancoNome = (id: number | null) => bancos.find(b => b.id === id)?.nome ?? '';
+  const bancoNome = (id: number | null) => {
+    const b = bancos.find(b => b.id === id);
+    if (!b) return '';
+    return b.razao_social_titular ? `${b.nome} (${b.razao_social_titular})` : b.nome;
+  };
 
   // ── monta os grupos por funcionário (só parcelas com vencimento no mês selecionado) ──
   const grupos = useMemo<GrupoFuncionario[]>(() => {
@@ -549,7 +553,7 @@ function FolhaFuncionariosContent() {
                 <select value={pagBanco} onChange={e => setPagBanco(e.target.value ? Number(e.target.value) : '')}
                   className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
                   <option value="">—</option>
-                  {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                  {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}{b.razao_social_titular ? ` (${b.razao_social_titular})` : ''}</option>)}
                 </select>
               </div>
               <div>
@@ -588,7 +592,7 @@ function FolhaFuncionariosContent() {
               <select value={pagBanco} onChange={e => setPagBanco(e.target.value ? Number(e.target.value) : '')}
                 className="w-full px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
                 <option value="">—</option>
-                {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}{b.razao_social_titular ? ` (${b.razao_social_titular})` : ''}</option>)}
               </select>
             </div>
             <div>
