@@ -248,15 +248,40 @@ class DespesaService:
 
     @staticmethod
     def deletar(db: Session, id: int):
+        """Exclui a despesa e, pra não deixar lançamento órfão contando no fluxo,
+        estorna (soft-delete) a movimentação de qualquer parcela já paga -- mesma
+        lógica do `estornar_pagamento`. Bloqueia se alguma dessas movimentações já
+        estiver conciliada com o banco (precisa desfazer pela conciliação antes)."""
         from app.routers.auditoria_router import registrar_exclusao
         despesa = DespesaRepository.get_by_id(db, id)
         if not despesa:
             raise Exception("Despesa não encontrada.")
+
+        movimentacoes_ids = [p.movimentacao_id for p in despesa.parcelas if p.movimentacao_id]
+        movimentacoes = (
+            db.query(MovimentacaoFinanceira)
+            .filter(MovimentacaoFinanceira.id.in_(movimentacoes_ids), MovimentacaoFinanceira.deletado_em.is_(None))
+            .all()
+            if movimentacoes_ids else []
+        )
+        conciliadas = [m for m in movimentacoes if m.origem == "BANCO"]
+        if conciliadas:
+            raise Exception(
+                "Uma ou mais parcelas dessa despesa já têm pagamento conciliado com o "
+                "extrato do banco. Desfaça pela tela de conciliação antes de excluir."
+            )
+
         dados = {
             "id": despesa.id, "descricao": despesa.descricao,
             "valor_total": str(despesa.valor_total), "cnpj": despesa.cnpj,
         }
         registrar_exclusao(db, "despesa", id, dados)
+        for m in movimentacoes:
+            registrar_exclusao(db, "fin_movimentacao", m.id, {
+                "id": m.id, "data": str(m.data), "descricao": m.descricao,
+                "valor": str(m.valor), "tipo": m.tipo, "origem": m.origem,
+            }, motivo="Despesa excluída")
+            m.deletado_em = datetime.utcnow()
         DespesaRepository.update(db, despesa, {"deletado_em": datetime.utcnow()})
 
     @staticmethod
