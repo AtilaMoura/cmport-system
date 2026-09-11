@@ -484,3 +484,30 @@ def seed_dados_teste(
         resp.mensagem += f" Boleto NÃO gerado: {resultado.erros[0].get('erro')}"
 
     return resp
+
+
+@router.get("/inter-extrato")
+def consultar_extrato_inter(
+    cnpj: str, data_inicio: str, data_fim: str,
+    db: Session = Depends(get_db), usuario=Depends(require_dev),
+):
+    """Consulta o extrato real (entrada/saída) direto na API do Banco Inter pra
+    uma conta configurada, sem expor client_secret — usado pra investigar
+    divergência entre sistema e extrato. data_inicio/data_fim em YYYY-MM-DD."""
+    from app.repositories.configuracao_repository import ConfiguracaoInterRepository
+    from app.services.inter_client import InterClient
+
+    cfg = ConfiguracaoInterRepository.get_by_cnpj(db, "".join(filter(str.isdigit, cnpj)))
+    if not cfg:
+        raise HTTPException(404, "ConfiguracaoInter não encontrada para esse CNPJ.")
+    client = InterClient(
+        client_id=cfg.client_id, client_secret=cfg.client_secret,
+        conta_corrente=cfg.conta_corrente, cert_path=cfg.cert_path,
+    )
+    try:
+        transacoes = client.consultar_extrato(data_inicio, data_fim)
+    except Exception as e:
+        raise HTTPException(502, str(e))
+    return {"total": len(transacoes), "transacoes": transacoes}
+
+    return resp

@@ -221,6 +221,29 @@ class InterClient:
             f"{response.status_code} — {response.text}"
         )
 
+    def consultar_extrato(self, data_inicio: str, data_fim: str) -> list:
+        """GET /banking/v2/extrato — lançamentos (entrada/saída) da conta no
+        período. data_inicio/data_fim em YYYY-MM-DD; a API limita a 90 dias por
+        chamada. Retorna a lista crua de transações ('transacoes') da Inter."""
+        headers = {
+            "Authorization": f"Bearer {self._token_banking()}",
+            "x-conta-corrente": self.conta_corrente,
+            "Content-Type": "application/json",
+        }
+        response = requests.get(
+            f"{self._base_url()}/banking/v2/extrato",
+            headers=headers,
+            params={"dataInicio": data_inicio, "dataFim": data_fim},
+            cert=self._cert(),
+            timeout=TIMEOUT,
+        )
+        if response.status_code == 200:
+            return response.json().get("transacoes", [])
+        raise Exception(
+            f"Erro ao consultar extrato Inter [{self.env}/{self.conta_corrente}]: "
+            f"{response.status_code} — {response.text}"
+        )
+
     def baixar_pdf(self, codigo_solicitacao: str) -> bytes:
         response = requests.get(
             f"{self._base_url()}/cobranca/v3/cobrancas/{codigo_solicitacao}/pdf",
