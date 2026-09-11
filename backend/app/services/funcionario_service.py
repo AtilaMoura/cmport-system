@@ -134,6 +134,7 @@ class FuncionarioService:
             p_vt = float(getattr(v, "vale_transporte", 0) or 0)
             p_plantao = float(getattr(v, "plantao_valor", 0) or 0) if getattr(v, "tem_plantao", False) else 0.0
             p_he = float(getattr(v, "hora_extra_valor", 0) or 0) if getattr(v, "tem_hora_extra", False) else 0.0
+            p_comissao = float(getattr(v, "comissao_valor", 0) or 0) if getattr(v, "tem_comissao", False) else 0.0
             # descontos
             d_inss = float(getattr(v, "desconto_inss", 0) or 0)
             d_irrf = float(getattr(v, "desconto_irrf", 0) or 0)
@@ -147,7 +148,7 @@ class FuncionarioService:
             adiant_fixo = float(getattr(v, "adiantamento_valor", 0) or 0) \
                 if getattr(v, "adiantamento_tipo", "NENHUM") == "FIXO" else 0.0
             liquido_sugerido = max(
-                round(salario + p_vr + p_va + p_vt + p_plantao + p_he
+                round(salario + p_vr + p_va + p_vt + p_plantao + p_he + p_comissao
                       - d_inss - d_irrf - d_contrib - d_vt - d_emprest - adiant_fixo, 2),
                 0.0,
             )
@@ -157,7 +158,7 @@ class FuncionarioService:
                 return f"{n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             _partes = [f"salário {_brl(salario)}"]
             for _rot, _v in [("VR", p_vr), ("VA", p_va), ("VT", p_vt),
-                             ("plantão", p_plantao), ("hora extra", p_he)]:
+                             ("plantão", p_plantao), ("hora extra", p_he), ("comissão", p_comissao)]:
                 if _v > 0:
                     _partes.append(f"+ {_rot} {_brl(_v)}")
             for _rot, _v in [("INSS", d_inss), ("IRRF", d_irrf), ("contrib.", d_contrib),

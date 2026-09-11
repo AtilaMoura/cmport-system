@@ -60,6 +60,8 @@ class FuncionarioVariaveis(Base):
     plantao_valor = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)      # valor padrao/mes (editavel no pagamento)
     tem_hora_extra = Column(Boolean, default=False, nullable=False)
     hora_extra_valor = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)   # idem
+    tem_comissao = Column(Boolean, default=False, nullable=False)
+    comissao_valor = Column(Numeric(10, 2, asdecimal=False), default=0, nullable=False)     # valor padrao/mes (editavel no pagamento)
 
     # so projecao — o encargo real e pago como guia da folha inteira (bucket, sem funcionario_id)
     encargos_percentual = Column(Numeric(5, 2, asdecimal=False), default=0, nullable=False)

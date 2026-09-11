@@ -252,6 +252,9 @@ def _run_migrations():
         "UPDATE fin_categorias SET nome = 'Vale refeicao (VR)' WHERE grupo = 'FUNCIONARIO' AND nome = 'Vale refeicao/alimentacao'",
         # Folha — composição real do salário líquido no momento do pagamento (proventos/descontos editáveis)
         "ALTER TABLE despesa_parcelas ADD COLUMN composicao_json JSON NULL",
+        # Folha — comissão (provento padrão que soma no líquido, igual plantão/hora extra)
+        "ALTER TABLE funcionario_variaveis ADD COLUMN tem_comissao TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE funcionario_variaveis ADD COLUMN comissao_valor DECIMAL(10,2) NOT NULL DEFAULT 0",
     ]
     try:
         for stmt in stmts:

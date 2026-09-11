@@ -51,6 +51,8 @@ interface VariaveisFolha {
   plantao_valor: number | string;
   tem_hora_extra: boolean;
   hora_extra_valor: number | string;
+  tem_comissao: boolean;
+  comissao_valor: number | string;
   desconto_inss: number | string;
   desconto_irrf: number | string;
   desconto_contrib_assistencial: number | string;
@@ -239,6 +241,7 @@ function FolhaFuncionariosContent() {
     addP('Vale transporte', n(v?.vale_transporte));
     if (v?.tem_plantao) addP('Plantão', n(v?.plantao_valor));
     if (v?.tem_hora_extra) addP('Hora extra', n(v?.hora_extra_valor));
+    if (v?.tem_comissao) addP('Comissão', n(v?.comissao_valor));
     const desc: { label: string; tipo: 'DESCONTO'; valor: string }[] = [];
     const addD = (label: string, val: number) => { if (val > 0) desc.push({ label, tipo: 'DESCONTO', valor: String(val) }); };
     addD('INSS', n(v?.desconto_inss));

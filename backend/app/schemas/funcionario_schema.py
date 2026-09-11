@@ -17,6 +17,8 @@ class FuncionarioVariaveisIn(BaseModel):
     plantao_valor: Decimal = Decimal("0")
     tem_hora_extra: bool = False
     hora_extra_valor: Decimal = Decimal("0")
+    tem_comissao: bool = False
+    comissao_valor: Decimal = Decimal("0")
     encargos_percentual: Decimal = Decimal("0")
     desconto_inss: Decimal = Decimal("0")
     desconto_irrf: Decimal = Decimal("0")

@@ -37,6 +37,8 @@ interface Variaveis {
   plantao_valor: number | string;
   tem_hora_extra: boolean;
   hora_extra_valor: number | string;
+  tem_comissao: boolean;
+  comissao_valor: number | string;
   encargos_percentual: number | string;
   desconto_inss: number | string;
   desconto_irrf: number | string;
@@ -63,6 +65,7 @@ const varVazia = (): Variaveis => ({
   adiantamento_tipo: 'NENHUM', adiantamento_valor: '', dia_pagamento_adiantamento: 21,
   vale_transporte: '', vale_refeicao: '', vale_alimentacao: '',
   tem_plantao: false, plantao_valor: '', tem_hora_extra: false, hora_extra_valor: '',
+  tem_comissao: false, comissao_valor: '',
   encargos_percentual: '',
   desconto_inss: '', desconto_irrf: '', desconto_contrib_assistencial: '',
   vt_desconto_percentual: '', emprestimo_parcela: '', emprestimo_saldo: '',
@@ -135,6 +138,8 @@ export default function FuncionariosPage() {
             plantao_valor: f.variaveis.plantao_valor ?? '',
             tem_hora_extra: !!f.variaveis.tem_hora_extra,
             hora_extra_valor: f.variaveis.hora_extra_valor ?? '',
+            tem_comissao: !!f.variaveis.tem_comissao,
+            comissao_valor: f.variaveis.comissao_valor ?? '',
             encargos_percentual: f.variaveis.encargos_percentual ?? '',
             desconto_inss: f.variaveis.desconto_inss ?? '',
             desconto_irrf: f.variaveis.desconto_irrf ?? '',
@@ -165,6 +170,7 @@ export default function FuncionariosPage() {
     const pVt = num(v.vale_transporte);
     const pPlantao = v.tem_plantao ? num(v.plantao_valor) : 0;
     const pHe = v.tem_hora_extra ? num(v.hora_extra_valor) : 0;
+    const pComissao = v.tem_comissao ? num(v.comissao_valor) : 0;
     const dInss = num(v.desconto_inss);
     const dIrrf = num(v.desconto_irrf);
     const dContrib = num(v.desconto_contrib_assistencial);
@@ -173,7 +179,7 @@ export default function FuncionariosPage() {
     const dVt = pVt > 0 && vtPct > 0 ? Math.round(((salario * vtPct) / 100) * 100) / 100 : 0;
     const dEmprest = num(v.emprestimo_parcela);
     const adiantFixo = v.adiantamento_tipo === 'FIXO' ? num(v.adiantamento_valor) : 0;
-    const bruto = salario + pVr + pVa + pVt + pPlantao + pHe;
+    const bruto = salario + pVr + pVa + pVt + pPlantao + pHe + pComissao;
     const liquido = Math.max(
       Math.round((bruto - dInss - dIrrf - dContrib - dVt - dEmprest - adiantFixo) * 100) / 100,
       0
@@ -206,6 +212,8 @@ export default function FuncionariosPage() {
           plantao_valor: form.variaveis.tem_plantao ? num(form.variaveis.plantao_valor) : 0,
           tem_hora_extra: form.variaveis.tem_hora_extra,
           hora_extra_valor: form.variaveis.tem_hora_extra ? num(form.variaveis.hora_extra_valor) : 0,
+          tem_comissao: form.variaveis.tem_comissao,
+          comissao_valor: form.variaveis.tem_comissao ? num(form.variaveis.comissao_valor) : 0,
           encargos_percentual: num(form.variaveis.encargos_percentual),
           desconto_inss: num(form.variaveis.desconto_inss),
           desconto_irrf: num(form.variaveis.desconto_irrf),
@@ -319,7 +327,7 @@ export default function FuncionariosPage() {
                   </button>
                   <Link href={`/fluxo-financeiro/funcionarios?${hojeAnoMes()}&func=${f.id}`}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors">
-                    Ver folha ↗
+                    Ver saídas ↗
                   </Link>
                   <button onClick={() => remover(f)} disabled={removendo === f.id}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50">
@@ -451,6 +459,10 @@ export default function FuncionariosPage() {
                     <input type="checkbox" checked={form.variaveis.tem_hora_extra} onChange={e => setV({ tem_hora_extra: e.target.checked })} />
                     Recebe hora extra
                   </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={form.variaveis.tem_comissao} onChange={e => setV({ tem_comissao: e.target.checked })} />
+                    Recebe comissão
+                  </label>
                   {form.variaveis.tem_plantao && (
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Plantão — valor padrão (R$)</label>
@@ -467,9 +479,17 @@ export default function FuncionariosPage() {
                         className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
                     </div>
                   )}
+                  {form.variaveis.tem_comissao && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Comissão — valor padrão (R$)</label>
+                      <input type="number" step="0.01" min="0" value={form.variaveis.comissao_valor}
+                        onChange={e => setV({ comissao_valor: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm" />
+                    </div>
+                  )}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-2">
-                  Salário, VR, VA, VT, plantão e hora extra somam num <span className="font-bold">Salário líquido</span> único
+                  Salário, VR, VA, VT, plantão, hora extra e comissão somam num <span className="font-bold">Salário líquido</span> único
                   por mês (menos INSS/IRRF/contrib./6% VT/empréstimo/adiantamento) — é o Pix que sai pro funcionário.
                   O <span className="font-bold">adiantamento</span> é uma saída à parte. Valores são sugestão: dá pra ajustar na hora de pagar.
                 </p>
