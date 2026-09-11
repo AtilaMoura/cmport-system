@@ -35,7 +35,7 @@ function TransferenciasContent() {
     // Só categorias usadas de fato em transferência entre contas — exclui "Contrato
     // Manutenção"/"Assistência", que são receita de serviço (gerada via nota/boleto,
     // não cabe num lançamento manual de transferência interna)
-    const CATEGORIAS_TRANSFERENCIA = ['Rendimento', 'Ajustes', 'Outros Recebimentos'];
+    const CATEGORIAS_TRANSFERENCIA = ['Rendimento', 'Ajustes', 'Outros Recebimentos', 'Estorno'];
     api.get('/categorias-financeiras', { params: { ativo: true } })
       .then(({ data }) => setCategorias((data ?? []).filter((c: { nome: string }) => CATEGORIAS_TRANSFERENCIA.includes(c.nome))))
       .catch(() => {});
@@ -95,7 +95,7 @@ function TransferenciasContent() {
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
         <div className="px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
           <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Transferências Internas</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Entre contas próprias, rendimentos e ajustes — não é receita de condomínio</p>
+          <p className="text-xs text-slate-500 mt-0.5">Entre contas próprias, rendimentos, estornos e ajustes — não é receita de condomínio</p>
         </div>
       </div>
 

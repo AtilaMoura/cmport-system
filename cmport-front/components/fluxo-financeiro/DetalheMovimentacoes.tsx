@@ -44,6 +44,7 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
   const [busca, setBusca] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('');
   const [bancoIdFiltro, setBancoIdFiltro] = useState<number | ''>('');  // conta específica (origem OU destino)
+  const [direcaoFiltro, setDirecaoFiltro] = useState<'' | 'saiu' | 'entrou'>('');  // refina bancoIdFiltro: só saída ou só entrada dessa conta
   const [empresaFiltro, setEmpresaFiltro] = useState('');   // '' | 'CMPORT' | 'TEC'
 
   // quando a página passa um CNPJ (filtro compartilhado da URL), seed o filtro local "De onde saiu"
@@ -270,6 +271,8 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
     if (busca && !m.descricao.toLowerCase().includes(busca.toLowerCase())) return false;
     if (categoriaFiltro && (m.categoria?.nome ?? 'Sem categoria') !== categoriaFiltro) return false;
     if (bancoIdFiltro !== '' && m.banco_id !== bancoIdFiltro && m.banco_origem_id !== bancoIdFiltro) return false;
+    if (bancoIdFiltro !== '' && direcaoFiltro === 'saiu' && m.banco_origem_id !== bancoIdFiltro) return false;
+    if (bancoIdFiltro !== '' && direcaoFiltro === 'entrou' && m.banco_id !== bancoIdFiltro) return false;
     if (empresaFiltro && empresaOrigem(m) !== empresaFiltro) return false;
     return true;
   });
@@ -286,11 +289,25 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
             <option value="">Todas as categorias</option>
             {porCategoria.map(g => <option key={g.nome} value={g.nome}>{g.nome}</option>)}
           </select>
-          <select value={bancoIdFiltro} onChange={e => setBancoIdFiltro(e.target.value === '' ? '' : Number(e.target.value))}
+          <select value={bancoIdFiltro} onChange={e => { setBancoIdFiltro(e.target.value === '' ? '' : Number(e.target.value)); setDirecaoFiltro(''); }}
             className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white">
             <option value="">Todas as contas</option>
             {porConta.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
           </select>
+          {bancoIdFiltro !== '' && (
+            <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+              {([['', 'Todas'], ['saiu', '↑ Só saiu'], ['entrou', '↓ Só entrou']] as const).map(([val, label]) => (
+                <button key={val || 'todas'} type="button" onClick={() => setDirecaoFiltro(val)}
+                  className={`px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap ${
+                    direcaoFiltro === val
+                      ? val === 'saiu' ? 'bg-rose-600 text-white' : val === 'entrou' ? 'bg-emerald-600 text-white' : 'bg-teal-600 text-white'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  } ${val ? 'border-l border-slate-200 dark:border-slate-700' : ''}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="inline-flex items-center gap-2">
             <span className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">De onde saiu</span>
             <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -349,9 +366,9 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
                 : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}>
             <div className="font-semibold">💳 {g.label}</div>
-            <div className="flex gap-3 opacity-90">
-              {g.saiu > 0 && <span>↑ saiu <span className="font-black">{fmtValor(g.saiu)}</span></span>}
-              {g.entrou > 0 && <span>↓ entrou <span className="font-black">{fmtValor(g.entrou)}</span></span>}
+            <div className="flex gap-3">
+              {g.saiu > 0 && <span className="text-rose-600 dark:text-rose-400">↑ saiu <span className="font-black">{fmtValor(g.saiu)}</span></span>}
+              {g.entrou > 0 && <span className="text-emerald-600 dark:text-emerald-400">↓ entrou <span className="font-black">{fmtValor(g.entrou)}</span></span>}
             </div>
           </button>
         ))}
@@ -391,20 +408,27 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
                     <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{m.descricao}</div>
                     <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
                       <span>{m.categoria?.nome ?? 'Sem categoria'}</span>
-                      {empresasDaMov(m).map(emp => (
-                        <span key={emp} className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          emp === 'TEC'
-                            ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400'
-                            : 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400'
-                        }`}>🏢 {emp}</span>
-                      ))}
-                      {(m.banco_origem_id != null || m.banco_origem_nome) && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                          {bancoLabel(m.banco_origem_id, m.banco_origem_nome)} → {bancoLabel(m.banco_id, m.banco_nome)}
+                      {(m.banco_origem_id != null || m.banco_origem_nome) ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          🏢 {bancoLabel(m.banco_origem_id, m.banco_origem_nome)}
+                          <span className="text-rose-600 dark:text-rose-400">↑</span>
+                          <span className="text-slate-400">→</span>
+                          <span className="text-emerald-600 dark:text-emerald-400">↓</span>
+                          🏢 {bancoLabel(m.banco_id, m.banco_nome)}
                         </span>
-                      )}
-                      {!m.banco_origem_nome && m.banco_nome && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400">💳 {m.banco_nome}</span>
+                      ) : (
+                        <>
+                          {empresasDaMov(m).map(emp => (
+                            <span key={emp} className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              emp === 'TEC'
+                                ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400'
+                                : 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400'
+                            }`}>🏢 {emp}</span>
+                          ))}
+                          {m.banco_nome && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400">💳 {m.banco_nome}</span>
+                          )}
+                        </>
                       )}
                       {mostrarFornecedor && m.fornecedor_nome && (
                         <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">🏭 {m.fornecedor_nome}</span>
@@ -432,6 +456,16 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
             <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold mb-4 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {modalMov.categoria?.nome ?? 'Sem categoria'}
             </span>
+
+            {mostrarBancoOrigem && (modalMov.banco_origem_id != null || modalMov.banco_origem_nome) && (
+              <div className="flex items-center justify-center gap-2 flex-wrap px-3 py-3 mb-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-bold text-slate-700 dark:text-slate-300">
+                <span>🏢 {bancoLabel(modalMov.banco_origem_id, modalMov.banco_origem_nome)}</span>
+                <span className="text-rose-600 dark:text-rose-400 text-base">↑</span>
+                <span className="text-slate-400">→</span>
+                <span className="text-emerald-600 dark:text-emerald-400 text-base">↓</span>
+                <span>🏢 {bancoLabel(modalMov.banco_id, modalMov.banco_nome)}</span>
+              </div>
+            )}
 
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
