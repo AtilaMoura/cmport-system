@@ -230,11 +230,18 @@ class DespesaService:
 
     @staticmethod
     def editar_parcela(db: Session, parcela_id: int, req: EditarParcelaRequest) -> DespesaResponse:
+        """Edita valor e/ou vencimento de uma parcela. Vencimento só pode mudar
+        se ainda estiver PENDENTE. Valor pode ser corrigido mesmo já PAGO (ex:
+        typo na hora de cadastrar vs o que realmente saiu do banco) — nesse caso
+        também corrige a movimentação vinculada e o valor_total da despesa
+        (UNICO = valor novo, PARCELADO = soma das parcelas), pra não deixar o
+        extrato e o sistema divergindo por um valor errado."""
         parcela = DespesaRepository.get_parcela_by_id(db, parcela_id)
         if not parcela:
             raise Exception("Parcela não encontrada.")
-        if parcela.status != StatusParcelaDespesa.PENDENTE:
-            raise Exception("Só é possível editar uma parcela ainda pendente.")
+        if req.data_vencimento is not None and parcela.status != StatusParcelaDespesa.PENDENTE:
+            raise Exception("Vencimento só pode ser editado enquanto a parcela está pendente.")
+
         dados = {}
         if req.valor is not None:
             dados["valor"] = req.valor
@@ -242,7 +249,23 @@ class DespesaService:
             dados["data_vencimento"] = req.data_vencimento
         if dados:
             DespesaRepository.update(db, parcela, dados)
+
         despesa = parcela.despesa
+        if req.valor is not None and parcela.status == StatusParcelaDespesa.PAGO:
+            if parcela.movimentacao_id:
+                mov = (
+                    db.query(MovimentacaoFinanceira)
+                    .filter(MovimentacaoFinanceira.id == parcela.movimentacao_id)
+                    .first()
+                )
+                if mov:
+                    DespesaRepository.update(db, mov, {"valor": req.valor})
+            if despesa.tipo_pagamento == TipoPagamentoDespesa.UNICO:
+                DespesaRepository.update(db, despesa, {"valor_total": req.valor})
+            elif despesa.tipo_pagamento == TipoPagamentoDespesa.PARCELADO:
+                total = sum((p.valor for p in despesa.parcelas), start=type(req.valor)(0))
+                DespesaRepository.update(db, despesa, {"valor_total": total})
+
         db.refresh(despesa)
         return DespesaResponse.model_validate(despesa)
 

@@ -47,6 +47,7 @@ interface EdicaoParcelaState {
   parcelaId: number;
   valor: string;
   data_vencimento: string;
+  pago: boolean;
 }
 
 interface LinhaComMeta {
@@ -442,19 +443,23 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
   };
 
   const iniciarEdicaoParcela = (parcela: DespesaParcela) => {
-    setEdicaoParcela({ parcelaId: parcela.id, valor: String(parcela.valor), data_vencimento: parcela.data_vencimento });
+    setEdicaoParcela({
+      parcelaId: parcela.id, valor: String(parcela.valor), data_vencimento: parcela.data_vencimento,
+      pago: parcela.status === 'PAGO',
+    });
   };
 
   const salvarEdicaoParcela = async () => {
     if (!edicaoParcela) return;
-    if (!edicaoParcela.valor || Number(edicaoParcela.valor) <= 0 || !edicaoParcela.data_vencimento) {
+    if (!edicaoParcela.valor || Number(edicaoParcela.valor) <= 0 || (!edicaoParcela.pago && !edicaoParcela.data_vencimento)) {
       alert('Preencha valor e data de vencimento.'); return;
     }
     setSalvandoEdicaoParcela(true);
     try {
       await api.put(`/despesas/parcelas/${edicaoParcela.parcelaId}`, {
         valor: Number(edicaoParcela.valor),
-        data_vencimento: edicaoParcela.data_vencimento,
+        // vencimento só pode mudar enquanto a parcela está pendente
+        ...(edicaoParcela.pago ? {} : { data_vencimento: edicaoParcela.data_vencimento }),
       });
       setEdicaoParcela(null);
       await carregarDespesas();
@@ -789,9 +794,11 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
                             <input type="number" step="0.01" min="0" value={edicaoParcela!.valor}
                               onChange={e => setEdicaoParcela(p => p ? { ...p, valor: e.target.value } : p)}
                               className="w-28 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
-                            <input type="date" value={edicaoParcela!.data_vencimento}
-                              onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
-                              className="px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                            {!edicaoParcela!.pago && (
+                              <input type="date" value={edicaoParcela!.data_vencimento}
+                                onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
+                                className="px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                            )}
                             <button onClick={() => setEdicaoParcela(null)}
                               className="px-2 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold">
                               Cancelar
@@ -805,16 +812,18 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
                           <div className="flex items-center gap-2 sm:gap-3">
                             <span className="text-sm font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{fmtValor(parcela.valor)}</span>
                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${badge.cls}`}>{badge.texto}</span>
-                            {parcela.status === 'PENDENTE' && (
+                            {(parcela.status === 'PENDENTE' || parcela.status === 'PAGO') && (
                               <>
                                 <button onClick={() => iniciarEdicaoParcela(parcela)}
                                   className={`text-xs font-bold text-slate-400 ${cfg.corHoverTexto} whitespace-nowrap`}>
                                   editar
                                 </button>
-                                <button onClick={() => abrirModalPagar(despesa, parcela)}
-                                  className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:brightness-110 transition-all whitespace-nowrap">
-                                  Marcar como pago
-                                </button>
+                                {parcela.status === 'PENDENTE' && (
+                                  <button onClick={() => abrirModalPagar(despesa, parcela)}
+                                    className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:brightness-110 transition-all whitespace-nowrap">
+                                    Marcar como pago
+                                  </button>
+                                )}
                               </>
                             )}
                           </div>
@@ -1324,9 +1333,11 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
                           <input type="number" step="0.01" min="0" value={edicaoParcela!.valor}
                             onChange={e => setEdicaoParcela(p => p ? { ...p, valor: e.target.value } : p)}
                             className="w-24 px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
-                          <input type="date" value={edicaoParcela!.data_vencimento}
-                            onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
-                            className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                          {!edicaoParcela!.pago && (
+                            <input type="date" value={edicaoParcela!.data_vencimento}
+                              onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
+                              className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                          )}
                           <button onClick={() => setEdicaoParcela(null)}
                             className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold">
                             Cancelar
@@ -1340,16 +1351,18 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{fmtValor(parcela.valor)}</span>
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase whitespace-nowrap ${badge.cls}`}>{badge.texto}</span>
-                          {parcela.status === 'PENDENTE' && (
+                          {(parcela.status === 'PENDENTE' || parcela.status === 'PAGO') && (
                             <>
                               <button onClick={() => iniciarEdicaoParcela(parcela)}
                                 className={`text-[11px] font-bold text-slate-400 ${cfg.corHoverTexto} whitespace-nowrap`}>
                                 editar
                               </button>
-                              <button onClick={() => abrirModalPagar(despesaDetalhe, parcela)}
-                                className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[11px] font-bold hover:brightness-110 whitespace-nowrap">
-                                Pagar
-                              </button>
+                              {parcela.status === 'PENDENTE' && (
+                                <button onClick={() => abrirModalPagar(despesaDetalhe, parcela)}
+                                  className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[11px] font-bold hover:brightness-110 whitespace-nowrap">
+                                  Pagar
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
