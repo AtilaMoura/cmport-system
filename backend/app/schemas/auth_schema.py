@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr
 from app.models.usuario_model import RoleUsuario
 
@@ -22,3 +25,26 @@ class UsuarioMe(BaseModel):
     ativo: bool
 
     model_config = {"from_attributes": True}
+
+
+class UsuarioResponse(BaseModel):
+    id: int
+    nome: str
+    email: str
+    role: RoleUsuario
+    ativo: bool
+    criado_em: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UsuarioCreate(BaseModel):
+    nome: str
+    email: EmailStr
+    senha: str
+    role: RoleUsuario = RoleUsuario.USUARIO
+
+
+class UsuarioUpdate(BaseModel):
+    role: Optional[RoleUsuario] = None
+    ativo: Optional[bool] = None

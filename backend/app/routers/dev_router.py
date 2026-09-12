@@ -13,6 +13,7 @@ import datetime as dt
 from app.core.database import SessionLocal
 from app.core.dependencies import require_dev
 from app.models.usuario_model import Usuario
+from app.schemas.auth_schema import UsuarioResponse, UsuarioCreate, UsuarioUpdate
 
 router = APIRouter()
 
@@ -510,4 +511,40 @@ def consultar_extrato_inter(
         raise HTTPException(502, str(e))
     return {"total": len(transacoes), "transacoes": transacoes}
 
-    return resp
+
+@router.get("/usuarios", response_model=list[UsuarioResponse])
+def listar_usuarios(db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
+    """Lista todos os usuários do sistema (sem senha_hash)."""
+    return db.query(Usuario).order_by(Usuario.id).all()
+
+
+@router.post("/usuarios", response_model=UsuarioResponse, status_code=201)
+def criar_usuario(req: UsuarioCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
+    """Cadastra um novo usuário, já definindo o role (DEV/ADMIN/USUARIO)."""
+    from app.core.security import hash_senha
+
+    if db.query(Usuario).filter(Usuario.email == req.email).first():
+        raise HTTPException(400, "Já existe um usuário com esse email.")
+    if not req.senha or len(req.senha) < 6:
+        raise HTTPException(400, "Senha precisa ter pelo menos 6 caracteres.")
+
+    novo = Usuario(nome=req.nome, email=req.email, senha_hash=hash_senha(req.senha), role=req.role, ativo=True)
+    db.add(novo)
+    db.commit()
+    db.refresh(novo)
+    return novo
+
+
+@router.patch("/usuarios/{usuario_id}", response_model=UsuarioResponse)
+def atualizar_usuario(usuario_id: int, req: UsuarioUpdate, db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
+    """Ativa/desativa um usuário ou troca o role. Não mexe em senha."""
+    alvo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not alvo:
+        raise HTTPException(404, "Usuário não encontrado.")
+    if req.role is not None:
+        alvo.role = req.role
+    if req.ativo is not None:
+        alvo.ativo = req.ativo
+    db.commit()
+    db.refresh(alvo)
+    return alvo
