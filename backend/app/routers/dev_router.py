@@ -205,32 +205,6 @@ def reset_tudo(request: ResetTudoRequest, db: Session = Depends(get_db), _: Usua
     )
 
 
-@router.post("/limpar-dados")
-def limpar_dados(db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
-    """
-    Apaga boletos, serviços e notas fiscais. NÃO apaga condominios.
-    Sem confirmação — use apenas em desenvolvimento.
-    """
-    from app.models.boleto_model import Boleto
-    from app.models.nota_fiscal_model import NotaFiscal
-    from app.models.servico_model import ManutencaoAssistencia
-
-    n_boletos  = db.query(Boleto).delete(synchronize_session=False)
-    n_servicos = db.query(ManutencaoAssistencia).delete(synchronize_session=False)
-    from sqlalchemy import text as _text2
-    db.execute(_text2("UPDATE notas_fiscais SET nota_vinculada_id = NULL WHERE nota_vinculada_id IS NOT NULL"))
-    n_notas    = db.query(NotaFiscal).delete(synchronize_session=False)
-    db.commit()
-
-    return {
-        "boletos_deletados": n_boletos,
-        "servicos_deletados": n_servicos,
-        "notas_deletadas": n_notas,
-        "mensagem": f"Limpeza concluída: {n_boletos} boletos, {n_servicos} serviços, {n_notas} notas deletados. Condominios mantidos.",
-    }
-
-
-
 @router.post("/limpar-corpos-nota")
 def limpar_corpos_nota(db: Session = Depends(get_db), _: Usuario = Depends(require_dev)):
     """

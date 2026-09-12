@@ -4,13 +4,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
-interface LimparResult {
-  boletos_deletados: number;
-  servicos_deletados: number;
-  notas_deletadas: number;
-  mensagem: string;
-}
-
 interface SyncResult {
   novos: number;
   ignorados: number;
@@ -72,11 +65,6 @@ interface UsuarioLinha {
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 export default function DevPage() {
-  // Limpar dados
-  const [limpando, setLimpando] = useState(false);
-  const [limparResult, setLimparResult] = useState<LimparResult | null>(null);
-  const [limparError, setLimparError] = useState<string | null>(null);
-
   // Sync condominios
   const [sincronizando, setSincronizando] = useState(false);
   const [syncProgresso, setSyncProgresso] = useState<{ processados: number; total: number; mensagem: string } | null>(null);
@@ -219,24 +207,6 @@ export default function DevPage() {
 
   useEffect(() => { carregarUsuarios(); }, []);
 
-  const handleLimpar = async () => {
-    setLimpando(true);
-    setLimparResult(null);
-    setLimparError(null);
-    try {
-      const res = await api.post('/dev/limpar-dados');
-      setLimparResult(res.data);
-      setSeedResult(null);
-      setBoletoResult(null);
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-        || (err as { message?: string })?.message || 'Erro ao limpar dados.';
-      setLimparError(String(msg));
-    } finally {
-      setLimpando(false);
-    }
-  };
-
   const handleSync = async () => {
     setSincronizando(true);
     setSyncResult(null);
@@ -350,58 +320,6 @@ export default function DevPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-8 py-8 space-y-6">
-
-        {/* ── Limpar Dados ── */}
-        <div className="bg-white dark:bg-slate-900 border border-red-200 dark:border-red-800/40 rounded-2xl p-7 shadow-sm">
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 bg-red-100 dark:bg-red-500/20 rounded-xl flex items-center justify-center text-xl shrink-0">
-                🗑️
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white">Limpar Dados</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                  Apaga todos os <strong>boletos</strong>, <strong>serviços</strong> e <strong>notas fiscais</strong>.
-                  Condominios são mantidos.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleLimpar}
-              disabled={limpando}
-              className="shrink-0 px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-red-600/20 hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2"
-            >
-              {limpando
-                ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Limpando...</>
-                : 'Limpar Dados'
-              }
-            </button>
-          </div>
-
-          {limparError && (
-            <div className="mt-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl p-3">
-              <p className="text-sm text-red-700 dark:text-red-400">{limparError}</p>
-            </div>
-          )}
-
-          {limparResult && (
-            <div className="mt-4 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-800/30 rounded-xl p-4">
-              <p className="text-xs font-black text-green-700 dark:text-green-400 uppercase mb-3">Limpeza concluída</p>
-              <div className="flex gap-4">
-                {[
-                  { label: 'Boletos', value: limparResult.boletos_deletados },
-                  { label: 'Serviços', value: limparResult.servicos_deletados },
-                  { label: 'Notas', value: limparResult.notas_deletadas },
-                ].map(item => (
-                  <div key={item.label} className="bg-white dark:bg-slate-800 rounded-lg px-4 py-3 text-center">
-                    <p className="text-2xl font-black text-red-600 dark:text-red-400">{item.value}</p>
-                    <p className="text-xs font-bold text-slate-500 uppercase">{item.label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* ── Sincronizar Condominios ── */}
         <div className="bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/40 rounded-2xl p-7 shadow-sm">
