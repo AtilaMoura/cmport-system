@@ -31,6 +31,10 @@ interface LinhaParcela {
   numero_parcela: number;
   valor: string;
   data_vencimento: string;
+  paga: boolean;
+  banco_id: string;
+  data_pagamento: string;
+  forma_pagamento: string;
 }
 
 interface ModalPagarState {
@@ -48,6 +52,9 @@ interface EdicaoParcelaState {
   valor: string;
   data_vencimento: string;
   pago: boolean;
+  banco_id: string;
+  data_pagamento: string;
+  forma_pagamento: string;
 }
 
 interface LinhaComMeta {
@@ -98,6 +105,10 @@ const novaDespesaVazia = () => ({
   // UNICO
   valor_total: '',
   data_primeira_parcela: '',
+  ja_pago: false,
+  pagamento_banco_id: '',
+  pagamento_data: new Date().toISOString().slice(0, 10),
+  pagamento_forma: 'PIX',
   // PARCELADO — usados só pra sugerir a tabela editável abaixo
   valor_total_sugerido: '',
   numero_parcelas_sugerido: '2',
@@ -443,23 +454,34 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
   };
 
   const iniciarEdicaoParcela = (parcela: DespesaParcela) => {
+    const pago = parcela.status === 'PAGO';
     setEdicaoParcela({
       parcelaId: parcela.id, valor: String(parcela.valor), data_vencimento: parcela.data_vencimento,
-      pago: parcela.status === 'PAGO',
+      pago,
+      banco_id: pago && parcela.banco_id ? String(parcela.banco_id) : '',
+      data_pagamento: pago && parcela.data_pagamento ? parcela.data_pagamento : '',
+      forma_pagamento: pago && parcela.forma_pagamento ? parcela.forma_pagamento : 'PIX',
     });
   };
 
   const salvarEdicaoParcela = async () => {
     if (!edicaoParcela) return;
-    if (!edicaoParcela.valor || Number(edicaoParcela.valor) <= 0 || (!edicaoParcela.pago && !edicaoParcela.data_vencimento)) {
+    if (!edicaoParcela.valor || Number(edicaoParcela.valor) <= 0 || !edicaoParcela.data_vencimento) {
       alert('Preencha valor e data de vencimento.'); return;
+    }
+    if (edicaoParcela.pago && !edicaoParcela.banco_id) {
+      alert('Selecione o banco do pagamento.'); return;
     }
     setSalvandoEdicaoParcela(true);
     try {
       await api.put(`/despesas/parcelas/${edicaoParcela.parcelaId}`, {
         valor: Number(edicaoParcela.valor),
-        // vencimento só pode mudar enquanto a parcela está pendente
-        ...(edicaoParcela.pago ? {} : { data_vencimento: edicaoParcela.data_vencimento }),
+        data_vencimento: edicaoParcela.data_vencimento,
+        ...(edicaoParcela.pago ? {
+          banco_id: Number(edicaoParcela.banco_id),
+          data_pagamento: edicaoParcela.data_pagamento,
+          forma_pagamento: edicaoParcela.forma_pagamento,
+        } : {}),
       });
       setEdicaoParcela(null);
       await carregarDespesas();
@@ -509,13 +531,24 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
       d.setDate(d.getDate() + 30 * (i - 1));
       const valor = i === n ? Math.round((total - soma) * 100) / 100 : valorParcela;
       if (i < n) soma += valor;
-      linhas.push({ numero_parcela: i, valor: valor.toFixed(2), data_vencimento: d.toISOString().slice(0, 10) });
+      linhas.push({
+        numero_parcela: i, valor: valor.toFixed(2), data_vencimento: d.toISOString().slice(0, 10),
+        paga: false, banco_id: '', data_pagamento: new Date().toISOString().slice(0, 10), forma_pagamento: 'PIX',
+      });
     }
     setParcelasTabela(linhas);
   };
 
-  const editarLinhaParcela = (index: number, campo: 'valor' | 'data_vencimento', valor: string) => {
+  const editarLinhaParcela = (
+    index: number,
+    campo: 'valor' | 'data_vencimento' | 'banco_id' | 'data_pagamento' | 'forma_pagamento',
+    valor: string,
+  ) => {
     setParcelasTabela(prev => prev.map((p, i) => i === index ? { ...p, [campo]: valor } : p));
+  };
+
+  const toggleParcelaPaga = (index: number) => {
+    setParcelasTabela(prev => prev.map((p, i) => i === index ? { ...p, paga: !p.paga } : p));
   };
 
   const replicarValorParaTodas = () => {
@@ -551,8 +584,20 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
       if (!novaDespesa.valor_total || !novaDespesa.data_primeira_parcela) {
         alert('Preencha valor e data do vencimento.'); return;
       }
+      if (novaDespesa.ja_pago && !novaDespesa.pagamento_banco_id) {
+        alert('Selecione o banco do pagamento.'); return;
+      }
       payload.valor_total = Number(novaDespesa.valor_total);
       payload.data_primeira_parcela = novaDespesa.data_primeira_parcela;
+      if (novaDespesa.ja_pago) {
+        payload.pagamentos = {
+          1: {
+            data_pagamento: novaDespesa.pagamento_data,
+            banco_id: Number(novaDespesa.pagamento_banco_id),
+            forma_pagamento: novaDespesa.pagamento_forma,
+          },
+        };
+      }
     } else if (novaDespesa.tipo_pagamento === 'PARCELADO') {
       if (parcelasTabela.length < 2) {
         alert('Gere a tabela de parcelas (mínimo 2 parcelas) antes de salvar.'); return;
@@ -560,9 +605,19 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
       if (parcelasTabela.some(p => !p.valor || Number(p.valor) <= 0 || !p.data_vencimento)) {
         alert('Preencha valor e data em todas as parcelas.'); return;
       }
+      if (parcelasTabela.some(p => p.paga && !p.banco_id)) {
+        alert('Selecione o banco das parcelas marcadas como pagas.'); return;
+      }
       payload.parcelas = parcelasTabela.map(p => ({
         numero_parcela: p.numero_parcela, valor: Number(p.valor), data_vencimento: p.data_vencimento,
       }));
+      const pagas = parcelasTabela.filter(p => p.paga);
+      if (pagas.length > 0) {
+        payload.pagamentos = Object.fromEntries(pagas.map(p => [
+          p.numero_parcela,
+          { data_pagamento: p.data_pagamento, banco_id: Number(p.banco_id), forma_pagamento: p.forma_pagamento },
+        ]));
+      }
     } else {
       if (!novaDespesa.valor_recorrente || !novaDespesa.dia_vencimento || !novaDespesa.data_inicio) {
         alert('Preencha valor mensal, dia de vencimento e data de início.'); return;
@@ -794,10 +849,26 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
                             <input type="number" step="0.01" min="0" value={edicaoParcela!.valor}
                               onChange={e => setEdicaoParcela(p => p ? { ...p, valor: e.target.value } : p)}
                               className="w-28 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
-                            {!edicaoParcela!.pago && (
-                              <input type="date" value={edicaoParcela!.data_vencimento}
-                                onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
-                                className="px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                            <input type="date" value={edicaoParcela!.data_vencimento}
+                              onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
+                              className="px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                            {edicaoParcela!.pago && (
+                              <>
+                                <select value={edicaoParcela!.banco_id}
+                                  onChange={e => setEdicaoParcela(p => p ? { ...p, banco_id: e.target.value } : p)}
+                                  className="px-2 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs">
+                                  <option value="">— Banco —</option>
+                                  {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                                </select>
+                                <input type="date" value={edicaoParcela!.data_pagamento}
+                                  onChange={e => setEdicaoParcela(p => p ? { ...p, data_pagamento: e.target.value } : p)}
+                                  className="px-2 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs" />
+                                <select value={edicaoParcela!.forma_pagamento}
+                                  onChange={e => setEdicaoParcela(p => p ? { ...p, forma_pagamento: e.target.value } : p)}
+                                  className="px-2 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs">
+                                  {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                                </select>
+                              </>
                             )}
                             <button onClick={() => setEdicaoParcela(null)}
                               className="px-2 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold">
@@ -1071,19 +1142,56 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
               </div>
 
               {novaDespesa.tipo_pagamento === 'UNICO' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Valor</label>
-                    <input type="number" step="0.01" min="0" value={novaDespesa.valor_total}
-                      onChange={e => setNovaDespesa(p => ({ ...p, valor_total: e.target.value }))} placeholder="0,00"
-                      className={`w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 ${cfg.corFoco} outline-none text-sm`} />
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Valor</label>
+                      <input type="number" step="0.01" min="0" value={novaDespesa.valor_total}
+                        onChange={e => setNovaDespesa(p => ({ ...p, valor_total: e.target.value }))} placeholder="0,00"
+                        className={`w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 ${cfg.corFoco} outline-none text-sm`} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Vencimento</label>
+                      <input type="date" value={novaDespesa.data_primeira_parcela}
+                        onChange={e => setNovaDespesa(p => ({ ...p, data_primeira_parcela: e.target.value }))}
+                        className={`w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 ${cfg.corFoco} outline-none text-sm`} />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Vencimento</label>
-                    <input type="date" value={novaDespesa.data_primeira_parcela}
-                      onChange={e => setNovaDespesa(p => ({ ...p, data_primeira_parcela: e.target.value }))}
-                      className={`w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 ${cfg.corFoco} outline-none text-sm`} />
-                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={novaDespesa.ja_pago}
+                      onChange={e => setNovaDespesa(p => ({ ...p, ja_pago: e.target.checked }))}
+                      className="w-4 h-4 accent-emerald-600" />
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Já foi pago</span>
+                  </label>
+
+                  {novaDespesa.ja_pago && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Banco</label>
+                        <select value={novaDespesa.pagamento_banco_id}
+                          onChange={e => setNovaDespesa(p => ({ ...p, pagamento_banco_id: e.target.value }))}
+                          className="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-sm">
+                          <option value="">— Selecione —</option>
+                          {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}{b.razao_social_titular ? ` (${b.razao_social_titular})` : ''}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Data do pagamento</label>
+                        <input type="date" value={novaDespesa.pagamento_data}
+                          onChange={e => setNovaDespesa(p => ({ ...p, pagamento_data: e.target.value }))}
+                          className="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Forma</label>
+                        <select value={novaDespesa.pagamento_forma}
+                          onChange={e => setNovaDespesa(p => ({ ...p, pagamento_forma: e.target.value }))}
+                          className="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-sm">
+                          {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1124,16 +1232,39 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
                           Replicar valor da 1ª pra todas
                         </button>
                       </div>
-                      <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-56 overflow-y-auto">
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-72 overflow-y-auto">
                         {parcelasTabela.map((p, i) => (
-                          <div key={p.numero_parcela} className="flex items-center gap-2 px-3 py-2">
-                            <span className="text-xs font-bold text-slate-400 w-14 shrink-0">{p.numero_parcela}/{parcelasTabela.length}</span>
-                            <input type="number" step="0.01" min="0" value={p.valor}
-                              onChange={e => editarLinhaParcela(i, 'valor', e.target.value)}
-                              className="flex-1 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
-                            <input type="date" value={p.data_vencimento}
-                              onChange={e => editarLinhaParcela(i, 'data_vencimento', e.target.value)}
-                              className="flex-1 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                          <div key={p.numero_parcela} className="px-3 py-2 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-400 w-14 shrink-0">{p.numero_parcela}/{parcelasTabela.length}</span>
+                              <input type="number" step="0.01" min="0" value={p.valor}
+                                onChange={e => editarLinhaParcela(i, 'valor', e.target.value)}
+                                className="flex-1 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                              <input type="date" value={p.data_vencimento}
+                                onChange={e => editarLinhaParcela(i, 'data_vencimento', e.target.value)}
+                                className="flex-1 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                              <label className="flex items-center gap-1 shrink-0 cursor-pointer">
+                                <input type="checkbox" checked={p.paga} onChange={() => toggleParcelaPaga(i)}
+                                  className="w-3.5 h-3.5 accent-emerald-600" />
+                                <span className="text-[11px] font-bold text-slate-500">paga</span>
+                              </label>
+                            </div>
+                            {p.paga && (
+                              <div className="flex items-center gap-2 pl-16">
+                                <select value={p.banco_id} onChange={e => editarLinhaParcela(i, 'banco_id', e.target.value)}
+                                  className="flex-1 px-2 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs">
+                                  <option value="">— Banco —</option>
+                                  {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                                </select>
+                                <input type="date" value={p.data_pagamento}
+                                  onChange={e => editarLinhaParcela(i, 'data_pagamento', e.target.value)}
+                                  className="flex-1 px-2 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs" />
+                                <select value={p.forma_pagamento} onChange={e => editarLinhaParcela(i, 'forma_pagamento', e.target.value)}
+                                  className="flex-1 px-2 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs">
+                                  {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                                </select>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1333,10 +1464,26 @@ export function DespesaGenericaPage({ modo }: { modo: Modo }) {
                           <input type="number" step="0.01" min="0" value={edicaoParcela!.valor}
                             onChange={e => setEdicaoParcela(p => p ? { ...p, valor: e.target.value } : p)}
                             className="w-24 px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
-                          {!edicaoParcela!.pago && (
-                            <input type="date" value={edicaoParcela!.data_vencimento}
-                              onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
-                              className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                          <input type="date" value={edicaoParcela!.data_vencimento}
+                            onChange={e => setEdicaoParcela(p => p ? { ...p, data_vencimento: e.target.value } : p)}
+                            className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs" />
+                          {edicaoParcela!.pago && (
+                            <>
+                              <select value={edicaoParcela!.banco_id}
+                                onChange={e => setEdicaoParcela(p => p ? { ...p, banco_id: e.target.value } : p)}
+                                className="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs">
+                                <option value="">— Banco —</option>
+                                {bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                              </select>
+                              <input type="date" value={edicaoParcela!.data_pagamento}
+                                onChange={e => setEdicaoParcela(p => p ? { ...p, data_pagamento: e.target.value } : p)}
+                                className="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs" />
+                              <select value={edicaoParcela!.forma_pagamento}
+                                onChange={e => setEdicaoParcela(p => p ? { ...p, forma_pagamento: e.target.value } : p)}
+                                className="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs">
+                                {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{FORMA_LABEL[f] || f}</option>)}
+                              </select>
+                            </>
                           )}
                           <button onClick={() => setEdicaoParcela(null)}
                             className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold">

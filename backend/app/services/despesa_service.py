@@ -1,4 +1,5 @@
 from datetime import datetime, date
+from decimal import Decimal
 from typing import List, Optional
 
 from dateutil.relativedelta import relativedelta
@@ -7,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.models.despesa_model import Despesa, DespesaParcela, StatusParcelaDespesa, TipoPagamentoDespesa
 from app.models.fin_movimentacao_model import MovimentacaoFinanceira
 from app.repositories.despesa_repository import DespesaRepository
-from app.schemas.despesa_schema import DespesaCreate, DespesaResponse, MarcarPagoRequest, EditarParcelaRequest, DespesaUpdate
+from app.schemas.despesa_schema import (
+    DespesaCreate, DespesaResponse, MarcarPagoRequest, EditarParcelaRequest, DespesaUpdate,
+)
 from app.models.servico_model import ManutencaoAssistencia
 from app.models.orcamento_model import Orcamento
 from app.models.ordem_servico_model import OrdemServico
@@ -73,6 +76,17 @@ class DespesaService:
 
         DespesaService._sync_vinculos(db, despesa, req.servico_ids, req.orcamento_ids, req.os_fornecedor_ids)
 
+        if req.pagamentos:
+            parcelas_por_numero = {p.numero_parcela: p for p in despesa.parcelas}
+            for numero_parcela, dados in req.pagamentos.items():
+                parcela = parcelas_por_numero.get(numero_parcela)
+                if not parcela:
+                    continue
+                DespesaService._marcar_pago_interno(
+                    db, parcela, dados.data_pagamento, dados.banco_id, dados.forma_pagamento,
+                )
+            db.refresh(despesa)
+
         return DespesaResponse.model_validate(despesa)
 
     @staticmethod
@@ -111,23 +125,25 @@ class DespesaService:
         return DespesaResponse.model_validate(despesa)
 
     @staticmethod
-    def marcar_pago(db: Session, parcela_id: int, req: MarcarPagoRequest) -> DespesaResponse:
-        parcela = DespesaRepository.get_parcela_by_id(db, parcela_id)
-        if not parcela:
-            raise Exception("Parcela não encontrada.")
+    def _marcar_pago_interno(db: Session, parcela: DespesaParcela, data_pagamento: date, banco_id: int,
+                              forma_pagamento: Optional[str] = "PIX",
+                              valor: Optional[Decimal] = None, composicao=None) -> None:
+        """Marca uma parcela como paga: cria a MovimentacaoFinanceira SAIDA
+        vinculada e atualiza a parcela. Compartilhado por `marcar_pago`
+        (parcela já existente) e `criar` (parcela nascendo já paga)."""
         despesa = parcela.despesa
 
         # fechamento do mês: o valor real pode ser diferente da sugestão
         # (adiantamento, plantão, hora extra, VR por dias trabalhados)
-        if req.valor is not None and float(req.valor) != float(parcela.valor):
-            DespesaRepository.update(db, parcela, {"valor": req.valor})
+        if valor is not None and float(valor) != float(parcela.valor):
+            DespesaRepository.update(db, parcela, {"valor": valor})
 
         # folha: composição real (proventos/descontos) desse mês, editada na tela
-        if req.composicao is not None:
+        if composicao is not None:
             DespesaRepository.update(db, parcela, {
                 "composicao_json": [
                     {"label": c.label, "tipo": c.tipo, "valor": float(c.valor)}
-                    for c in req.composicao
+                    for c in composicao
                 ],
             })
 
@@ -136,7 +152,7 @@ class DespesaService:
             descricao_mov += f" ({parcela.numero_parcela}/{parcela.total_parcelas})"
 
         movimentacao = MovimentacaoFinanceira(
-            data=req.data_pagamento,
+            data=data_pagamento,
             descricao=descricao_mov,
             valor=parcela.valor,
             tipo="SAIDA",
@@ -144,8 +160,8 @@ class DespesaService:
             fornecedor_id=despesa.fornecedor_id,
             origem="MANUAL",
             status="VALIDADO",
-            banco_id=req.banco_id,
-            forma_pagamento=req.forma_pagamento,
+            banco_id=banco_id,
+            forma_pagamento=forma_pagamento,
         )
         db.add(movimentacao)
         db.commit()
@@ -159,11 +175,23 @@ class DespesaService:
 
         DespesaRepository.update(db, parcela, {
             "status": StatusParcelaDespesa.PAGO,
-            "data_pagamento": req.data_pagamento,
-            "banco_id": req.banco_id,
-            "forma_pagamento": req.forma_pagamento,
+            "data_pagamento": data_pagamento,
+            "banco_id": banco_id,
+            "forma_pagamento": forma_pagamento,
             "movimentacao_id": movimentacao.id,
         })
+
+    @staticmethod
+    def marcar_pago(db: Session, parcela_id: int, req: MarcarPagoRequest) -> DespesaResponse:
+        parcela = DespesaRepository.get_parcela_by_id(db, parcela_id)
+        if not parcela:
+            raise Exception("Parcela não encontrada.")
+        despesa = parcela.despesa
+
+        DespesaService._marcar_pago_interno(
+            db, parcela, req.data_pagamento, req.banco_id, req.forma_pagamento,
+            valor=req.valor, composicao=req.composicao,
+        )
 
         db.refresh(despesa)
         return DespesaResponse.model_validate(despesa)
@@ -230,36 +258,65 @@ class DespesaService:
 
     @staticmethod
     def editar_parcela(db: Session, parcela_id: int, req: EditarParcelaRequest) -> DespesaResponse:
-        """Edita valor e/ou vencimento de uma parcela. Vencimento só pode mudar
-        se ainda estiver PENDENTE. Valor pode ser corrigido mesmo já PAGO (ex:
-        typo na hora de cadastrar vs o que realmente saiu do banco) — nesse caso
-        também corrige a movimentação vinculada e o valor_total da despesa
+        """Edita uma parcela — inclusive uma já PAGA, com tudo que o cliente
+        quiser corrigir (valor, vencimento, banco, forma e data do pagamento),
+        sem precisar estornar e marcar como pago de novo. `valor` corrigido
+        também atualiza a movimentação vinculada e o valor_total da despesa
         (UNICO = valor novo, PARCELADO = soma das parcelas), pra não deixar o
-        extrato e o sistema divergindo por um valor errado."""
+        extrato e o sistema divergindo. `banco_id`/`forma_pagamento`/
+        `data_pagamento` só fazem sentido numa parcela já PAGA — são ignorados
+        numa PENDENTE. Se o pagamento já estiver conciliado com o extrato do
+        banco (origem="BANCO"), bloqueia essas 3 correções — o certo é desfazer
+        pela tela de conciliação antes."""
         parcela = DespesaRepository.get_parcela_by_id(db, parcela_id)
         if not parcela:
             raise Exception("Parcela não encontrada.")
-        if req.data_vencimento is not None and parcela.status != StatusParcelaDespesa.PENDENTE:
-            raise Exception("Vencimento só pode ser editado enquanto a parcela está pendente.")
+
+        ja_paga = parcela.status == StatusParcelaDespesa.PAGO
+        mov = None
+        if parcela.movimentacao_id:
+            mov = db.query(MovimentacaoFinanceira).filter(
+                MovimentacaoFinanceira.id == parcela.movimentacao_id
+            ).first()
+
+        campos_pagamento = (req.banco_id is not None or req.forma_pagamento is not None
+                            or req.data_pagamento is not None)
+        if campos_pagamento and ja_paga and mov is not None and mov.origem == "BANCO":
+            raise Exception(
+                "O pagamento está conciliado com o extrato do banco. "
+                "Desfaça pela tela de conciliação antes de editar banco/forma/data."
+            )
 
         dados = {}
         if req.valor is not None:
             dados["valor"] = req.valor
         if req.data_vencimento is not None:
             dados["data_vencimento"] = req.data_vencimento
+        if ja_paga:
+            if req.banco_id is not None:
+                dados["banco_id"] = req.banco_id
+            if req.forma_pagamento is not None:
+                dados["forma_pagamento"] = req.forma_pagamento
+            if req.data_pagamento is not None:
+                dados["data_pagamento"] = req.data_pagamento
         if dados:
             DespesaRepository.update(db, parcela, dados)
 
         despesa = parcela.despesa
-        if req.valor is not None and parcela.status == StatusParcelaDespesa.PAGO:
-            if parcela.movimentacao_id:
-                mov = (
-                    db.query(MovimentacaoFinanceira)
-                    .filter(MovimentacaoFinanceira.id == parcela.movimentacao_id)
-                    .first()
-                )
-                if mov:
-                    DespesaRepository.update(db, mov, {"valor": req.valor})
+        if ja_paga and mov is not None:
+            dados_mov = {}
+            if req.valor is not None:
+                dados_mov["valor"] = req.valor
+            if req.banco_id is not None:
+                dados_mov["banco_id"] = req.banco_id
+            if req.forma_pagamento is not None:
+                dados_mov["forma_pagamento"] = req.forma_pagamento
+            if req.data_pagamento is not None:
+                dados_mov["data"] = req.data_pagamento
+            if dados_mov:
+                DespesaRepository.update(db, mov, dados_mov)
+
+        if req.valor is not None and ja_paga:
             if despesa.tipo_pagamento == TipoPagamentoDespesa.UNICO:
                 DespesaRepository.update(db, despesa, {"valor_total": req.valor})
             elif despesa.tipo_pagamento == TipoPagamentoDespesa.PARCELADO:

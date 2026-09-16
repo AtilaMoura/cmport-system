@@ -1,5 +1,5 @@
 from pydantic import BaseModel, model_validator
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -8,6 +8,14 @@ class ParcelaManualCreate(BaseModel):
     numero_parcela: int
     valor: Decimal
     data_vencimento: date
+
+
+class PagamentoInline(BaseModel):
+    """Dados de pagamento de uma parcela já paga na hora de cadastrar a
+    despesa — mesmos campos de `MarcarPagoRequest`."""
+    data_pagamento: date
+    banco_id: int
+    forma_pagamento: Optional[str] = "PIX"
 
 
 class DespesaCreate(BaseModel):
@@ -35,6 +43,10 @@ class DespesaCreate(BaseModel):
     valor_recorrente: Optional[Decimal] = None
     dia_vencimento: Optional[int] = None
     data_inicio: Optional[date] = None
+
+    # parcelas já pagas na hora do cadastro — chave = numero_parcela (UNICO é
+    # sempre 1); não se aplica a RECORRENTE
+    pagamentos: Optional[Dict[int, PagamentoInline]] = None
 
     @model_validator(mode="after")
     def validar_por_tipo(self):
@@ -112,6 +124,11 @@ class MarcarPagoRequest(BaseModel):
 class EditarParcelaRequest(BaseModel):
     valor: Optional[Decimal] = None
     data_vencimento: Optional[date] = None
+    # só têm efeito se a parcela já estiver PAGA — corrige banco/forma/data do
+    # pagamento sem precisar estornar e pagar de novo
+    banco_id: Optional[int] = None
+    forma_pagamento: Optional[str] = None
+    data_pagamento: Optional[date] = None
 
 
 class DespesaUpdate(BaseModel):

@@ -15,6 +15,7 @@ from app.repositories.fin_extrato_saldo_repository import FinExtratoSaldoReposit
 from app.schemas.fin_saldo_inicial_schema import (
     SaldoInicialUpsert, SaldoInicialResponse,
     SaldoInicialBancoLinha, SaldoInicialPorBancoResponse,
+    ImportarSaldoInicialItem, ImportarSaldoInicialResponse,
 )
 from app.schemas.fin_extrato_saldo_schema import (
     ExtratoSaldoUpsert, ExtratoSaldoResponse,
@@ -55,6 +56,7 @@ class FinConciliacaoService:
                 empresa=_empresa(b),
                 valor=valor,
                 informado=s is not None,
+                fonte=(s.fonte if s else None),
                 observacao=(s.observacao if s else None),
             ))
         return SaldoInicialPorBancoResponse(ano=ano, mes=mes, linhas=linhas, total=total)
@@ -65,7 +67,8 @@ class FinConciliacaoService:
         banco = db.query(Banco).filter(Banco.id == banco_id).first()
         if not banco:
             raise Exception("Banco não encontrado.")
-        obj = FinSaldoInicialRepository.upsert(db, ano, mes, req.valor, req.observacao, banco_id=banco_id)
+        obj = FinSaldoInicialRepository.upsert(db, ano, mes, req.valor, req.observacao,
+                                               banco_id=banco_id, fonte="MANUAL")
         return SaldoInicialResponse.model_validate(obj)
 
     # ── Saldo do extrato ───────────────────────────────────────────────────
@@ -100,12 +103,21 @@ class FinConciliacaoService:
 
     @staticmethod
     def importar_inter(db: Session, ano: int, mes: int) -> ImportarInterResponse:
-        """Puxa o saldo do último dia do mês das contas Inter via API e grava
-        como fonte=INTER. Contas sem credencial ou com erro entram em `detalhes`
-        e não abortam as outras."""
+        """Puxa o saldo das contas Inter via API e grava como fonte=INTER. Se
+        ano/mes é o mês corrente, usa o saldo em tempo real (`consultar_saldo()`
+        sem data) — pedir saldo de uma data futura (ex.: dia 30 rodando dia 16)
+        devolve o saldo de hoje mesmo, então antes gravávamos isso com uma
+        observação enganosa de "saldo do fim do mês". Só usa o último dia do mês
+        quando o mês já fechou (histórico). Contas sem credencial ou com erro
+        entram em `detalhes` e não abortam as outras."""
         from app.services.inter_client import InterClient
 
+        hoje = date.today()
+        mes_corrente = (ano == hoje.year and mes == hoje.month)
         ultimo_dia = date(ano, mes, monthrange(ano, mes)[1]).isoformat()
+        data_consulta = None if mes_corrente else ultimo_dia
+        observacao = (f"Importado da API Inter (saldo em tempo real) em {hoje.isoformat()}" if mes_corrente
+                      else f"Importado da API Inter em {ultimo_dia}")
         bancos = (
             db.query(Banco)
             .filter(Banco.ativo == True, Banco.configuracao_inter_id.isnot(None))  # noqa: E712
@@ -127,7 +139,7 @@ class FinConciliacaoService:
                     conta_corrente=cfg.conta_corrente,
                     cert_path=cfg.cert_path,
                 )
-                data = client.consultar_saldo(ultimo_dia)
+                data = client.consultar_saldo(data_consulta)
                 bruto = data.get("disponivel")
                 if bruto is None:
                     bruto = data.get("saldoDisponivel") or data.get("saldo")
@@ -136,7 +148,7 @@ class FinConciliacaoService:
                 saldo = Decimal(str(bruto))
                 FinExtratoSaldoRepository.upsert(
                     db, b.id, ano, mes, saldo, fonte="INTER",
-                    observacao=f"Importado da API Inter em {ultimo_dia}",
+                    observacao=observacao,
                 )
                 importados += 1
                 detalhes.append(ImportarInterItem(
@@ -151,3 +163,64 @@ class FinConciliacaoService:
         if len(detalhes) > importados:
             msg += f" {len(detalhes) - importados} não importada(s) — ver detalhes."
         return ImportarInterResponse(importados=importados, mensagem=msg, detalhes=detalhes)
+
+    # ── Saldo inicial automático (Inter) ────────────────────────────────────
+    @staticmethod
+    def importar_saldo_inicial_inter(db: Session, ano: int, mes: int) -> ImportarSaldoInicialResponse:
+        """Preenche o saldo inicial de ano/mes pras contas Inter puxando o saldo
+        real do ÚLTIMO DIA DO MÊS ANTERIOR na API (data passada — diferente do
+        saldo "hoje", uma data no passado sempre devolve o valor correto) e
+        grava como fonte=INTER. É o mesmo saldo que devia ter fechado o mês
+        anterior no `importar_inter`, só que gravado como abertura do mês
+        seguinte. Contas sem credencial ou com erro entram em `detalhes`."""
+        from app.services.inter_client import InterClient
+
+        mes_ant, ano_ant = (12, ano - 1) if mes == 1 else (mes - 1, ano)
+        ultimo_dia_mes_anterior = date(ano_ant, mes_ant, monthrange(ano_ant, mes_ant)[1]).isoformat()
+
+        bancos = (
+            db.query(Banco)
+            .filter(Banco.ativo == True, Banco.configuracao_inter_id.isnot(None))  # noqa: E712
+            .order_by(Banco.id)
+            .all()
+        )
+        detalhes: list[ImportarSaldoInicialItem] = []
+        importados = 0
+
+        for b in bancos:
+            cfg = db.query(ConfiguracaoInter).filter(ConfiguracaoInter.id == b.configuracao_inter_id).first()
+            if not cfg or not cfg.client_id or not cfg.client_secret:
+                detalhes.append(ImportarSaldoInicialItem(banco_id=b.id, banco_nome=b.nome, status="sem credencial"))
+                continue
+            try:
+                client = InterClient(
+                    client_id=cfg.client_id,
+                    client_secret=cfg.client_secret,
+                    conta_corrente=cfg.conta_corrente,
+                    cert_path=cfg.cert_path,
+                )
+                data = client.consultar_saldo(ultimo_dia_mes_anterior)
+                bruto = data.get("disponivel")
+                if bruto is None:
+                    bruto = data.get("saldoDisponivel") or data.get("saldo")
+                if bruto is None:
+                    raise Exception(f"resposta sem campo de saldo: {list(data.keys())}")
+                valor = Decimal(str(bruto))
+                FinSaldoInicialRepository.upsert(
+                    db, ano, mes, valor,
+                    observacao=f"Importado da API Inter — saldo de {ultimo_dia_mes_anterior}",
+                    banco_id=b.id, fonte="INTER",
+                )
+                importados += 1
+                detalhes.append(ImportarSaldoInicialItem(
+                    banco_id=b.id, banco_nome=b.nome, status="ok", valor=valor,
+                ))
+            except Exception as e:  # noqa: BLE001
+                detalhes.append(ImportarSaldoInicialItem(
+                    banco_id=b.id, banco_nome=b.nome, status=f"erro: {e}"[:200],
+                ))
+
+        msg = f"{importados} conta(s) importada(s) da API Inter."
+        if len(detalhes) > importados:
+            msg += f" {len(detalhes) - importados} não importada(s) — ver detalhes."
+        return ImportarSaldoInicialResponse(importados=importados, mensagem=msg, detalhes=detalhes)

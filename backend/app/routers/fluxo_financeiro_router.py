@@ -20,6 +20,7 @@ from app.schemas.fin_dashboard_schema import (
 )
 from app.schemas.fin_saldo_inicial_schema import (
     SaldoInicialUpsert, SaldoInicialResponse, SaldoInicialPorBancoResponse,
+    ImportarSaldoInicialResponse,
 )
 from app.schemas.fin_extrato_saldo_schema import (
     ExtratoSaldoUpsert, ExtratoSaldoResponse, ExtratoSaldoPorBancoResponse, ImportarInterResponse,
@@ -185,6 +186,14 @@ def upsert_saldo_inicial_banco(
 ):
     try:
         return FinConciliacaoService.upsert_saldo_inicial_banco(db, ano, mes, banco_id, req)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, str(e))
+
+
+@router.post("/saldo-inicial-banco/{ano}/{mes}/importar-inter", response_model=ImportarSaldoInicialResponse)
+def importar_saldo_inicial_inter(ano: int, mes: int, db: Session = Depends(get_db)):
+    try:
+        return FinConciliacaoService.importar_saldo_inicial_inter(db, ano, mes)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, str(e))
 

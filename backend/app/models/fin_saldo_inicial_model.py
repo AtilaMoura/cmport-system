@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, SmallInteger, Numeric, Text, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, SmallInteger, Numeric, String, Text, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -15,6 +15,7 @@ class SaldoInicial(Base):
     # usado pelo dashboard "por banco".
     banco_id      = Column(Integer, ForeignKey("bancos.id", ondelete="CASCADE"), nullable=True, index=True)
     valor         = Column(Numeric(12, 2), nullable=False, default=0)
+    fonte         = Column(String(10), nullable=False, default="MANUAL")  # MANUAL | INTER
     observacao    = Column(Text, nullable=True)
     criado_em     = Column(DateTime, server_default=func.now())
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now())

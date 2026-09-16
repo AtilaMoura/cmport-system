@@ -255,6 +255,9 @@ def _run_migrations():
         # Folha — comissão (provento padrão que soma no líquido, igual plantão/hora extra)
         "ALTER TABLE funcionario_variaveis ADD COLUMN tem_comissao TINYINT(1) NOT NULL DEFAULT 0",
         "ALTER TABLE funcionario_variaveis ADD COLUMN comissao_valor DECIMAL(10,2) NOT NULL DEFAULT 0",
+        # Saldo inicial por banco — fonte (MANUAL | INTER), igual fin_extrato_saldo,
+        # pra dar pra importar sozinho da API Inter (ver fin_conciliacao_service)
+        "ALTER TABLE fin_saldo_inicial ADD COLUMN fonte VARCHAR(10) NOT NULL DEFAULT 'MANUAL'",
     ]
     try:
         for stmt in stmts:
@@ -622,6 +625,43 @@ def _gerar_despesas_recorrentes_auto():
         db.close()
 
 
+def _importar_saldo_inicial_mes_auto():
+    """No dia 1 de cada mes, puxa da API Inter o saldo real do ultimo dia do
+    mes anterior e grava como saldo inicial do mes que esta comecando (contas
+    Itau/Bradesco/BTG sem API continuam manuais). Evita o erro de digitacao
+    que gerou a diferenca de 1 centavo achada em 16/09/2026."""
+    from datetime import date as _date
+    from app.core.database import SessionLocal
+    from app.services.fin_conciliacao_service import FinConciliacaoService
+    hoje = _date.today()
+    db = SessionLocal()
+    try:
+        resultado = FinConciliacaoService.importar_saldo_inicial_inter(db, hoje.year, hoje.month)
+        print(f"[AutoSync-SaldoInicial] {resultado.mensagem}")
+    except Exception as e:
+        print(f"[AutoSync-SaldoInicial] Erro: {e}")
+    finally:
+        db.close()
+
+
+def _atualizar_saldo_extrato_auto():
+    """Atualiza o saldo atual (extrato) das contas Inter direto da API, no
+    mesmo horario comercial do sync de boletos. Contas sem API continuam
+    dependendo de digitacao manual na tela de conciliacao."""
+    from datetime import date as _date
+    from app.core.database import SessionLocal
+    from app.services.fin_conciliacao_service import FinConciliacaoService
+    hoje = _date.today()
+    db = SessionLocal()
+    try:
+        resultado = FinConciliacaoService.importar_inter(db, hoje.year, hoje.month)
+        print(f"[AutoSync-SaldoExtrato] {resultado.mensagem}")
+    except Exception as e:
+        print(f"[AutoSync-SaldoExtrato] Erro: {e}")
+    finally:
+        db.close()
+
+
 def reconfigurar_sync_auto(db=None):
     """Lê configs do banco e recria jobs de OS e Orçamentos no scheduler."""
     global _scheduler
@@ -695,6 +735,24 @@ async def lifespan(app):
         minute=10,
     )
     _gerar_despesas_recorrentes_auto()
+
+    # Saldo inicial do mes (contas Inter): logo apos as despesas recorrentes,
+    # todo dia 1
+    _scheduler.add_job(
+        _importar_saldo_inicial_mes_auto,
+        trigger="cron",
+        day=1,
+        hour=5,
+        minute=15,
+    )
+    # Saldo atual (extrato) das contas Inter: mesma janela do sync de boletos
+    _scheduler.add_job(
+        _atualizar_saldo_extrato_auto,
+        trigger="cron",
+        hour="6-16",
+        minute=5,
+    )
+    print("[AutoSync] Saldos Inter — inicial dia 1 às 5h15, atual a cada hora das 6h às 16h")
 
     # ── Storage Bucket Initialization ─────────────────────────────────────────
     from app.core.dependencies import get_storage_client
