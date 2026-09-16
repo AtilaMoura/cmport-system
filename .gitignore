@@ -81,6 +81,8 @@ cmport-front/.env.production
 # =========================
 backend/app/auth/*.crt
 backend/app/auth/*.key
+backend/app/auth/**/*.crt
+backend/app/auth/**/*.key
 certificado-digital/
 *.pfx
 *.p12
@@ -104,6 +106,17 @@ fluxo-financeiro/*
 
 # docs-e-planilhas/ — planilhas de trabalho do usuário, só local
 docs-e-planilhas/
+
+# =========================
+# demandas-dev/ — só versiona o script (sync_demandas.py) e o README;
+# o resto (itens/, INDEX.md, RESOLVIDAS.md, anexos/, .state.json) fica
+# só local — a Fabiana/Almira às vezes colam credencial real (client_id/
+# secret, certificado, chave) direto no texto da demanda ou em anexo,
+# então nada gerado a partir do conteúdo do canal pode ir pro git
+# =========================
+demandas-dev/*
+!demandas-dev/sync_demandas.py
+!demandas-dev/README.md
 
 # =========================
 # Raiz do repo — só código do sistema fica versionado (backend/ e cmport-front/);
