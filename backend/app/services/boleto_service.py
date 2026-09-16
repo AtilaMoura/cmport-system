@@ -21,13 +21,15 @@ def _limpar_cnpj(cnpj: str) -> str:
 
 
 def _get_inter_client(nota, db: Session) -> InterClient:
-    """Retorna o InterClient correto pelo CNPJ emitente da nota. Fallback: env vars."""
+    """Retorna o InterClient correto pelo CNPJ emitente da nota. Fallback: env vars.
+    Usa o cache de instância por conta (inter_client.get_client) pra reaproveitar o
+    token OAuth entre requisições e não estourar o rate limit do Inter."""
     from app.repositories.configuracao_repository import ConfiguracaoInterRepository
     if nota and getattr(nota, "cnpj_emitente", None):
         cnpj_limpo = _limpar_cnpj(nota.cnpj_emitente)
         config = ConfiguracaoInterRepository.get_by_cnpj(db, cnpj_limpo)
         if config:
-            return InterClient(
+            return inter_client.get_client(
                 client_id=config.client_id,
                 client_secret=config.client_secret,
                 conta_corrente=config.conta_corrente,
@@ -47,7 +49,7 @@ def _get_inter_client_cached(nota, db: Session, cache: dict) -> InterClient:
             return cache[cnpj_limpo]
         config = ConfiguracaoInterRepository.get_by_cnpj(db, cnpj_limpo)
         if config:
-            client = InterClient(
+            client = inter_client.get_client(
                 client_id=config.client_id,
                 client_secret=config.client_secret,
                 conta_corrente=config.conta_corrente,

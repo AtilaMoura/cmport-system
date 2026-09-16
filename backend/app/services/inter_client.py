@@ -1,4 +1,5 @@
 import base64
+import time
 import requests
 from datetime import datetime, timedelta
 from typing import Optional
@@ -7,6 +8,8 @@ from app.core.config import settings
 
 
 TIMEOUT = 20  # segundos
+TOKEN_MAX_TENTATIVAS = 3
+TOKEN_RETRY_BACKOFF = 3  # segundos, multiplicado pela tentativa (3s, 6s)
 
 # URLs por ambiente
 _BASE_URLS = {
@@ -55,25 +58,32 @@ class InterClient:
             "grant_type": "client_credentials",
             "scope": "boleto-cobranca.read boleto-cobranca.write",
         }
-        try:
-            response = requests.post(
-                f"{self._base_url()}/oauth/v2/token",
-                headers=headers,
-                data=data,
-                cert=self._cert(),
-                timeout=TIMEOUT,
-            )
-            if response.status_code == 200:
-                info = response.json()
-                self._token = info.get("access_token")
-                expires_in = info.get("expires_in", 3600)
-                self._expires_at = datetime.now() + timedelta(seconds=expires_in - 300)
-                return self._token
-            print(f"[Inter/{self.env}/{self.conta_corrente}] Erro ao obter token: {response.status_code} — {response.text}")
-            return None
-        except Exception as e:
-            print(f"[Inter/{self.env}/{self.conta_corrente}] Exceção ao obter token: {e}")
-            return None
+        for tentativa in range(1, TOKEN_MAX_TENTATIVAS + 1):
+            try:
+                response = requests.post(
+                    f"{self._base_url()}/oauth/v2/token",
+                    headers=headers,
+                    data=data,
+                    cert=self._cert(),
+                    timeout=TIMEOUT,
+                )
+                if response.status_code == 200:
+                    info = response.json()
+                    self._token = info.get("access_token")
+                    expires_in = info.get("expires_in", 3600)
+                    self._expires_at = datetime.now() + timedelta(seconds=expires_in - 300)
+                    return self._token
+                # 429 costuma ser rajada passageira — vale tentar de novo com backoff.
+                if response.status_code == 429 and tentativa < TOKEN_MAX_TENTATIVAS:
+                    print(f"[Inter/{self.env}/{self.conta_corrente}] 429 ao obter token (tentativa {tentativa}/{TOKEN_MAX_TENTATIVAS}), aguardando {TOKEN_RETRY_BACKOFF * tentativa}s...")
+                    time.sleep(TOKEN_RETRY_BACKOFF * tentativa)
+                    continue
+                print(f"[Inter/{self.env}/{self.conta_corrente}] Erro ao obter token: {response.status_code} — {response.text}")
+                return None
+            except Exception as e:
+                print(f"[Inter/{self.env}/{self.conta_corrente}] Exceção ao obter token: {e}")
+                return None
+        return None
 
     def _get_token(self) -> str:
         if self._token and self._expires_at and datetime.now() < self._expires_at:
@@ -261,6 +271,32 @@ class InterClient:
             f"Erro ao baixar PDF Inter [{self.env}/{self.conta_corrente}]: "
             f"{response.status_code} — {response.text}"
         )
+
+
+# ── Cache de clientes por conta (reaproveita a instância e o token OAuth dela
+# entre requisições — evita pedir token novo a cada boleto e estourar o rate
+# limit do Inter) ──────────────────────────────────────────────────────────
+
+_clients_cache: dict = {}
+
+
+def get_client(client_id: str, client_secret: str, conta_corrente: str, cert_path: str, env: str = None) -> InterClient:
+    """Retorna o InterClient cacheado pra essa conta, reaproveitando o token OAuth
+    ainda válido entre chamadas. Se as credenciais mudaram (ex.: editadas na tela
+    Configurações), descarta o cache antigo e cria uma instância nova."""
+    chave = conta_corrente or client_id
+    client = _clients_cache.get(chave)
+    if client and client.client_id == client_id and client.client_secret == client_secret and client.cert_path == cert_path:
+        return client
+    client = InterClient(
+        client_id=client_id,
+        client_secret=client_secret,
+        conta_corrente=conta_corrente,
+        cert_path=cert_path,
+        env=env,
+    )
+    _clients_cache[chave] = client
+    return client
 
 
 # ── Cliente padrão (variáveis de ambiente) ────────────────────────────────────
