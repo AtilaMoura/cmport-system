@@ -4,12 +4,13 @@ from typing import List, Optional
 from datetime import date
 
 from app.core.database import SessionLocal
+from app.core.dependencies import require_dev
 from app.services.fin_movimentacao_service import FinMovimentacaoService
 from app.schemas.fin_movimentacao_schema import (
     MovimentacaoCreate, MovimentacaoUpdate, MovimentacaoResponse,
     DashboardFinanceiroResponse, SincronizarInterResponse,
     ServicoVinculadoResponse, OrcamentoVinculadoResponse,
-    OsFornecedorReferenciaResponse,
+    OsFornecedorReferenciaResponse, ConfirmarParcelaRequest,
 )
 from app.schemas.fin_saldo_inicial_schema import SaldoInicialUpsert, SaldoInicialResponse
 
@@ -99,6 +100,31 @@ def validar(id: int, db: Session = Depends(get_db)):
         raise HTTPException(400, str(e))
 
 
+# ── Conciliação de saídas do extrato (tela nova, só role DEV por enquanto) ───
+
+@router.get("/movimentacoes/pendentes-banco", response_model=List[MovimentacaoResponse])
+def listar_pendentes_banco(
+    ano: Optional[int] = None,
+    mes: Optional[int] = None,
+    cnpj: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _usuario=Depends(require_dev),
+):
+    return FinMovimentacaoService.listar_pendentes_banco(db, ano=ano, mes=mes, cnpj=cnpj)
+
+
+@router.post("/movimentacoes/{id}/confirmar-parcela", response_model=MovimentacaoResponse)
+def confirmar_parcela(
+    id: int, req: ConfirmarParcelaRequest,
+    db: Session = Depends(get_db),
+    _usuario=Depends(require_dev),
+):
+    try:
+        return FinMovimentacaoService.confirmar_parcela(db, id, req.parcela_id)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
 @router.get("/dashboard", response_model=DashboardFinanceiroResponse)
 def dashboard(
     mes: int = Query(..., ge=1, le=12),
@@ -113,6 +139,7 @@ def sincronizar_inter(
     data_inicio: str = Query(..., description="YYYY-MM-DD"),
     data_fim:    str = Query(..., description="YYYY-MM-DD"),
     db: Session = Depends(get_db),
+    _usuario=Depends(require_dev),
 ):
     try:
         return FinMovimentacaoService.sincronizar_inter(db, data_inicio, data_fim)

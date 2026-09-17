@@ -85,6 +85,22 @@ class MovimentacaoUpdate(BaseModel):
         return v
 
 
+class SugestaoParcelaResponse(BaseModel):
+    """Melhor candidata (parcela de despesa PENDENTE) achada automaticamente
+    pra uma saída importada do extrato, na tela de Conciliação."""
+    parcela_id:        int
+    despesa_id:        int
+    despesa_descricao: str
+    origem:            str  # "FORNECEDOR" | "FUNCIONARIO" | "DESPESA"
+    fornecedor_nome:   Optional[str] = None
+    funcionario_nome:  Optional[str] = None
+    categoria_nome:    Optional[str] = None
+    numero_parcela:    int
+    total_parcelas:    int
+    valor:             Decimal
+    data_vencimento:   date
+
+
 class MovimentacaoResponse(BaseModel):
     id:               int
     data:             date
@@ -105,6 +121,8 @@ class MovimentacaoResponse(BaseModel):
     fornecedor_id:    Optional[int] = None
     fornecedor_nome:  Optional[str] = None
     forma_pagamento:  Optional[str] = None
+    parcela_sugerida_id: Optional[int] = None
+    sugestao:         Optional[SugestaoParcelaResponse] = None
     servicos_vinculados: List[ServicoVinculadoResponse] = []
     orcamentos_vinculados: List[OrcamentoVinculadoResponse] = []
     os_fornecedor_vinculadas: List[OsFornecedorReferenciaResponse] = []
@@ -133,3 +151,7 @@ class SincronizarInterResponse(BaseModel):
     duplicadas: int
     erros:      int
     mensagem:   str
+
+
+class ConfirmarParcelaRequest(BaseModel):
+    parcela_id: int

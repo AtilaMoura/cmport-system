@@ -57,6 +57,11 @@ class MovimentacaoFinanceira(Base):
     # Forma de pagamento (PIX default)
     forma_pagamento   = Column(String(20), nullable=True, default='PIX')
 
+    # Sugestão automática de qual parcela de despesa essa saída importada do
+    # extrato corresponde (tela de Conciliação) — sem FK de integridade, é só
+    # sugestão; o vínculo de verdade fica em despesa_parcelas.movimentacao_id
+    parcela_sugerida_id = Column(Integer, nullable=True)
+
     # Servicos/orcamentos cobertos por essa saida — N:N, preenchimento opcional
     # e a qualquer momento (a compra pode acontecer antes de existir OS/servico)
     servicos          = relationship("ManutencaoAssistencia", secondary="fin_movimentacao_servicos")

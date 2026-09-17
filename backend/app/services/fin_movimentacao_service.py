@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List
@@ -6,6 +8,11 @@ import json
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_, func
+
+
+def _normalizar_texto(s: str) -> str:
+    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
 
 from app.models.fin_movimentacao_model import MovimentacaoFinanceira
 from app.models.fin_categoria_model import CategoriaFinanceira, GrupoCategoria
@@ -20,7 +27,7 @@ from app.schemas.fin_movimentacao_schema import (
     MovimentacaoCreate, MovimentacaoUpdate,
     MovimentacaoResponse, DashboardFinanceiroResponse, SincronizarInterResponse,
     ServicoVinculadoResponse, OrcamentoVinculadoResponse,
-    OsFornecedorReferenciaResponse,
+    OsFornecedorReferenciaResponse, SugestaoParcelaResponse,
 )
 from app.schemas.fin_saldo_inicial_schema import SaldoInicialUpsert, SaldoInicialResponse
 
@@ -305,53 +312,83 @@ class FinMovimentacaoService:
 
     @staticmethod
     def sincronizar_inter(db: Session, data_inicio: str, data_fim: str) -> SincronizarInterResponse:
+        """Puxa o extrato (GET banking/v2/extrato) de TODAS as contas Inter com
+        credencial e importa as SAÍDAS como MovimentacaoFinanceira origem=BANCO
+        status=PENDENTE, pra tela de Conciliação. Só saída — a entrada já é
+        100% coberta pelo sync de cobranças (BoletoService.sincronizar_do_inter),
+        importar entrada aqui duplicaria receita no dashboard.
+
+        A resposta do Inter não tem nenhum ID de transação (só dataEntrada,
+        tipoOperacao, valor, titulo, descricao) — a dedupe usa uma chave
+        sintética (hash de banco+data+valor+descrição+ordem de ocorrência),
+        que cobre até o caso de 2 transações idênticas no mesmo dia."""
+        import hashlib
         from app.services.inter_client import InterClient
         from app.models.configuracao_model import ConfiguracaoInter
-        conta = (
+        from app.models.banco_model import Banco
+
+        contas = (
             db.query(ConfiguracaoInter)
-            .filter(
-                ConfiguracaoInter.ativo == True,  # noqa
-                ConfiguracaoInter.tipo_nota == "SERVICO",
-                ConfiguracaoInter.client_id != None,  # noqa
-            )
-            .first()
+            .filter(ConfiguracaoInter.ativo == True, ConfiguracaoInter.client_id.isnot(None))  # noqa: E712
+            .all()
         )
-        if not conta:
+        if not contas:
             raise Exception("Nenhuma conta Inter com credenciais configuradas encontrada.")
 
-        client = InterClient(
-            client_id=conta.client_id,
-            client_secret=conta.client_secret,
-            conta_corrente=conta.conta_corrente,
-            cert_path=conta.cert_path,
-        )
-        transacoes = client.buscar_extrato(data_inicio, data_fim)
         novas = duplicadas = erros = 0
-        for t in transacoes:
-            id_ext = t.get("codigoTransacao") or t.get("idTransacao")
-            if not id_ext:
-                erros += 1
+        for cfg in contas:
+            banco = db.query(Banco).filter(
+                Banco.configuracao_inter_id == cfg.id, Banco.ativo.is_(True)
+            ).first()
+            if not banco:
                 continue
             try:
-                tipo = "ENTRADA" if t.get("tipoOperacao", "").upper() in ("C", "CREDITO", "CREDIT") else "SAIDA"
-                mov = MovimentacaoFinanceira(
-                    data=t.get("dataEntrada") or t.get("dataLancamento"),
-                    descricao=t.get("descricao") or t.get("titulo") or "Extrato Inter",
-                    valor=abs(Decimal(str(t.get("valor", 0)))),
-                    tipo=tipo,
-                    origem="BANCO",
-                    status="PENDENTE",
-                    id_externo_banco=id_ext,
+                client = InterClient(
+                    client_id=cfg.client_id, client_secret=cfg.client_secret,
+                    conta_corrente=cfg.conta_corrente, cert_path=cfg.cert_path,
                 )
-                db.add(mov)
-                db.commit()
-                novas += 1
-            except IntegrityError:
-                db.rollback()
-                duplicadas += 1
+                transacoes = client.consultar_extrato(data_inicio, data_fim)
             except Exception:
-                db.rollback()
                 erros += 1
+                continue
+
+            contagem: dict[str, int] = {}
+            for t in transacoes:
+                if t.get("tipoOperacao") != "D":
+                    continue
+                data_t = t.get("dataEntrada", "")
+                valor_t = str(t.get("valor", "0"))
+                titulo = t.get("titulo", "")
+                descricao = t.get("descricao", "")
+                assinatura = f"{banco.id}|{data_t}|{valor_t}|{titulo}|{descricao}"
+                n = contagem.get(assinatura, 0)
+                contagem[assinatura] = n + 1
+                id_ext = hashlib.sha256(f"{assinatura}|{n}".encode()).hexdigest()[:40]
+
+                try:
+                    mov = MovimentacaoFinanceira(
+                        data=data_t,
+                        descricao=f"{titulo} - {descricao}".strip(" -") or "Extrato Inter",
+                        valor=abs(Decimal(valor_t)),
+                        tipo="SAIDA",
+                        origem="BANCO",
+                        status="PENDENTE",
+                        banco_id=banco.id,
+                        id_externo_banco=id_ext,
+                    )
+                    db.add(mov)
+                    db.commit()
+                    db.refresh(mov)
+                    sugestao_id = FinMovimentacaoService._sugerir_parcela(db, mov)
+                    if sugestao_id:
+                        FinMovimentacaoRepository.update(db, mov, {"parcela_sugerida_id": sugestao_id})
+                    novas += 1
+                except IntegrityError:
+                    db.rollback()
+                    duplicadas += 1
+                except Exception:
+                    db.rollback()
+                    erros += 1
 
         return SincronizarInterResponse(
             novas=novas,
@@ -359,6 +396,137 @@ class FinMovimentacaoService:
             erros=erros,
             mensagem=f"{novas} importada(s), {duplicadas} duplicada(s), {erros} erro(s).",
         )
+
+    @staticmethod
+    def _sugerir_parcela(db: Session, mov: MovimentacaoFinanceira) -> Optional[int]:
+        """Acha a melhor DespesaParcela PENDENTE pra sugerir como origem dessa
+        saída importada do extrato: mesmo CNPJ da conta bancária e valor
+        dentro de ±R$0,02. Quando há mais de uma candidata com o mesmo valor
+        (comum — valores redondos se repetem entre despesas diferentes),
+        desempata primeiro por semelhança de texto entre a descrição do
+        extrato e o nome do fornecedor/categoria/despesa, só depois por
+        proximidade de data — se fosse só por data, "Acordo FGTS" podia ganhar
+        de um fornecedor completamente diferente só por coincidência de valor."""
+        from app.models.despesa_model import Despesa, DespesaParcela
+        from app.models.banco_model import Banco
+
+        banco = db.query(Banco).filter(Banco.id == mov.banco_id).first()
+        if not banco or not banco.cnpj_titular:
+            return None
+        cnpj = "".join(c for c in banco.cnpj_titular if c.isdigit())
+        tol = Decimal("0.02")
+
+        candidatas = (
+            db.query(DespesaParcela)
+            .join(Despesa, Despesa.id == DespesaParcela.despesa_id)
+            .filter(
+                DespesaParcela.status == "PENDENTE",
+                DespesaParcela.valor >= float(mov.valor - tol),
+                DespesaParcela.valor <= float(mov.valor + tol),
+                func.replace(func.replace(func.replace(Despesa.cnpj, ".", ""), "/", ""), "-", "") == cnpj,
+            )
+            .all()
+        )
+        if not candidatas:
+            return None
+        if len(candidatas) == 1:
+            return candidatas[0].id
+
+        desc_extrato = _normalizar_texto(mov.descricao)
+
+        def pontuacao(p: DespesaParcela) -> tuple:
+            d = p.despesa
+            nomes = [d.fornecedor.nome if d.fornecedor_id else None,
+                     d.funcionario.nome if d.funcionario_id else None, d.descricao]
+            similar = any(
+                nome and _normalizar_texto(nome)[:6] in desc_extrato
+                for nome in nomes if nome
+            )
+            return (0 if similar else 1, abs((p.data_vencimento - mov.data).days))
+
+        candidatas.sort(key=pontuacao)
+        return candidatas[0].id
+
+    @staticmethod
+    def confirmar_parcela(db: Session, mov_id: int, parcela_id: int) -> MovimentacaoResponse:
+        """Confirma que uma saída importada do extrato (sugerida ou escolhida
+        manualmente) é o pagamento de uma parcela de despesa — marca a parcela
+        como PAGO vinculada a essa movimentação (sem criar uma nova) e valida
+        a movimentação."""
+        from app.services.despesa_service import DespesaService
+        from app.repositories.despesa_repository import DespesaRepository
+
+        mov = FinMovimentacaoRepository.get_by_id(db, mov_id)
+        if not mov:
+            raise Exception("Movimentação não encontrada.")
+        parcela = DespesaRepository.get_parcela_by_id(db, parcela_id)
+        if not parcela:
+            raise Exception("Parcela não encontrada.")
+        if parcela.status != "PENDENTE":
+            raise Exception("Essa parcela já está paga.")
+
+        DespesaService._marcar_pago_interno(
+            db, parcela, mov.data, mov.banco_id, mov.forma_pagamento or "PIX",
+            movimentacao=mov,
+        )
+        db.refresh(mov)
+        return FinMovimentacaoService._montar_response(mov)
+
+    @staticmethod
+    def listar_pendentes_banco(db: Session, ano: Optional[int] = None, mes: Optional[int] = None,
+                                cnpj: Optional[str] = None) -> List[MovimentacaoResponse]:
+        """Lista as saídas importadas do extrato (origem=BANCO) ainda não
+        confirmadas, pra tela de Conciliação — cada uma já com a sugestão de
+        parcela embutida."""
+        from app.models.despesa_model import DespesaParcela
+        from app.models.banco_model import Banco
+
+        q = db.query(MovimentacaoFinanceira).filter(
+            MovimentacaoFinanceira.origem == "BANCO",
+            MovimentacaoFinanceira.status == "PENDENTE",
+            MovimentacaoFinanceira.tipo == "SAIDA",
+            MovimentacaoFinanceira.deletado_em.is_(None),
+        )
+        if ano:
+            q = q.filter(func.year(MovimentacaoFinanceira.data) == ano)
+        if mes:
+            q = q.filter(func.month(MovimentacaoFinanceira.data) == mes)
+        if cnpj:
+            cnpj_limpo = "".join(c for c in cnpj if c.isdigit())
+            q = q.join(Banco, Banco.id == MovimentacaoFinanceira.banco_id).filter(
+                func.replace(func.replace(func.replace(Banco.cnpj_titular, ".", ""), "/", ""), "-", "") == cnpj_limpo
+            )
+        movs = q.order_by(MovimentacaoFinanceira.data.desc()).all()
+
+        parcela_ids = [m.parcela_sugerida_id for m in movs if m.parcela_sugerida_id]
+        parcelas_map = {}
+        if parcela_ids:
+            parcelas_map = {
+                p.id: p for p in db.query(DespesaParcela).filter(DespesaParcela.id.in_(parcela_ids)).all()
+            }
+
+        resultado = []
+        for m in movs:
+            r = FinMovimentacaoService._montar_response(m)
+            p = parcelas_map.get(m.parcela_sugerida_id) if m.parcela_sugerida_id else None
+            if p:
+                d = p.despesa
+                origem = "FORNECEDOR" if d.fornecedor_id else ("FUNCIONARIO" if d.funcionario_id else "DESPESA")
+                r.sugestao = SugestaoParcelaResponse(
+                    parcela_id=p.id,
+                    despesa_id=d.id,
+                    despesa_descricao=d.descricao,
+                    origem=origem,
+                    fornecedor_nome=d.fornecedor.nome if d.fornecedor_id else None,
+                    funcionario_nome=d.funcionario.nome if d.funcionario_id else None,
+                    categoria_nome=d.categoria.nome if d.categoria_id else None,
+                    numero_parcela=p.numero_parcela,
+                    total_parcelas=p.total_parcelas,
+                    valor=p.valor,
+                    data_vencimento=p.data_vencimento,
+                )
+            resultado.append(r)
+        return resultado
 
     @staticmethod
     def get_saldo_inicial(db: Session, ano: int, mes: int) -> SaldoInicialResponse:

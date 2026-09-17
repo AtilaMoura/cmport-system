@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MESES } from '@/lib/fluxoFinanceiro';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SUBPAGINAS = [
   { label: 'Visão Geral',           href: '/fluxo-financeiro' },
@@ -14,6 +15,7 @@ const SUBPAGINAS = [
   { label: 'Despesas',              href: '/fluxo-financeiro/despesas' },
   { label: 'Fornecedores',          href: '/fluxo-financeiro/fornecedores' },
   { label: 'Funcionários',          href: '/fluxo-financeiro/funcionarios' },
+  { label: 'Conciliação',           href: '/fluxo-financeiro/conciliacao', devOnly: true },
 ];
 
 interface Props {
@@ -29,13 +31,15 @@ interface Props {
 
 export function FiltrosFluxo({ ano, mes, cnpjFiltro, onAnoChange, onMesChange, onCnpjChange, mostrarFiltroCnpj, acoesExtra }: Props) {
   const pathname = usePathname();
+  const { user } = useAuth();
   const qs = `?ano=${ano}&mes=${mes}`;
+  const subpaginas = SUBPAGINAS.filter(sp => !sp.devOnly || user?.role === 'DEV');
 
   return (
     <div className="space-y-3">
       {/* Sub-navegação */}
       <div className="flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800 pb-2">
-        {SUBPAGINAS.map(sp => {
+        {subpaginas.map(sp => {
           const ativo = pathname === sp.href;
           return (
             <Link key={sp.href} href={`${sp.href}${qs}`}

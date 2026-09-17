@@ -82,8 +82,14 @@ class DespesaService:
                 parcela = parcelas_por_numero.get(numero_parcela)
                 if not parcela:
                     continue
+                mov_existente = None
+                if dados.movimentacao_id:
+                    mov_existente = db.query(MovimentacaoFinanceira).filter(
+                        MovimentacaoFinanceira.id == dados.movimentacao_id
+                    ).first()
                 DespesaService._marcar_pago_interno(
                     db, parcela, dados.data_pagamento, dados.banco_id, dados.forma_pagamento,
+                    movimentacao=mov_existente,
                 )
             db.refresh(despesa)
 
@@ -127,10 +133,14 @@ class DespesaService:
     @staticmethod
     def _marcar_pago_interno(db: Session, parcela: DespesaParcela, data_pagamento: date, banco_id: int,
                               forma_pagamento: Optional[str] = "PIX",
-                              valor: Optional[Decimal] = None, composicao=None) -> None:
-        """Marca uma parcela como paga: cria a MovimentacaoFinanceira SAIDA
-        vinculada e atualiza a parcela. Compartilhado por `marcar_pago`
-        (parcela já existente) e `criar` (parcela nascendo já paga)."""
+                              valor: Optional[Decimal] = None, composicao=None,
+                              movimentacao: Optional[MovimentacaoFinanceira] = None) -> None:
+        """Marca uma parcela como paga: vincula a MovimentacaoFinanceira SAIDA
+        e atualiza a parcela. Compartilhado por `marcar_pago` (parcela já
+        existente), `criar` (parcela nascendo já paga) e a tela de Conciliação
+        (parcela pareada com uma saída já importada do extrato). Se
+        `movimentacao` vier preenchida (ela já existe — veio do banco), usa
+        essa em vez de criar uma nova, pra não duplicar o lançamento."""
         despesa = parcela.despesa
 
         # fechamento do mês: o valor real pode ser diferente da sugestão
@@ -151,21 +161,31 @@ class DespesaService:
         if parcela.total_parcelas > 1:
             descricao_mov += f" ({parcela.numero_parcela}/{parcela.total_parcelas})"
 
-        movimentacao = MovimentacaoFinanceira(
-            data=data_pagamento,
-            descricao=descricao_mov,
-            valor=parcela.valor,
-            tipo="SAIDA",
-            categoria_id=despesa.categoria_id,
-            fornecedor_id=despesa.fornecedor_id,
-            origem="MANUAL",
-            status="VALIDADO",
-            banco_id=banco_id,
-            forma_pagamento=forma_pagamento,
-        )
-        db.add(movimentacao)
-        db.commit()
-        db.refresh(movimentacao)
+        if movimentacao is not None:
+            DespesaRepository.update(db, movimentacao, {
+                "categoria_id": despesa.categoria_id,
+                "fornecedor_id": despesa.fornecedor_id,
+                "status": "VALIDADO",
+            })
+            banco_id = movimentacao.banco_id or banco_id
+            forma_pagamento = movimentacao.forma_pagamento or forma_pagamento
+            data_pagamento = movimentacao.data or data_pagamento
+        else:
+            movimentacao = MovimentacaoFinanceira(
+                data=data_pagamento,
+                descricao=descricao_mov,
+                valor=parcela.valor,
+                tipo="SAIDA",
+                categoria_id=despesa.categoria_id,
+                fornecedor_id=despesa.fornecedor_id,
+                origem="MANUAL",
+                status="VALIDADO",
+                banco_id=banco_id,
+                forma_pagamento=forma_pagamento,
+            )
+            db.add(movimentacao)
+            db.commit()
+            db.refresh(movimentacao)
 
         if despesa.fornecedor_id:
             movimentacao.servicos = list(despesa.servicos)

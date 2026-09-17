@@ -163,6 +163,19 @@ export interface OsFornecedorReferencia {
   report: string | null;
   orientation: string | null;
 }
+export interface SugestaoParcela {
+  parcela_id: number;
+  despesa_id: number;
+  despesa_descricao: string;
+  origem: string; // FORNECEDOR | FUNCIONARIO | DESPESA
+  fornecedor_nome: string | null;
+  funcionario_nome: string | null;
+  categoria_nome: string | null;
+  numero_parcela: number;
+  total_parcelas: number;
+  valor: number;
+  data_vencimento: string;
+}
 export interface Movimentacao {
   id: number;
   data: string;
@@ -181,6 +194,8 @@ export interface Movimentacao {
   fornecedor_id: number | null;
   fornecedor_nome: string | null;
   forma_pagamento: string | null;
+  parcela_sugerida_id: number | null;
+  sugestao: SugestaoParcela | null;
   servicos_vinculados: ServicoVinculado[];
   orcamentos_vinculados: OrcamentoVinculado[];
   os_fornecedor_vinculadas: OsFornecedorReferencia[];

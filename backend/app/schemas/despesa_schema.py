@@ -16,6 +16,9 @@ class PagamentoInline(BaseModel):
     data_pagamento: date
     banco_id: int
     forma_pagamento: Optional[str] = "PIX"
+    # Tela de Conciliação: a despesa está nascendo a partir de uma saída já
+    # importada do extrato — usa essa movimentação em vez de criar uma nova
+    movimentacao_id: Optional[int] = None
 
 
 class DespesaCreate(BaseModel):

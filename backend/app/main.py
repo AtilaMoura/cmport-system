@@ -258,6 +258,8 @@ def _run_migrations():
         # Saldo inicial por banco — fonte (MANUAL | INTER), igual fin_extrato_saldo,
         # pra dar pra importar sozinho da API Inter (ver fin_conciliacao_service)
         "ALTER TABLE fin_saldo_inicial ADD COLUMN fonte VARCHAR(10) NOT NULL DEFAULT 'MANUAL'",
+        # Conciliação de saídas do extrato — sugestão automática de parcela de despesa
+        "ALTER TABLE fin_movimentacoes ADD COLUMN parcela_sugerida_id INT NULL",
     ]
     try:
         for stmt in stmts:
