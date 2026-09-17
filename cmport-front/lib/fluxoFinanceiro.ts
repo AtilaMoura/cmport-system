@@ -175,6 +175,7 @@ export interface SugestaoParcela {
   total_parcelas: number;
   valor: number;
   data_vencimento: string;
+  ja_paga: boolean;
 }
 export interface Movimentacao {
   id: number;
@@ -196,6 +197,8 @@ export interface Movimentacao {
   forma_pagamento: string | null;
   parcela_sugerida_id: number | null;
   sugestao: SugestaoParcela | null;
+  validado_por_id: number | null;
+  validado_por_nome: string | null;
   servicos_vinculados: ServicoVinculado[];
   orcamentos_vinculados: OrcamentoVinculado[];
   os_fornecedor_vinculadas: OsFornecedorReferencia[];

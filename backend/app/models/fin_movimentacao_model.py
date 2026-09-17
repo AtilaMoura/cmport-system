@@ -62,6 +62,10 @@ class MovimentacaoFinanceira(Base):
     # sugestão; o vínculo de verdade fica em despesa_parcelas.movimentacao_id
     parcela_sugerida_id = Column(Integer, nullable=True)
 
+    # Quem confirmou/revinculou/ignorou essa saída na tela de Conciliação
+    validado_por_id   = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    validado_por      = relationship("Usuario", foreign_keys=[validado_por_id])
+
     # Servicos/orcamentos cobertos por essa saida — N:N, preenchimento opcional
     # e a qualquer momento (a compra pode acontecer antes de existir OS/servico)
     servicos          = relationship("ManutencaoAssistencia", secondary="fin_movimentacao_servicos")
@@ -75,6 +79,24 @@ class MovimentacaoFinanceira(Base):
         Index("ix_fin_mov_origem",        "origem"),
         Index("ix_fin_mov_data_del",      "data", "deletado_em"),
     )
+
+
+class FinConciliacaoHistorico(Base):
+    """Histórico de ações da tela de Conciliação — quem confirmou, revinculou
+    ou ignorou cada saída importada do extrato. Auditoria por usuário, já que
+    agora cada um tem seu próprio login."""
+    __tablename__ = "fin_conciliacao_historico"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    movimentacao_id = Column(Integer, ForeignKey("fin_movimentacoes.id", ondelete="CASCADE"), nullable=False, index=True)
+    usuario_id      = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    # CONFIRMAR_PENDENTE | REVINCULAR_PAGA | IGNORAR
+    acao            = Column(String(30), nullable=False)
+    parcela_id      = Column(Integer, ForeignKey("despesa_parcelas.id", ondelete="SET NULL"), nullable=True)
+    despesa_id      = Column(Integer, ForeignKey("despesas.id", ondelete="SET NULL"), nullable=True)
+    criado_em       = Column(DateTime, server_default=func.now())
+
+    usuario         = relationship("Usuario")
 
 
 class MovimentacaoServico(Base):

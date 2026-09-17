@@ -14,7 +14,8 @@ def _normalizar_texto(s: str) -> str:
     s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
 
-from app.models.fin_movimentacao_model import MovimentacaoFinanceira
+from app.models.fin_movimentacao_model import MovimentacaoFinanceira, FinConciliacaoHistorico
+from app.models.usuario_model import Usuario
 from app.models.fin_categoria_model import CategoriaFinanceira, GrupoCategoria
 from app.models.servico_model import ManutencaoAssistencia
 from app.models.condominio_model import Condominio
@@ -28,6 +29,7 @@ from app.schemas.fin_movimentacao_schema import (
     MovimentacaoResponse, DashboardFinanceiroResponse, SincronizarInterResponse,
     ServicoVinculadoResponse, OrcamentoVinculadoResponse,
     OsFornecedorReferenciaResponse, SugestaoParcelaResponse,
+    ConfirmarParcelaLoteItem, ConfirmarParcelaLoteResultado,
 )
 from app.schemas.fin_saldo_inicial_schema import SaldoInicialUpsert, SaldoInicialResponse
 
@@ -40,6 +42,7 @@ class FinMovimentacaoService:
         r.banco_nome = obj.banco.nome if obj.banco else None
         r.banco_origem_nome = obj.banco_origem.nome if obj.banco_origem else None
         r.fornecedor_nome = obj.fornecedor.nome if obj.fornecedor else None
+        r.validado_por_nome = obj.validado_por.nome if obj.validado_por else None
         r.servicos_vinculados = [
             ServicoVinculadoResponse(
                 id=s.id,
@@ -236,11 +239,19 @@ class FinMovimentacaoService:
         return FinMovimentacaoService._montar_response(obj)
 
     @staticmethod
-    def validar(db: Session, id: int) -> MovimentacaoResponse:
+    def validar(db: Session, id: int, usuario: Optional[Usuario] = None) -> MovimentacaoResponse:
         obj = FinMovimentacaoRepository.get_by_id(db, id)
         if not obj:
             raise Exception("Movimentação não encontrada.")
-        obj = FinMovimentacaoRepository.update(db, obj, {"status": "VALIDADO"})
+        dados = {"status": "VALIDADO"}
+        if usuario:
+            dados["validado_por_id"] = usuario.id
+        obj = FinMovimentacaoRepository.update(db, obj, dados)
+        if usuario:
+            db.add(FinConciliacaoHistorico(
+                movimentacao_id=obj.id, usuario_id=usuario.id, acao="IGNORAR",
+            ))
+            db.commit()
         return MovimentacaoResponse.model_validate(obj)
 
     @staticmethod
@@ -399,14 +410,22 @@ class FinMovimentacaoService:
 
     @staticmethod
     def _sugerir_parcela(db: Session, mov: MovimentacaoFinanceira) -> Optional[int]:
-        """Acha a melhor DespesaParcela PENDENTE pra sugerir como origem dessa
-        saída importada do extrato: mesmo CNPJ da conta bancária e valor
-        dentro de ±R$0,02. Quando há mais de uma candidata com o mesmo valor
-        (comum — valores redondos se repetem entre despesas diferentes),
-        desempata primeiro por semelhança de texto entre a descrição do
-        extrato e o nome do fornecedor/categoria/despesa, só depois por
-        proximidade de data — se fosse só por data, "Acordo FGTS" podia ganhar
-        de um fornecedor completamente diferente só por coincidência de valor."""
+        """Acha a melhor DespesaParcela pra sugerir como origem dessa saída
+        importada do extrato: mesmo CNPJ da conta bancária e valor dentro de
+        ±R$0,02. Busca em duas camadas:
+        1) parcelas PENDENTE — vira "confirmar pagamento" (marca como paga);
+        2) se não achar, parcelas já PAGO mas cuja movimentação vinculada é
+           MANUAL (lançada à mão, nunca conferida contra o extrato real) —
+           vira "revincular": troca a movimentação de mentirinha pela saída
+           real do banco, sem duplicar a despesa nem o valor no dashboard.
+           Aqui também filtra pelo banco gravado na parcela quando existir,
+           já que nesse caso já se sabe de qual conta saiu o pagamento.
+        Quando há mais de uma candidata com o mesmo valor (comum — valores
+        redondos se repetem entre despesas diferentes), desempata primeiro
+        por semelhança de texto entre a descrição do extrato e o nome do
+        fornecedor/categoria/despesa, só depois por proximidade de data — se
+        fosse só por data, "Acordo FGTS" podia ganhar de um fornecedor
+        completamente diferente só por coincidência de valor."""
         from app.models.despesa_model import Despesa, DespesaParcela
         from app.models.banco_model import Banco
 
@@ -428,6 +447,22 @@ class FinMovimentacaoService:
             .all()
         )
         if not candidatas:
+            candidatas = (
+                db.query(DespesaParcela)
+                .join(Despesa, Despesa.id == DespesaParcela.despesa_id)
+                .join(MovimentacaoFinanceira, MovimentacaoFinanceira.id == DespesaParcela.movimentacao_id)
+                .filter(
+                    DespesaParcela.status == "PAGO",
+                    MovimentacaoFinanceira.origem == "MANUAL",
+                    MovimentacaoFinanceira.deletado_em.is_(None),
+                    DespesaParcela.valor >= float(mov.valor - tol),
+                    DespesaParcela.valor <= float(mov.valor + tol),
+                    func.replace(func.replace(func.replace(Despesa.cnpj, ".", ""), "/", ""), "-", "") == cnpj,
+                    or_(DespesaParcela.banco_id.is_(None), DespesaParcela.banco_id == mov.banco_id),
+                )
+                .all()
+            )
+        if not candidatas:
             return None
         if len(candidatas) == 1:
             return candidatas[0].id
@@ -442,19 +477,28 @@ class FinMovimentacaoService:
                 nome and _normalizar_texto(nome)[:6] in desc_extrato
                 for nome in nomes if nome
             )
-            return (0 if similar else 1, abs((p.data_vencimento - mov.data).days))
+            data_ref = p.data_pagamento or p.data_vencimento
+            return (0 if similar else 1, abs((data_ref - mov.data).days))
 
         candidatas.sort(key=pontuacao)
         return candidatas[0].id
 
     @staticmethod
-    def confirmar_parcela(db: Session, mov_id: int, parcela_id: int) -> MovimentacaoResponse:
+    def confirmar_parcela(db: Session, mov_id: int, parcela_id: int,
+                           usuario: Optional[Usuario] = None) -> MovimentacaoResponse:
         """Confirma que uma saída importada do extrato (sugerida ou escolhida
-        manualmente) é o pagamento de uma parcela de despesa — marca a parcela
-        como PAGO vinculada a essa movimentação (sem criar uma nova) e valida
-        a movimentação."""
+        manualmente) corresponde a uma parcela de despesa. Dois casos:
+        - parcela PENDENTE: marca como PAGO vinculada a essa movimentação
+          (comportamento original — sem criar uma nova);
+        - parcela já PAGO (lançada à mão antes de puxar o extrato): revincula
+          — descarta (soft delete) a movimentação MANUAL que tinha sido
+          gerada ao marcar como paga e assume a movimentação BANCO real no
+          lugar, pra não duplicar valor no dashboard. Só permite revincular
+          se a movimentação atual ainda for MANUAL — se já estiver
+          conciliada com outra saída do extrato (origem=BANCO), bloqueia."""
         from app.services.despesa_service import DespesaService
         from app.repositories.despesa_repository import DespesaRepository
+        from app.routers.auditoria_router import registrar_exclusao
 
         mov = FinMovimentacaoRepository.get_by_id(db, mov_id)
         if not mov:
@@ -462,15 +506,72 @@ class FinMovimentacaoService:
         parcela = DespesaRepository.get_parcela_by_id(db, parcela_id)
         if not parcela:
             raise Exception("Parcela não encontrada.")
-        if parcela.status != "PENDENTE":
-            raise Exception("Essa parcela já está paga.")
 
-        DespesaService._marcar_pago_interno(
-            db, parcela, mov.data, mov.banco_id, mov.forma_pagamento or "PIX",
-            movimentacao=mov,
-        )
+        if parcela.status == "PENDENTE":
+            acao = "CONFIRMAR_PENDENTE"
+            DespesaService._marcar_pago_interno(
+                db, parcela, mov.data, mov.banco_id, mov.forma_pagamento or "PIX",
+                movimentacao=mov,
+            )
+        elif parcela.status == "PAGO":
+            movimentacao_antiga = None
+            if parcela.movimentacao_id and parcela.movimentacao_id != mov.id:
+                movimentacao_antiga = (
+                    db.query(MovimentacaoFinanceira)
+                    .filter(MovimentacaoFinanceira.id == parcela.movimentacao_id)
+                    .first()
+                )
+            if movimentacao_antiga and movimentacao_antiga.origem == "BANCO":
+                raise Exception("Essa parcela já está conciliada com outra saída do extrato.")
+
+            acao = "REVINCULAR_PAGA"
+            if movimentacao_antiga and movimentacao_antiga.deletado_em is None:
+                registrar_exclusao(db, "fin_movimentacao", movimentacao_antiga.id, {
+                    "id": movimentacao_antiga.id, "data": str(movimentacao_antiga.data),
+                    "descricao": movimentacao_antiga.descricao, "valor": str(movimentacao_antiga.valor),
+                    "tipo": movimentacao_antiga.tipo, "origem": movimentacao_antiga.origem,
+                }, motivo="Revinculado à saída real do extrato na Conciliação")
+                movimentacao_antiga.deletado_em = datetime.utcnow()
+                db.commit()
+
+            DespesaService._marcar_pago_interno(
+                db, parcela, mov.data, mov.banco_id,
+                mov.forma_pagamento or parcela.forma_pagamento or "PIX",
+                movimentacao=mov,
+            )
+        else:
+            raise Exception(f"Status de parcela desconhecido: {parcela.status}")
+
+        dados_mov = {"status": "VALIDADO"}
+        if usuario:
+            dados_mov["validado_por_id"] = usuario.id
+        FinMovimentacaoRepository.update(db, mov, dados_mov)
+        if usuario:
+            db.add(FinConciliacaoHistorico(
+                movimentacao_id=mov.id, usuario_id=usuario.id, acao=acao,
+                parcela_id=parcela.id, despesa_id=parcela.despesa_id,
+            ))
+            db.commit()
+
         db.refresh(mov)
         return FinMovimentacaoService._montar_response(mov)
+
+    @staticmethod
+    def confirmar_parcelas_lote(db: Session, itens: List[ConfirmarParcelaLoteItem],
+                                 usuario: Usuario) -> List[ConfirmarParcelaLoteResultado]:
+        """Validação em massa: aplica `confirmar_parcela` item a item, sem
+        deixar um erro isolado derrubar o lote inteiro."""
+        resultados = []
+        for item in itens:
+            try:
+                FinMovimentacaoService.confirmar_parcela(db, item.movimentacao_id, item.parcela_id, usuario)
+                resultados.append(ConfirmarParcelaLoteResultado(movimentacao_id=item.movimentacao_id, ok=True))
+            except Exception as e:  # noqa: BLE001
+                db.rollback()
+                resultados.append(ConfirmarParcelaLoteResultado(
+                    movimentacao_id=item.movimentacao_id, ok=False, erro=str(e),
+                ))
+        return resultados
 
     @staticmethod
     def listar_pendentes_banco(db: Session, ano: Optional[int] = None, mes: Optional[int] = None,
@@ -524,6 +625,7 @@ class FinMovimentacaoService:
                     total_parcelas=p.total_parcelas,
                     valor=p.valor,
                     data_vencimento=p.data_vencimento,
+                    ja_paga=(p.status == "PAGO"),
                 )
             resultado.append(r)
         return resultado

@@ -4,13 +4,15 @@ from typing import List, Optional
 from datetime import date
 
 from app.core.database import SessionLocal
-from app.core.dependencies import require_dev
+from app.core.dependencies import require_dev, get_current_user
+from app.models.usuario_model import Usuario
 from app.services.fin_movimentacao_service import FinMovimentacaoService
 from app.schemas.fin_movimentacao_schema import (
     MovimentacaoCreate, MovimentacaoUpdate, MovimentacaoResponse,
     DashboardFinanceiroResponse, SincronizarInterResponse,
     ServicoVinculadoResponse, OrcamentoVinculadoResponse,
     OsFornecedorReferenciaResponse, ConfirmarParcelaRequest,
+    ConfirmarParcelaLoteRequest, ConfirmarParcelaLoteResponse,
 )
 from app.schemas.fin_saldo_inicial_schema import SaldoInicialUpsert, SaldoInicialResponse
 
@@ -93,9 +95,9 @@ def deletar(id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/movimentacoes/{id}/validar", response_model=MovimentacaoResponse)
-def validar(id: int, db: Session = Depends(get_db)):
+def validar(id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
     try:
-        return FinMovimentacaoService.validar(db, id)
+        return FinMovimentacaoService.validar(db, id, usuario)
     except Exception as e:
         raise HTTPException(400, str(e))
 
@@ -117,12 +119,22 @@ def listar_pendentes_banco(
 def confirmar_parcela(
     id: int, req: ConfirmarParcelaRequest,
     db: Session = Depends(get_db),
-    _usuario=Depends(require_dev),
+    usuario: Usuario = Depends(require_dev),
 ):
     try:
-        return FinMovimentacaoService.confirmar_parcela(db, id, req.parcela_id)
+        return FinMovimentacaoService.confirmar_parcela(db, id, req.parcela_id, usuario)
     except Exception as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/movimentacoes/confirmar-parcelas-lote", response_model=ConfirmarParcelaLoteResponse)
+def confirmar_parcelas_lote(
+    req: ConfirmarParcelaLoteRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_dev),
+):
+    resultados = FinMovimentacaoService.confirmar_parcelas_lote(db, req.itens, usuario)
+    return ConfirmarParcelaLoteResponse(resultados=resultados)
 
 
 @router.get("/dashboard", response_model=DashboardFinanceiroResponse)

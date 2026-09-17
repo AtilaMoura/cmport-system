@@ -99,6 +99,9 @@ class SugestaoParcelaResponse(BaseModel):
     total_parcelas:    int
     valor:             Decimal
     data_vencimento:   date
+    # True quando a parcela já estava PAGA (lançada à mão) e a sugestão é só
+    # revincular com a saída real do extrato — não um "confirmar pagamento" novo
+    ja_paga:           bool = False
 
 
 class MovimentacaoResponse(BaseModel):
@@ -123,6 +126,8 @@ class MovimentacaoResponse(BaseModel):
     forma_pagamento:  Optional[str] = None
     parcela_sugerida_id: Optional[int] = None
     sugestao:         Optional[SugestaoParcelaResponse] = None
+    validado_por_id:  Optional[int] = None
+    validado_por_nome: Optional[str] = None
     servicos_vinculados: List[ServicoVinculadoResponse] = []
     orcamentos_vinculados: List[OrcamentoVinculadoResponse] = []
     os_fornecedor_vinculadas: List[OsFornecedorReferenciaResponse] = []
@@ -155,3 +160,22 @@ class SincronizarInterResponse(BaseModel):
 
 class ConfirmarParcelaRequest(BaseModel):
     parcela_id: int
+
+
+class ConfirmarParcelaLoteItem(BaseModel):
+    movimentacao_id: int
+    parcela_id:      int
+
+
+class ConfirmarParcelaLoteRequest(BaseModel):
+    itens: List[ConfirmarParcelaLoteItem]
+
+
+class ConfirmarParcelaLoteResultado(BaseModel):
+    movimentacao_id: int
+    ok:              bool
+    erro:            Optional[str] = None
+
+
+class ConfirmarParcelaLoteResponse(BaseModel):
+    resultados: List[ConfirmarParcelaLoteResultado]

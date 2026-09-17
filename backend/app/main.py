@@ -260,6 +260,10 @@ def _run_migrations():
         "ALTER TABLE fin_saldo_inicial ADD COLUMN fonte VARCHAR(10) NOT NULL DEFAULT 'MANUAL'",
         # Conciliação de saídas do extrato — sugestão automática de parcela de despesa
         "ALTER TABLE fin_movimentacoes ADD COLUMN parcela_sugerida_id INT NULL",
+        # Conciliação — quem validou cada saída (fin_conciliacao_historico é criada pelo create_all acima)
+        "ALTER TABLE fin_movimentacoes ADD COLUMN validado_por_id INT NULL",
+        "ALTER TABLE fin_movimentacoes ADD CONSTRAINT fk_movimentacao_validado_por FOREIGN KEY (validado_por_id) REFERENCES usuarios(id) ON DELETE SET NULL",
+        "ALTER TABLE fin_movimentacoes ADD INDEX ix_movimentacao_validado_por (validado_por_id)",
     ]
     try:
         for stmt in stmts:
