@@ -235,6 +235,8 @@ export interface DashboardBancoLinha {
   transf_recebidas: number;
   transf_enviadas: number;
   rendimento: number;
+  rendimento_manual: number | null;
+  rendimento_manual_informado: boolean;
   saidas: SaidasBreakdown;
   saidas_total: number;
   saldo_calculado: number | null;
@@ -299,6 +301,7 @@ export function normalizarPorBanco(raw: DashboardPorBancoResponse): DashboardPor
     entradas_total: Number(l.entradas_total), saidas_total: Number(l.saidas_total),
     transf_recebidas: Number(l.transf_recebidas), transf_enviadas: Number(l.transf_enviadas),
     rendimento: Number(l.rendimento),
+    rendimento_manual: l.rendimento_manual === null ? null : Number(l.rendimento_manual),
     saldo_inicial: l.saldo_inicial === null ? null : Number(l.saldo_inicial),
     saldo_calculado: l.saldo_calculado === null ? null : Number(l.saldo_calculado),
     saldo_extrato: l.saldo_extrato === null ? null : Number(l.saldo_extrato),

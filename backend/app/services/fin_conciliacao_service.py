@@ -12,6 +12,7 @@ from app.models.banco_model import Banco
 from app.models.configuracao_model import ConfiguracaoInter
 from app.repositories.fin_saldo_inicial_repository import FinSaldoInicialRepository
 from app.repositories.fin_extrato_saldo_repository import FinExtratoSaldoRepository
+from app.repositories.fin_rendimento_manual_repository import FinRendimentoManualRepository
 from app.schemas.fin_saldo_inicial_schema import (
     SaldoInicialUpsert, SaldoInicialResponse,
     SaldoInicialBancoLinha, SaldoInicialPorBancoResponse,
@@ -22,6 +23,7 @@ from app.schemas.fin_extrato_saldo_schema import (
     ExtratoSaldoBancoLinha, ExtratoSaldoPorBancoResponse,
     ImportarInterItem, ImportarInterResponse,
 )
+from app.schemas.fin_rendimento_manual_schema import RendimentoManualUpsert, RendimentoManualResponse
 
 EMPRESA_POR_CNPJ = {
     "22761557000188": "CMPORT",
@@ -100,6 +102,16 @@ class FinConciliacaoService:
             db, banco_id, ano, mes, req.saldo_final, fonte="MANUAL", observacao=req.observacao,
         )
         return ExtratoSaldoResponse.model_validate(obj)
+
+    # ── Ajuste manual de rendimento por banco ───────────────────────────────
+    @staticmethod
+    def upsert_rendimento_manual(db: Session, ano: int, mes: int, banco_id: int,
+                                 req: RendimentoManualUpsert) -> RendimentoManualResponse:
+        banco = db.query(Banco).filter(Banco.id == banco_id).first()
+        if not banco:
+            raise Exception("Banco não encontrado.")
+        obj = FinRendimentoManualRepository.upsert(db, ano, mes, banco_id, req.valor, req.observacao)
+        return RendimentoManualResponse.model_validate(obj)
 
     @staticmethod
     def importar_inter(db: Session, ano: int, mes: int) -> ImportarInterResponse:

@@ -41,6 +41,7 @@ import app.models.fin_categoria_model        # financeiro — categorias
 import app.models.fin_movimentacao_model     # financeiro — movimentações
 import app.models.fin_saldo_inicial_model    # financeiro — saldo inicial mensal
 import app.models.fin_extrato_saldo_model     # financeiro — saldo final do extrato bancário
+import app.models.fin_rendimento_manual_model # financeiro — ajuste manual de rendimento por banco
 import app.models.duplicata_dispensada_model  # pares de nota marcados como "não é duplicata"
 import app.models.banco_model                 # contas bancárias (Itaú/Inter/Bradesco/BTG)
 import app.models.despesa_model              # financeiro — despesa geral (unico/parcelado)

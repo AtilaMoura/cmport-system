@@ -23,6 +23,7 @@ from app.models.fin_movimentacao_model import MovimentacaoFinanceira
 from app.models.fin_categoria_model import GrupoCategoria
 from app.repositories.fin_saldo_inicial_repository import FinSaldoInicialRepository
 from app.repositories.fin_extrato_saldo_repository import FinExtratoSaldoRepository
+from app.repositories.fin_rendimento_manual_repository import FinRendimentoManualRepository
 from app.models.condominio_model import Condominio
 from app.schemas.fin_dashboard_schema import (
     DashboardBancoLinha, DashboardPorBancoResponse,
@@ -172,10 +173,12 @@ class FinDashboardService:
             saidas_total = _r2(x.s_forn + x.s_desp + x.s_func + x.s_tar)
             transf_rec = _r2(x.transf_rec)
             transf_env = _r2(x.transf_env)
-            rendimento = _r2(x.rendimento)
 
             si = FinSaldoInicialRepository.get(db, ano, mes, banco_id) if banco_id else None
             ex = FinExtratoSaldoRepository.get(db, banco_id, ano, mes) if banco_id else None
+            rm = FinRendimentoManualRepository.get(db, ano, mes, banco_id) if banco_id else None
+            rendimento_manual = _d(rm.valor) if rm else None
+            rendimento = _r2(x.rendimento + (rendimento_manual or Z))
 
             saldo_inicial = _d(si.valor) if si else None
             saldo_calc = None
@@ -208,6 +211,8 @@ class FinDashboardService:
                 transf_recebidas=transf_rec,
                 transf_enviadas=transf_env,
                 rendimento=rendimento,
+                rendimento_manual=rendimento_manual,
+                rendimento_manual_informado=rm is not None,
                 saidas=saidas,
                 saidas_total=saidas_total,
                 saldo_calculado=saldo_calc,

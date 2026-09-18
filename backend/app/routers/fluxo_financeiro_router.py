@@ -25,6 +25,7 @@ from app.schemas.fin_saldo_inicial_schema import (
 from app.schemas.fin_extrato_saldo_schema import (
     ExtratoSaldoUpsert, ExtratoSaldoResponse, ExtratoSaldoPorBancoResponse, ImportarInterResponse,
 )
+from app.schemas.fin_rendimento_manual_schema import RendimentoManualUpsert, RendimentoManualResponse
 
 router = APIRouter()
 
@@ -217,6 +218,16 @@ def upsert_extrato_saldo(
 def importar_extrato_saldo_inter(ano: int, mes: int, db: Session = Depends(get_db)):
     try:
         return FinConciliacaoService.importar_inter(db, ano, mes)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, str(e))
+
+
+@router.put("/rendimento-manual/{ano}/{mes}/{banco_id}", response_model=RendimentoManualResponse)
+def upsert_rendimento_manual(
+    ano: int, mes: int, banco_id: int, req: RendimentoManualUpsert, db: Session = Depends(get_db),
+):
+    try:
+        return FinConciliacaoService.upsert_rendimento_manual(db, ano, mes, banco_id, req)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, str(e))
 

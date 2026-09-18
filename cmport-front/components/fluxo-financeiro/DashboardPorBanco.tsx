@@ -70,6 +70,10 @@ function CardBanco({ linha, ano, mes, onMudou }: {
     await api.put(`/financeiro/extrato-saldo/${ano}/${mes}/${bancoId}`, { saldo_final: v });
     onMudou();
   };
+  const salvarRendimento = async (v: number) => {
+    await api.put(`/financeiro/rendimento-manual/${ano}/${mes}/${bancoId}`, { valor: v });
+    onMudou();
+  };
 
   const difCls = linha.diferenca == null ? 'bg-slate-100 text-slate-500 dark:bg-slate-800'
     : linha.bate ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300'
@@ -108,7 +112,12 @@ function CardBanco({ linha, ano, mes, onMudou }: {
         )}
         {linha.transf_recebidas > 0 && <LinhaCascata label="Transferências recebidas (de conta nossa)" valor={linha.transf_recebidas} sinal="+" />}
         {linha.transf_enviadas > 0 && <LinhaCascata label="Transferências enviadas (p/ conta nossa)" valor={linha.transf_enviadas} sinal="−" />}
-        {linha.rendimento !== 0 && <LinhaCascata label="Rendimento" valor={linha.rendimento} sinal="+" />}
+        <div className="flex justify-between py-1 text-sm">
+          <span className="text-slate-600 dark:text-slate-400"><span className="text-green-700 dark:text-green-400">+ </span>Rendimento</span>
+          {editavel
+            ? <ValorEditavel valor={linha.rendimento_manual} informado={linha.rendimento_manual_informado} onSalvar={salvarRendimento} />
+            : <span className={linha.rendimento !== 0 ? 'text-green-700 dark:text-green-400' : 'text-slate-400 italic'}>{fmtValor(linha.rendimento)}</span>}
+        </div>
         <LinhaCascata label="Saídas" valor={linha.saidas_total} sinal="−" />
         {aberto && (
           <div className="pl-4 py-1 text-xs text-slate-500 space-y-0.5">

@@ -27,7 +27,9 @@ class DashboardBancoLinha(BaseModel):
     entradas_total:           Decimal = Decimal(0)
     transf_recebidas:         Decimal = Decimal(0)        # transferência interna que caiu nessa conta
     transf_enviadas:          Decimal = Decimal(0)        # transferência interna que saiu dessa conta
-    rendimento:               Decimal = Decimal(0)
+    rendimento:               Decimal = Decimal(0)        # total = calculado (movimentações) + ajuste manual
+    rendimento_manual:        Optional[Decimal] = None    # só a parte lançada à mão (editável, tipo saldo inicial)
+    rendimento_manual_informado: bool = False
 
     saidas:                   SaidasBreakdown = SaidasBreakdown()
     saidas_total:             Decimal = Decimal(0)
