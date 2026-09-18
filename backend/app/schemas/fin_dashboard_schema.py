@@ -40,6 +40,12 @@ class DashboardBancoLinha(BaseModel):
     diferenca:                Optional[Decimal] = None      # saldo_calculado - saldo_extrato
     bate:                     Optional[bool] = None         # |diferenca| < 0,02
 
+    # Saídas importadas do extrato (tela Conciliação) ainda PENDENTE — não
+    # entram no saldo_calculado (ver FinDashboardService.por_banco), só ficam
+    # visíveis aqui pra avisar que tem gente esperando triagem.
+    pendentes_conciliacao_qtd:    int = 0
+    pendentes_conciliacao_valor:  Decimal = Decimal(0)
+
 
 class DashboardPorBancoResponse(BaseModel):
     ano:          int

@@ -150,6 +150,13 @@ function CardBanco({ linha, ano, mes, onMudou }: {
         <span>Diferença (sistema − extrato)</span>
         <span>{linha.diferenca == null ? '— informe os dois saldos' : fmtValor(linha.diferenca)}</span>
       </div>
+      {linha.pendentes_conciliacao_qtd > 0 && (
+        <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+          ⚠ {linha.pendentes_conciliacao_qtd} saída(s) do extrato ainda pendente(s) de conciliação
+          ({fmtValor(linha.pendentes_conciliacao_valor)}) — não entram nesse cálculo até serem
+          confirmadas, trocadas ou ignoradas na tela de Conciliação.
+        </p>
+      )}
       {editavel && linha.saldo_inicial == null && (
         <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
           Sem saldo inicial informado — o saldo calculado não aparece.

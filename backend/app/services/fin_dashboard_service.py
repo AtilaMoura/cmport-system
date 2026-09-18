@@ -62,11 +62,13 @@ def _so_digitos(v: Optional[str]) -> str:
 class _Acc:
     """Acumuladores de uma conta (ou da linha 'sem banco')."""
     __slots__ = ("boleto", "recibo", "avulso", "transf_rec", "transf_env",
-                 "rendimento", "s_forn", "s_desp", "s_func", "s_tar")
+                 "rendimento", "s_forn", "s_desp", "s_func", "s_tar",
+                 "pend_qtd", "pend_valor")
 
     def __init__(self):
         for s in self.__slots__:
             setattr(self, s, Z)
+        self.pend_qtd = 0
 
 
 class FinDashboardService:
@@ -134,6 +136,18 @@ class FinDashboardService:
         )
         for m in movs:
             valor = _r2(_d(m.valor))
+
+            # saída importada do extrato (Conciliação) ainda não triada — não é
+            # uma despesa categorizada de verdade, só um candidato aguardando
+            # confirmar/trocar/criar/ignorar. Não entra na conta do saldo
+            # calculado (senão puxar o extrato já desbalanceia o dashboard
+            # antes de qualquer decisão), mas fica visível à parte.
+            if m.origem == "BANCO" and m.status == "PENDENTE":
+                x = a(m.banco_id)
+                x.pend_qtd += 1
+                x.pend_valor += valor
+                continue
+
             grupo = m.categoria.grupo if m.categoria else None
             nome = (m.categoria.nome if m.categoria else "").lower()
 
@@ -220,6 +234,8 @@ class FinDashboardService:
                 saldo_extrato_fonte=(ex.fonte if ex else None),
                 diferenca=diferenca,
                 bate=bate,
+                pendentes_conciliacao_qtd=x.pend_qtd,
+                pendentes_conciliacao_valor=_r2(x.pend_valor),
             )
 
         linhas = [montar(b.id, b.nome) for b in bancos]
@@ -276,6 +292,8 @@ class FinDashboardService:
             saldo_extrato=cons_ext,
             diferenca=cons_dif,
             bate=(abs(cons_dif) < TOLERANCIA) if cons_dif is not None else None,
+            pendentes_conciliacao_qtd=sum((l.pendentes_conciliacao_qtd for l in linhas), 0),
+            pendentes_conciliacao_valor=_r2(sum((l.pendentes_conciliacao_valor for l in linhas), Z)),
         )
 
         return DashboardPorBancoResponse(ano=ano, mes=mes, bancos=linhas, consolidado=consolidado)

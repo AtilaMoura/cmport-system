@@ -244,6 +244,8 @@ export interface DashboardBancoLinha {
   saldo_extrato_fonte: string | null;     // "MANUAL" | "INTER"
   diferenca: number | null;
   bate: boolean | null;
+  pendentes_conciliacao_qtd: number;
+  pendentes_conciliacao_valor: number;
 }
 export interface DashboardPorBancoResponse {
   ano: number;
@@ -306,6 +308,7 @@ export function normalizarPorBanco(raw: DashboardPorBancoResponse): DashboardPor
     saldo_calculado: l.saldo_calculado === null ? null : Number(l.saldo_calculado),
     saldo_extrato: l.saldo_extrato === null ? null : Number(l.saldo_extrato),
     diferenca: l.diferenca === null ? null : Number(l.diferenca),
+    pendentes_conciliacao_valor: Number(l.pendentes_conciliacao_valor),
   });
   return { ...raw, bancos: raw.bancos.map(nL), consolidado: nL(raw.consolidado) };
 }
