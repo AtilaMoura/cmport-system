@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   fmtValor, normalizarPorBanco, type DashboardPorBancoResponse, type DashboardBancoLinha,
   type ImportarInterResponse,
@@ -58,6 +59,7 @@ function ValorEditavel({ valor, informado, onSalvar }: {
 function CardBanco({ linha, ano, mes, onMudou }: {
   linha: DashboardBancoLinha; ano: number; mes: number; onMudou: () => void;
 }) {
+  const { user } = useAuth();
   const [aberto, setAberto] = useState(false);
   const bancoId = linha.banco_id;
   const editavel = bancoId != null;   // linha "Sem banco identificado" não tem conta pra salvar saldo
@@ -150,7 +152,7 @@ function CardBanco({ linha, ano, mes, onMudou }: {
         <span>Diferença (sistema − extrato)</span>
         <span>{linha.diferenca == null ? '— informe os dois saldos' : fmtValor(linha.diferenca)}</span>
       </div>
-      {linha.pendentes_conciliacao_qtd > 0 && (
+      {user?.role === 'DEV' && linha.pendentes_conciliacao_qtd > 0 && (
         <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
           ⚠ {linha.pendentes_conciliacao_qtd} saída(s) do extrato ainda pendente(s) de conciliação
           ({fmtValor(linha.pendentes_conciliacao_valor)}) — não entram nesse cálculo até serem
