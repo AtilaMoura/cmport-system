@@ -152,7 +152,9 @@ function CardBanco({ linha, ano, mes, onMudou }: {
         <span>Diferença (sistema − extrato)</span>
         <span>{linha.diferenca == null ? '— informe os dois saldos' : fmtValor(linha.diferenca)}</span>
       </div>
-      {user?.role === 'DEV' && linha.pendentes_conciliacao_qtd > 0 && (
+      {/* Desativado até a Conciliação ser liberada pro cliente — reativar trocando por
+          `user?.role === 'DEV' && linha.pendentes_conciliacao_qtd > 0` */}
+      {false && linha.pendentes_conciliacao_qtd > 0 && (
         <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
           ⚠ {linha.pendentes_conciliacao_qtd} saída(s) do extrato ainda pendente(s) de conciliação
           ({fmtValor(linha.pendentes_conciliacao_valor)}) — não entram nesse cálculo até serem
