@@ -48,6 +48,11 @@ import app.models.despesa_model              # financeiro — despesa geral (uni
 import app.models.funcionario_model          # financeiro — funcionarios + variaveis (folha)
 import app.models.canal_model                 # Demandas Dev — canal Atila <-> CMPort
 
+# Módulo Câmeras — schema separado (cmport_cameras), Base própria (BaseCameras)
+from app.core.database_cameras import engine_cameras, BaseCameras
+import app.models.poste_model
+import app.models.camera_model
+
 # Importar todos os routers
 from app.routers.auth_router import router as auth_router
 from app.routers.condominio_router import router as condominios_router
@@ -76,9 +81,14 @@ from app.routers.recibo_router import router as recibos_router
 from app.routers.declaracao_fiscal_router import router as declaracoes_router
 from app.routers.funcionario_router import router as funcionario_router
 from app.routers.canal_router import router as canal_router
+from app.routers.poste_router import router as poste_router
+from app.routers.camera_router import router as camera_router
 
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
+
+# Criar tabelas do módulo Câmeras no schema separado (cmport_cameras)
+BaseCameras.metadata.create_all(bind=engine_cameras)
 
 
 def _run_migrations():
@@ -828,6 +838,8 @@ app.include_router(recibos_router,      prefix="/api/v1/recibos",               
 app.include_router(declaracoes_router,  prefix="/api/v1/servicos",                tags=["Declarações Fiscais"], dependencies=_auth)
 app.include_router(funcionario_router,  prefix="/api/v1/funcionarios",            tags=["Financeiro"],         dependencies=_auth)
 app.include_router(canal_router,        prefix="/api/v1/canal",                   tags=["Demandas Dev"],       dependencies=_auth)
+app.include_router(poste_router,        prefix="/api/v1/postes",                  tags=["Câmeras"],            dependencies=_auth)
+app.include_router(camera_router,       prefix="/api/v1/cameras",                 tags=["Câmeras"],            dependencies=_auth)
 
 
 @app.get("/", tags=["Root"])

@@ -10,6 +10,13 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
 
+    # Database — módulo Câmeras (schema separado, mesmo servidor MySQL)
+    DB_CAMERAS_NAME: str = "cmport_cameras"
+
+    # Módulo Câmeras — endereço base do MediaMTX que recebe o push RTMP das câmeras
+    # (hoje aponta pro container de teste na mesma VPS; troca quando o MediaMTX definitivo subir)
+    MEDIAMTX_RTMP_BASE_URL: str = "rtmp://168.231.96.184:1935"
+
     # Auvo API
     AUVO_API_KEY: str
     AUVO_API_TOKEN: str
@@ -52,6 +59,18 @@ class Settings(BaseSettings):
             f"{self.DB_HOST}:"
             f"{self.DB_PORT}/"
             f"{self.DB_NAME}"
+            f"?charset=utf8mb4"
+        )
+
+    @property
+    def CAMERAS_DATABASE_URL(self) -> str:
+        """Mesmo servidor/credenciais do banco principal, schema separado (cmport_cameras)."""
+        return (
+            f"mysql+pymysql://{self.DB_USER}:"
+            f"{self.DB_PASSWORD}@"
+            f"{self.DB_HOST}:"
+            f"{self.DB_PORT}/"
+            f"{self.DB_CAMERAS_NAME}"
             f"?charset=utf8mb4"
         )
 
