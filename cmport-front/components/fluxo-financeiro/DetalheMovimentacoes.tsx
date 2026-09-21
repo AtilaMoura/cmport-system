@@ -45,7 +45,8 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
   const [categoriaFiltro, setCategoriaFiltro] = useState('');
   const [bancoIdFiltro, setBancoIdFiltro] = useState<number | ''>('');  // conta específica (origem OU destino)
   const [direcaoFiltro, setDirecaoFiltro] = useState<'' | 'saiu' | 'entrou'>('');  // refina bancoIdFiltro: só saída ou só entrada dessa conta
-  const [empresaFiltro, setEmpresaFiltro] = useState('');   // '' | 'CMPORT' | 'TEC'
+  const [empresaFiltro, setEmpresaFiltro] = useState('');   // '' | 'CMPORT' | 'TEC' — de onde saiu
+  const [empresaDestinoFiltro, setEmpresaDestinoFiltro] = useState('');   // '' | 'CMPORT' | 'TEC' — pra onde foi
 
   // quando a página passa um CNPJ (filtro compartilhado da URL), seed o filtro local "De onde saiu"
   useEffect(() => {
@@ -289,6 +290,7 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
     if (bancoIdFiltro !== '' && direcaoFiltro === 'saiu' && m.banco_origem_id !== bancoIdFiltro) return false;
     if (bancoIdFiltro !== '' && direcaoFiltro === 'entrou' && m.banco_id !== bancoIdFiltro) return false;
     if (empresaFiltro && empresaOrigem(m) !== empresaFiltro) return false;
+    if (empresaDestinoFiltro && empresaDeBanco(m.banco_id) !== empresaDestinoFiltro) return false;
     return true;
   });
   const total = filtradas.reduce((s, m) => s + m.valor, 0);
@@ -405,12 +407,16 @@ export function DetalheMovimentacoes({ movs, cor, mostrarBancoOrigem, mostrarFor
             </button>
           ))}
           {porEmpresaDestino.map(([emp, g]) => (
-            <span key={`entrou-${emp}`}
-              className="px-3 py-1.5 rounded-lg text-xs bg-slate-100 dark:bg-slate-800">
+            <button key={`entrou-${emp}`} onClick={() => setEmpresaDestinoFiltro(empresaDestinoFiltro === emp ? '' : emp)}
+              className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                empresaDestinoFiltro === emp
+                  ? 'bg-slate-900 text-white dark:bg-slate-600'
+                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}>
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">🏢 Entrou em {emp}</span>{' '}
               <span className="font-black">{fmtValor(g.total)}</span>
               <span className="opacity-70"> ({g.itens})</span>
-            </span>
+            </button>
           ))}
         </div>
       )}
