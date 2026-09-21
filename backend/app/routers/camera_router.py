@@ -29,6 +29,16 @@ def listar_por_poste(
     return CameraService.listar_por_poste(db, poste_id, incluir_inativas=incluir_inativas)
 
 
+@router.get("/por-condominio/{condominio_id}", response_model=list[CameraResponse])
+def listar_por_condominio(
+    condominio_id: int,
+    incluir_inativas: bool = False,
+    db: Session = Depends(get_db_cameras),
+):
+    """Todas as câmeras do condomínio — com poste ou avulsas."""
+    return CameraService.listar_por_condominio(db, condominio_id, incluir_inativas=incluir_inativas)
+
+
 @router.post("", response_model=CameraResponse, status_code=201)
 @router.post("/", response_model=CameraResponse, status_code=201)
 def criar(req: CameraCreate, db: Session = Depends(get_db_cameras)):

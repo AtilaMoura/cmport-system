@@ -17,6 +17,14 @@ class CameraRepository:
         return q.order_by(Camera.nome).all()
 
     @staticmethod
+    def listar_por_condominio(db: Session, condominio_id: int, incluir_inativas: bool = False) -> List[Camera]:
+        """Todas as câmeras do condomínio — com poste ou avulsas (poste_id nulo)."""
+        q = db.query(Camera).filter(Camera.condominio_id == condominio_id)
+        if not incluir_inativas:
+            q = q.filter(Camera.ativo.is_(True))
+        return q.order_by(Camera.nome).all()
+
+    @staticmethod
     def get_by_id(db: Session, camera_id: int) -> Optional[Camera]:
         return db.query(Camera).filter(Camera.id == camera_id).first()
 

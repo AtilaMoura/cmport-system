@@ -9,22 +9,10 @@ from typing import List, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal as SessionLocalPrincipal
-from app.models.condominio_model import Condominio
 from app.models.poste_model import Poste
 from app.repositories.poste_repository import PosteRepository
 from app.schemas.poste_schema import PosteCreate, PosteUpdate, PosteResponse
-
-
-def _buscar_condominio(condominio_id: int) -> Condominio:
-    db_principal = SessionLocalPrincipal()
-    try:
-        condominio = db_principal.query(Condominio).filter(Condominio.id == condominio_id).first()
-        if not condominio:
-            raise HTTPException(404, f"Condomínio {condominio_id} não encontrado.")
-        return condominio
-    finally:
-        db_principal.close()
+from app.services.condominio_lookup_service import buscar_condominio_ou_404 as _buscar_condominio
 
 
 class PosteService:

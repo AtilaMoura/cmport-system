@@ -1,8 +1,13 @@
 """
-camera_model.py — câmera vinculada a um poste.
+camera_model.py — câmera vinculada a um condomínio, opcionalmente também a um poste.
+
+condominio_id é sempre obrigatório (referência solta ao banco principal, sem FK
+cross-schema — validado no service). poste_id é opcional: existe condomínio com
+câmera avulsa (sem poste), condomínio só com câmeras de poste, e condomínio com
+os dois ao mesmo tempo.
 
 Dois modos de conexão (arquitetura em arquitetura-tecnica/arquitetura-cameras-dvr-tec.pptx):
-- RTSP_NVR: câmera é um canal de um NVR/DVR na rede local do poste — precisa de VPN
+- RTSP_NVR: câmera é um canal de um NVR/DVR na rede local — precisa de VPN
   (Tailscale) pra alcançar de fora; guarda IP/porta/usuário/senha do NVR + canal.
 - RTMP_ISOLADA: câmera/NVR empurra o vídeo direto pro nosso MediaMTX (mesmo modelo
   que a BeNuvem já usa hoje) — guarda só a chave/path única do stream (rtmp_stream_key).
@@ -24,7 +29,8 @@ class Camera(BaseCameras):
     __tablename__ = "cameras"
 
     id = Column(Integer, primary_key=True, index=True)
-    poste_id = Column(Integer, ForeignKey("postes.id"), nullable=False, index=True)
+    condominio_id = Column(Integer, nullable=False, index=True)
+    poste_id = Column(Integer, ForeignKey("postes.id"), nullable=True, index=True)
 
     nome = Column(String(150), nullable=False)
     tipo_conexao = Column(SQLEnum(TipoConexaoCamera), nullable=False)

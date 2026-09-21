@@ -29,7 +29,8 @@ class CameraBase(BaseModel):
 
 
 class CameraCreate(CameraBase):
-    poste_id: int
+    condominio_id: int
+    poste_id: Optional[int] = None
 
 
 class CameraUpdate(BaseModel):
@@ -44,7 +45,9 @@ class CameraUpdate(BaseModel):
 
 class CameraResponse(BaseModel):
     id: int
-    poste_id: int
+    condominio_id: int
+    condominio_nome: Optional[str] = None
+    poste_id: Optional[int] = None
     nome: str
     tipo_conexao: str
     canal: Optional[int] = None
