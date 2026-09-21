@@ -86,5 +86,6 @@ class BoletoPagamento(Base):
     banco_id = Column(Integer, ForeignKey("bancos.id", ondelete="SET NULL"), nullable=True)
     observacao = Column(Text, nullable=True)
     criado_em = Column(DateTime, server_default=func.now())
+    deletado_em = Column(DateTime, nullable=True)
 
     boleto = relationship("Boleto", backref="pagamentos")

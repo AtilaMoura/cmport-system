@@ -72,7 +72,20 @@ class BoletoRepository:
 
     @staticmethod
     def listar_pagamentos(db: Session, boleto_id: int) -> List[BoletoPagamento]:
-        return db.query(BoletoPagamento).filter(BoletoPagamento.boleto_id == boleto_id).order_by(BoletoPagamento.data_pagamento).all()
+        return db.query(BoletoPagamento).filter(
+            BoletoPagamento.boleto_id == boleto_id,
+            BoletoPagamento.deletado_em.is_(None),
+        ).order_by(BoletoPagamento.data_pagamento).all()
+
+    @staticmethod
+    def soft_delete_pagamentos(db: Session, boleto_id: int) -> None:
+        """Estorno: apaga (soft) todos os pagamentos ativos desse boleto."""
+        from datetime import datetime
+        db.query(BoletoPagamento).filter(
+            BoletoPagamento.boleto_id == boleto_id,
+            BoletoPagamento.deletado_em.is_(None),
+        ).update({"deletado_em": datetime.utcnow()})
+        db.commit()
 
     @staticmethod
     def get_stats(db: Session) -> dict:
