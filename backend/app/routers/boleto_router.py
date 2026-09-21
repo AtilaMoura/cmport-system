@@ -109,6 +109,16 @@ def registrar_pagamento(boleto_id: int, request: RegistrarPagamentoRequest, db: 
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/{boleto_id}/estornar-pagamento", response_model=BoletoResponse)
+def estornar_pagamento_boleto(boleto_id: int, db: Session = Depends(get_db)):
+    """Desfaz o pagamento de um boleto (cliente não pagou de verdade / pagou
+    o boleto errado) — volta pra EMABERTO."""
+    try:
+        return BoletoService.estornar_pagamento(db, boleto_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/{boleto_id}/pagamentos", response_model=list[BoletoPagamentoResponse])
 def listar_pagamentos_boleto(boleto_id: int, db: Session = Depends(get_db)):
     """Lista o historico de pagamentos (parciais ou totais) de um boleto."""

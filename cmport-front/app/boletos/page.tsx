@@ -30,7 +30,7 @@ interface Boleto {
   data_vencimento: string;
   data_pagamento: string | null;
   tipo_cobranca: string;
-  situacao: 'EMABERTO' | 'PAGO' | 'CANCELADO' | 'EXPIRADO' | 'VENCIDO' | 'BAIXADO';
+  situacao: 'EMABERTO' | 'PAGO' | 'PARCIAL' | 'CANCELADO' | 'EXPIRADO' | 'VENCIDO' | 'BAIXADO';
   numero_parcela: number;
   total_parcelas: number;
   forma_pagamento: string;
@@ -52,6 +52,7 @@ interface Nota {
 const SITUACAO_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
   EMABERTO:  { label: 'Em Aberto', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',     dot: 'bg-blue-500' },
   PAGO:      { label: 'Pago',      cls: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400', dot: 'bg-green-500' },
+  PARCIAL:   { label: 'Parcial',   cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400', dot: 'bg-yellow-500' },
   CANCELADO: { label: 'Cancelado', cls: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',         dot: 'bg-red-500' },
   EXPIRADO:  { label: 'Expirado',  cls: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',    dot: 'bg-slate-400' },
   VENCIDO:   { label: 'Vencido',   cls: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400', dot: 'bg-orange-500' },
@@ -118,6 +119,7 @@ export default function BoletosPage() {
 
   // Deletar boleto
   const [deletandoId, setDeletandoId] = useState<number | null>(null);
+  const [estornandoId, setEstornandoId] = useState<number | null>(null);
 
   // Aba notas sem boleto
   const [notasSemBoleto, setNotasSemBoleto] = useState<Nota[]>([]);
@@ -336,6 +338,20 @@ export default function BoletosPage() {
       alert('Erro ao vincular nota ao boleto.');
     } finally {
       setVinculando(false);
+    }
+  };
+
+  const estornarPagamento = async (boleto: Boleto) => {
+    if (!confirm('Reverter o pagamento desse boleto? Ele volta pra EM ABERTO — use quando o pagamento foi registrado errado ou o cliente não pagou de verdade.')) return;
+    setEstornandoId(boleto.id);
+    try {
+      await api.post(`/boletos/${boleto.id}/estornar-pagamento`);
+      await carregarBoletos();
+    } catch (e) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      alert(msg ?? 'Erro ao reverter pagamento.');
+    } finally {
+      setEstornandoId(null);
     }
   };
 
@@ -966,6 +982,21 @@ export default function BoletosPage() {
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                   </svg>
+                                </button>
+                              )}
+
+                              {/* Reverter pagamento */}
+                              {(boleto.situacao === 'PAGO' || boleto.situacao === 'PARCIAL' || boleto.situacao === 'BAIXADO') && (
+                                <button
+                                  onClick={() => estornarPagamento(boleto)}
+                                  disabled={estornandoId === boleto.id}
+                                  title="Reverter pagamento (cliente não pagou / pagamento errado)"
+                                  className="p-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-all disabled:opacity-50"
+                                >
+                                  {estornandoId === boleto.id
+                                    ? <div className="w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l-4-4 4-4m-4 4h11a4 4 0 010 8h-1" /></svg>
+                                  }
                                 </button>
                               )}
 

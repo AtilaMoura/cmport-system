@@ -275,6 +275,8 @@ def _run_migrations():
         "ALTER TABLE fin_movimentacoes ADD COLUMN validado_por_id INT NULL",
         "ALTER TABLE fin_movimentacoes ADD CONSTRAINT fk_movimentacao_validado_por FOREIGN KEY (validado_por_id) REFERENCES usuarios(id) ON DELETE SET NULL",
         "ALTER TABLE fin_movimentacoes ADD INDEX ix_movimentacao_validado_por (validado_por_id)",
+        # Estorno de pagamento de boleto — soft delete dos registros em boleto_pagamentos
+        "ALTER TABLE boleto_pagamentos ADD COLUMN deletado_em DATETIME NULL",
     ]
     try:
         for stmt in stmts:

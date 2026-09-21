@@ -634,6 +634,57 @@ class BoletoService:
         return BoletoRepository.listar_pagamentos(db, boleto_id)
 
     @staticmethod
+    def estornar_pagamento(db: Session, boleto_id: int) -> BoletoResponse:
+        """Desfaz um pagamento registrado por engano (o cliente não pagou de
+        verdade, ou pagou o boleto errado) — volta o boleto pra EMABERTO,
+        apaga (soft delete) os registros de boleto_pagamentos e limpa a data
+        de pagamento da nota fiscal, se ela tinha sido marcada como paga por
+        causa desse boleto. Não mexe no status do corpo/ciclo da nota (esses
+        acompanham manualmente por enquanto).
+        Atenção: se o boleto tem codigo_solicitacao e o próximo `Sincronizar
+        status` consultar a Inter de novo, ela pode re-marcar como PAGO se o
+        pagamento realmente aconteceu do lado do banco — esse botão desfaz só
+        o registro daqui, não resolve uma cobrança indevida/paga errado."""
+        from app.routers.auditoria_router import registrar_exclusao
+        from app.models.nota_fiscal_model import NotaFiscal
+
+        db_boleto = BoletoRepository.get_by_id(db, boleto_id)
+        if not db_boleto:
+            raise Exception("Boleto não encontrado.")
+        if db_boleto.situacao not in (SituacaoBoleto.PAGO, SituacaoBoleto.PARCIAL, SituacaoBoleto.BAIXADO):
+            raise Exception("Esse boleto não está pago.")
+
+        registrar_exclusao(db, "boleto_pagamento_estorno", boleto_id, {
+            "boleto_id": boleto_id,
+            "situacao_anterior": db_boleto.situacao.value,
+            "valor_total_recebido": str(db_boleto.valor_total_recebido) if db_boleto.valor_total_recebido is not None else None,
+            "data_pagamento": str(db_boleto.data_pagamento) if db_boleto.data_pagamento else None,
+            "forma_pagamento": db_boleto.forma_pagamento.value if db_boleto.forma_pagamento else None,
+            "banco_pagamento": db_boleto.banco_pagamento,
+            "pagamentos": [
+                {"valor": str(p.valor), "data_pagamento": str(p.data_pagamento), "forma_pagamento": p.forma_pagamento.value}
+                for p in BoletoRepository.listar_pagamentos(db, boleto_id)
+            ],
+        }, motivo="Estorno de pagamento de boleto")
+
+        BoletoRepository.soft_delete_pagamentos(db, boleto_id)
+        BoletoRepository.update(db, db_boleto, {
+            "situacao": SituacaoBoleto.EMABERTO,
+            "data_pagamento": None,
+            "valor_total_recebido": None,
+            "banco_pagamento": None,
+            "banco_id": None,
+        })
+
+        if db_boleto.nota_fiscal_id:
+            nota = db.query(NotaFiscal).filter(NotaFiscal.id == db_boleto.nota_fiscal_id).first()
+            if nota and nota.data_pagamento:
+                nota.data_pagamento = None
+                db.commit()
+
+        return BoletoResponse.model_validate(db_boleto)
+
+    @staticmethod
     def gerar_parcelas_faltantes(
         db: Session,
         nota_id: int,
