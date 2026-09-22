@@ -119,6 +119,12 @@ demandas-dev/*
 !demandas-dev/README.md
 
 # =========================
+# cameras/ — planejamento técnico do módulo de câmeras (histórico de
+# incidentes, pendências, dados de câmera piloto real) — só local, não sobe
+# =========================
+cameras/
+
+# =========================
 # Raiz do repo — só código do sistema fica versionado (backend/ e cmport-front/);
 # documentos de análise, planilhas, scripts avulsos e backups soltos na raiz
 # ficam só locais (não fazem parte do sistema)
