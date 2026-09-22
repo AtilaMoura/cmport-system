@@ -36,6 +36,23 @@ services:
     volumes:
       - minio_data:/data
 
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: cmport_mediamtx
+    environment:
+      # backend roda no host via uvicorn (nao no docker-compose) em dev —
+      # host.docker.internal alcança o host a partir de dentro do container
+      MTX_AUTHHTTPADDRESS: http://host.docker.internal:8000/api/v1/mediamtx/auth
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "1935:1935"     # RTMP push (camera de teste aponta pra cá)
+      - "8889:8889"     # WebRTC (player no navegador)
+      - "8189:8189/udp" # WebRTC ICE
+      - "9997:9997"     # API (só em dev, pra debugar - nao mapear em producao)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   db_data:
   minio_data:

@@ -33,6 +33,14 @@ class CameraRepository:
         return db.query(Camera).filter(Camera.rtmp_stream_key == rtmp_stream_key).first() is not None
 
     @staticmethod
+    def get_by_rtmp_stream_key(db: Session, rtmp_stream_key: str) -> Optional[Camera]:
+        return (
+            db.query(Camera)
+            .filter(Camera.rtmp_stream_key == rtmp_stream_key, Camera.ativo.is_(True))
+            .first()
+        )
+
+    @staticmethod
     def create(db: Session, camera: Camera) -> Camera:
         db.add(camera)
         db.commit()

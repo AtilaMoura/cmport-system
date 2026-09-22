@@ -76,6 +76,25 @@ services:
     networks:
       - cmport_net
 
+  # ── MediaMTX (recebe RTMP das câmeras, entrega ao vivo via WebRTC) ───────────
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: cmport_mediamtx
+    restart: unless-stopped
+    environment:
+      MTX_AUTHHTTPADDRESS: http://backend:8000/api/v1/mediamtx/auth
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "1935:1935"     # RTMP push — câmeras apontam pra cá
+      - "8889:8889"     # WebRTC — player no navegador
+      - "8189:8189/udp" # WebRTC ICE
+      # API (9997) NÃO é exposta pra fora — só acessível de dentro da cmport_net
+    depends_on:
+      - backend
+    networks:
+      - cmport_net
+
 networks:
   cmport_net:
     driver: bridge

@@ -1,0 +1,25 @@
+# Config do MediaMTX — recebe RTMP das câmeras e entrega ao vivo via WebRTC.
+#
+# Autenticação: cada publish é validado contra a tabela `cameras` do banco
+# cmport_cameras (via webhook HTTP no backend) — só aceita se existir uma
+# câmera ativa com esse rtmp_stream_key. O endereço do webhook (authHTTPAddress)
+# muda entre dev/produção e é definido via variável de ambiente MTX_AUTHHTTPADDRESS
+# no docker-compose correspondente, não fixado aqui.
+#
+# Protocolos não usados nesta fase ficam desligados (superfície mínima exposta).
+
+authMethod: http
+
+rtmpAddress: :1935
+webrtcAddress: :8889
+apiAddress: :9997
+api: yes
+
+rtsp: no
+hls: no
+srt: no
+
+paths:
+  # aceita qualquer path — a autenticação de verdade é o webhook acima,
+  # que só libera publish se o rtmp_stream_key existir e estiver ativo
+  all_others:

@@ -83,6 +83,7 @@ from app.routers.funcionario_router import router as funcionario_router
 from app.routers.canal_router import router as canal_router
 from app.routers.poste_router import router as poste_router
 from app.routers.camera_router import router as camera_router
+from app.routers.mediamtx_auth_router import router as mediamtx_auth_router
 
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
@@ -810,6 +811,9 @@ app.add_middleware(
 
 # Auth — público (sem Depends)
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Autenticação"])
+
+# MediaMTX webhook de autenticação — público (chamado pelo servidor de mídia, não por usuário)
+app.include_router(mediamtx_auth_router, prefix="/api/v1/mediamtx", tags=["MediaMTX"])
 
 # Todos os outros routers exigem usuário autenticado
 _auth = [Depends(get_current_user)]
