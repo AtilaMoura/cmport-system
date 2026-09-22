@@ -77,6 +77,9 @@ jobs:
             [ "$PULL_BACKEND" = "true" ] && docker pull cmport/cmport-api:latest || echo "==> Backend sem mudancas, pulando pull"
             [ "$PULL_FRONTEND" = "true" ] && docker pull cmport/cmport-front:latest || echo "==> Frontend sem mudancas, pulando pull"
             docker compose -f docker-compose.prod.yml up -d
+            # nginx resolve frontend/backend só no boot — containers recriados mudam de IP
+            # e sem reload ele segue mandando tráfego pro IP antigo (502 geral, incidente 2026-09-22)
+            docker exec cmport_nginx nginx -s reload
             docker image prune -f
             echo "==> Deploy concluido: $(date)"
             docker compose -f docker-compose.prod.yml ps
