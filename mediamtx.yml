@@ -12,6 +12,8 @@ authMethod: http
 
 rtmpAddress: :1935
 webrtcAddress: :8889
+webrtcICEUDPMuxAddress: :8189
+webrtcICEHostNAT1To1IPs: [168.231.96.184]
 apiAddress: :9997
 api: yes
 
