@@ -37,7 +37,8 @@ services:
       - minio_data:/data
 
   mediamtx:
-    image: bluenviron/mediamtx:latest
+    # versão fixa: :latest pode remover opções do mediamtx.yml e quebrar o WebRTC sem aviso
+    image: bluenviron/mediamtx:1.21.0
     container_name: cmport_mediamtx
     environment:
       # backend roda no host via uvicorn (nao no docker-compose) em dev —
