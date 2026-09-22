@@ -29,7 +29,10 @@ def get_db_cameras():
 @router.post("/auth", status_code=200)
 def autenticar(req: MediaMTXAuthRequest, db: Session = Depends(get_db_cameras)):
     if req.action == "publish":
-        camera = CameraRepository.get_by_rtmp_stream_key(db, req.path)
+        # path chega como "cam/<chave>" (ver PREFIXO_RTMP em camera_service) —
+        # a chave da câmera é sempre a última parte
+        chave = req.path.rsplit("/", 1)[-1]
+        camera = CameraRepository.get_by_rtmp_stream_key(db, chave)
         if not camera:
             raise HTTPException(401, "Chave de stream inválida ou câmera inativa.")
     return {}

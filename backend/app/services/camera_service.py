@@ -4,6 +4,12 @@ camera_service.py — lógica de negócio de Camera.
 RTMP_ISOLADA: gera uma chave de stream única (rtmp_stream_key) na criação —
 mesma ideia da BeNuvem (rtmp://rtmp.benuvem.com.br:1945/feed/<chave>), o
 cliente nunca escolhe a chave, só recebe a URL pronta pra configurar no NVR.
+
+A URL precisa ter DUAS partes depois do host (PREFIXO_RTMP + chave), igual a
+BeNuvem faz com "feed/<chave>": câmera Intelbras (testado no modelo VIP 1130 B
+G2) usa a última parte como nome do stream e o resto como aplicação — se vier
+só uma parte, ela fica sem nome de stream e repete a URL inteira, quebrando a
+publicação.
 """
 import secrets
 from typing import List, Optional
@@ -16,6 +22,11 @@ from app.repositories.camera_repository import CameraRepository
 from app.repositories.poste_repository import PosteRepository
 from app.schemas.camera_schema import CameraCreate, CameraUpdate, CameraResponse
 from app.services.condominio_lookup_service import buscar_condominio_ou_404
+
+
+# Primeira parte do caminho RTMP (a "aplicação"), antes da chave da câmera.
+# Equivale ao "feed" da BeNuvem — ver explicação no docstring acima.
+PREFIXO_RTMP = "cam"
 
 
 def _gerar_rtmp_stream_key(db: Session) -> str:
@@ -32,7 +43,7 @@ class CameraService:
     def _resp(camera: Camera, condominio_nome: Optional[str] = None) -> CameraResponse:
         rtmp_url = None
         if camera.tipo_conexao == TipoConexaoCamera.RTMP_ISOLADA and camera.rtmp_stream_key:
-            rtmp_url = f"{settings.MEDIAMTX_RTMP_BASE_URL}/{camera.rtmp_stream_key}"
+            rtmp_url = f"{settings.MEDIAMTX_RTMP_BASE_URL}/{PREFIXO_RTMP}/{camera.rtmp_stream_key}"
         return CameraResponse(
             id=camera.id, condominio_id=camera.condominio_id, condominio_nome=condominio_nome,
             poste_id=camera.poste_id, nome=camera.nome,
