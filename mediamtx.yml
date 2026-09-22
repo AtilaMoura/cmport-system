@@ -1,10 +1,13 @@
 # Config do MediaMTX — recebe RTMP das câmeras e entrega ao vivo via WebRTC.
 #
-# Autenticação: cada publish é validado contra a tabela `cameras` do banco
-# cmport_cameras (via webhook HTTP no backend) — só aceita se existir uma
-# câmera ativa com esse rtmp_stream_key. O endereço do webhook (authHTTPAddress)
-# muda entre dev/produção e é definido via variável de ambiente MTX_AUTHHTTPADDRESS
-# no docker-compose correspondente, não fixado aqui.
+# Autenticação (webhook HTTP no backend, mediamtx_auth_service.py):
+# - publish: só aceita se existir câmera ativa com esse rtmp_stream_key
+# - read/playback: só o backend (Basic auth com MEDIAMTX_READ_SECRET). Quem
+#   assiste passa por POST /api/v1/cameras/{id}/webrtc — o navegador nunca fala
+#   direto com a porta 8889 (não exposta em produção) nem vê a chave.
+# O endereço do webhook (authHTTPAddress) muda entre dev/produção e é definido
+# via variável de ambiente MTX_AUTHHTTPADDRESS no docker-compose correspondente,
+# não fixado aqui.
 #
 # Protocolos não usados nesta fase ficam desligados (superfície mínima exposta).
 
@@ -12,8 +15,9 @@ authMethod: http
 
 rtmpAddress: :1935
 webrtcAddress: :8889
-webrtcICEUDPMuxAddress: :8189
-webrtcICEHostNAT1To1IPs: [168.231.96.184]
+webrtcLocalUDPAddress: :8189
+# IP público anunciado como candidato ICE (sem isso vai o IP interno do Docker)
+webrtcAdditionalHosts: [168.231.96.184]
 apiAddress: :9997
 api: yes
 
@@ -22,6 +26,5 @@ hls: no
 srt: no
 
 paths:
-  # aceita qualquer path — a autenticação de verdade é o webhook acima,
-  # que só libera publish se o rtmp_stream_key existir e estiver ativo
+  # aceita qualquer path — a autenticação de verdade é o webhook acima
   all_others:

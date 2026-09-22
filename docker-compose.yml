@@ -47,9 +47,9 @@ services:
       - ./mediamtx.yml:/mediamtx.yml:ro
     ports:
       - "1935:1935"     # RTMP push (camera de teste aponta pra cá)
-      - "8889:8889"     # WebRTC (player no navegador)
+      - "127.0.0.1:8889:8889"  # WebRTC/WHEP — só o backend local acessa (não abrir na rede)
       - "8189:8189/udp" # WebRTC ICE
-      - "9997:9997"     # API (só em dev, pra debugar - nao mapear em producao)
+      - "127.0.0.1:9997:9997"  # API (só em dev, pra debugar - nao mapear em producao)
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

@@ -55,6 +55,8 @@ class CameraResponse(BaseModel):
     nvr_porta: Optional[int] = None
     nvr_usuario: Optional[str] = None
     # nvr_senha nunca volta na resposta — só é usada internamente pra montar a URL RTSP
+    # rtmp_stream_key/rtmp_url só voltam pra ADMIN/DEV — a chave é a credencial de
+    # publicação da câmera (quem tem a chave consegue substituir o vídeo)
     rtmp_stream_key: Optional[str] = None
     rtmp_url: Optional[str] = None
     ativo: bool
@@ -63,3 +65,13 @@ class CameraResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CameraWebRTCOffer(BaseModel):
+    """SDP offer gerado pelo navegador (RTCPeerConnection), já com todos os candidatos ICE."""
+    sdp: str = Field(..., min_length=10, max_length=20000)
+
+
+class CameraWebRTCAnswer(BaseModel):
+    """SDP answer devolvido pelo MediaMTX — o navegador aplica e o vídeo flui direto via UDP."""
+    sdp: str

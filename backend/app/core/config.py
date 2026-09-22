@@ -17,6 +17,18 @@ class Settings(BaseSettings):
     # (hoje aponta pro container de teste na mesma VPS; troca quando o MediaMTX definitivo subir)
     MEDIAMTX_RTMP_BASE_URL: str = "rtmp://168.231.96.184:1935"
 
+    # Endereço do WebRTC (WHEP) do MediaMTX visto PELO BACKEND — nunca exposto ao navegador.
+    # Dev: backend roda no host → localhost. Produção: rede Docker → http://mediamtx:8889
+    # (definido no docker-compose.prod.yml).
+    MEDIAMTX_WEBRTC_INTERNAL_URL: str = "http://localhost:8889"
+    # API de controle do MediaMTX (derrubar publicação na rotação de chave) — também só interna
+    MEDIAMTX_API_INTERNAL_URL: str = "http://localhost:9997"
+
+    # Segredo que o backend usa pra assistir streams no MediaMTX (Basic auth no WHEP).
+    # O webhook de auth só libera "read"/"playback" com ele — sem isso ninguém assiste.
+    # Vem do .env / .env.production, nunca fixado no código.
+    MEDIAMTX_READ_SECRET: Optional[str] = None
+
     # Auvo API
     AUVO_API_KEY: str
     AUVO_API_TOKEN: str

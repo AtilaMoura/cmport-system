@@ -27,6 +27,10 @@ services:
     container_name: cmport_api
     restart: unless-stopped
     env_file: .env.production
+    environment:
+      # MediaMTX visto de dentro da cmport_net (MEDIAMTX_READ_SECRET vem do .env.production)
+      MEDIAMTX_WEBRTC_INTERNAL_URL: http://mediamtx:8889
+      MEDIAMTX_API_INTERNAL_URL: http://mediamtx:9997
     volumes:
       # Certificados do Banco Inter (não commitados no git)
       - ./backend/app/auth:/app/app/auth:ro
@@ -87,9 +91,9 @@ services:
       - ./mediamtx.yml:/mediamtx.yml:ro
     ports:
       - "1935:1935"     # RTMP push — câmeras apontam pra cá
-      - "8889:8889"     # WebRTC — player no navegador
-      - "8189:8189/udp" # WebRTC ICE
-      # API (9997) NÃO é exposta pra fora — só acessível de dentro da cmport_net
+      - "8189:8189/udp" # WebRTC ICE — o vídeo em si vai direto pro navegador por aqui
+      # WebRTC/WHEP (8889) e API (9997) NÃO são expostas pra fora — só o backend
+      # acessa pela cmport_net (a URL do WHEP contém a chave de publicação da câmera)
     depends_on:
       - backend
     networks:
