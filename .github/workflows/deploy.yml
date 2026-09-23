@@ -23,6 +23,7 @@ jobs:
           fi
           echo "backend=$(git diff --name-only $BASE_SHA HEAD | grep -q '^backend/' && echo true || echo false)" >> $GITHUB_OUTPUT
           echo "frontend=$(git diff --name-only $BASE_SHA HEAD | grep -q '^cmport-front/' && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "mediamtx=$(git diff --name-only $BASE_SHA HEAD | grep -qx 'mediamtx.yml' && echo true || echo false)" >> $GITHUB_OUTPUT
 
       - name: Login no Docker Hub
         if: steps.changes.outputs.backend == 'true' || steps.changes.outputs.frontend == 'true'
@@ -61,7 +62,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.prod.yml,nginx/"
+          # mediamtx.yml e deploy/ também — antes só chegavam via `git push vps`
+          source: "docker-compose.prod.yml,nginx/,mediamtx.yml,deploy/"
           target: /root/cmport-system/
 
       - name: Deploy na VPS
@@ -71,18 +73,44 @@ jobs:
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 30m
-          envs: PULL_BACKEND,PULL_FRONTEND
+          envs: PULL_BACKEND,PULL_FRONTEND,MEDIAMTX_MUDOU
           script: |
+            set -e
             cd /root/cmport-system
+            # schemas extras + GRANT antes do backend subir (create_all roda no import)
+            bash deploy/garantir_bancos.sh
             [ "$PULL_BACKEND" = "true" ] && docker pull cmport/cmport-api:latest || echo "==> Backend sem mudancas, pulando pull"
             [ "$PULL_FRONTEND" = "true" ] && docker pull cmport/cmport-front:latest || echo "==> Frontend sem mudancas, pulando pull"
             docker compose -f docker-compose.prod.yml up -d
             # nginx resolve frontend/backend só no boot — containers recriados mudam de IP
             # e sem reload ele segue mandando tráfego pro IP antigo (502 geral, incidente 2026-09-22)
             docker exec cmport_nginx nginx -s reload
+            # mediamtx.yml é bind-mount de arquivo único — container pode seguir vendo a versão
+            # antiga; restart só quando o arquivo mudou (câmeras reconectam em ~1 min)
+            if [ "$MEDIAMTX_MUDOU" = "true" ]; then
+              echo "==> mediamtx.yml mudou, reiniciando MediaMTX"
+              docker restart cmport_mediamtx
+            fi
             docker image prune -f
-            echo "==> Deploy concluido: $(date)"
             docker compose -f docker-compose.prod.yml ps
+
+            # Checagem final pelo nginx (mesmo caminho do usuário) — falha o workflow se o
+            # site não voltar. Front: /login = 200. API: /auth/me sem token = 401 (vivo).
+            echo "==> Verificando site..."
+            for i in $(seq 1 30); do
+              FRONT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost/login || true)
+              API=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost/api/v1/auth/me || true)
+              [ "$FRONT" = "200" ] && [ "$API" = "401" ] && break
+              sleep 3
+            done
+            echo "==> /login=$FRONT  /api/v1/auth/me=$API"
+            if [ "$FRONT" != "200" ] || [ "$API" != "401" ]; then
+              echo "==> ERRO: site não respondeu como esperado após o deploy"
+              docker logs --tail 30 cmport_nginx 2>&1 | tail -10
+              exit 1
+            fi
+            echo "==> Deploy concluido: $(date)"
         env:
           PULL_BACKEND: ${{ steps.changes.outputs.backend }}
           PULL_FRONTEND: ${{ steps.changes.outputs.frontend }}
+          MEDIAMTX_MUDOU: ${{ steps.changes.outputs.mediamtx }}

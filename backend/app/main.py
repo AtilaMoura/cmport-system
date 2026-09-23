@@ -88,8 +88,14 @@ from app.routers.mediamtx_auth_router import router as mediamtx_auth_router
 # Criar tabelas no banco (inclui a nova tabela usuarios)
 Base.metadata.create_all(bind=engine)
 
-# Criar tabelas do módulo Câmeras no schema separado (cmport_cameras)
-BaseCameras.metadata.create_all(bind=engine_cameras)
+# Criar tabelas do módulo Câmeras no schema separado (cmport_cameras).
+# Falha aqui NÃO pode derrubar o processo — financeiro roda no mesmo container
+# (outage de 2026-09-22: schema sem GRANT → crash loop do backend inteiro).
+# Sem o schema, só as rotas de câmera quebram; o resto sobe normal.
+try:
+    BaseCameras.metadata.create_all(bind=engine_cameras)
+except Exception as e:
+    print(f"[Cameras] ERRO ao criar tabelas no schema de câmeras — módulo de câmeras indisponível: {e!r}", flush=True)
 
 
 def _run_migrations():
