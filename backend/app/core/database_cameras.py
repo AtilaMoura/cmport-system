@@ -18,6 +18,10 @@ class BaseCameras(DeclarativeBase):
 engine_cameras = create_engine(
     settings.CAMERAS_DATABASE_URL,
     echo=True,
+    # webhook do MediaMTX pode ficar horas sem uso: sem isso, a 1ª chamada depois
+    # do wait_timeout do MySQL (8h) pega conexão morta → 500 → câmera não autentica
+    pool_pre_ping=True,
+    pool_recycle=3600,
 )
 
 SessionLocalCameras = sessionmaker(

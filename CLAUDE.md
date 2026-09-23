@@ -120,6 +120,9 @@ Seeds no startup: `ConfiguracaoImpostosServico` + 3 usuários (DEV/ADMIN/USUARIO
 | `/api/v1/auditoria` | `auditoria_router.py` | Audit trail de exclusões |
 | `/api/v1/configuracoes` | `configuracao_router.py` | Email accounts + empresa + contas Inter |
 | `/api/v1/dev` | `dev_router.py` | Utilitários DEV (role=DEV) |
+| `/api/v1/postes` | `poste_router.py` | Câmeras — postes (schema `cmport_cameras`) |
+| `/api/v1/cameras` | `camera_router.py` | Câmeras — CRUD, status online, rotação de chave, WebRTC (`/{id}/webrtc`) |
+| `/api/v1/mediamtx` | `mediamtx_auth_router.py` | Webhook de auth do MediaMTX — **público** (chamado pelo servidor de mídia) |
 
 Todos exceto `/auth` exigem JWT via `get_current_user` (injetado globalmente em `main.py`).
 

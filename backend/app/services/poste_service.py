@@ -12,10 +12,20 @@ from sqlalchemy.orm import Session
 from app.models.poste_model import Poste
 from app.repositories.poste_repository import PosteRepository
 from app.schemas.poste_schema import PosteCreate, PosteUpdate, PosteResponse
-from app.services.condominio_lookup_service import buscar_condominio_ou_404 as _buscar_condominio
+from app.services.condominio_lookup_service import buscar_condominio_ou_404 as _buscar_condominio, nomes_por_ids
 
 
 class PosteService:
+
+    @staticmethod
+    def _checar_sem_cameras_ativas(poste: Poste) -> None:
+        # câmera ativa num poste desativado some do painel mas segue publicando
+        ativas = [c for c in poste.cameras if c.ativo]
+        if ativas:
+            raise HTTPException(
+                400,
+                f"Poste tem {len(ativas)} câmera(s) ativa(s) — mova ou desative antes.",
+            )
 
     @staticmethod
     def _resp(poste: Poste, condominio_nome: Optional[str] = None) -> PosteResponse:
@@ -31,7 +41,8 @@ class PosteService:
     @staticmethod
     def listar(db: Session, condominio_id: Optional[int] = None, incluir_inativos: bool = False) -> List[PosteResponse]:
         postes = PosteRepository.listar(db, condominio_id=condominio_id, incluir_inativos=incluir_inativos)
-        return [PosteService._resp(p) for p in postes]
+        nomes = nomes_por_ids(p.condominio_id for p in postes)
+        return [PosteService._resp(p, condominio_nome=nomes.get(p.condominio_id)) for p in postes]
 
     @staticmethod
     def obter(db: Session, poste_id: int) -> PosteResponse:
@@ -63,6 +74,8 @@ class PosteService:
         if "observacao" in dados:
             poste.observacao = (dados["observacao"] or "").strip() or None
         if "ativo" in dados:
+            if not dados["ativo"]:
+                PosteService._checar_sem_cameras_ativas(poste)
             poste.ativo = dados["ativo"]
         poste = PosteRepository.save(db, poste)
         condominio = _buscar_condominio(poste.condominio_id)
@@ -74,5 +87,6 @@ class PosteService:
         poste = PosteRepository.get_by_id(db, poste_id)
         if not poste:
             raise HTTPException(404, "Poste não encontrado.")
+        PosteService._checar_sem_cameras_ativas(poste)
         poste.ativo = False
         PosteRepository.save(db, poste)

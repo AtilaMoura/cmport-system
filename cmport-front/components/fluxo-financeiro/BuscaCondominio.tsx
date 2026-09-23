@@ -12,9 +12,10 @@ interface Props {
   value: number | '';
   onChange: (id: number | '', nome?: string) => void;
   placeholder: string;
+  label?: string;
 }
 
-export function BuscaCondominio({ value, onChange, placeholder }: Props) {
+export function BuscaCondominio({ value, onChange, placeholder, label = 'Condomínio (filtro)' }: Props) {
   const [busca, setBusca] = useState('');
   const [resultados, setResultados] = useState<CondominioOpcao[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -63,7 +64,7 @@ export function BuscaCondominio({ value, onChange, placeholder }: Props) {
 
   return (
     <div>
-      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Condomínio (filtro)</label>
+      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">{label}</label>
       {selecionado ? (
         <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30">
           <span className="text-sm font-semibold text-orange-700 dark:text-orange-400 truncate">{nomeSel}</span>

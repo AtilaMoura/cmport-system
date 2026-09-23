@@ -72,6 +72,12 @@ export default function Sidebar() {
       ],
     },
     {
+      label: 'MONITORAMENTO',
+      items: [
+        { name: 'Câmeras', icon: '📹', href: '/cameras', roles: ['DEV', 'ADMIN', 'USUARIO'] },
+      ],
+    },
+    {
       label: 'CMPORT',
       items: [
         { name: 'Demandas Dev', icon: '💬', href: '/demandas-dev', roles: ['DEV', 'ADMIN', 'USUARIO'] },

@@ -18,11 +18,12 @@ class Settings(BaseSettings):
     MEDIAMTX_RTMP_BASE_URL: str = "rtmp://168.231.96.184:1935"
 
     # Endereço do WebRTC (WHEP) do MediaMTX visto PELO BACKEND — nunca exposto ao navegador.
-    # Dev: backend roda no host → localhost. Produção: rede Docker → http://mediamtx:8889
-    # (definido no docker-compose.prod.yml).
-    MEDIAMTX_WEBRTC_INTERNAL_URL: str = "http://localhost:8889"
-    # API de controle do MediaMTX (derrubar publicação na rotação de chave) — também só interna
-    MEDIAMTX_API_INTERNAL_URL: str = "http://localhost:9997"
+    # Dev: backend roda no host → 127.0.0.1 (NÃO "localhost": no Windows tenta IPv6 antes,
+    # a porta só escuta em IPv4 e cada chamada perde ~2s). Produção: rede Docker →
+    # http://mediamtx:8889 (definido no docker-compose.prod.yml).
+    MEDIAMTX_WEBRTC_INTERNAL_URL: str = "http://127.0.0.1:8889"
+    # API de controle do MediaMTX (status online, derrubar publicação) — também só interna
+    MEDIAMTX_API_INTERNAL_URL: str = "http://127.0.0.1:9997"
 
     # Segredo que o backend usa pra assistir streams no MediaMTX (Basic auth no WHEP).
     # O webhook de auth só libera "read"/"playback" com ele — sem isso ninguém assiste.

@@ -1,13 +1,13 @@
 """
 camera_router.py — handlers FastAPI de Camera. Só chama o service.
-Prefixo montado em main.py: /api/v1/cameras
+Prefixo montado em main.py: /api/v1/cameras (JWT exigido globalmente)
 """
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database_cameras import SessionLocalCameras
-from app.core.dependencies import get_current_user, require_admin
-from app.models.usuario_model import Usuario
 from app.schemas.camera_schema import (
     CameraCreate, CameraUpdate, CameraResponse, CameraWebRTCOffer, CameraWebRTCAnswer,
 )
@@ -24,14 +24,27 @@ def get_db_cameras():
         db.close()
 
 
+@router.get("", response_model=list[CameraResponse])
+@router.get("/", response_model=list[CameraResponse])
+def listar(
+    condominio_id: Optional[int] = None,
+    poste_id: Optional[int] = None,
+    incluir_inativas: bool = False,
+    db: Session = Depends(get_db_cameras),
+):
+    """Lista geral (painel) — com nome do condomínio/poste e status online."""
+    return CameraService.listar(
+        db, condominio_id=condominio_id, poste_id=poste_id, incluir_inativas=incluir_inativas,
+    )
+
+
 @router.get("/por-poste/{poste_id}", response_model=list[CameraResponse])
 def listar_por_poste(
     poste_id: int,
     incluir_inativas: bool = False,
     db: Session = Depends(get_db_cameras),
-    usuario: Usuario = Depends(get_current_user),
 ):
-    return CameraService.listar_por_poste(db, poste_id, usuario, incluir_inativas=incluir_inativas)
+    return CameraService.listar(db, poste_id=poste_id, incluir_inativas=incluir_inativas)
 
 
 @router.get("/por-condominio/{condominio_id}", response_model=list[CameraResponse])
@@ -39,48 +52,30 @@ def listar_por_condominio(
     condominio_id: int,
     incluir_inativas: bool = False,
     db: Session = Depends(get_db_cameras),
-    usuario: Usuario = Depends(get_current_user),
 ):
     """Todas as câmeras do condomínio — com poste ou avulsas."""
-    return CameraService.listar_por_condominio(db, condominio_id, usuario, incluir_inativas=incluir_inativas)
+    return CameraService.listar(db, condominio_id=condominio_id, incluir_inativas=incluir_inativas)
 
 
 @router.post("", response_model=CameraResponse, status_code=201)
 @router.post("/", response_model=CameraResponse, status_code=201)
-def criar(
-    req: CameraCreate,
-    db: Session = Depends(get_db_cameras),
-    usuario: Usuario = Depends(get_current_user),
-):
-    return CameraService.criar(db, req, usuario)
+def criar(req: CameraCreate, db: Session = Depends(get_db_cameras)):
+    return CameraService.criar(db, req)
 
 
 @router.get("/{camera_id}", response_model=CameraResponse)
-def obter(
-    camera_id: int,
-    db: Session = Depends(get_db_cameras),
-    usuario: Usuario = Depends(get_current_user),
-):
-    return CameraService.obter(db, camera_id, usuario)
+def obter(camera_id: int, db: Session = Depends(get_db_cameras)):
+    return CameraService.obter(db, camera_id)
 
 
 @router.patch("/{camera_id}", response_model=CameraResponse)
-def editar(
-    camera_id: int,
-    req: CameraUpdate,
-    db: Session = Depends(get_db_cameras),
-    usuario: Usuario = Depends(get_current_user),
-):
-    return CameraService.editar(db, camera_id, req, usuario)
+def editar(camera_id: int, req: CameraUpdate, db: Session = Depends(get_db_cameras)):
+    return CameraService.editar(db, camera_id, req)
 
 
 @router.post("/{camera_id}/rotacionar-chave", response_model=CameraResponse)
-def rotacionar_chave(
-    camera_id: int,
-    db: Session = Depends(get_db_cameras),
-    _admin: Usuario = Depends(require_admin),
-):
-    """Gera nova chave RTMP (ADMIN/DEV). A câmera precisa ser reconfigurada com a nova URL."""
+def rotacionar_chave(camera_id: int, db: Session = Depends(get_db_cameras)):
+    """Gera nova chave RTMP. A câmera precisa ser reconfigurada com a nova URL."""
     return CameraService.rotacionar_chave(db, camera_id)
 
 

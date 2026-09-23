@@ -35,6 +35,8 @@ class CameraCreate(CameraBase):
 
 class CameraUpdate(BaseModel):
     nome: Optional[str] = Field(None, min_length=2, max_length=150)
+    # mover de poste (mesmo condomínio) — null = câmera avulsa, sem poste
+    poste_id: Optional[int] = None
     canal: Optional[int] = Field(None, ge=1)
     nvr_ip: Optional[str] = Field(None, max_length=45)
     nvr_porta: Optional[int] = Field(None, ge=1, le=65535)
@@ -48,6 +50,7 @@ class CameraResponse(BaseModel):
     condominio_id: int
     condominio_nome: Optional[str] = None
     poste_id: Optional[int] = None
+    poste_nome: Optional[str] = None
     nome: str
     tipo_conexao: str
     canal: Optional[int] = None
@@ -55,11 +58,13 @@ class CameraResponse(BaseModel):
     nvr_porta: Optional[int] = None
     nvr_usuario: Optional[str] = None
     # nvr_senha nunca volta na resposta — só é usada internamente pra montar a URL RTSP
-    # rtmp_stream_key/rtmp_url só voltam pra ADMIN/DEV — a chave é a credencial de
-    # publicação da câmera (quem tem a chave consegue substituir o vídeo)
+    # rtmp_stream_key/rtmp_url: credencial de publicação da câmera — só trafega pra
+    # staff logado (JWT); o player nunca usa a chave (ver CameraService.iniciar_webrtc)
     rtmp_stream_key: Optional[str] = None
     rtmp_url: Optional[str] = None
     ativo: bool
+    # recebendo vídeo agora? (API do MediaMTX) — None = não consultado/indisponível
+    online: Optional[bool] = None
     criado_em: datetime
     atualizado_em: datetime
 

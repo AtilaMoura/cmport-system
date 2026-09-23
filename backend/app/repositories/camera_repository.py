@@ -2,12 +2,29 @@
 camera_repository.py — queries e CRUD de Camera (sem lógica de negócio).
 """
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.camera_model import Camera
 
 
 class CameraRepository:
+
+    @staticmethod
+    def listar(
+        db: Session,
+        condominio_id: Optional[int] = None,
+        poste_id: Optional[int] = None,
+        incluir_inativas: bool = False,
+    ) -> List[Camera]:
+        """Lista geral com filtros opcionais — poste carregado junto (nome na listagem)."""
+        q = db.query(Camera).options(joinedload(Camera.poste))
+        if condominio_id is not None:
+            q = q.filter(Camera.condominio_id == condominio_id)
+        if poste_id is not None:
+            q = q.filter(Camera.poste_id == poste_id)
+        if not incluir_inativas:
+            q = q.filter(Camera.ativo.is_(True))
+        return q.order_by(Camera.condominio_id, Camera.nome).all()
 
     @staticmethod
     def listar_por_poste(db: Session, poste_id: int, incluir_inativas: bool = False) -> List[Camera]:

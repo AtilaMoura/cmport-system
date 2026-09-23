@@ -2,7 +2,7 @@
 poste_repository.py — queries e CRUD de Poste (sem lógica de negócio).
 """
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.poste_model import Poste
 
@@ -11,7 +11,8 @@ class PosteRepository:
 
     @staticmethod
     def listar(db: Session, condominio_id: Optional[int] = None, incluir_inativos: bool = False) -> List[Poste]:
-        q = db.query(Poste)
+        # câmeras carregadas junto (total_cameras na listagem, sem N+1)
+        q = db.query(Poste).options(selectinload(Poste.cameras))
         if not incluir_inativos:
             q = q.filter(Poste.ativo.is_(True))
         if condominio_id is not None:
