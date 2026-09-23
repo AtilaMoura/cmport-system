@@ -13,14 +13,16 @@ interface Props {
   onChange: (id: number | '', nome?: string) => void;
   placeholder: string;
   label?: string;
+  // nome do condomínio já selecionado (edição) — sem isso o chip aparece vazio
+  nomeInicial?: string;
 }
 
-export function BuscaCondominio({ value, onChange, placeholder, label = 'Condomínio (filtro)' }: Props) {
+export function BuscaCondominio({ value, onChange, placeholder, label = 'Condomínio (filtro)', nomeInicial = '' }: Props) {
   const [busca, setBusca] = useState('');
   const [resultados, setResultados] = useState<CondominioOpcao[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [aberto, setAberto] = useState(false);
-  const [nomeSel, setNomeSel] = useState('');
+  const [nomeSel, setNomeSel] = useState(nomeInicial);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buscarApi = useCallback(async (texto: string) => {

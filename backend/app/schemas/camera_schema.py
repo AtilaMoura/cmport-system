@@ -35,7 +35,10 @@ class CameraCreate(CameraBase):
 
 class CameraUpdate(BaseModel):
     nome: Optional[str] = Field(None, min_length=2, max_length=150)
-    # mover de poste (mesmo condomínio) — null = câmera avulsa, sem poste
+    # trocar de condomínio — sem poste_id junto, a câmera fica sem poste
+    # (o poste antigo é do outro condomínio). Chave RTMP não muda.
+    condominio_id: Optional[int] = None
+    # mover de poste (do condomínio da câmera) — null = câmera avulsa, sem poste
     poste_id: Optional[int] = None
     canal: Optional[int] = Field(None, ge=1)
     nvr_ip: Optional[str] = Field(None, max_length=45)

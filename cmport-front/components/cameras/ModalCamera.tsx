@@ -47,6 +47,7 @@ export default function ModalCamera({ camera, condominioInicial, posteInicialId 
   }, [condominioId]);
 
   const trocarCondominio = (id: number | '') => {
+    // poste é do condomínio anterior — volta pra "sem poste"
     setCondominioId(id);
     setPosteId(null);
     setPostes([]);
@@ -72,7 +73,9 @@ export default function ModalCamera({ camera, condominioInicial, posteInicialId 
       } : {};
 
       if (editando) {
-        const salva = await camerasApi.editarCamera(camera.id, { nome: nome.trim(), poste_id: posteId, ...camposRtsp });
+        const salva = await camerasApi.editarCamera(camera.id, {
+          nome: nome.trim(), condominio_id: condominioId, poste_id: posteId, ...camposRtsp,
+        });
         onSalvo(salva);
         return;
       }
@@ -103,17 +106,17 @@ export default function ModalCamera({ camera, condominioInicial, posteInicialId 
     );
   }
 
-  const nomeCondominio = camera?.condominio_nome ?? condominioInicial?.nome;
-
   return (
     <Modal titulo={editando ? 'Editar câmera' : 'Nova câmera'} onFechar={onFechar}>
       <div className="space-y-4">
-        {editando || condominioInicial ? (
+        {condominioInicial && !editando ? (
           <Campo label="Condomínio">
-            <div className="px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold">{nomeCondominio}</div>
+            <div className="px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold">{condominioInicial.nome}</div>
           </Campo>
         ) : (
-          <BuscaCondominio label="Condomínio" value={condominioId} onChange={trocarCondominio} placeholder="Digite o nome do condomínio..." />
+          // na edição dá pra trocar o condomínio (× no chip) — a chave RTMP não muda
+          <BuscaCondominio label="Condomínio" value={condominioId} onChange={trocarCondominio}
+            nomeInicial={camera?.condominio_nome ?? ''} placeholder="Digite o nome do condomínio..." />
         )}
 
         <Campo label="Poste">

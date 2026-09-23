@@ -193,6 +193,13 @@ class CameraService:
         dados = req.model_dump(exclude_unset=True)
         if "nome" in dados:
             camera.nome = dados["nome"].strip()
+        # condomínio antes do poste: o poste é validado contra o condomínio (novo) da câmera
+        novo_condominio = dados.get("condominio_id")
+        if novo_condominio is not None and novo_condominio != camera.condominio_id:
+            buscar_condominio_ou_404(novo_condominio)
+            camera.condominio_id = novo_condominio
+            if "poste_id" not in dados:
+                camera.poste_id = None
         if "poste_id" in dados:
             if dados["poste_id"] is not None:
                 CameraService._validar_poste(db, dados["poste_id"], camera.condominio_id)

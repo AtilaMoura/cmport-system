@@ -61,6 +61,7 @@ export const camerasApi = {
     api.get<Camera[]>('/cameras', { params }).then(r => r.data),
   obterCamera: (id: number) => api.get<Camera>(`/cameras/${id}`).then(r => r.data),
   criarCamera: (dados: CameraForm) => api.post<Camera>('/cameras', dados).then(r => r.data),
+  // condominio_id na edição = trocar de condomínio (poste volta pra nenhum se não vier junto)
   editarCamera: (id: number, dados: Partial<CameraForm> & { ativo?: boolean }) =>
     api.patch<Camera>(`/cameras/${id}`, dados).then(r => r.data),
   rotacionarChave: (id: number) =>
