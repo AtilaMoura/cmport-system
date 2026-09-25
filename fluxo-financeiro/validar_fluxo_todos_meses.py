@@ -31,7 +31,7 @@ EMPRESAS = {
     ),
 }
 
-BASE = "http://168.231.96.184/api/v1"
+BASE = "https://dash.cmport.com.br/api/v1"
 LOGIN = {"email": "atilagmoura@gmail.com", "senha": "22164855"}
 
 ANO = 2026

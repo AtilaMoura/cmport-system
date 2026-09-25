@@ -40,7 +40,7 @@ INDEX_PATH = BASE_DIR / "INDEX.md"
 RESOLVIDAS_PATH = BASE_DIR / "RESOLVIDAS.md"
 STATE_PATH = BASE_DIR / ".state.json"
 
-BASE_URL = "http://168.231.96.184/api/v1"
+BASE_URL = "https://dash.cmport.com.br/api/v1"
 
 STATUS_RESOLVIDOS = {"RESOLVIDA", "DESCARTADA"}
 MARCADOR_ANALISE = "## Nossa análise"

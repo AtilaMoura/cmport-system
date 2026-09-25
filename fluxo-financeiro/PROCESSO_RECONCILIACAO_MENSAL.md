@@ -267,7 +267,7 @@ Esperar ~5-8s e testar `curl http://127.0.0.1:8001/openapi.json` antes de prosse
 
 ```python
 import requests
-BASE = "http://127.0.0.1:8001/api/v1"  # trocar para http://168.231.96.184/api/v1 na hora de produção
+BASE = "http://127.0.0.1:8001/api/v1"  # trocar para https://dash.cmport.com.br/api/v1 na hora de produção
 token = requests.post(f"{BASE}/auth/login", json={"email": "atila.dev@cmport.com", "senha": "..."}).json()["access_token"]
 headers = {"Authorization": f"Bearer {token}"}
 
@@ -288,7 +288,7 @@ payload = {
 requests.post(f"{BASE}/recibos", json=payload, headers=headers)
 ```
 
-Rodar primeiro contra o local (porta 8001), validar (`SELECT * FROM manutencoes_assistencias WHERE recibo_id=...`), depois repetir exatamente o mesmo payload contra produção (`http://168.231.96.184/api/v1`, direto, sem precisar subir nada — a API de produção já está sempre no ar).
+Rodar primeiro contra o local (porta 8001), validar (`SELECT * FROM manutencoes_assistencias WHERE recibo_id=...`), depois repetir exatamente o mesmo payload contra produção (`https://dash.cmport.com.br/api/v1`, direto, sem precisar subir nada — a API de produção já está sempre no ar).
 
 **Credenciais:** ver memória `auth_credentials.md` — não colar em arquivos versionados do repo.
 
