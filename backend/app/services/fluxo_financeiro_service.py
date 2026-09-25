@@ -1,7 +1,7 @@
 import calendar
 import re
-from datetime import date as date_cls
-from typing import List, Optional
+from datetime import date as date_cls, datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -25,6 +25,13 @@ EMPRESA_POR_CNPJ = {
     "22761557000188": "CMPORT",
     "65756913000188": "TEC",
 }
+
+# Cache da consulta ao portal da Prefeitura de SP (nota_id -> (quando, cancelada)).
+# Cada consulta leva 1-2s; o alerta de "nota sem boleto" roda a cada abertura da
+# tela, então cada nota é consultada no máximo 1x a cada 24h. Em memória mesmo:
+# reiniciar a API só faz a próxima abertura consultar de novo.
+_CACHE_PREFEITURA: Dict[int, Tuple[datetime, bool]] = {}
+_TTL_PREFEITURA = timedelta(hours=24)
 
 
 def normalizar_numero_nota(numero: str) -> str:
@@ -374,6 +381,19 @@ class FluxoFinanceiroService:
             (d.nota_id_1, d.nota_id_2) for d in db.query(DuplicataDispensada).all()
         }
 
+        # números de OS por nota — notas com OS diferentes são serviços diferentes
+        os_por_nota: Dict[int, set] = {}
+        ids_notas = {n.id for _, n, _ in boletos}
+        if ids_notas:
+            for nota_id, numero_os in (
+                db.query(ManutencaoAssistencia.nota_fiscal_id, ManutencaoAssistencia.numero_os)
+                .filter(ManutencaoAssistencia.nota_fiscal_id.in_(ids_notas),
+                        ManutencaoAssistencia.numero_os.isnot(None))
+                .all()
+            ):
+                if (numero_os or "").strip():
+                    os_por_nota.setdefault(nota_id, set()).add(numero_os.strip())
+
         alertas: List[AlertaDuplicata] = []
         vistos = set()
         for i, (b1, n1, c1) in enumerate(boletos):
@@ -383,6 +403,13 @@ class FluxoFinanceiroService:
                 if abs(float(b1.valor_nominal) - float(b2.valor_nominal)) > 0.01:
                     continue
                 if abs((b1.data_pagamento - b2.data_pagamento).days) > 2:
+                    continue
+                # notas de meses diferentes não são duplicata (competências diferentes)
+                if FluxoFinanceiroService._mes_da_nota(n1) != FluxoFinanceiroService._mes_da_nota(n2):
+                    continue
+                # as duas com OS e nenhuma em comum → serviços diferentes, não duplicata
+                os1, os2 = os_por_nota.get(n1.id), os_por_nota.get(n2.id)
+                if os1 and os2 and not (os1 & os2):
                     continue
                 chave = tuple(sorted([n1.id, n2.id]))
                 if chave in vistos or chave in dispensados:
@@ -400,6 +427,35 @@ class FluxoFinanceiroService:
                     data_pagamento_2=b2.data_pagamento,
                 ))
         return alertas
+
+    @staticmethod
+    def _mes_da_nota(nota: NotaFiscal) -> Optional[Tuple[int, int]]:
+        """(ano, mês) de referência da nota — data de emissão; sem ela, o vencimento."""
+        ref = nota.data_emissao or nota.data_vencimento
+        return (ref.year, ref.month) if ref else None
+
+    @staticmethod
+    def _cancelada_na_prefeitura(db: Session, nota_id: int) -> bool:
+        """Consulta ao vivo o portal da Prefeitura de SP (NotaFiscalService.verificar_cancelamento_prefeitura_sp)
+        e, se a nota estiver cancelada lá, já corrige o status local pra CANCELADA. Resultado em cache
+        por 24h. Nota que não dá pra verificar (produto/NF-e, outra cidade, sem XML) ou falha de
+        conexão com o portal → False (continua no alerta, como antes)."""
+        from app.services.nota_fiscal_service import NotaFiscalService
+
+        agora = datetime.now()
+        em_cache = _CACHE_PREFEITURA.get(nota_id)
+        if em_cache and agora - em_cache[0] < _TTL_PREFEITURA:
+            return em_cache[1]
+        try:
+            resultado = NotaFiscalService.verificar_cancelamento_prefeitura_sp(db, nota_id, corrigir=True)
+        except Exception:
+            return False
+        cancelada = bool(resultado.get("cancelada"))
+        motivo = resultado.get("motivo") or ""
+        # erro de portal/conexão não entra no cache — tenta de novo na próxima abertura
+        if resultado.get("verificavel") or not motivo.startswith(("erro", "portal")):
+            _CACHE_PREFEITURA[nota_id] = (agora, cancelada)
+        return cancelada
 
     @staticmethod
     def dispensar_duplicata(db: Session, nota_id_1: int, nota_id_2: int) -> None:
@@ -479,6 +535,10 @@ class FluxoFinanceiroService:
             if tem_boleto_ativo(nota.id):
                 continue
             if nota.nota_vinculada_id and tem_boleto_ativo(nota.nota_vinculada_id):
+                continue
+            # antes de alertar, confere na Prefeitura: nota cancelada lá (reemitida, p.ex.)
+            # não é pendência — o status local vira CANCELADA e ela sai do alerta
+            if FluxoFinanceiroService._cancelada_na_prefeitura(db, nota.id):
                 continue
             tipo = nota.tipo.value if hasattr(nota.tipo, "value") else str(nota.tipo)
             alertas.append(AlertaNotaSemBoleto(
