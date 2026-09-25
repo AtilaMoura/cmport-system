@@ -226,6 +226,31 @@ export default function Sidebar() {
             <ThemeToggle />
           </div>
 
+          {/* Usuário + Sair compacto — celular/tablet (o card completo abaixo só aparece no lg) */}
+          {user && (
+            <div className="lg:hidden flex items-center gap-2 px-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-lg flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {user.nome.substring(0, 2).toUpperCase()}
+                </span>
+              </div>
+              <span className="flex-1 min-w-0 text-sm font-semibold text-slate-700 dark:text-slate-300 truncate">
+                {user.nome}
+              </span>
+              <button
+                onClick={logout}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors shrink-0"
+              >
+                Sair
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </button>
+            </div>
+          )}
+
           {/* Card usuário — escondido no md para economizar espaço */}
           {user && (
             <div className="hidden lg:block px-2 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
