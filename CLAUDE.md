@@ -39,6 +39,7 @@ Fluxo (`.github/workflows/deploy.yml`): build backend/frontend se mudaram → Do
 1. `deploy/garantir_bancos.sh` — cria schemas extras (`cmport_cameras`) + GRANT antes do backend subir
    `deploy/garantir_certificado.sh` — emite o certificado Let's Encrypt se faltar (senão o nginx não sobe) + hook de reload na renovação
 2. `docker compose up -d` → `nginx -s reload` (containers recriados mudam de IP; sem reload = 502 geral)
+   — se `nginx/nginx.conf` mudou, `docker restart cmport_nginx` (bind-mount de arquivo único: reload lê a versão velha)
 3. restart do `cmport_mediamtx` se `mediamtx.yml` mudou (bind-mount de arquivo único)
 4. checagem: `/login`=200 e `/api/v1/auth/me`=401 via `https://dash.cmport.com.br` — senão o workflow **falha**
 

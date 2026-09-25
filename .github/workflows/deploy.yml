@@ -24,6 +24,7 @@ jobs:
           echo "backend=$(git diff --name-only $BASE_SHA HEAD | grep -q '^backend/' && echo true || echo false)" >> $GITHUB_OUTPUT
           echo "frontend=$(git diff --name-only $BASE_SHA HEAD | grep -q '^cmport-front/' && echo true || echo false)" >> $GITHUB_OUTPUT
           echo "mediamtx=$(git diff --name-only $BASE_SHA HEAD | grep -qx 'mediamtx.yml' && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "nginx=$(git diff --name-only $BASE_SHA HEAD | grep -qx 'nginx/nginx.conf' && echo true || echo false)" >> $GITHUB_OUTPUT
 
       - name: Login no Docker Hub
         if: steps.changes.outputs.backend == 'true' || steps.changes.outputs.frontend == 'true'
@@ -73,7 +74,7 @@ jobs:
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 30m
-          envs: PULL_BACKEND,PULL_FRONTEND,MEDIAMTX_MUDOU
+          envs: PULL_BACKEND,PULL_FRONTEND,MEDIAMTX_MUDOU,NGINX_MUDOU
           script: |
             set -e
             cd /root/cmport-system
@@ -86,7 +87,14 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d
             # nginx resolve frontend/backend só no boot — containers recriados mudam de IP
             # e sem reload ele segue mandando tráfego pro IP antigo (502 geral, incidente 2026-09-22)
-            docker exec cmport_nginx nginx -s reload
+            # nginx.conf também é bind-mount de arquivo único: o scp troca o arquivo e o
+            # container segue vendo o antigo — reload não basta, precisa restart (incidente 2026-09-25)
+            if [ "$NGINX_MUDOU" = "true" ]; then
+              echo "==> nginx.conf mudou, reiniciando nginx"
+              docker restart cmport_nginx
+            else
+              docker exec cmport_nginx nginx -s reload
+            fi
             # mediamtx.yml é bind-mount de arquivo único — container pode seguir vendo a versão
             # antiga; restart só quando o arquivo mudou (câmeras reconectam em ~1 min)
             if [ "$MEDIAMTX_MUDOU" = "true" ]; then
@@ -119,3 +127,4 @@ jobs:
           PULL_BACKEND: ${{ steps.changes.outputs.backend }}
           PULL_FRONTEND: ${{ steps.changes.outputs.frontend }}
           MEDIAMTX_MUDOU: ${{ steps.changes.outputs.mediamtx }}
+          NGINX_MUDOU: ${{ steps.changes.outputs.nginx }}
