@@ -3,7 +3,7 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import { setToken } from '@/lib/auth';
+import { setToken, getToken } from '@/lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,15 +16,26 @@ export default function LoginPage() {
     e.preventDefault();
     setErro('');
     setLoading(true);
+    let resp;
     try {
-      const resp = await axios.post('/api/v1/auth/login', { email, senha });
-      setToken(resp.data.access_token);
-      window.location.href = '/';
+      resp = await axios.post('/api/v1/auth/login', { email, senha });
     } catch {
       setErro('Email ou senha incorretos. Tente novamente.');
-    } finally {
       setLoading(false);
+      return;
     }
+    setToken(resp.data.access_token);
+    // Sem a sessão salva, o "/" manda de volta pro login e a tela só recarrega.
+    // Avisa em vez de ficar em loop silencioso.
+    if (!getToken()) {
+      setErro(
+        'Login aceito, mas o navegador não salvou a sessão. Confira a data/hora do aparelho ' +
+        'e se aparece aviso de segurança ("conexão não é particular") ao abrir o site.'
+      );
+      setLoading(false);
+      return;
+    }
+    window.location.href = '/';
   }
 
   return (

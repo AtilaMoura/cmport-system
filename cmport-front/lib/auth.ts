@@ -10,10 +10,17 @@ export interface JwtPayload {
   exp: number;
 }
 
+// O backend também grava esse cookie no login (Set-Cookie) — aqui os atributos
+// são os mesmos para não trocar um cookie bom por um mais fraco.
+function atributosCookie(): string {
+  const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
+  return `path=/; SameSite=Lax${secure}`;
+}
+
 export function setToken(token: string): void {
   const expires = new Date();
   expires.setDate(expires.getDate() + COOKIE_DAYS);
-  document.cookie = `${COOKIE_NAME}=${token}; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
+  document.cookie = `${COOKIE_NAME}=${token}; expires=${expires.toUTCString()}; ${atributosCookie()}`;
 }
 
 export function getToken(): string | null {
@@ -23,7 +30,7 @@ export function getToken(): string | null {
 }
 
 export function removeToken(): void {
-  document.cookie = `${COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
+  document.cookie = `${COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; ${atributosCookie()}`;
 }
 
 export function decodeToken(token: string): JwtPayload | null {
