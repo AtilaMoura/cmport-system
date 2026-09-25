@@ -61,8 +61,13 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Certificados Let's Encrypt — emitidos/renovados pelo certbot do HOST (certbot.timer)
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # Webroot do desafio HTTP-01 (certbot escreve no host, nginx serve)
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - frontend
     networks:
