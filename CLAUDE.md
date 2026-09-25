@@ -37,9 +37,10 @@ git push vps master      # só emergência (GitHub fora) — ver cuidado abaixo
 
 Fluxo (`.github/workflows/deploy.yml`): build backend/frontend se mudaram → Docker Hub (`cmport/cmport-api`, `cmport/cmport-front`) → scp de `docker-compose.prod.yml`, `nginx/`, `mediamtx.yml`, `deploy/` → SSH na VPS:
 1. `deploy/garantir_bancos.sh` — cria schemas extras (`cmport_cameras`) + GRANT antes do backend subir
+   `deploy/garantir_certificado.sh` — emite o certificado Let's Encrypt se faltar (senão o nginx não sobe) + hook de reload na renovação
 2. `docker compose up -d` → `nginx -s reload` (containers recriados mudam de IP; sem reload = 502 geral)
 3. restart do `cmport_mediamtx` se `mediamtx.yml` mudou (bind-mount de arquivo único)
-4. checagem: `/login`=200 e `/api/v1/auth/me`=401 pelo nginx — senão o workflow **falha**
+4. checagem: `/login`=200 e `/api/v1/auth/me`=401 via `https://dash.cmport.com.br` — senão o workflow **falha**
 
 **Cuidado com `git push vps master`**: o hook faz `git checkout -f master` no `/root/cmport-system` inteiro. Com `master` local desatualizada, **reverte produção**. Antes: `git fetch && git branch -f master origin/master`.
 
@@ -48,7 +49,7 @@ Fluxo (`.github/workflows/deploy.yml`): build backend/frontend se mudaram → Do
 **Servidor:** `root@168.231.96.184` | `/root/cmport-system` | SSH: `~/.ssh/id_ed25519`
 
 **Containers:**
-- `cmport_nginx` — proxy porta 80
+- `cmport_nginx` — proxy 80 (só redirect → HTTPS + desafio ACME) e 443 (`dash.cmport.com.br`)
 - `cmport_front` — Next.js :3000 interna
 - `cmport_api` — FastAPI :8000 interna
 - `cmport_db` — MySQL 8.0 (volume `db_data`) — schemas `cmport_gerenciamento` + `cmport_cameras`
@@ -56,6 +57,7 @@ Fluxo (`.github/workflows/deploy.yml`): build backend/frontend se mudaram → Do
 - `cmport_mediamtx` — câmeras: RTMP :1935 + WebRTC ICE :8189/udp (8889 e 9997 só internos)
 
 Nginx: `/` → frontend | `/api/v1/` → backend direto
+HTTPS: Let's Encrypt via **certbot do host** (webroot `/var/www/certbot`, renova pelo `certbot.timer`). Porta 443 precisa estar liberada no firewall do painel Hostinger.
 
 ```bash
 # Acesso manual
