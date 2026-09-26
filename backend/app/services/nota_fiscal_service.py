@@ -2,7 +2,9 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from fastapi import HTTPException, UploadFile
 from datetime import datetime, date
-import xml.etree.ElementTree as ET
+# defusedxml: mesmo drop-in do ElementTree, mas bloqueia XXE e "billion laughs"
+# (expansão de entidades) no parse dos XMLs/ZIPs de notas importados.
+import defusedxml.ElementTree as ET
 import zipfile
 import io
 import re

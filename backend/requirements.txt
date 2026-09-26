@@ -44,3 +44,4 @@ weasyprint==63.1
 boto3>=1.34.0
 pymupdf==1.24.10
 Pillow>=10.0.0
+defusedxml==0.7.1
